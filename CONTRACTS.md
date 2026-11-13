@@ -231,3 +231,8 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   on a blocked cell are within a few cells of a walkable one (snap to the nearest walkable cell before pathing).
   `world.heliSpawns = [{ pos, yaw, roof }]` (19 validated spots: 13 on the ground, 6 on roof decks; >= 8 m clear of solids and tree trunks,
   open sky; yaw points the nose (-z) at an unobstructed direction). Dev page: `?show=heli`, `?show=nav`.
+- (Visuals, round 6) `helicopter.js` implemented to the contract. Optional extras: `setOccupied(bool)` (pilot behind the glass), `aimGun(yaw, pitch)`
+  (slews the chin turret; `gunMuzzle` follows it), `destroyed` getter, `setHeliFxClock(fn)` (dev only). `destroy()` tilts an inner group, never `object3D`
+  (place the wreck's `object3D` on the ground, upright). Smoke/fire/rocket trails live in one shared world-space particle cloud that adds itself to whatever
+  Scene the heli/rocket is in on `update(dt)`; a rocket's trail keeps fading for ~2 s after `dispose()`. Call `rocket.update(dt)` after moving it each frame;
+  a jump of more than 30 m in one frame is treated as a teleport (no trail drawn).

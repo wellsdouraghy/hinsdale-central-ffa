@@ -10,6 +10,7 @@ import { createEffects } from '../src/visuals/effects.js';
 import { skyEquirect } from '../src/visuals/textures.js';
 import { createGrenade } from '../src/visuals/grenade.js';
 import { createCarePackage } from '../src/visuals/carePackage.js';
+import { createHelicopter, createRocket, setHeliFxClock } from '../src/visuals/helicopter.js';
 
 const Q = new URLSearchParams(location.search);
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
@@ -122,6 +123,22 @@ if (view === 'crate') {
   window.dbg.crates = [a, b];
   camera.position.set(0.3, 1.7, 0.6); camera.lookAt(0.6, 2.2, -6);
 }
+let heliRocket = null;
+if (view === 'heli') {
+  for (const m of targets) if (m !== ground) m.visible = false;
+  ground.material.color.set(0x55653f);
+  const defs = [[-15, 0, -16, 0.6, 0, 0, false], [0, 4.5, -18, 0.35, 1, 0, true], [15, 0, -16, -0.7, 0.45, 0.5, true], [30, 6, -30, -0.5, 1, 0.9, true], [-32, 0, -24, 0.9, 0, 1, false]];
+  const helis = defs.map(([x, y, z, yaw, rpm, dmg, occ], i) => {
+    const h = createHelicopter(); h.object3D.position.set(x, y, z); h.object3D.rotation.y = yaw; scene.add(h.object3D);
+    h.setRotorSpeed(rpm); h.setOccupied(occ);
+    if (dmg >= 1) h.destroy(); else h.setDamage(dmg);
+    if (i === 1) h.object3D.rotation.x = 0.06;
+    extras.push(h); return h;
+  });
+  heliRocket = createRocket(); scene.add(heliRocket.object3D); extras.push(heliRocket);
+  window.dbg.helis = helis;
+  camera.position.set(0, 3.2, 4); camera.lookAt(0, 3.2, -18);
+}
 if (Q.has('cam')) { const a = Q.get('cam').split(',').map(Number); camera.position.set(a[0], a[1], a[2]); camera.lookAt(a[3], a[4], a[5]); }
 if (view === 'gun' || Q.get('orbit') === '1') {
   if (view === 'gun' && !Q.has('cam')) camera.position.set(-0.7, 1.55, -0.45);
@@ -184,6 +201,7 @@ const hud = document.getElementById('hud');
 if (Q.get('hud') === '0') { hud.style.display = 'none'; document.getElementById('x').style.display = 'none'; }
 const clock = new THREE.Clock();
 let t = 0, fxT = 0;
+setHeliFxClock(() => t);
 const pauseAt = num('pause', Infinity), look = { x: 0, y: 0 };
 let started = false;
 function tick(dt) {
@@ -195,7 +213,14 @@ function tick(dt) {
     if (view === 'crate' && Q.get('open') === '1') extras[0].open();
   }
   t += dt;
-  for (const x of extras) x.update(dt);
+  if (heliRocket) {   // loop a rocket from the hovering heli's right pod out across the field
+    const u = (t % 2.6) / 1.3, o = heliRocket.object3D;
+    o.visible = u < 1;
+    if (u < 1) { o.position.set(1.3 + u * 26, 5.4 - u * 3.5, -19 + u * 30); o.lookAt(1.3 + 52, 5.4 - 8, -19 + 60); o.rotateY(Math.PI); }
+    if (dt > 0 && Math.floor(t / 2.6) !== Math.floor((t - dt) / 2.6)) { window.dbg.helis[1].fireRocket(1); }
+    if (dt > 0 && Math.floor(t / 0.09) !== Math.floor((t - dt) / 0.09) && Q.get('gun') === '1') window.dbg.helis[1].fireGun();
+  }
+  for (const x of extras) if (x !== heliRocket || heliRocket.object3D.visible) x.update(dt);
   st.ads += (st.adsTarget - st.ads) * Math.min(1, dt * 14);
   if (Math.abs(st.ads - st.adsTarget) < 0.002) st.ads = st.adsTarget;
   const rate = { ar: 0.085, smg: 0.07, sniper: 1.3, shotgun: 0.85, pistol: 0.22 }[st.w];
