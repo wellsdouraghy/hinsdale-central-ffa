@@ -112,6 +112,7 @@
         <div id="ctf-blue" class="ctf-team blue hidden"><div class="ctf-score"><b id="ctf-blue-score">0</b><span class="ctf-name">Lions</span></div><div class="ctf-flag" id="ctf-blue-flag">Home</div></div>
       </div>
       <div id="markers"></div>
+      <div id="speakers"></div>
       <div id="announce"></div>
       <div id="carry-msg" class="hidden">You have the flag &middot; return it to your base</div>
 
@@ -124,10 +125,24 @@
       <div id="kill-banner"></div>
       <div id="protect-msg" class="hidden">Spawn protection</div>
 
+      <div id="killcam" class="hidden">
+        <div class="kc-bar top"></div><div class="kc-bar bottom"></div>
+        <div class="kc-tag">Kill cam</div>
+        <div class="kc-info"><span class="kc-name" id="kc-name">-</span><span class="kc-meta" id="kc-meta"></span></div>
+        <div class="kc-skip"><kbd>Space</kbd> to skip</div>
+      </div>
+      <div id="cap-prompt" class="hidden"><div class="cp-text" id="cp-text"></div><div class="cp-bar"><i id="cp-fill"></i></div></div>
       <div id="bl">
+        <div id="streak-panel">
+          <div class="sp-pips" id="sp-pips"></div>
+          <div class="sp-items" id="sp-items"></div>
+        </div>
+        <div id="mic-live" class="hidden"><span class="mic-dot"></span><span class="mic-lbl">Mic live</span><span class="mic-bar"><i id="mic-level"></i></span></div>
+        <div id="armor" class="hidden"><div class="hp-label">AR</div><div class="hp-bar"><div id="armor-fill"></div></div><div id="armor-num">0</div></div>
         <div id="health"><div class="hp-label">HP</div><div class="hp-bar"><div id="hp-fill"></div></div><div id="hp-num">100</div></div>
       </div>
       <div id="br">
+        <div id="equip"><span class="eq-k">G</span><span class="eq-icon"></span><span id="eq-frags">1</span><span class="eq-cook"><i id="eq-cook"></i></span></div>
         <div id="weapon-slots"></div>
         <div id="ammo"><span id="ammo-mag">30</span><span class="sep">/</span><span id="ammo-res">120</span></div>
         <div id="weapon-name">Assault Rifle</div>
@@ -152,10 +167,10 @@
           <span>Team: <b id="team-name">Red</b></span>
           <button id="btn-team" class="btn small">Switch team</button>
         </div>
-        <div class="deploy-title" id="deploy-title">Choose your loadout</div>
+        <div class="deploy-title" id="deploy-title">Choose your class</div>
         <div id="loadout-cards" class="cards"></div>
         <div class="deploy-foot">
-          <span class="sidearm">Sidearm: <b>Pistol</b> &middot; press <kbd>1</kbd>-<kbd>4</kbd> to choose</span>
+          <span class="sidearm">press <kbd>1</kbd>-<kbd>5</kbd> to choose a class</span>
           <button id="btn-deploy" class="btn primary">Deploy</button>
         </div>
       </div>
@@ -171,7 +186,7 @@
           <button id="btn-copy" class="btn ghost small">Copy invite link</button>
         </div>
         <button id="btn-resume" class="btn primary">Resume</button>
-        <button id="btn-loadout" class="btn">Change loadout</button>
+        <button id="btn-loadout" class="btn">Change class</button>
         <button id="btn-pause-team" class="btn hidden">Switch team</button>
         <button id="btn-pause-settings" class="btn">Settings</button>
         <button id="btn-leave" class="btn danger">Leave match</button>
@@ -211,6 +226,26 @@
         <div class="end-actions">
           <button id="btn-setup-back" class="btn">Back</button>
           <button id="btn-setup-go" class="btn primary">Start</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MIC REQUIRED ================= -->
+    <section id="mic-gate" class="overlay hidden">
+      <div class="panel mic-panel">
+        <div class="end-kicker">Proximity chat</div>
+        <h2>Proximity chat is required in this lobby</h2>
+        <p>Allow microphone access to join. Your voice is always on in matches and other players hear you based on how close you are.</p>
+        <p class="mic-err" id="mic-err"></p>
+        <ul class="mic-help">
+          <li><b>Chrome / Edge:</b> click the microphone or lock icon in the address bar &rarr; Allow, then Retry.</li>
+          <li><b>Safari:</b> Safari &rarr; Settings for This Website &rarr; Microphone &rarr; Allow.</li>
+          <li><b>Firefox:</b> click the microphone icon in the address bar and remove the block.</li>
+          <li>On macOS also check System Settings &rarr; Privacy &amp; Security &rarr; Microphone for your browser.</li>
+        </ul>
+        <div class="end-actions">
+          <button id="btn-mic-leave" class="btn">Leave</button>
+          <button id="btn-mic-retry" class="btn primary">Retry</button>
         </div>
       </div>
     </section>

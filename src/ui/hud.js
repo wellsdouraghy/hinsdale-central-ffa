@@ -32,7 +32,14 @@ export function createHud() {
     ctfRedFlag: $('ctf-red-flag'), ctfBlueFlag: $('ctf-blue-flag'), carry: $('carry-msg'),
     announce: $('announce'), scorePanel: $('score-panel'),
     kit: $('kit'), kitG: $('kit-grapple'), kitD: $('kit-dash'), gInd: $('grapple-ind'),
+    kc: $('killcam'), kcName: $('kc-name'), kcMeta: $('kc-meta'),
+    cap: $('cap-prompt'), capText: $('cp-text'), capFill: $('cp-fill'),
+    pips: $('sp-pips'), items: $('sp-items'), armor: $('armor'), armorFill: $('armor-fill'), armorNum: $('armor-num'),
+    equip: $('equip'), frags: $('eq-frags'), cook: root.querySelector('.eq-cook'), cookFill: $('eq-cook'),
+    micLive: $('mic-live'), micLevel: $('mic-level'), speakers: $('speakers'),
   };
+  const spkEls = new Map();
+  const _proj = { v: null };
   const kitGBar = el.kitG.querySelector('i'), kitDBar = el.kitD.querySelector('i');
   const markers = createMarkers($('markers'));
   let announceTimer = 0;
@@ -141,7 +148,8 @@ export function createHud() {
       d.className = 'kf' + (mine ? ' me' : '');
       const st = (c) => (c ? ` style="color:${c}"` : '');
       const k = killer ? `<span class="${killerIsMe ? 'you' : ''}"${st(killerColor)}>${esc(killer)}</span>` : '';
-      d.innerHTML = `${k}<span class="w">${esc(weapon)}</span>${headshot ? '<span class="hs">HEADSHOT</span>' : ''}<span class="${victimIsMe ? 'you' : ''}"${st(victimColor)}>${esc(victim)}</span>`;
+      const icon = { FRAG: '<svg viewBox="0 0 24 20"><ellipse cx="11" cy="12" rx="6" ry="7"/><rect x="8" y="1" width="6" height="4" rx="1"/><path d="M14 2h6v2h-6z"/></svg> ', MELEE: '<svg viewBox="0 0 24 20"><path d="M2 16 16 2l3 3L5 19z"/><path d="M15 9l5 5-2 2-5-5z"/></svg> ', AIRSTRIKE: '<svg viewBox="0 0 24 20"><path d="M12 1 14 8 23 10 14 12 12 19 10 12 1 10 10 8z"/></svg> ' }[weapon] || '';
+      d.innerHTML = `${k}<span class="w">${icon}${esc(weapon)}</span>${headshot ? '<span class="hs">HEADSHOT</span>' : ''}<span class="${victimIsMe ? 'you' : ''}"${st(victimColor)}>${esc(victim)}</span>`;
       el.killfeed.prepend(d);
       while (el.killfeed.children.length > 6) el.killfeed.lastChild.remove();
       setTimeout(() => { d.style.opacity = '0'; }, 6000);
@@ -171,15 +179,15 @@ export function createHud() {
       el.sbMeta.textContent = meta;
       el.sbTitle.textContent = title;
       const head = teams
-        ? '<th>#</th><th class="name">Player</th><th>Caps</th><th>Returns</th><th>Kills</th><th>Deaths</th><th>Ping</th>'
-        : '<th>#</th><th class="name">Player</th><th>Kills</th><th>Deaths</th><th>Ping</th>';
+        ? '<th>#</th><th class="name">Player</th><th>Class</th><th>Caps</th><th>Returns</th><th>Kills</th><th>Deaths</th><th>Ping</th>'
+        : '<th>#</th><th class="name">Player</th><th>Class</th><th>Kills</th><th>Deaths</th><th>Ping</th>';
       set('sbhead', head, (v) => { el.sbHead.innerHTML = v; });
-      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}</td>${teams ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td>${r.ping}</td></tr>`;
+      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}${r.speaking ? ' <span class="spk">&#128266;</span>' : ''}</td><td class="cls">${esc(r.cls || '')}</td>${teams ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td>${r.ping}</td></tr>`;
       let html;
       if (teams) {
         html = ['red', 'blue'].map((tm) => {
           const list = rows.filter((r) => r.team === tm);
-          return `<tr class="team-head ${tm}"><td colspan="7"><span>${esc(teams.names?.[tm] ?? tm)}</span><b>${teams.score?.[tm] ?? 0}</b></td></tr>` + list.map(row).join('');
+          return `<tr class="team-head ${tm}"><td colspan="8"><span>${esc(teams.names?.[tm] ?? tm)}</span><b>${teams.score?.[tm] ?? 0}</b></td></tr>` + list.map(row).join('');
         }).join('');
       } else html = rows.map(row).join('');
       set('sbh', html, (v) => { el.sbBody.innerHTML = v; });
@@ -224,6 +232,66 @@ export function createHud() {
       const ind = !visible ? 'off' : target && g >= 50 ? 'ready' : target ? 'cool' : 'none';
       set('gind', ind, (v) => { el.gInd.className = v; });
     },
+    /** Grenades, armor, killstreak progress/items, crate capture prompt. */
+    equipment({ frags, cook, armor, visible, streak, items, uav, speed, prompt }) {
+      set('fr', frags, (v) => { el.frags.textContent = v; el.equip.classList.toggle('empty', v <= 0); });
+      const c = Math.round(cook * 40);
+      set('ck', c, (v) => { el.cook.classList.toggle('on', v > 0); el.cookFill.style.width = (v / 40 * 100) + '%'; });
+      const a = Math.round(armor);
+      set('arm', a, (v) => { el.armor.classList.toggle('hidden', v <= 0); el.armorFill.style.width = v + '%'; el.armorNum.textContent = v; });
+      // Streak pips up to the next reward (3 / 5 / 7).
+      const goal = streak < 3 ? 3 : streak < 5 ? 5 : 7;
+      const pipKey = streak + '/' + goal;
+      set('pips', pipKey, () => {
+        el.pips.innerHTML = Array.from({ length: goal }, (_, i) => `<i class="${i < streak ? 'on' : ''} ${i === goal - 1 ? 'goal' : ''}"></i>`).join('');
+      });
+      const names = { care: 'CARE PKG', uav: 'UAV', airstrike: 'AIRSTRIKE' };
+      const itemKey = items.join(',') + (uav ? '|U' : '') + (speed ? '|S' : '');
+      set('items', itemKey, () => {
+        el.items.innerHTML = items.map((it, i) => `<span>${i === items.length - 1 ? '[4] ' : ''}${names[it] || it}</span>`).join('') +
+          (uav ? '<span class="uav">UAV ACTIVE</span>' : '') + (speed ? '<span class="uav">SPEED</span>' : '');
+      });
+      const pk = prompt ? prompt.text + Math.round(prompt.progress * 50) : '';
+      set('cap', pk, () => {
+        el.cap.classList.toggle('hidden', !prompt);
+        if (prompt) { el.capText.textContent = prompt.text; el.capFill.style.width = Math.round(prompt.progress * 100) + '%'; }
+      });
+    },
+
+    /** Voice: mic-live meter + speaker icons over talking players' heads. info null hides everything. */
+    voice(info, camera) {
+      set('mic', !!info, (v) => el.micLive.classList.toggle('hidden', !v));
+      const seen = new Set();
+      if (info) {
+        el.micLevel.style.width = Math.round(info.level * 100) + '%';
+        for (const s of info.speakers) {
+          const v = (_proj.v ||= s.pos.clone()).copy(s.pos).project(camera);
+          if (v.z > 1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) continue;
+          seen.add(s.id);
+          let e = spkEls.get(s.id);
+          if (!e) {
+            e = document.createElement('div');
+            e.className = 'spk-icon';
+            e.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 9h4l5-5v16l-5-5H3z"/><path d="M16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+            el.speakers.appendChild(e);
+            spkEls.set(s.id, e);
+          }
+          e.style.transform = `translate(${((v.x + 1) / 2 * innerWidth).toFixed(1)}px, ${((1 - v.y) / 2 * innerHeight).toFixed(1)}px)`;
+        }
+      }
+      for (const [id, e] of spkEls) if (!seen.has(id)) { e.remove(); spkEls.delete(id); }
+    },
+
+    /** Kill cam overlay: { name, weapon, hp } or null. */
+    killcam(info) {
+      root.classList.toggle('killcam-on', !!info);
+      el.kc.classList.toggle('hidden', !info);
+      if (info) {
+        el.kcName.textContent = info.name;
+        el.kcMeta.textContent = `${info.weapon}${info.hp != null ? ` · ${info.hp} HP left` : ''}`;
+      }
+    },
+
     kitDenied() {
       el.kitG.classList.remove('deny');
       void el.kitG.offsetWidth;

@@ -10,12 +10,13 @@ Built from OpenStreetMap data and satellite imagery, with an optional Google Pho
 2. Everyone else clicks **Join Game** and types the code, or opens the host's invite link (**Copy invite link**).
 3. Up to 8 players. The host picks Free-for-all or Capture the Flag and can restart from the end screen.
 
-Matches are peer-to-peer (PeerJS): no game server. Keep the host's tab open; if the host leaves, the match ends.
+Matches are peer-to-peer (PeerJS): no game server. Phones and tablets get a "continue on desktop" screen. Keep the host's tab open; if the host leaves, the match ends.
 Some strict school/office/mobile networks block peer-to-peer connections.
 
 **Controls:** WASD move · Shift hold to sprint (or Ctrl, in Settings → Sprint key) · Space jump · C crouch (slide while sprinting) ·
-F grapple (F again to let go, Space to fling) · E boost dash · Space in mid-air boost jump · jump into ledges to climb ·
+G frag grenade (hold to cook) · 4 use killstreak (3 kills: care package, 5: UAV, 7: airstrike) · hold X capture a care package · F grapple (F again to let go, Space to fling) · E boost dash · Space in mid-air boost jump · jump into ledges to climb ·
 Left click fire · Right click hold to aim · Ctrl+click or Q toggle aim · R reload · 1/2 or wheel switch · V melee · Tab scoreboard · Esc menu.
+**Classes:** Rifleman, Runner, Brawler, Recon, Grappler (keys 1-5 on the deploy/death screen). **Proximity voice chat is always on in online lobbies** (microphone required; not in Practice).
 **Modes:** Free-for-all (30 kills / 10 min) or Capture the Flag, Red Devils vs Lions (3 captures / 12 min), chosen by the host. Practice has both.
 **Settings:** sensitivity, FOV, graphics quality (use Low on weaker laptops), map style (Built campus / Real 3D scan).
 

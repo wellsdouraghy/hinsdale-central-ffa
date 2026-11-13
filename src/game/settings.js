@@ -17,7 +17,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   volume: 0.8,             // master volume 0..1
   googleTilesKey: '',
   mapStyle: 'built',       // 'scan' = Google photorealistic 3D tiles (if a key is available), 'built' = built-in campus model
-  primary: 'ar',           // last chosen primary weapon
+  primary: 'ar',           // (legacy) last chosen primary weapon
+  cls: 'rifleman',         // last chosen class
   sprintKey: 'shift',      // 'ctrl' | 'shift'
   controlsRev: 2,          // bump to migrate old saved control defaults
   mode: 'ffa',             // last chosen game mode for Host / Practice: 'ffa' | 'ctf'
@@ -40,6 +41,7 @@ export function loadSettings() {
   s.volume = clampNum(s.volume, 0, 1, 0.8);
   if (!['low', 'medium', 'high'].includes(s.quality)) s.quality = 'medium';
   if (!['ar', 'smg', 'sniper', 'shotgun'].includes(s.primary)) s.primary = 'ar';
+  if (!['rifleman', 'runner', 'brawler', 'recon', 'grappler'].includes(s.cls)) s.cls = 'rifleman';
   if (typeof s.name !== 'string') s.name = '';
   if (typeof s.googleTilesKey !== 'string') s.googleTilesKey = '';
   if (!['scan', 'built'].includes(s.mapStyle)) s.mapStyle = 'built';

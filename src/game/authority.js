@@ -2,6 +2,12 @@
 // Runs in the host's browser (online) or locally (practice). Transport-agnostic: emits messages via `out`.
 import { WEAPON_STATS, maxShotDamage, MELEE } from './weapons.js';
 import { CTF, CtfRules, ctfSpawnList, ctfBases, otherTeam, TEAMS } from './ctf.js';
+import { CLASSES, DEFAULT_CLASS, classOf, meleeDamageFor } from './classes.js';
+import { Projectile, NADE, blastDamage } from './grenades.js';
+import { StreakRules } from './streaks.js';
+import * as THREE from 'three';
+
+const MAX_SPEED = 48; // m/s sanity cap for client movement (grapple + dash + fling stay well below)
 
 export const MATCH = {
   scoreLimit: 30,
@@ -45,6 +51,8 @@ export class Authority {
     this.overtime = false;
     this.endTime = now() + rulesFor(mode).timeLimit;
     this.ctf = mode === 'ctf' ? new CtfRules(this, world) : null;
+    this.streaks = new StreakRules(this);
+    this.projectiles = new Map(); // key `${owner}:${cid}` -> { owner, cid, pr: Projectile, item }
     this.pendingStates = new Map();
     this.stateTimer = 0;
     this.rosterTimer = 0;
@@ -80,11 +88,12 @@ export class Authority {
     return Math.random() < 0.5 ? 'red' : 'blue';
   }
 
-  addPlayer(id, name, { bot = false, pos = null, yaw = 0, team = null } = {}) {
+  addPlayer(id, name, { bot = false, pos = null, yaw = 0, team = null, pid = null } = {}) {
     const p = {
       id, name: this.uniqueName(name), color: this.colorIndex++, bot,
       team: this.mode === 'ctf' ? (team || this.smallerTeam()) : null,
-      kills: 0, deaths: 0, caps: 0, returns: 0, hp: 100, alive: false, life: 0, lastDmg: -100,
+      kills: 0, deaths: 0, caps: 0, returns: 0, hp: 100, armor: 0, alive: false, life: 0, lastDmg: -100,
+      cls: DEFAULT_CLASS, streak: 0, items: [], frags: 0, lastSt: null, pid,
       protectUntil: 0, respawnAt: null, pos: null, ping: bot ? null : 0, ready: false,
       botPos: pos, botYaw: yaw, claims: [], lastSeen: now(),
     };
@@ -107,6 +116,7 @@ export class Authority {
     return {
       id: p.id, name: p.name, color: p.color, team: p.team, k: p.kills, d: p.deaths, caps: p.caps, ret: p.returns,
       hp: Math.round(p.hp), alive: p.alive, life: p.life, ping: p.ping, bot: p.bot, pos: p.pos, yaw: p.botYaw ?? 0,
+      cls: p.cls, armor: p.armor, pid: p.pid,
     };
   }
 
@@ -125,6 +135,7 @@ export class Authority {
       overtime: this.overtime,
       timeLeft: this.practice ? null : Math.max(0, this.endTime - now()),
       ctf: this.ctf ? this.ctf.snapshot() : null,
+      crates: this.streaks.snapshot(),
     };
   }
 
@@ -135,14 +146,36 @@ export class Authority {
     p.lastSeen = now();
     switch (msg.t) {
       case 'ready':
+        // Sent on deploy and again after every death (after the kill cam / loadout screen).
         p.ready = true;
-        if (!p.alive && p.respawnAt === null && this.state === 'playing') this.spawn(p);
+        p.everReady = true;
+        if (CLASSES[msg.cls]) p.cls = msg.cls;
+        if (!p.alive && (p.respawnAt === null || now() >= p.respawnAt) && this.state === 'playing') this.spawn(p);
         break;
-      case 'st':
-        if (!p.alive || msg.l !== p.life) return;
+      case 'class':
+        if (CLASSES[msg.cls]) { p.cls = msg.cls; this.out({ t: 'cls', id: p.id, cls: p.cls }); }
+        break;
+      case 'st': {
+        if (!p.alive || msg.l !== p.life || !Array.isArray(msg.p)) return;
+        // Speed sanity: reject states that move implausibly fast (keeps flag pickups / hit checks honest).
+        const ls = p.lastSt;
+        if (ls && ls.l === msg.l && msg.ts > ls.ts) {
+          const dt = Math.max(0.03, msg.ts - ls.ts);
+          // (A long run of rejections means a legit local teleport, e.g. the out-of-world rescue: resync.)
+          if (Math.hypot(msg.p[0] - ls.p[0], msg.p[2] - ls.p[2]) / dt > MAX_SPEED && (p.stRejects = (p.stRejects || 0) + 1) < 20) return;
+        }
+        p.stRejects = 0;
+        p.lastSt = { l: msg.l, ts: msg.ts, p: msg.p };
         p.pos = msg.p;
         this.pendingStates.set(from, { ...msg, id: from });
         break;
+      }
+      case 'nade': this.handleThrow(p, msg); break;
+      case 'item':
+        if (p.alive && msg.item === 'uav') this.streaks.useInstant(p, 'uav');
+        break;
+      case 'capBegin': this.streaks.capBegin(p, msg.cid); break;
+      case 'capture': this.streaks.capture(p, msg.cid); break;
       case 'shot':
         if (!p.alive) return;
         p.protectUntil = 0; // firing ends spawn protection
@@ -152,7 +185,7 @@ export class Authority {
         this.handleHit(p, msg);
         break;
       case 'melee':
-        if (p.alive) this.out({ t: 'melee', id: from }, null, from);
+        if (p.alive) this.out({ t: 'melee', id: from, hit: !!msg.hit }, null, from);
         break;
       case 'team':
         this.switchTeam(p, msg.team);
@@ -189,7 +222,7 @@ export class Authority {
     if (this.ctf && a.team && a.team === v.team) return; // friendly fire off
     const w = msg.w;
     if (w !== 'melee' && !WEAPON_STATS[w]) return;
-    const dmg = Math.min(Number(msg.dmg) || 0, maxShotDamage(w));
+    const dmg = Math.min(Number(msg.dmg) || 0, w === 'melee' ? meleeDamageFor(a.cls) : maxShotDamage(w));
     if (!(dmg > 0)) return;
     // Rate limit: claims per second bounded by weapon fire rate (+ slack for multi-target shots / jitter).
     const rps = w === 'melee' ? 1 / MELEE.cooldown : WEAPON_STATS[w].rpm / 60;
@@ -207,20 +240,29 @@ export class Authority {
 
   applyDamage(a, v, amount, headshot, weapon) {
     const t = now();
-    if (t < v.protectUntil) return;
+    if (t < v.protectUntil || !v.alive) return;
+    if (v.armor > 0) {
+      const take = Math.min(v.armor, amount);
+      v.armor -= take;
+      amount -= take;
+      this.out({ t: 'armor', id: v.id, armor: Math.round(v.armor) });
+    }
     v.hp -= amount;
     v.lastDmg = t;
     if (v.hp > 0) {
-      this.out({ t: 'dmg', id: v.id, by: a.id, hp: Math.round(v.hp), amt: Math.round(amount), hs: headshot });
+      this.out({ t: 'dmg', id: v.id, by: a.id, hp: Math.round(v.hp), amt: Math.round(amount), hs: headshot, w: weapon });
       return;
     }
     v.hp = 0;
     v.alive = false;
+    v.ready = v.bot; // the client re-sends 'ready' after its kill cam / death screen
     v.deaths++;
     v.respawnAt = t + this.rules.respawnDelay;
-    a.kills++;
-    this.out({ t: 'kill', killer: a.id, victim: v.id, w: weapon, hs: headshot, kk: a.kills, vd: v.deaths });
+    if (a !== v) a.kills++;
+    this.out({ t: 'kill', killer: a.id, victim: v.id, w: weapon, hs: headshot, kk: a.kills, vd: v.deaths, khp: Math.round(a.hp) });
     this.ctf?.dropFrom(v);
+    this.streaks.onKill(a !== v ? a : null, v);
+    this.streaks.onDeath(v);
     if (!this.ctf && !this.practice && a.kills >= this.rules.scoreLimit) this.endMatch();
   }
 
@@ -232,13 +274,16 @@ export class Authority {
     else ({ pos, yaw } = this.pickSpawn(p));
     p.alive = true;
     p.hp = 100;
+    p.armor = 0;
+    p.frags = classOf(p.cls).frags;
+    p.lastSt = null;
     p.life++;
     p.respawnAt = null;
     p.pos = [pos.x, pos.y, pos.z];
     p.protectUntil = p.bot ? 0 : now() + MATCH.protect;
     p.lastDmg = -100;
     this.pendingStates.delete(p.id);
-    this.out({ t: 'spawn', id: p.id, p: [pos.x, pos.y, pos.z], yaw, life: p.life, prot: p.bot ? 0 : MATCH.protect });
+    this.out({ t: 'spawn', id: p.id, p: [pos.x, pos.y, pos.z], yaw, life: p.life, prot: p.bot ? 0 : MATCH.protect, cls: p.cls });
   }
 
   /** Spawn farthest from living enemies (random among the best few). CTF: only the team's own spawn area. */
@@ -288,11 +333,14 @@ export class Authority {
     this.overtime = false;
     this.endTime = now() + this.rules.timeLimit;
     this.ctf?.reset();
+    this.streaks.reset();
+    this.projectiles.clear();
     for (const p of this.players.values()) {
       p.kills = 0; p.deaths = 0; p.caps = 0; p.returns = 0; p.alive = false; p.respawnAt = null; p.hp = 100;
+      p.streak = 0; p.items = []; p.armor = 0;
     }
     this.out({ t: 'restart', match: this.matchInfo() });
-    for (const p of this.players.values()) if (p.ready || p.bot) this.spawn(p);
+    for (const p of this.players.values()) if (p.everReady || p.bot) { p.ready = true; this.spawn(p); }
   }
 
   // ---------- per-frame ----------
@@ -304,6 +352,8 @@ export class Authority {
         if (p.bot || p.ready) this.spawn(p);
       }
     }
+    this.updateProjectiles(dt);
+    this.streaks.update();
     if (this.ctf) {
       const capTeam = this.ctf.update();
       if (capTeam && this.state === 'playing') {
@@ -333,7 +383,7 @@ export class Authority {
       this.rosterTimer = 0;
       this.out({
         t: 'roster',
-        players: [...this.players.values()].map((p) => ({ id: p.id, k: p.kills, d: p.deaths, caps: p.caps, ret: p.returns, team: p.team, ping: p.ping, hp: Math.round(p.hp), alive: p.alive })),
+        players: [...this.players.values()].map((p) => ({ id: p.id, k: p.kills, d: p.deaths, caps: p.caps, ret: p.returns, team: p.team, ping: p.ping, hp: Math.round(p.hp), alive: p.alive, cls: p.cls, streak: p.streak })),
         match: this.matchInfo(),
       });
     }
@@ -341,6 +391,54 @@ export class Authority {
     if (this.pingTimer >= 2) {
       this.pingTimer = 0;
       this.out({ t: 'ping', ts: t });
+    }
+  }
+
+  // ---------- grenades / markers ----------
+  handleThrow(p, msg) {
+    if (!p.alive || !Array.isArray(msg.o) || !Array.isArray(msg.v)) return;
+    const kind = msg.kind === 'marker' ? 'marker' : 'frag';
+    if (kind === 'frag') {
+      if (p.frags <= 0) return;
+      p.frags--;
+    } else if (!this.streaks.consumeForMarker(p, msg.item)) return;
+    const speed = Math.hypot(msg.v[0], msg.v[1], msg.v[2]);
+    if (speed > 40) return;
+    if (p.pos && Math.hypot(msg.o[0] - p.pos[0], msg.o[2] - p.pos[2]) > 6) return;
+    const fuse = Math.max(0, Math.min(NADE.fuse, Number(msg.fuse) || 0));
+    const pr = new Projectile({ kind, pos: msg.o, vel: msg.v, fuse });
+    this.projectiles.set(`${p.id}:${msg.cid}`, { owner: p.id, cid: msg.cid, pr, item: msg.item || null });
+    p.protectUntil = 0;
+    this.out({ t: 'nade', id: p.id, cid: msg.cid, o: msg.o, v: msg.v, fuse, kind, item: msg.item || null }, null, p.id);
+  }
+
+  updateProjectiles(dt) {
+    for (const [key, e] of this.projectiles) {
+      const r = e.pr.advance(dt, this.world);
+      if (r === 'boom') {
+        this.projectiles.delete(key);
+        this.out({ t: 'boom', id: e.owner, cid: e.cid, p: e.pr.pos.toArray().map((v) => Math.round(v * 100) / 100) });
+        this.explode(e.owner, e.pr.pos, NADE.radius, NADE.maxDamage, 'frag', true);
+      } else if (r === 'rest' && e.pr.kind === 'marker') {
+        this.projectiles.delete(key);
+        this.out({ t: 'marker', id: e.owner, cid: e.cid, p: e.pr.pos.toArray().map((v) => Math.round(v * 100) / 100), item: e.item });
+        this.streaks.markerLanded(e.owner, e.item, e.pr.pos.clone());
+      }
+    }
+  }
+
+  /** Area damage attributed to `ownerId` (self damage yes; teammates spared in CTF). */
+  explode(ownerId, center, radius, max, weapon, silent = false) {
+    if (!silent) this.out({ t: 'blast', id: ownerId, p: center.toArray().map((v) => Math.round(v * 100) / 100), w: weapon });
+    if (this.state !== 'playing') return;
+    const a = this.players.get(ownerId) || { id: ownerId, kills: 0, hp: 0, team: null, bot: true };
+    const chest = new THREE.Vector3();
+    for (const v of [...this.players.values()]) {
+      if (!v.alive || !v.pos) continue;
+      if (this.ctf && v !== a && v.team && v.team === a.team) continue;
+      chest.set(v.pos[0], v.pos[1] + 1.0, v.pos[2]);
+      const dmg = blastDamage(this.world, center, chest, radius, max);
+      if (dmg > 1) this.applyDamage(a, v, dmg, false, weapon);
     }
   }
 

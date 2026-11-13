@@ -70,6 +70,9 @@ export function openPeer(onStatus = () => {}) {
 export function connectToHost(code, name, onStatus = () => {}, onData = () => {}) {
   return new Promise((resolve, reject) => {
     const peer = new Peer({ debug: 0 });
+    // Voice calls can arrive while the world is still loading: hold them until the voice mesh attaches.
+    peer._pendingCalls = [];
+    peer.on('call', (c) => { if (!peer._voiceAttached) peer._pendingCalls.push(c); });
     let done = false;
     const fail = (msg) => {
       if (done) return;

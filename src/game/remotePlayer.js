@@ -14,6 +14,7 @@ export class RemotePlayer {
     this.character = createCharacter({ color, name });
     this.character.object3D.visible = false;
     scene.add(this.character.object3D);
+    this.history = [];         // last ~8 s of states (sender clock), kept for the kill cam
     this.buffer = [];          // [{ ts (sender clock sec), p:[x,y,z], v:[...], yaw, pitch, c, s, w, g }]
     this.offset = null;        // estimate of (local clock - sender clock)
     this.life = -1;
@@ -44,6 +45,10 @@ export class RemotePlayer {
       buf.sort((x, y) => x.ts - y.ts);
     } else buf.push(s);
     if (buf.length > 40) buf.splice(0, buf.length - 40);
+    // Kill cam history (separate from the playback buffer, which is consumed as it plays).
+    const h = this.history;
+    if (!h.length || s.ts > h[h.length - 1].ts) h.push(s);
+    while (h.length && h[0].ts < s.ts - 8) h.shift();
   }
 
   /** Rebuilds the character with a new accent color (team change). */
@@ -145,6 +150,33 @@ export class RemotePlayer {
     const o = this.character.object3D;
     o.position.copy(this.feet);
     o.rotation.y = this.yaw;
+  }
+
+  /** Interpolated historical state at sender time `ts` (kill cam), or null when outside the recorded range. */
+  sampleAt(ts) {
+    const h = this.history;
+    if (!h.length || ts < h[0].ts - 0.3 || ts > h[h.length - 1].ts + 0.3) return null;
+    let a = h[0], b = h[h.length - 1];
+    for (let i = 0; i < h.length - 1; i++) if (h[i].ts <= ts && h[i + 1].ts >= ts) { a = h[i]; b = h[i + 1]; break; }
+    const k = b.ts > a.ts ? THREE.MathUtils.clamp((ts - a.ts) / (b.ts - a.ts), 0, 1) : 0;
+    return {
+      p: [lerp(a.p[0], b.p[0], k), lerp(a.p[1], b.p[1], k), lerp(a.p[2], b.p[2], k)],
+      yaw: lerpAngle(a.yaw, b.yaw, k), pitch: lerp(a.pitch, b.pitch, k), c: k < 0.5 ? a.c : b.c,
+      v: a.v, w: a.w, s: a.s, g: a.g, ga: k < 0.5 ? a.ga : b.ga,
+    };
+  }
+
+  /** Poses the character from a historical sample (kill cam playback). */
+  applySample(sm, dt) {
+    this.feet.fromArray(sm.p);
+    this.yaw = sm.yaw;
+    this.pitch = sm.pitch;
+    this.crouch = sm.c ? 1 : 0;
+    this.weapon = sm.w || this.weapon;
+    this._applyTransform();
+    this.character.object3D.visible = true;
+    this.character.setState({ speed: Math.hypot(sm.v[0], sm.v[2]), crouching: !!sm.c, aimPitch: sm.pitch, weaponId: this.weapon, grounded: sm.g !== 0, sprinting: !!sm.s });
+    this.character.update(dt);
   }
 
   /** Approximate third-person muzzle position for tracers. */

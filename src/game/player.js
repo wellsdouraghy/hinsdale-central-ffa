@@ -65,8 +65,12 @@ export class PlayerController {
     this.onFellOut = null;
     this._colliders = [];
     this._colliderCount = -1;
+    this.dynamic = [];
+    // Class modifiers (set by the game on spawn).
+    this.maxAirJumps = 1;
+    this.sprintOutMult = 1;
     // Movement kit state.
-    this.airJumps = 1;
+    this.airJumps = this.maxAirJumps;
     this.dashT = 0;
     this.grapple = null;      // { anchor: Vector3, speed, t, lastDist, stuckT }
     this.mantle = null;       // { from, to, t }
@@ -113,8 +117,12 @@ export class PlayerController {
   }
 
   /** Cache per-mesh world AABB and inverse matrix (static world). */
+  /** Extra solid meshes that come and go (care package crates). Geometry must be world-space with a boundsTree. */
+  addDynamicCollider(mesh) { this.dynamic.push(mesh); this._colliderCount = -1; }
+  removeDynamicCollider(mesh) { this.dynamic = this.dynamic.filter((m) => m !== mesh); this._colliderCount = -1; }
+
   _refreshColliders() {
-    const meshes = this.world.collisionMeshes;
+    const meshes = this.dynamic.length ? this.world.collisionMeshes.concat(this.dynamic) : this.world.collisionMeshes;
     if (meshes.length === this._colliderCount) return;
     this._colliderCount = meshes.length;
     this._colliders = meshes.filter((m) => m.geometry?.boundsTree).map((m) => {
@@ -133,7 +141,7 @@ export class PlayerController {
     this.grapple = null;
     this.mantle = null;
     this.dashT = 0;
-    this.airJumps = 1;
+    this.airJumps = this.maxAirJumps;
     this.position.copy(pos);
     this.velocity.set(0, 0, 0);
     this.yaw = yaw;
@@ -152,7 +160,7 @@ export class PlayerController {
 
   /** Seconds since sprint ended is < SPRINT_OUT, or currently sprinting/sliding. */
   gunBlocked() {
-    return this.sprinting || this.time - this.sprintEndTime < SPRINT_OUT;
+    return this.sprinting || this.time - this.sprintEndTime < SPRINT_OUT * this.sprintOutMult;
   }
 
   horizontalSpeed() { return Math.hypot(this.velocity.x, this.velocity.z); }
@@ -267,7 +275,7 @@ export class PlayerController {
     if (groundedAny && !wasGrounded && this.airTime > 0.25) this.events.push('land');
     this.grounded = groundedAny;
     this.airTime = this.grounded ? 0 : this.airTime + dt;
-    if (this.grounded) this.airJumps = 1;
+    if (this.grounded) this.airJumps = this.maxAirJumps;
 
     // Mantle onto ledges when airborne and pushing forward (or while being reeled in).
     if (!this.grounded && (input.forward > 0.2 || this.grapple) && !this.crouching) this._tryMantle();
@@ -372,7 +380,7 @@ export class PlayerController {
       this.mantle = null;
       this.grounded = true;
       this.airTime = 0;
-      this.airJumps = 1;
+      this.airJumps = this.maxAirJumps;
       const f = _m1.subVectors(m.to, m.from).setY(0).normalize();
       this.velocity.set(f.x * 3, 0, f.z * 3);
     }

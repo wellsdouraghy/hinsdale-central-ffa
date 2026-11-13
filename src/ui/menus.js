@@ -134,6 +134,9 @@ export function createMenus({ settings, onSettingsChange }) {
       ['<kbd>R</kbd>', 'Reload'],
       ['<kbd>1</kbd><kbd>2</kbd>', 'Switch / wheel'],
       ['<kbd>V</kbd>', 'Melee'],
+      ['<kbd>G</kbd>', 'Frag (hold to cook)'],
+      ['<kbd>4</kbd>', 'Use killstreak'],
+      ['<kbd>X</kbd>', 'Capture care package (hold)'],
       ['<kbd>Tab</kbd>', 'Scoreboard'],
       ['<kbd>Esc</kbd>', 'Menu'],
     ];
@@ -170,7 +173,7 @@ export function createMenus({ settings, onSettingsChange }) {
     if (deployMode === 'deploy') handlers.deploy?.();
     else if (deployMode === 'loadout') handlers.loadoutDone?.();
   });
-  renderLoadout(el.cards, settings.primary, (id) => handlers.selectPrimary?.(id));
+  renderLoadout(el.cards, settings.cls, (id) => handlers.selectClass?.(id));
 
   // ---------- end ----------
   el.restart.addEventListener('click', () => handlers.restart?.());
@@ -226,9 +229,9 @@ export function createMenus({ settings, onSettingsChange }) {
       el.deployBtn.classList.toggle('hidden', mode === 'death');
       el.deployBtn.textContent = mode === 'loadout' ? 'Done' : 'Deploy';
       el.deployTitle.innerHTML = mode === 'death'
-        ? `Next life loadout${headshot ? ' &middot; <span style="color:var(--gold)">headshot</span>' : ''}${weapon ? ' &middot; ' + esc(weapon) : ''}`
-        : mode === 'loadout' ? 'Loadout applies on your next spawn'
-          : roomCode ? `Room <b style="color:var(--gold);font-family:var(--mono);letter-spacing:.2em">${esc(roomCode)}</b> &middot; choose your loadout` : 'Choose your loadout';
+        ? `Next life class${headshot ? ' &middot; <span style="color:var(--gold)">headshot</span>' : ''}${weapon ? ' &middot; ' + esc(weapon) : ''}`
+        : mode === 'loadout' ? 'Class applies on your next spawn'
+          : roomCode ? `Room <b style="color:var(--gold);font-family:var(--mono);letter-spacing:.2em">${esc(roomCode)}</b> &middot; choose your class` : 'Choose your class';
     },
     setLoadout(id) { highlightLoadout(el.cards, id); },
     setDeathCountdown(s) {

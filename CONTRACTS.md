@@ -205,3 +205,10 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   - `createCarePackage({ team })`: team may be 'red' | 'blue' | 0 | 1 | a hex colour (default amber); `setParachute(false)` deflates the canopy over ~2.4 s;
     `open()` springs the lid and reveals the contents; call `update(dt)` every frame (beacon blink, canopy sway).
 - (Visuals, round 4b) `effects.explosion` now renders through `src/visuals/blast.js` (pooled instanced billboards, 1024 cap, procedural fire->soot shader, shock ring, streak sparks, clods, ground-faded dust, drifting smoke column). Signature unchanged.
+- (Gameplay, round 4) Calls (all optional, with `?.`): `viewmodel.melee(0.45)`, `viewmodel.throwGrenade(0.6)` (gameplay releases the
+  grenade at 55% of that), `viewmodel.setGrenadeInHand(bool)` while cooking, `character.melee()` / `character.throwGrenade()` for
+  remote players, `effects.explosion(point, { radius, surface })` (frags r=7, airstrike r=8), `effects.smokeMarker(point, { color,
+  durationSec })` (care package 0xffaa22 / airstrike 0xff3322), `createGrenade()` per live thrown frag/marker (gameplay sets
+  position + rotation each frame), `createCarePackage({ team })` with `setParachute(true)` while descending from 120 m and
+  `open()` on capture. A landed crate becomes a solid 1.2 x 0.9 x 0.9 box for player movement (gameplay-owned collider).
+  Entry is now `src/main.js` (mobile gate + intro) -> dynamic `import('./game/app.js')`, so phones never download the world.

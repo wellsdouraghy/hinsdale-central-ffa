@@ -1,5 +1,6 @@
-// Loadout selection cards (primary weapon; sidearm is always the pistol).
-import { WEAPON_STATS, PRIMARY_IDS } from '../game/weapons.js';
+// Class selection cards (primary + pistol + equipment + ability).
+import { WEAPON_STATS } from '../game/weapons.js';
+import { CLASSES, CLASS_IDS } from '../game/classes.js';
 
 // Simple original silhouettes (viewBox 0 0 120 36).
 const ICONS = {
@@ -9,27 +10,29 @@ const ICONS = {
   shotgun: 'M2 14h70v4h44v4H72l-2 3H54l-6 9h-8l4-9H22l-6 6H8l3-6H2z',
 };
 
-const MAX = { dmg: 100, rof: 900, range: 120, mob: 1.1 };
+const MAX = { dmg: 100, rof: 900, range: 120, mob: 1.25 };
 
-function bars(id) {
-  const s = WEAPON_STATS[id];
+function bars(cls) {
+  const s = WEAPON_STATS[cls.primary];
   const dmg = Math.min(1, (s.damage[0] * s.pellets) / MAX.dmg);
   const rof = Math.min(1, s.rpm / MAX.rof);
   const range = Math.min(1, s.range[1] / MAX.range);
-  const mob = Math.min(1, s.moveMult / MAX.mob);
+  const mob = Math.min(1, (s.moveMult * (cls.speedMult ?? 1)) / MAX.mob);
   return [['Damage', dmg], ['Fire rate', rof], ['Range', range], ['Mobility', mob]]
     .map(([n, v]) => `<div class="stat"><span>${n}</span><span class="sb"><i style="width:${Math.round(v * 100)}%"></i></span></div>`).join('');
 }
 
 export function renderLoadout(container, selected, onSelect) {
-  container.innerHTML = PRIMARY_IDS.map((id, i) => {
-    const s = WEAPON_STATS[id];
+  container.innerHTML = CLASS_IDS.map((id, i) => {
+    const c = CLASSES[id];
+    const s = WEAPON_STATS[c.primary];
     return `<button class="card${id === selected ? ' on' : ''}" data-id="${id}">
       <span class="ck">${i + 1}</span>
-      <div class="cn">${s.label}</div>
-      <div class="ct">${s.mode === 'auto' ? 'Full auto' : s.mode === 'bolt' ? 'Bolt action' : s.mode === 'pump' ? 'Pump action' : 'Semi auto'} &middot; ${s.mag} rds</div>
-      <svg class="gun" viewBox="0 0 120 36"><path d="${ICONS[id]}"/></svg>
-      ${bars(id)}
+      <div class="cn">${c.name}</div>
+      <div class="ct">${s.label} &middot; Pistol &middot; ${c.frags} frag${c.frags > 1 ? 's' : ''}</div>
+      <svg class="gun" viewBox="0 0 120 36"><path d="${ICONS[c.primary]}"/></svg>
+      ${bars(c)}
+      <div class="ability">${c.ability}</div>
     </button>`;
   }).join('');
   container.querySelectorAll('.card').forEach((c) => {

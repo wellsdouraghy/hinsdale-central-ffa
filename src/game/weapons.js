@@ -52,7 +52,7 @@ export const WEAPON_STATS = {
 };
 
 export const PRIMARY_IDS = ['ar', 'smg', 'sniper', 'shotgun'];
-export const MELEE = { damage: 100, range: 2.3, cooldown: 0.9 };
+export const MELEE = { damage: 55, range: 2.3, cooldown: 0.9, lungeRange: 4.5 };
 
 /** Damage of one pellet at distance d (meters), before headshot multiplier. */
 export function damageAt(stats, d) {
@@ -92,6 +92,7 @@ export class Gun {
     this.reloadStart = 0;
     this.shotIndex = 0;   // consecutive shots in current spray
     this.bloom = 0;       // extra spread from sustained fire (degrees)
+    this.reloadMult = 1;  // class modifier
   }
   refill() {
     this.ammo = this.stats.mag;
@@ -109,10 +110,11 @@ export class Gun {
     const s = this.stats;
     let dur = this.ammo === 0 ? s.reloadEmpty : s.reload;
     if (s.perShell) dur = 0.35 + s.reload * Math.min(s.mag - this.ammo, this.reserve);
+    dur *= this.reloadMult;
     this.reloading = true;
     this.reloadStart = now;
     this.reloadEnd = now + dur;
-    this.nextShell = now + 0.35 + s.reload;
+    this.nextShell = now + (0.35 + s.reload) * this.reloadMult;
     return dur;
   }
   cancelReload() { this.reloading = false; }
@@ -124,7 +126,7 @@ export class Gun {
       // Shell-by-shell: each shell loads individually so firing can interrupt the reload.
       while (this.reloading && now >= this.nextShell) {
         if (this.ammo < this.stats.mag && this.reserve > 0) { this.ammo++; this.reserve--; }
-        this.nextShell += this.stats.reload;
+        this.nextShell += this.stats.reload * this.reloadMult;
         if (this.ammo >= this.stats.mag || this.reserve <= 0) this.reloading = false;
       }
       return !this.reloading;

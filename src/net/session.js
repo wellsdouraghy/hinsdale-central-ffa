@@ -74,6 +74,7 @@ export async function createHostSession({ world, name, onStatus, mode = 'ffa' })
   authority.addPlayer(localId, name);
 
   const { peer, code } = await openPeer(onStatus);
+  authority.players.get(localId).pid = peer.id; // PeerJS id, used for voice calls
 
   const dropClient = (id) => {
     const c = clients.get(id);
@@ -106,7 +107,7 @@ export async function createHostSession({ world, name, onStatus, mode = 'ffa' })
           id = nextId++;
           byPeer.set(conn.peer, id);
           clients.set(id, { ev: conn, st: null, peerId: conn.peer });
-          authority.addPlayer(id, String(msg.name || 'Player').slice(0, 20));
+          authority.addPlayer(id, String(msg.name || 'Player').slice(0, 20), { pid: conn.peer });
           send(conn, authority.welcomeFor(id));
           return;
         }
@@ -182,7 +183,7 @@ export async function createClientSession({ code, name, onStatus }) {
     if (performance.now() / 1000 - lastHeard > HEARTBEAT_TIMEOUT) lost('Lost connection to the host.');
   }, 1000);
   session = {
-    mode: 'client', isHost: false, localId: welcome.id, roomCode: code, welcome,
+    mode: 'client', isHost: false, localId: welcome.id, roomCode: code, welcome, peer,
     set onMessage(fn) { queue.onMessage = fn; },
     onDisconnect: null,
     send(msg) { try { if (ev.open) ev.send(msg); } catch { /* closing */ } },

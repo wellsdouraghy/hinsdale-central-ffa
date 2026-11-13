@@ -6,6 +6,7 @@ const _p = new THREE.Vector3();
 const _c = new THREE.Vector3();
 
 const ICONS = {
+  nade: '<svg viewBox="0 0 24 24"><ellipse cx="12" cy="14" rx="6" ry="7"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M15 4h4v2h-4z"/></svg>',
   flag: '<svg viewBox="0 0 24 24"><path d="M5 2h2v20H5z"/><path d="M8 3h11l-3 4 3 4H8z"/></svg>',
   base: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke-width="3"/><circle cx="12" cy="12" r="3"/></svg>',
 };

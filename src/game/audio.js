@@ -12,7 +12,7 @@ const SHOT_PARAMS = {
 const FOOT_CUT = { grass: 380, dirt: 450, rubber: 500, wood: 800, metal: 1400, concrete: 950, asphalt: 850, brick: 950, glass: 1200 };
 
 export function createAudio() {
-  let ctx = null, master = null, sfx = null;
+  let ctx = null, master = null, sfx = null, muffle = null;
   let volume = 0.8;
   const buffers = {};
   const listenerPos = { x: 0, y: 0, z: 0 };
@@ -34,7 +34,12 @@ export function createAudio() {
     master.connect(comp);
     sfx = ctx.createGain();
     sfx.gain.value = 0.9;
-    sfx.connect(master);
+    // Ear-ringing muffle after close explosions: low-pass between the SFX bus and master.
+    muffle = ctx.createBiquadFilter();
+    muffle.type = 'lowpass';
+    muffle.frequency.value = 20000;
+    sfx.connect(muffle);
+    muffle.connect(master);
     build();
     return true;
   }
@@ -71,6 +76,30 @@ export function createAudio() {
         l += a * ((Math.random() * 2 - 1) - l);
         const saw = ((ph / (2 * Math.PI)) % 1) * 2 - 1;
         d[i] = (saw * 0.5 + l * 0.6) * Math.min(1, t / 0.02) * Math.exp(-t * 2.2) * (0.7 + 0.3 * Math.sin(t * 90));
+      }
+    });
+    buffers.boom = makeBuffer(sr, 2.6, (d, n) => {
+      let l1 = 0, l2 = 0, ph = 0;
+      const a = onePole(900, sr), a2 = onePole(260, sr);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        const w = Math.random() * 2 - 1;
+        l1 += a * (w - l1);
+        l2 += a2 * (w - l2);
+        ph += (2 * Math.PI * (30 + 60 * Math.exp(-t / 0.08))) / sr;
+        const x = (w * Math.exp(-t / 0.02) * 0.8 + l1 * 3 * Math.exp(-t / 0.25) + l2 * 6 * Math.exp(-t / 0.9) + Math.sin(ph) * 1.4 * Math.exp(-t / 0.35)) * Math.min(1, t / 0.002);
+        d[i] = Math.tanh(x * 2.2);
+      }
+    });
+    buffers.ring = synthTone(sr, [[3520, 0.5], [3610, 0.4]], 1.2, 0.5);
+    buffers.jet = makeBuffer(sr, 3.5, (d, n) => {
+      let l = 0;
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        const fc = 300 + 2500 * Math.exp(-Math.pow((t - 1.6) / 0.7, 2));
+        const a = onePole(fc, sr);
+        l += a * ((Math.random() * 2 - 1) - l);
+        d[i] = l * 3 * Math.sin(Math.PI * Math.min(1, t / 3.5));
       }
     });
     buffers.thrust = makeBuffer(sr, 0.4, (d, n) => {
@@ -337,6 +366,23 @@ export function createAudio() {
     thruster(pos = null) { play('thrust', pos, { gain: pos ? 0.8 : 0.55, ref: 4 }); },
     mantle() { play('magOut', null, { gain: 0.3, rate: 0.6 }); play('foot_concrete', null, { gain: 0.5, delay: 0.18 }); },
     remoteGrapple(pos) { play('clank', pos, { gain: 0.8, ref: 5 }); },
+    pin() { play('click', null, { gain: 0.5, rate: 0.7 }); play('click', null, { gain: 0.35, rate: 1.3, delay: 0.08 }); },
+    throwWhoosh() { play('swoosh', null, { gain: 0.5, rate: 1.2 }); },
+    explosion(pos) { play('boom', pos, { gain: 1.4, distanceMuffle: true, ref: 14, rolloff: 0.8 }); },
+    ringing(sec = 2) {
+      if (!ctx || !muffle) return;
+      const t = ctx.currentTime;
+      muffle.frequency.cancelScheduledValues(t);
+      muffle.frequency.setValueAtTime(500, t);
+      muffle.frequency.exponentialRampToValueAtTime(20000, t + sec);
+      play('ring', null, { gain: 0.18 });
+    },
+    jet(pos, delay = 0) { play('jet', pos, { gain: 1.2, ref: 40, rolloff: 0.4, delay: Math.max(0, delay - 1.6) }); },
+    plane(pos) { play('jet', pos, { gain: 0.9, ref: 60, rolloff: 0.3 }); },
+    crateLand(pos) { play('boom', pos, { gain: 0.35, rate: 2.2, ref: 6 }); play('clank', pos, { gain: 0.6, ref: 6 }); },
+    /** The AudioContext (for voice chat), created on the first user gesture. */
+    get context() { return ctx; },
+    get masterVolume() { return volume; },
     /** CTF stingers: 'good' | 'bad' | 'neutral' | 'capture' | 'enemyCapture' */
     jingle(kind) { play('j_' + kind, null, { gain: 0.35 }); },
   };
