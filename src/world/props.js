@@ -262,14 +262,12 @@ export function buildProps(ctx) {
   for (const [x, z, r] of [[112, 33.5, 0], [115.2, 33.5, 0], [152, 100.5, 0], [146, 100.5, 0], [183.6, 36, 1.57], [183.6, 31, 1.57], [200, 72.5, 0], [204, 72.5, 0], [-12, 54, 0.6], [34, 104, 0.9]]) barrier(ctx, x, z, r);
 
   // ---- Dickinson Field: track & field gear
-  pad(ctx, -150.5, -171, 0, 6.5, 5, 0.75, [0.08, 0.2, 0.5]);              // pole-vault pit
-  pad(ctx, -166, -166.5, 0.3, 5, 3.2, 0.6, [0.62, 0.07, 0.06]);            // high-jump pit
-  pad(ctx, -136, -33, 0, 5, 3.2, 0.6, [0.08, 0.2, 0.5]);
-  for (const [x, z] of [[-186.5, -150], [-186.5, -52], [-118.5, -150], [-118.5, -52]]) trashCan(ctx, x, z);
+  pad(ctx, -129.0, -163.1, 0, 5, 6.5, 0.75, [0.08, 0.2, 0.5]);              // pole-vault pit
+  pad(ctx, -158.8, -178.6, 0, 5, 3.2, 0.6, [0.62, 0.07, 0.06]);            // high-jump pit
   // hurdle stacks on carts
-  for (const [x, z, r] of [[-117.5, -126, 1.57], [-117.5, -80, 1.57], [-171, -30, 0]]) { ctx.B.v('paint', true).setColor(0.85, 0.85, 0.82).box(x, 0.75, z, 2.6, 1.1, 1.2, r); ctx.B.v('galv').box(x, 0.15, z, 2.8, 0.1, 1.3, r); ctx.B.c('metal').box(x, 0.7, z, 2.6, 1.4, 1.2, r); }
+  for (const [x, z, r] of [[-107.6, -126, 1.57], [-107.6, -80, 1.57], [-171, -31, 0]]) { ctx.B.v('paint', true).setColor(0.85, 0.85, 0.82).box(x, 0.75, z, 2.6, 1.1, 1.2, r); ctx.B.v('galv').box(x, 0.15, z, 2.8, 0.1, 1.3, r); ctx.B.c('metal').box(x, 0.7, z, 2.6, 1.4, 1.2, r); }
   // sideline equipment trunks / water stations
-  for (const [x, z] of [[-184.4, -121], [-184.4, -81], [-121.6, -121], [-121.6, -81]]) { ctx.B.v('paint', true).setColor(0.62, 0.07, 0.06).box(x, 0.45, z, 0.8, 0.9, 1.6); ctx.B.c('metal').box(x, 0.45, z, 0.8, 0.9, 1.6); }
+  for (const [x, z] of [[-179.9, -121], [-179.9, -81], [-121.7, -121], [-121.7, -81]]) { ctx.B.v('paint', true).setColor(0.62, 0.07, 0.06).box(x, 0.45, z, 0.8, 0.9, 1.6); ctx.B.c('metal').box(x, 0.45, z, 0.8, 0.9, 1.6); }
   portaPotty(ctx, -200, -22, 0); portaPotty(ctx, -198.6, -22, 0); portaPotty(ctx, -104, -30, 1.57);
   // ticket booth by the main gate
   { const B = ctx.B; B.v('brickRed').box(-171, 1.3, -13.5, 2.6, 2.6, 2.4, 0, 0.5); B.v('paint', true).setColor(0.62, 0.07, 0.06).box(-171, 2.7, -13.5, 3.2, 0.2, 3.0); B.c('brick').box(-171, 1.4, -13.5, 2.6, 2.8, 2.4); }
@@ -278,14 +276,14 @@ export function buildProps(ctx) {
   sled(ctx, -175, 34, 0.2); sled(ctx, -168, 50, -0.4); sled(ctx, -140, 30, 0.9);
   container(ctx, -196.5, 60, 1.57, [0.5, 0.12, 0.1]); container(ctx, -196.8, 68, 1.57, [0.25, 0.27, 0.28]);
   { const B = ctx.B; B.v('paint', true).setColor(0.3, 0.1, 0.09).box(-197, 1.4, 100, 4, 2.8, 5); B.v('galv').box(-197, 2.86, 100, 4.5, 0.12, 5.5); B.c('wood').box(-197, 1.4, 100, 4, 2.8, 5); }
-  for (const [x, z, r] of [[-158, 22, 0], [-158, 126, Math.PI]]) {
+  for (const [x, z, r] of [[-157.3, 23.5, 0], [-157.3, 123.5, Math.PI]]) {
     const B = ctx.B; const p = B.v('paint', true); p.setColor(0.9, 0.9, 0.88); const c = Math.cos(r), s = Math.sin(r); const Wp = (u, y, d) => [x + u * c + d * s, y, z - u * s + d * c];
     p.tube(Wp(-3.66, 0, 0), Wp(-3.66, 2.44, 0), 0.06, 6).tube(Wp(3.66, 0, 0), Wp(3.66, 2.44, 0), 0.06, 6).tube(Wp(-3.66, 2.44, 0), Wp(3.66, 2.44, 0), 0.06, 6).tube(Wp(-3.66, 2.44, 0), Wp(-3.66, 0, -1.8), 0.03, 5).tube(Wp(3.66, 2.44, 0), Wp(3.66, 0, -1.8), 0.03, 5).tube(Wp(-3.66, 0, -1.8), Wp(3.66, 0, -1.8), 0.03, 5);
     B.v('net').quad(Wp(-3.66, 0, -1.8), Wp(3.66, 0, -1.8), Wp(3.66, 2.44, 0), Wp(-3.66, 2.44, 0), [0, 0], [14, 0], [14, 6], [0, 6]);
     B.c('metal:mesh').box(...Wp(0, 1.2, -0.9), 7.4, 2.4, 1.8, r);
   }
   for (const z of [45, 75, 105]) { bench(ctx, -122.5, z, Math.PI / 2); }
-  bleachers(ctx, { x: -193.5, z: 78, dir: Math.PI / 2, len: 9, rows: 5, run: 0.65, rise: 0.3, frontH: 0 });
+  bleachers(ctx, { x: -193.5, z: 78, dir: Math.PI / 2, len: 9, rows: 5, run: 0.61, rise: 0.22, frontH: 0 });
   for (const [x, z] of [[-150, 74], [-149.3, 74.4], [-150.2, 74.8], [-147, 78], [-146.4, 78.5], [-160, 100], [-159.4, 100.5]]) { ctx.B.v('paint', true).setColor(0.62, 0.07, 0.06).cyl(x, 0, z, 0.24, 0.24, 1.35, 12, 1, true); ctx.B.c('rubber').box(x, 0.68, z, 0.48, 1.36, 0.48); } pad(ctx, -176, 96, 0, 3.5, 2.2, 1.1, [0.08, 0.2, 0.5]);
   tarpRoller(ctx, -131, 118, 0.1, 8);
 
@@ -296,7 +294,7 @@ export function buildProps(ctx) {
 
   // ---- baseball: field maintenance gear that doubles as cover in the open outfield
   tarpRoller(ctx, 31, 122, -0.78, 12); tarpRoller(ctx, 112, 112, 0.74, 10);
-  for (const [x, z, r] of [[66, 96.5, 0], [52, 110, 0.7], [84, 110, -0.7]]) { ctx.B.v('net').quad([x - 1.1 * Math.cos(r), 0, z + 1.1 * Math.sin(r)], [x - 1.1 * Math.cos(r), 2.1, z + 1.1 * Math.sin(r)], [x + 1.1 * Math.cos(r), 2.1, z - 1.1 * Math.sin(r)], [x + 1.1 * Math.cos(r), 0, z - 1.1 * Math.sin(r)], [0, 0], [0, 5], [5, 5], [5, 0]); ctx.B.v('paint', true).setColor(0.06, 0.16, 0.09).box(x, 1.05, z, 2.3, 2.1, 0.08, r); ctx.B.c('rubber').box(x, 1.05, z, 2.3, 2.1, 0.12, r); }
+  for (const [x, z, r] of [[68.3, 88.5, 0], [52, 112, 0.7], [84.6, 112, -0.7]]) { ctx.B.v('net').quad([x - 1.1 * Math.cos(r), 0, z + 1.1 * Math.sin(r)], [x - 1.1 * Math.cos(r), 2.1, z + 1.1 * Math.sin(r)], [x + 1.1 * Math.cos(r), 2.1, z - 1.1 * Math.sin(r)], [x + 1.1 * Math.cos(r), 0, z - 1.1 * Math.sin(r)], [0, 0], [0, 5], [5, 5], [5, 0]); ctx.B.v('paint', true).setColor(0.06, 0.16, 0.09).box(x, 1.05, z, 2.3, 2.1, 0.08, r); ctx.B.c('rubber').box(x, 1.05, z, 2.3, 2.1, 0.12, r); }
   { const B = ctx.B; const p = B.v('paint', true); p.setColor(0.1, 0.25, 0.12).box(40, 0.9, 150, 2.6, 1.2, 1.5, 0.5); p.setColor(0.9, 0.75, 0.1).box(40.3, 1.7, 150.2, 1.2, 0.5, 1.2, 0.5); B.v('rubber').tube([39, 0.35, 149], [39, 0.35, 150.6], 0.35, 8).tube([41.2, 0.35, 150], [41.2, 0.35, 151.6], 0.35, 8); B.c('metal').box(40, 0.9, 150, 2.6, 1.8, 1.5, 0.5); }
   pad(ctx, 96, 150, 0.3, 4.5, 0.4, 2.2, [0.06, 0.16, 0.09]); pad(ctx, 70, 162, 0, 5, 0.4, 2.2, [0.06, 0.16, 0.09]); pad(ctx, 34, 136, -0.6, 4.5, 0.4, 2.2, [0.06, 0.16, 0.09]);
   for (const [x, z, r] of [[44, 68, -0.6], [94, 67, 0.6]]) picnicTable(ctx, x, z, r);

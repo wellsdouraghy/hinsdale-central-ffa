@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { ensureCCW, signedArea, mulberry32, pointInRing, makeCanvas, canvasTexture } from './util.js';
 import { edgeFrame, quadFacing, wallRect, fbox, facade, roofUnit, doorFromKit, BRICK_S } from './facade.js';
+import { lampPost } from './landmarks.js';
 
 const STONE_S = 1 / 3.0;
 const SCHOOL_ID = 7822857;
@@ -141,8 +142,8 @@ function schoolFeatures(ctx) {
   // --- 55th St (north) entrances: projecting brick pavilion with a limestone portal and deep storefront doors
   {
     const F = edgeFrame(145.93, -151.5, -1.1, -147.37);      // north wall, CCW order (east -> west)
-    for (const uC of [F.L * 0.36, F.L * 0.74]) {
-      const W2 = 3.4, dep = 0.85, top = 11.0;
+    for (const [uC, W2, top] of [[84.9, 4.0, 11.7], [128.4, 3.2, 10.9]]) {
+      const dep = 0.85;
       const pa = F.P(uC - W2, 0, dep), pb = F.P(uC + W2, 0, dep); const F2 = edgeFrame(pa[0], pa[2], pb[0], pb[2]);
       brick.setColor(0.97, 0.95, 0.92);
       fbox(brick, F, uC - W2, uC + W2, 0, top, 0, dep, BRICK_S, 0, 'st');
@@ -162,58 +163,154 @@ function schoolFeatures(ctx) {
       // vertical window slot above the door, like the photo
       const fakeSt = { frame: 'frame', top: 'stone', tint: [1, 1, 1] };
       doorFromKit(ctx, F2, W2, fakeSt);
+      // tall glazed slot above the door inside the limestone surround (as on the real 55th St entrance)
+      fbox(ls, F2, W2 - 1.75, W2 - 1.25, 4.3, top - 0.9, 0, 0.14, STONE_S, 0, 'fs'); fbox(ls, F2, W2 + 1.25, W2 + 1.75, 4.3, top - 0.9, 0, 0.14, STONE_S, 0, 'fs');
+      fbox(ls, F2, W2 - 1.75, W2 + 1.75, top - 0.9, top - 0.5, 0, 0.14, STONE_S, 0, 'fsb');
+      fbox(B.v('frame'), F2, W2 - 1.25, W2 + 1.25, 4.3, top - 0.9, 0, 0.05, 1, 0, 'f');
+      wallRect(B.v('glassInt'), F2, W2 - 1.17, W2 + 1.17, 4.38, top - 0.98, 0.055, [7001 + uC, 0, 7000 + uC, 1]);
+      for (let y = 5.4; y < top - 1.2; y += 1.1) fbox(B.v('frame'), F2, W2 - 1.25, W2 + 1.25, y - 0.03, y + 0.03, 0.05, 0.09, 1, 0, 'fstb');
+      fbox(B.v('frame'), F2, W2 - 0.03, W2 + 0.03, 4.3, top - 0.9, 0.05, 0.09, 1, 0, 'fs');
       const tex = M.textDecal(['HINSDALE CENTRAL'], { w: 1024, h: 128, font: 88, color: '#2a2622', align: 'center', weight: 700, spacing: '8px' });
       addDecal(tex, F2, W2, 3.62, 3.2, 0.42, 0.15);
       B.c('brick').box(...F.P(uC, top / 2, dep / 2), 2 * W2, top, dep, F.rotY);
       const l = F.P(uC, 0, 2.6); B.solidBox('limestone', 'concrete', l[0], 0.08, l[2], 5.4, 0.16, 3.4, F.rotY, STONE_S);
     }
-    // limestone planters flanking the walks (cover)
-    for (const uC of [F.L * 0.36 - 9, F.L * 0.36 + 9, F.L * 0.74 - 9, F.L * 0.74 + 9]) {
-      const c = F.P(uC, 0, 5.5);
-      B.solidBox('limestone', 'concrete', c[0], 0.5, c[2], 7.0, 1.0, 2.2, F.rotY, STONE_S);
-      ctx.shrubs.push([c[0], 1.0, c[2], 5.6, 1.0, F.rotY]);
+  }
+  frontApproach55(ctx, addDecal);
+  grantPlaza(ctx, addDecal);
+}
+
+// US / Illinois flags on tall poles (static cloth with a baked ripple; the CTF flags are the animated ones)
+function bigFlag(ctx, x, z, kind) {
+  const { B, scene } = ctx; const H = 10.5;
+  B.v('aluminum').cyl(x, 0, z, 0.075, 0.045, H, 10, 1, true); B.v('concrete').cyl(x, 0, z, 0.3, 0.3, 0.25, 12, 1 / 3, true);
+  B.v('lightEmit').cyl(x, H, z, 0.07, 0.07, 0.12, 8, 1, true); B.c('metal').box(x, 2, z, 0.3, 4, 0.3);
+  const W = 512, Hh = 320, c = makeCanvas(W, Hh), g = c.getContext('2d');
+  if (kind === 'us') {
+    for (let i = 0; i < 13; i++) { g.fillStyle = i % 2 ? '#f4f2ee' : '#b22234'; g.fillRect(0, (i * Hh) / 13, W, Hh / 13 + 1); }
+    g.fillStyle = '#3c3b6e'; g.fillRect(0, 0, W * 0.4, (Hh * 7) / 13); g.fillStyle = '#fff';
+    for (let r = 0; r < 9; r++) for (let k = 0; k < (r % 2 ? 5 : 6); k++) { g.beginPath(); g.arc(W * 0.4 * ((k + (r % 2 ? 1 : 0.5)) / 6), (Hh * 7 / 13) * ((r + 0.7) / 9.4), 4.2, 0, 7); g.fill(); }
+  } else {
+    g.fillStyle = '#f6f5f1'; g.fillRect(0, 0, W, Hh); g.fillStyle = '#c8a24a'; g.beginPath(); g.ellipse(W / 2, Hh * 0.46, 70, 60, 0, 0, 7); g.fill();
+    g.fillStyle = '#7a4a2a'; g.beginPath(); g.ellipse(W / 2, Hh * 0.46, 38, 46, 0, 0, 7); g.fill(); g.fillStyle = '#2b55a0'; g.font = '700 44px Georgia, serif'; g.textAlign = 'center'; g.fillText('ILLINOIS', W / 2, Hh * 0.9);
+  }
+  const geo = new THREE.PlaneGeometry(2.4, 1.5, 16, 6); const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) { const u = (p.getX(i) + 1.2) / 2.4; p.setZ(i, Math.sin(u * 7 + x) * 0.14 * u); p.setY(i, p.getY(i) - 0.22 * u * u); }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: canvasTexture(c, { repeat: false }), side: THREE.DoubleSide, roughness: 0.85 }));
+  m.position.set(x + 1.25, H - 0.95, z); m.castShadow = true; m.name = 'flag-' + kind; scene.add(m);
+}
+
+// 55th St front: lawn, drop-off drive with kerbs, the main walk up to the doors flanked by limestone planters,
+// flagpoles and the monument sign by the street (positions read off the aerial imagery).
+function frontApproach55(ctx, addDecal) {
+  const { B, M } = ctx;
+  const conc = B.v('concrete');
+  for (const [x0, x1, z1, paver] of [[52.5, 69.5, -150.7, true], [15.6, 19.6, -149.6, false]]) {
+    conc.box((x0 + x1) / 2, 0.02, (-168.6 + z1) / 2, x1 - x0, 0.045, z1 + 168.6, 0, 1 / 3);
+    if (paver) {   // brick paver runner down the middle, like the engraved-brick walks at the school
+      const br = B.v('brickRed'); const a = 59.2, b = 62.8;
+      br.quad([a, 0.047, z1], [b, 0.047, z1], [b, 0.047, -168.6], [a, 0.047, -168.6], [0, 0], [1.6, 0], [1.6, 8], [0, 8]);
     }
   }
-  // --- Grant St plaza entrance (west side of the gym block): white canopy on round columns, two-storey curtain wall
+  // limestone planters with corner piers flanking the main walk (cover) + lamp posts on them, as in the photos
+  for (const x of [50.4, 71.6]) {
+    B.solidBox('limestone', 'concrete', x, 0.42, -163.4, 3.4, 0.84, 7.4, 0, STONE_S);
+    B.v('mulch').quad([x - 1.5, 0.845, -159.9], [x + 1.5, 0.845, -159.9], [x + 1.5, 0.845, -166.9], [x - 1.5, 0.845, -166.9]);
+    ctx.shrubs.push([x, 0.84, -163.4, 6.2, 0.75, Math.PI / 2]);
+    for (const z of [-167.6, -159.2]) { B.solidBox('limestone', 'concrete', x, 0.75, z, 1.15, 1.5, 1.15, 0, STONE_S); B.v('limestone').box(x, 1.56, z, 1.35, 0.12, 1.35, 0, STONE_S); }
+    lampPost(ctx, x + (x < 61 ? 1.25 : -1.25), -168.2); lampPost(ctx, x + (x < 61 ? 1.25 : -1.25), -158.6);
+  }
+  // benches + bins along the walk, bike racks by the secondary door
+  for (const [x, z, r] of [[54.6, -156, Math.PI / 2], [67.4, -156, -Math.PI / 2]]) { B.v('wood').box(x, 0.45, z, 0.45, 0.06, 1.8, 0, 0.5); B.v('blackMetal').box(x, 0.22, z - 0.8, 0.45, 0.45, 0.06).box(x, 0.22, z + 0.8, 0.45, 0.45, 0.06); B.c('wood').box(x, 0.45, z, 0.5, 0.9, 1.8); }
+  // flagpoles on the lawn east of the walk
+  bigFlag(ctx, 77.5, -164.2, 'us'); bigFlag(ctx, 81.5, -164.2, 'il');
+  // kerbs of the drop-off drive / parking bay
+  for (const [x0, x1, z] of [[4, 150, -169.75], [12, 150, -183.4]]) conc.box((x0 + x1) / 2, 0.075, z, x1 - x0, 0.15, 0.2, 0, 1 / 3);
+  // monument sign by 55th St: brick wall with limestone cap and name panel on both faces, in a planted bed
   {
-    const wx = -6.1;                         // wall plane (x), faces west
-    // curtain wall: interior-mapped glass behind an aluminium grid, set in a metal-framed recess
-    const g = B.v('glassInt');
-    g.quad([wx - 0.07, 0.45, 3], [wx - 0.07, 6.5, 3], [wx - 0.07, 6.5, -15], [wx - 0.07, 0.45, -15], [4 + 900, 0], [4 + 900, 1], [900, 1], [900, 0]);
-    const br = B.v('frameAlu');
-    for (let z = -15; z <= 3.01; z += 1.5) br.box(wx - 0.13, 3.47, z, 0.14, 6.1, 0.07);
-    for (const y of [0.45, 1.5, 3.3, 3.75, 5.2, 6.5]) br.box(wx - 0.13, y, -6, 0.14, 0.08, 18.1);
-    B.v('panelGray').box(wx - 0.1, 3.52, -6, 0.06, 0.4, 18);
-    B.v('concrete').box(wx - 0.12, 0.22, -6, 0.3, 0.45, 18.3, 0, STONE_S);
-    // main canopy: thick white metal-panel slab with a darker soffit edge and round columns
-    B.v('whitePanel').box(-11.6, 7.35, -4.5, 11.0, 0.95, 25);
-    B.v('panelGray').box(-11.6, 6.86, -4.5, 10.7, 0.04, 24.7);
-    for (let z = -16.5; z <= 7.6; z += 2.4) B.v('panelGray').box(-17.11, 7.35, z, 0.012, 0.95, 0.02);
-    B.c('metal').box(-11.6, 7.35, -4.5, 11.0, 0.95, 25);
-    for (const z of [-15.5, -9.5, -3.5, 2.5]) { B.v('whitePanel').cyl(-16.0, 0.3, z, 0.2, 0.2, 6.6, 18, 1, false); B.v('concrete').cyl(-16.0, 0, z, 0.32, 0.3, 0.3, 14, 1, true); B.c('metal').box(-16.0, 3.45, z, 0.42, 6.9, 0.42); }
-    // lower entry canopy + storefront vestibule with three sets of doors
-    B.v('whitePanel').box(-9.3, 3.85, 12.0, 6.4, 0.7, 14.5);
-    B.v('panelGray').box(-9.3, 3.49, 12.0, 6.1, 0.03, 14.2);
-    B.c('metal').box(-9.3, 3.85, 12.0, 6.4, 0.7, 14.5);
-    for (const z of [5.6, 18.4]) { B.v('whitePanel').cyl(-11.9, 0.3, z, 0.2, 0.2, 3.2, 18, 1, false); B.v('concrete').cyl(-11.9, 0, z, 0.32, 0.3, 0.3, 14, 1, true); B.c('metal').box(-11.9, 1.7, z, 0.42, 3.4, 0.42); }
-    const dep = 0.5; const Fv = edgeFrame(wx - dep, 18.2, wx - dep, 5.6);     // vestibule front, outward = west
-    const Fw = edgeFrame(wx, 18.2, wx, 5.6);
-    fbox(B.v('frameAlu'), Fw, 0, Fv.L, 0, 3.3, 0, dep, 1, 0, 'st');
-    const fakeSt = { frame: 'frameAlu', top: 'none', tint: [1, 1, 1] };
-    for (const uc of [2.1, 6.3, 10.5]) doorFromKit(ctx, Fv, uc, fakeSt, true);
-    for (const [a, b2] of [[0, 0.25], [3.95, 4.45], [8.15, 8.65], [12.35, 12.6]]) fbox(B.v('frameAlu'), Fv, a, b2, 0, 3.3, -0.05, 0, 1, 0, 'f');
-    wallRect(B.v('frameAlu'), Fv, 0, Fv.L, 2.95, 3.3, 0);
-    B.c('glass').box(wx - dep / 2, 1.65, 11.9, dep, 3.3, 12.6);
-    addDecal(emblemTexture(), edgeFrame(wx, 4.9, wx, 1.3), 1.8, 4.9, 2.6, 2.6, 0.2);
-    // lettering on the canopy fascia
-    const tex = M.textDecal(['HINSDALE CENTRAL'], { w: 2048, h: 160, font: 120, color: '#34383c', align: 'center', weight: 700, spacing: '14px' });
-    addDecal(tex, edgeFrame(-17.1, 4, -17.1, -13), 8.5, 7.35, 11, 0.62, 0.02);
-    // plaza: low concrete seat walls / planters (cover)
-    for (const [x, z, w, d] of [[-20.5, -12, 1.2, 9], [-20.5, 2, 1.2, 9], [-24.5, 14, 6, 1.2], [-15, 22.5, 7, 1.2]]) {
-      B.solidBox('concrete', 'concrete', x, 0.45, z, w, 0.9, d, 0, 1 / 3);
-      ctx.shrubs.push([x, 0.9, z, Math.max(w, d) * 0.8, 0.8, w > d ? 0 : Math.PI / 2]);
-    }
+    const x = 62, z = -190.4;
+    B.solidBox('brickRed', 'brick', x, 0.75, z, 5.4, 1.5, 0.62, 0, 0.5);
+    B.v('limestone').box(x, 1.56, z, 5.7, 0.14, 0.8, 0, STONE_S).box(x, 0.12, z, 6.0, 0.24, 0.95, 0, STONE_S);
+    B.solidBox('brickRed', 'brick', x - 3.0, 0.95, z, 0.75, 1.9, 0.75, 0, 0.5); B.solidBox('brickRed', 'brick', x + 3.0, 0.95, z, 0.75, 1.9, 0.75, 0, 0.5);
+    B.v('limestone').box(x - 3.0, 1.96, z, 0.9, 0.14, 0.9, 0, STONE_S).box(x + 3.0, 1.96, z, 0.9, 0.14, 0.9, 0, STONE_S);
+    const c = makeCanvas(1024, 256), g = c.getContext('2d');
+    g.fillStyle = '#ebe5d6'; g.fillRect(0, 0, 1024, 256); g.strokeStyle = '#8f1b16'; g.lineWidth = 10; g.strokeRect(10, 10, 1004, 236);
+    g.fillStyle = '#8f1b16'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = '800 92px Georgia, "Times New Roman", serif'; g.fillText('HINSDALE CENTRAL', 512, 92);
+    g.fillStyle = '#2a2622'; g.font = '600 44px Georgia, serif'; g.fillText('HIGH SCHOOL  ·  HOME OF THE RED DEVILS', 512, 186);
+    const tex = canvasTexture(c, { repeat: false });
+    addDecal(tex, edgeFrame(x - 2.5, z - 0.31, x + 2.5, z - 0.31), 2.5, 0.85, 4.6, 1.1, 0.012);
+    addDecal(tex, edgeFrame(x + 2.5, z + 0.31, x - 2.5, z + 0.31), 2.5, 0.85, 4.6, 1.1, 0.012);
+    B.v('mulch').quad([x - 4.5, 0.03, z + 2.0], [x + 4.5, 0.03, z + 2.0], [x + 4.5, 0.03, z - 2.0], [x - 4.5, 0.03, z - 2.0], [0, 0], [4, 0], [4, 2], [0, 2]);
+    ctx.shrubs.push([x, 0.05, z - 1.1, 7.5, 0.6, 0]); ctx.shrubs.push([x, 0.05, z + 1.1, 7.5, 0.6, 0]);
   }
+}
+
+// Grant St plaza entrance (west face of the gym block): raised terrace reached by a broad flight of steps with
+// handrails, tiered planters, an accessible ramp, white canopies on round columns, a two-storey curtain wall and a
+// storefront vestibule; brick-paver apron in front of the doors (after the Wikimedia photos of the real entrance).
+function grantPlaza(ctx, addDecal) {
+  const { B, M } = ctx; const wx = -6.1, T = 1.0, xe = -18.6;
+  const lift = (F) => ({ ...F, P: (u, y, o) => { const p = F.P(u, y, o); p[1] += T; return p; } });
+  // terrace
+  B.solidBox('concrete', 'concrete', (wx + xe) / 2, T / 2, 1.25, wx - xe, T, 37.5, 0, 1 / 3);
+  B.v('brickRed').quad([-18.2, T + 0.012, 17.6], [-6.7, T + 0.012, 17.6], [-6.7, T + 0.012, 6.4], [-18.2, T + 0.012, 6.4], [0, 0], [5.6, 0], [5.6, 5.4], [0, 5.4]);
+  // steps (7 risers) on the west side in front of the doors, with a ramp in collision
+  const conc = B.v('concrete');
+  for (let k = 0; k < 6; k++) { const top = T - (k + 1) * (T / 7); conc.box(xe - 0.19 - k * 0.38, top / 2, 12, 0.38, top, 16, 0, 1 / 3); }
+  B.c('concrete').quad([xe - 2.5, 0, 20], [xe, T, 20], [xe, T, 4], [xe - 2.5, 0, 4]);
+  const rail = B.v('frame');
+  for (const z of [4.25, 12, 19.75]) {
+    rail.tube([xe - 2.45, 0.92, z], [xe + 0.1, T + 0.92, z], 0.025, 6).tube([xe + 0.1, T + 0.92, z], [xe + 0.5, T + 0.92, z], 0.025, 6);
+    for (const [x, y] of [[xe - 2.3, 0.06], [xe - 1.1, 0.53], [xe + 0.2, T]]) rail.tube([x, y, z], [x, y + 0.9, z], 0.022, 5);
+    B.c('metal:mesh').box(xe - 1.1, 0.95, z, 2.8, 1.5, 0.06);
+  }
+  // cheek wall + three planted tiers stepping down to the walk
+  B.solidBox('concrete', 'concrete', xe - 1.3, 0.62, 3.75, 2.9, 1.24, 0.45, 0, 1 / 3);
+  for (let k = 0; k < 3; k++) {
+    const h = T - (k + 1) * 0.26, x = xe - 0.65 - k * 1.3;
+    B.solidBox('concrete', 'concrete', x, h / 2, -7, 1.3, h, 21, 0, 1 / 3);
+    B.v('mulch').quad([x - 0.5, h + 0.012, 3.3], [x + 0.5, h + 0.012, 3.3], [x + 0.5, h + 0.012, -17.3], [x - 0.5, h + 0.012, -17.3], [0, 0], [0.5, 0], [0.5, 9], [0, 9]);
+    ctx.shrubs.push([x, h, -7 + (k - 1) * 0.5, 19, k === 1 ? 0.45 : 0.7, Math.PI / 2]);
+  }
+  // accessible ramp along the building at the south end
+  {
+    const z0 = 20, z1 = 32, x0 = -9.4, x1 = wx - 0.05;
+    conc.quad([x0, T, z0], [x1, T, z0], [x1, 0, z1], [x0, 0, z1], [0, 0], [1, 0], [1, 4], [0, 4]);
+    conc.quad([x0, 0, z0], [x0, T, z0], [x0, 0, z1], [x0, 0, z1]); conc.tri([x0, 0, z0], [x0, T, z0], [x0, 0, z1]);
+    B.c('concrete').quad([x0, T, z0], [x1, T, z0], [x1, 0, z1], [x0, 0, z1]);
+    rail.tube([x0, T + 0.92, z0], [x0, 0.92, z1], 0.025, 6); for (let k = 0; k <= 4; k++) { const z = z0 + (k / 4) * (z1 - z0), y = T * (1 - k / 4); rail.tube([x0, y, z], [x0, y + 0.92, z], 0.022, 5); }
+    B.c('metal:mesh').box(x0, 0.95, (z0 + z1) / 2, 0.06, 1.9, z1 - z0);
+  }
+  // curtain wall: interior-mapped glass behind an aluminium grid
+  B.v('glassInt').quad([wx - 0.07, T + 0.45, 3], [wx - 0.07, 6.6, 3], [wx - 0.07, 6.6, -15], [wx - 0.07, T + 0.45, -15], [904, 0], [904, 1], [900, 1], [900, 0]);
+  const br = B.v('frameAlu');
+  for (let z = -15; z <= 3.01; z += 1.5) br.box(wx - 0.13, (T + 0.45 + 6.6) / 2, z, 0.14, 6.15 - T, 0.07);
+  for (const y of [T + 0.45, 2.6, 4.1, 4.5, 5.6, 6.6]) br.box(wx - 0.13, y, -6, 0.14, 0.08, 18.1);
+  B.v('panelGray').box(wx - 0.1, 4.3, -6, 0.06, 0.36, 18);
+  B.v('concrete').box(wx - 0.12, T + 0.22, -6, 0.3, 0.45, 18.3, 0, 1 / 3);
+  // main canopy on round columns
+  B.v('whitePanel').box(-11.6, 7.55, -4.5, 11.0, 0.95, 25); B.v('panelGray').box(-11.6, 7.06, -4.5, 10.7, 0.04, 24.7);
+  for (let z = -16.5; z <= 7.6; z += 2.4) B.v('panelGray').box(-17.11, 7.55, z, 0.012, 0.95, 0.02);
+  B.c('metal').box(-11.6, 7.55, -4.5, 11.0, 0.95, 25);
+  for (const z of [-15.5, -9.5, -3.5, 2.5]) { B.v('whitePanel').cyl(-16.0, T + 0.3, z, 0.2, 0.2, 6.07 - T - 0.3 + 1.0, 18, 1, false); B.v('concrete').cyl(-16.0, T, z, 0.32, 0.3, 0.3, 14, 1, true); B.c('metal').box(-16.0, T + 3.0, z, 0.42, 6.0, 0.42); }
+  // lower entry canopy + storefront vestibule with three sets of doors
+  B.v('whitePanel').box(-9.3, 4.85, 12.0, 6.4, 0.7, 14.5); B.v('panelGray').box(-9.3, 4.49, 12.0, 6.1, 0.03, 14.2);
+  B.c('metal').box(-9.3, 4.85, 12.0, 6.4, 0.7, 14.5);
+  for (const z of [5.6, 18.4]) { B.v('whitePanel').cyl(-11.9, T + 0.3, z, 0.2, 0.2, 3.2, 18, 1, false); B.v('concrete').cyl(-11.9, T, z, 0.32, 0.3, 0.3, 14, 1, true); B.c('metal').box(-11.9, T + 1.75, z, 0.42, 3.5, 0.42); }
+  const dep = 0.5; const Fv = lift(edgeFrame(wx - dep, 18.2, wx - dep, 5.6)), Fw = lift(edgeFrame(wx, 18.2, wx, 5.6));
+  fbox(B.v('frameAlu'), Fw, 0, Fv.L, 0, 3.3, 0, dep, 1, 0, 'st');
+  const fakeSt = { frame: 'frameAlu', top: 'none', tint: [1, 1, 1] };
+  for (const uc of [2.1, 6.3, 10.5]) doorFromKit(ctx, Fv, uc, fakeSt, true);
+  for (const [a, b2] of [[0, 0.25], [3.95, 4.45], [8.15, 8.65], [12.35, 12.6]]) fbox(B.v('frameAlu'), Fv, a, b2, 0, 3.3, -0.05, 0, 1, 0, 'f');
+  wallRect(B.v('frameAlu'), Fv, 0, Fv.L, 2.95, 3.3, 0);
+  B.c('glass').box(wx - dep / 2, T + 1.65, 11.9, dep, 3.3, 12.6);
+  addDecal(emblemTexture(), edgeFrame(wx, 4.9, wx, 1.3), 1.8, 5.5, 2.4, 2.4, 0.2);
+  const tex = M.textDecal(['HINSDALE CENTRAL'], { w: 2048, h: 160, font: 120, color: '#34383c', align: 'center', weight: 700, spacing: '14px' });
+  addDecal(tex, edgeFrame(-17.1, 4, -17.1, -13), 8.5, 7.55, 11, 0.62, 0.02);
+  // terrace furniture
+  for (const z of [-12, -4]) { B.v('wood').box(-13.5, T + 0.45, z, 0.45, 0.06, 1.9, 0, 0.5); B.v('blackMetal').box(-13.5, T + 0.22, z - 0.85, 0.45, 0.45, 0.06).box(-13.5, T + 0.22, z + 0.85, 0.45, 0.45, 0.06); B.c('wood').box(-13.5, T + 0.45, z, 0.5, 0.9, 1.9); }
+  lampPost(ctx, xe - 3.4, 2.6); lampPost(ctx, xe - 3.4, 21.5);
 }
 
 // ---------------------------------------------------------------------------------------------- houses

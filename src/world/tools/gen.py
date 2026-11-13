@@ -108,7 +108,7 @@ cls[paved_c & road] = ASPH
 cls[shadow & road] = ASPH
 cls[shadow & foot & ~road] = CONC
 cls[parking] = ASPH
-cls[baseball & dirtc] = DIRT
+# (infield clay is painted procedurally at runtime: see fields.js)
 syn = tennis | turf | (dilate(track, 1.0) & (red | turfgreen | (L > 175)))
 cls[bld_d] = 255
 # fill unknown with nearest known
@@ -341,7 +341,7 @@ HAND = [(-206, -178, 1, 1.0), (-207, -168, 1, 1.1), (-205, -158, 1, 1.0), (-206,
         (-100, -45, 0, 0.9), (-104, -20, 0, 1.0), (-98, 0, 0, 0.8), (-22, 150, 0, 1.0), (-70, 122, 0, 0.9), (-80, 150, 0, 1.1), (-60, 165, 0, 1.0), (-25, 175, 0, 1.0),
         (166, -120, 0, 0.8), (165, -45, 1, 0.8), (128, -126, 0, 1.1), (147, -125, 0, 1.2), (60, -80, 0, 0.7), (188, -150, 0, 0.9), (189, -120, 0, 0.9), (190, -90, 0, 1.0), (190, -55, 0, 0.9), (192, 95, 0, 1.0), (193, 125, 0, 0.9), (192, 160, 0, 1.0),
         (-15, 60, 0, 0.7), (-18, 35, 0, 0.7), (-14, -30, 0, 0.8)]
-for z_ in range(0, 9): HAND.append((52 + z_ * 7.5, 184 + (z_ % 2) * 1.5, 1, 0.9 + 0.2 * (z_ % 3) / 2))
+for z_ in range(0, 9): HAND.append((40 + z_ * 7.5, 192.5 + (z_ % 2) * 1.5, 1, 0.9 + 0.2 * (z_ % 3) / 2))
 for (x, z, k, s) in HAND: add_tree(x, z, k, s)
 # street trees
 for r in D['roads']:

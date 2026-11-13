@@ -170,3 +170,10 @@ Hitboxes are NOT the visuals' job: gameplay uses simple capsules/spheres around 
   of `groundY`). Remote characters' grapple cable is a gameplay-owned mesh from an approximate left-hand point; Visuals may
   later expose a hand anchor (optional `Character.handWorldPosition(target)`) and Gameplay will use it if present.
   State message gained optional `ga: [x,y,z]` (grapple anchor). Team names shown to players: red = "Red Devils", blue = "Lions".
+- (World, round 3) `ctfBases`: red = centre of the practice turf `(-59, 0, 37)`, blue = varsity baseball shallow centre field `(65, 0, 129)`
+  (~155 m apart); `ctfSpawns` regenerated (10 each, 25-70 m from the own base, never on the enemy side). Sports facilities are rebuilt to
+  rule-book dimensions (`src/world/fields.js`): 400 m track (lane 1) with eight 42 in lanes and 31.5 m bends (the real gap between the
+  stands is ~80 m, so a 36.5 m / 1.22 m oval does not fit), NFHS football markings, 9 regulation tennis courts (only 9 fit the 51 x 111 m
+  pad at regulation run-offs), 90 ft baseball diamond with a raised mound (collision bump 0.25 m, surface `'dirt'`), three 60 ft softball
+  diamonds, soccer lines on the west practice field. The Grant St entrance now sits on a 1.0 m raised terrace (walkable, with a step
+  ramp on the west side and an accessible ramp at the south end); the 55th St front has the main walk, planters, flagpoles and sign.

@@ -352,6 +352,8 @@ export function createMaterials(T, quality) {
   M.frost = std({ map: frostPanelTexture(aniso), roughness: 0.55, metalness: 0.0, emissive: 0xffffff, emissiveMap: null, emissiveIntensity: 0.0 });
   M.mulch = std({ map: T.barkColor, roughness: 1.0 });
   M.mulch.color.setRGB(0.75, 0.5, 0.36);
+  M.clay = std({ map: T.concreteColor, normalMap: T.concreteNormal, roughness: 0.96, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  M.clay.color.setRGB(0.92, 0.6, 0.38);
   M.groundDecal = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.5, alphaMap: gradientTexture([[0, '#000'], [0.35, '#555'], [1, '#fff']]), depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: true });
   M.wallDecal = new THREE.MeshBasicMaterial({ map: streakTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: true });
   M.textDecal = textDecal;

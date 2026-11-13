@@ -53,6 +53,19 @@ export function buildCollision(ctx, group) {
   return meshes;
 }
 
+// Visual clutter that is not solid (shrubs, low conifer branches) can swallow a player's view at spawn: keep spawns clear.
+function clutterFree(ctx, x, z) {
+  for (const [sx, , sz, len, , rot] of ctx.shrubs || []) {
+    const ux = Math.cos(rot), uz = -Math.sin(rot);
+    const t = Math.max(-len / 2, Math.min(len / 2, (x - sx) * ux + (z - sz) * uz));
+    if (Math.hypot(x - (sx + ux * t), z - (sz + uz * t)) < 3.0) return false;
+  }
+  for (const [tx, tz, kind] of ctx.gen?.trees || []) {
+    if (Math.hypot(x - tx, z - tz) < (kind === 1 ? 4.5 : 2.5)) return false;
+  }
+  return true;
+}
+
 // Flood-fill the walkable area on a 2 m grid (horizontal ray tests between cells) and pick well-spread spawns.
 export function computeSpawns(ctx, collisionMeshes, count = 32) {
   const pb = ctx.playBounds; const cell = 2, margin = 6;
@@ -98,7 +111,7 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
   for (let j = 2; j < nz - 2; j += 1) for (let i = 2; i < nx - 2; i += 1) {
     let ok = true;
     for (let b = -2; b <= 2 && ok; b++) for (let a = -2; a <= 2; a++) if (state[(j + b) * nx + i + a] !== 1) { ok = false; break; }
-    if (ok) cands.push(P(i, j));
+    if (ok) { const c = P(i, j); if (clutterFree(ctx, c[0], c[1])) cands.push(c); }
   }
   const spawns = [];
   if (cands.length) {
@@ -146,7 +159,7 @@ export function spawnsNear(ctx, center, rMin, rMax, count, awayFrom) {
   const cands = [];
   for (let j = 0; j < g.nz; j++) for (let i = 0; i < g.nx; i++) {
     const cx = g.x0 + (i + 0.5) * g.cell, cz = g.z0 + (j + 0.5) * g.cell; const d = Math.hypot(cx - center.x, cz - center.z);
-    if (d < rMin || d > rMax || !clearCell(g, i, j, 1)) continue;
+    if (d < rMin || d > rMax || !clearCell(g, i, j, 1) || !clutterFree(ctx, cx, cz)) continue;
     // must not be closer to the enemy base than to our own, and prefer cells next to something solid (cover)
     if (awayFrom && Math.hypot(cx - awayFrom.x, cz - awayFrom.z) < d + 30) continue;
     let cover = 0; for (let b = -3; b <= 3; b++) for (let a = -3; a <= 3; a++) { const ii = i + a, jj = j + b; if (ii >= 0 && jj >= 0 && ii < g.nx && jj < g.nz && g.state[jj * g.nx + ii] === -1) cover++; }

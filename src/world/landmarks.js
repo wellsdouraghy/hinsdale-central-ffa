@@ -2,7 +2,8 @@
 // courts, water tower, baseball/softball diamonds, fences.
 import * as THREE from 'three';
 import { makeCanvas, canvasTexture, mulberry32 } from './util.js';
-import { edgeFrame } from './buildings.js';
+import { edgeFrame } from './facade.js';
+import { buildTrack, buildDiamond, outfield, soccerLines } from './fields.js';
 
 const YD = 0.9144;
 const RED = [0.62, 0.07, 0.06], WHITE = [0.9, 0.9, 0.88], YELLOW = [0.95, 0.72, 0.05], DKGREEN = [0.06, 0.16, 0.09], GREY = [0.45, 0.46, 0.47], BLACK = [0.03, 0.03, 0.035];
@@ -195,15 +196,31 @@ function drawFootballField(g, ppm, cx, cy, o) {
     for (const x of [-hx, hx]) g.fillRect(m(x) - m(0.3), m(y * YD) - lw / 2, m(0.6), lw);
     g.fillRect(m(-FW / 2), m(y * YD) - lw / 2, m(0.6), lw); g.fillRect(m(FW / 2) - m(0.6), m(y * YD) - lw / 2, m(0.6), lw);
   }
-  // numbers
-  g.font = `700 ${m(2.0)}px "Arial Narrow", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  if (g.letterSpacing !== undefined) g.letterSpacing = `${m(0.5)}px`;
+  // numbers: 6 ft tall x 4 ft wide, tops 9 yards from the sideline, with direction arrows toward the nearer goal
+  g.font = `700 ${m(1.83)}px "Arial Narrow", "Helvetica Neue", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (g.letterSpacing !== undefined) g.letterSpacing = '0px';
   for (let i = -4; i <= 4; i++) {
     const n = String(50 - Math.abs(i) * 10);
     for (const side of [-1, 1]) {
-      g.save(); g.translate(side * m(FW / 2 - 9.6), m(i * 10 * YD)); g.rotate(side < 0 ? Math.PI / 2 : -Math.PI / 2);
-      g.fillText(n[0], -m(1.15), 0); g.fillText(n[1], m(1.25), 0); g.restore();
+      g.save(); g.translate(side * m(FW / 2 - 9 * YD + 0.915), m(i * 10 * YD)); g.rotate(side < 0 ? Math.PI / 2 : -Math.PI / 2);
+      g.fillText(n[0], -m(0.95), m(0.06)); g.fillText(n[1], m(0.95), m(0.06));
+      if (i !== 0) { const dir = (side < 0 ? 1 : -1) * Math.sign(i); const ax = dir * m(2.05); g.beginPath(); g.moveTo(ax, -m(0.2)); g.lineTo(ax + dir * m(0.75), m(0.0) - m(0.2) + m(0.23)); g.lineTo(ax, m(0.26)); g.closePath(); g.fill(); }
+      g.restore();
     }
+  }
+  // team boxes (between the 25s), coaching line and the 2 yd restraining line
+  g.strokeStyle = '#f4f4f0'; g.lineWidth = lw;
+  for (const side of [-1, 1]) {
+    const x0b = side * m(FW / 2 + 1.83), x1b = side * m(FW / 2 + 1.83 + 4.2);
+    g.strokeRect(Math.min(x0b, x1b), m(-25 * YD), Math.abs(x1b - x0b), m(50 * YD));
+    g.setLineDash([m(0.9), m(0.9)]); g.beginPath(); g.moveTo(side * m(FW / 2 + 1.83), m(-HL)); g.lineTo(side * m(FW / 2 + 1.83), m(HL)); g.stroke(); g.setLineDash([]);
+  }
+  // inbounds 3-yard try lines and kick-off marks
+  for (const sgn of [-1, 1]) { g.fillRect(-m(0.45), sgn * m(47 * YD) - lw / 2, m(0.9), lw); g.fillRect(-m(0.3), sgn * m(10 * YD) - lw, m(0.6), lw * 2); }
+  if (o.soccer) {
+    g.strokeStyle = o.soccer; g.lineWidth = Math.max(2, m(0.1));
+    g.strokeRect(m(-FW / 2 + 0.25), m(-HL - 4.0), m(FW - 0.5), m(2 * HL + 8.0)); g.beginPath(); g.arc(0, 0, m(9.15), 0, Math.PI * 2); g.stroke();
+    for (const sgn of [-1, 1]) { const yy = sgn * m(HL + 4.0); g.strokeRect(-m(20.16), sgn > 0 ? yy - m(16.5) : yy, m(40.32), m(16.5)); g.strokeRect(-m(9.16), sgn > 0 ? yy - m(5.5) : yy, m(18.32), m(5.5)); }
   }
   // midfield logo
   if (o.logo) {
@@ -215,7 +232,7 @@ function drawFootballField(g, ppm, cx, cy, o) {
   g.restore();
 }
 
-function turfNoise(g, W, H, amt, seed) {
+export function turfNoise(g, W, H, amt, seed) {
   // fine fibre noise so the paint does not look vector-flat up close
   const rnd = mulberry32(seed); const n = makeCanvas(256, 256), ng = n.getContext('2d'); const id = ng.createImageData(256, 256);
   for (let i = 0; i < id.data.length; i += 4) { const v = rnd() < 0.5 ? 0 : 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = Math.floor(rnd() * amt); }
@@ -229,7 +246,7 @@ function addOverlay(ctx, canvas, x0, z0, x1, z1, opts = {}) {
   const mat = new THREE.MeshStandardMaterial({ map: tex, normalMap: ctx.quality === 'low' ? null : nrm, roughness: opts.rough || 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   mat.normalScale.set(0.55, 0.55);
   ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms);
-  const g = new THREE.BufferGeometry(); const y = 0.012;
+  const g = new THREE.BufferGeometry(); const y = opts.y || 0.012;
   g.setAttribute('position', new THREE.Float32BufferAttribute([x0, y, z1, x1, y, z1, x1, y, z0, x0, y, z1, x1, y, z0, x0, y, z0], 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
@@ -243,45 +260,56 @@ export function buildLandmarks(ctx) {
   const { B, quality } = ctx;
   const big = quality === 'high' ? 2 : 1;       // canvas resolution multiplier
 
-  // ================= Dickinson Field
+  // ================= Dickinson Field: 400 m track around the turf field
   {
-    const x0 = -182.6, x1 = -123.4, z0 = -160.6, z1 = -42.8, fcx = -153.0, fcz = -101.7;
+    // The real oval is ~80 m wide between the stands (a 36.5 m / 1.22 m-lane IAAF oval is 92.5 m and does not fit),
+    // so this is a 400 m (lane 1) track with eight 42 in (1.07 m, NFHS minimum) lanes and 31.5 m bends.
+    const TCX = -150.8, TCZ = -100.5;
+    const trk = buildTrack(ctx, { cx: TCX, cz: TCZ, R: 31.5, lanes: 8, lw: 1.0668, big, hole: [59.6, 117.4] });
+    ctx.track = { cx: TCX, cz: TCZ, ...trk };
+    const fcx = TCX, fcz = TCZ; const fw = 59.6, fl = 117.4;
+    const x0 = fcx - fw / 2, x1 = fcx + fw / 2, z0 = fcz - fl / 2, z1 = fcz + fl / 2;
     const W = 1024 * big, H = Math.round(W * (z1 - z0) / (x1 - x0)), ppm = W / (x1 - x0);
     const c = makeCanvas(W, H), g = c.getContext('2d');
     g.fillStyle = '#1e6040'; g.fillRect(0, 0, W, H);
-    const px = (x) => (x - x0) * ppm, pz = (z) => (z - z0) * ppm;
+    const px = (x) => (x - x0) * ppm, pz = (z) => (z - z0) * ppm; const hw = 53.333 * YD / 2;
     // red surround at both ends, white team areas along the middle third (as in the imagery)
-    g.fillStyle = '#cf4330'; g.fillRect(px(-181.4), pz(-159.6), (181.4 - 124.6) * ppm, (159.6 - 124) * ppm); g.fillRect(px(-181.4), pz(-79.5), (181.4 - 124.6) * ppm, (79.5 - 43.8) * ppm);
-    g.fillStyle = '#d9dad6'; g.fillRect(px(-181.4), pz(-124), (181.4 - 124.6) * ppm, (124 - 79.5) * ppm);
-    g.fillStyle = '#1e6040'; g.fillRect(px(-178.6), pz(-124), (178.6 - 127.4) * ppm, (124 - 79.5) * ppm);
-    g.fillStyle = '#d9dad6'; g.fillRect(px(-181.0), pz(-124), 3.0 * ppm, 44.5 * ppm); g.fillRect(px(-128.0), pz(-124), 3.0 * ppm, 44.5 * ppm);
-    drawFootballField(g, ppm, px(fcx), pz(fcz), { endColor: '#d8452f', endText: ['HINSDALE', 'CENTRAL'], logo: true });
+    g.fillStyle = '#cf4330'; g.fillRect(px(fcx - hw - 4), pz(fcz - 58), (2 * hw + 8) * ppm, 35.5 * ppm); g.fillRect(px(fcx - hw - 4), pz(fcz + 22.5), (2 * hw + 8) * ppm, 35.5 * ppm);
+    g.fillStyle = '#1e6040'; g.fillRect(px(fcx - hw - 1.2), pz(fcz - 22.5), (2 * hw + 2.4) * ppm, 45 * ppm);
+    g.fillStyle = '#d9dad6'; g.fillRect(px(fcx - hw - 4), pz(fcz - 22.5), 2.8 * ppm, 45 * ppm); g.fillRect(px(fcx + hw + 1.2), pz(fcz - 22.5), 2.8 * ppm, 45 * ppm);
+    drawFootballField(g, ppm, px(fcx), pz(fcz), { endColor: '#d8452f', endText: ['HINSDALE', 'CENTRAL'], logo: true, soccer: '#e8c832' });
     turfNoise(g, W, H, 34, 11);
-    addOverlay(ctx, c, x0, z0, x1, z1);
+    addOverlay(ctx, c, x0, z0, x1, z1, { y: 0.016, nScale: 0.5 });
     goalPost(ctx, fcx, fcz - 60 * YD, 1); goalPost(ctx, fcx, fcz + 60 * YD, -1);
 
-    // home stand (west), press box on top
-    const hs = bleachers(ctx, { x: -189.3, z: -137.8, dir: -Math.PI / 2, len: 79.6, rows: 12, run: 0.74, rise: 0.3, frontH: 1.0, redCenter: true });
+    // home stand (west), press box on top: aluminium planks on 24 in row spacing
+    const hx = TCX - trk.Rout - 1.3;
+    const hs = bleachers(ctx, { x: hx, z: fcz - 39.8, dir: -Math.PI / 2, len: 79.6, rows: 15, run: 0.61, rise: 0.22, frontH: 1.0, redCenter: true });
     {
-      const pbx = -200.6, pz0 = -113, pz1 = -83, y0 = hs.topY + 0.25, hh = 3.0;
+      const pbx = hx - 1.4 - 15 * 0.61 + 1.9, pz0 = fcz - 15, pz1 = fcz + 15, y0 = hs.topY + 0.3, hh = 3.0;
       B.v('whitePanel').box(pbx, y0 + hh / 2, (pz0 + pz1) / 2, 3.4, hh, pz1 - pz0);
       B.c('metal').box(pbx, y0 + hh / 2, (pz0 + pz1) / 2, 3.4, hh, pz1 - pz0);
       B.v('carGlass').box(pbx + 1.72, y0 + 1.9, (pz0 + pz1) / 2, 0.04, 1.3, pz1 - pz0 - 1.2);
+      for (let z = pz0 + 0.6; z <= pz1 - 0.5; z += 2.4) B.v('frame').box(pbx + 1.745, y0 + 1.9, z, 0.05, 1.36, 0.07);
       B.v('paint', true).setColor(...RED).box(pbx + 1.73, y0 + 0.55, (pz0 + pz1) / 2, 0.05, 0.9, pz1 - pz0);
       B.v('galv').box(pbx, y0 + hh + 0.06, (pz0 + pz1) / 2, 3.8, 0.12, pz1 - pz0 + 0.4);
+      // camera deck rail on the roof + door at the south end
+      const rl = B.v('galv'); const ry = y0 + hh + 0.12;
+      for (const [xa, za, xb, zb] of [[pbx - 1.8, pz0, pbx + 1.8, pz0], [pbx + 1.8, pz0, pbx + 1.8, pz1], [pbx + 1.8, pz1, pbx - 1.8, pz1], [pbx - 1.8, pz1, pbx - 1.8, pz0]]) rl.tube([xa, ry + 1.0, za], [xb, ry + 1.0, zb], 0.025, 5).tube([xa, ry, za], [xa, ry + 1.0, za], 0.02, 4);
+      B.v('frame').box(pbx, y0 + 1.05, pz1 + 0.02, 0.95, 2.1, 0.05);
       for (const z of [pz0 + 1, (pz0 + pz1) / 2, pz1 - 1]) B.v('galv').cyl(pbx - 1.2, 0, z, 0.12, 0.12, y0, 8, 1, false);
       const tex = ctx.M.textDecal(['HINSDALE CENTRAL RED DEVILS'], { w: 2048, h: 128, font: 96, color: '#ffffff', align: 'center', weight: 800 });
-      const sg = new THREE.PlaneGeometry(pz1 - pz0 - 2, 0.8); const sm = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, roughness: 0.6 }));
+      const sm = new THREE.Mesh(new THREE.PlaneGeometry(pz1 - pz0 - 2, 0.8), new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, roughness: 0.6 }));
       sm.position.set(pbx + 1.77, y0 + 0.55, (pz0 + pz1) / 2); sm.rotation.y = Math.PI / 2; ctx.scene.add(sm);
     }
     // visitors (east)
-    bleachers(ctx, { x: -101.2, z: -69.8, dir: Math.PI / 2, len: 64, rows: 7, run: 0.7, rise: 0.33, frontH: 0.85 });
+    bleachers(ctx, { x: -101.2, z: fcz + 32, dir: Math.PI / 2, len: 64, rows: 9, run: 0.61, rise: 0.22, frontH: 0.85 });
     // lights
-    lightPole(ctx, -205.2, -131, 27, Math.PI / 2 + Math.PI); lightPole(ctx, -205.2, -65, 27, Math.PI / 2 + Math.PI);
-    lightPole(ctx, -97.6, -137.6, 27, Math.PI / 2); lightPole(ctx, -97.6, -66, 27, Math.PI / 2);
+    lightPole(ctx, hx - 13.6, fcz - 30, 27, Math.PI / 2 + Math.PI); lightPole(ctx, hx - 13.6, fcz + 36, 27, Math.PI / 2 + Math.PI);
+    lightPole(ctx, -97.6, fcz - 37, 27, Math.PI / 2); lightPole(ctx, -97.6, fcz + 35, 27, Math.PI / 2);
     // scoreboard (south end, facing the field)
     {
-      const sx = -152.5, sz = -24.5;
+      const sx = TCX - 1.5, sz = -24.0;
       for (const dx of [-3.4, 3.4]) { B.v('galv').cyl(sx + dx, 0, sz, 0.16, 0.16, 7.6, 8, 1, true); B.c('metal').box(sx + dx, 3.8, sz, 0.4, 7.6, 0.4); }
       B.v('paint', true).setColor(...BLACK).box(sx, 5.6, sz, 9.6, 4.0, 0.35);
       B.c('metal').box(sx, 5.6, sz, 9.6, 4.0, 0.35);
@@ -294,13 +322,13 @@ export function buildLandmarks(ctx) {
       const sm = new THREE.Mesh(new THREE.PlaneGeometry(9.5, 3.95), new THREE.MeshStandardMaterial({ map: canvasTexture(c2, { repeat: false }), roughness: 0.5, emissive: 0xffffff, emissiveMap: canvasTexture(c2, { repeat: false }), emissiveIntensity: 0.12 }));
       sm.position.set(sx, 5.6, sz - 0.185); sm.rotation.y = Math.PI; ctx.scene.add(sm);
     }
-    // team benches + equipment
-    for (const x of [-184.2, -121.8]) for (const z of [-116, -106, -96, -86]) { B.v('aluminum').box(x, 0.45, z, 0.32, 0.05, 6.5); B.v('galv').box(x, 0.22, z - 2.6, 0.3, 0.44, 0.06).box(x, 0.22, z + 2.6, 0.3, 0.44, 0.06); B.c('metal').box(x, 0.25, z, 0.4, 0.5, 6.5); }
+    // team benches between the sideline and lane 1
+    for (const x of [fcx - 28.9, fcx + 28.9]) for (const z of [-14, -5, 5, 14]) { B.v('aluminum').box(x, 0.45, fcz + z, 0.32, 0.05, 6.5); B.v('galv').box(x, 0.22, fcz + z - 2.6, 0.3, 0.44, 0.06).box(x, 0.22, fcz + z + 2.6, 0.3, 0.44, 0.06); B.c('metal').box(x, 0.25, fcz + z, 0.4, 0.5, 6.5); }
     // storage sheds at the south end (seen in the imagery) – useful cover
-    for (const [x, z] of [[-182.5, -17.5], [-124.5, -17.5]]) { B.v('paint', true).setColor(0.22, 0.2, 0.18).box(x, 1.25, z, 6.2, 2.5, 3.0); B.v('galv').box(x, 2.56, z, 6.5, 0.12, 3.3); B.c('metal').box(x, 1.3, z, 6.2, 2.6, 3.0); }
+    for (const [x, z] of [[-186.5, -15.5], [-113.5, -15.5]]) { B.v('paint', true).setColor(0.22, 0.2, 0.18).box(x, 1.25, z, 6.2, 2.5, 3.0); B.v('galv').box(x, 2.56, z, 6.5, 0.12, 3.3); B.c('metal').box(x, 1.3, z, 6.2, 2.6, 3.0); }
     // perimeter fence with gates
-    fence(ctx, [[-91.2, -189], [-208, -189], [-208, -11.5], [-166, -11.5]], { h: 1.8, black: false, gaps: [[52, 60], [150, 156], [250, 256], [300, 304], [326, 334]] });
-    fence(ctx, [[-134.5, -11.5], [-100, -11.5]], { h: 1.8, gaps: [[14, 20]] });
+    fence(ctx, [[-91.2, -191.7], [-208, -191.7], [-208, -9.2], [-166, -9.2]], { h: 1.8, black: false, gaps: [[52, 60], [150, 156], [250, 256], [300, 304], [326, 334]] });
+    fence(ctx, [[-134.5, -9.2], [-100, -9.2]], { h: 1.8, gaps: [[14, 20]] });
   }
 
   // ================= practice turf (south of the stadium)
@@ -321,9 +349,9 @@ export function buildLandmarks(ctx) {
     goalPost(ctx, fcx, fcz - 60 * YD, 1); goalPost(ctx, fcx, fcz + 60 * YD, -1);
     soccerGoal(ctx, fcx - 12, -19.6, Math.PI); soccerGoal(ctx, fcx + 13, 94.2, 0);
     // small bleachers + sheds west of the turf (visible in the imagery)
-    bleachers(ctx, { x: -108.4, z: 50, dir: -Math.PI / 2, len: 9, rows: 5, run: 0.65, rise: 0.3, frontH: 0 });
-    bleachers(ctx, { x: -108.4, z: 62, dir: -Math.PI / 2, len: 9, rows: 5, run: 0.65, rise: 0.3, frontH: 0 });
-    bleachers(ctx, { x: -108.4, z: 74, dir: -Math.PI / 2, len: 9, rows: 5, run: 0.65, rise: 0.3, frontH: 0 });
+    bleachers(ctx, { x: -108.4, z: 50, dir: -Math.PI / 2, len: 9, rows: 5, run: 0.61, rise: 0.22, frontH: 0 });
+    bleachers(ctx, { x: -108.4, z: 62, dir: -Math.PI / 2, len: 9, rows: 5, run: 0.61, rise: 0.22, frontH: 0 });
+    bleachers(ctx, { x: -108.4, z: 74, dir: -Math.PI / 2, len: 9, rows: 5, run: 0.61, rise: 0.22, frontH: 0 });
     B.v('paint', true).setColor(0.3, 0.1, 0.09).box(-99.5, 1.3, 30.5, 4.5, 2.6, 3.2); B.v('galv').box(-99.5, 2.66, 30.5, 4.9, 0.12, 3.6); B.c('wood').box(-99.5, 1.3, 30.5, 4.5, 2.6, 3.2);
     for (const z of [10, 30, 50, 70]) { B.v('aluminum').box(-27.6, 0.45, z, 0.32, 0.05, 5); B.c('metal').box(-27.6, 0.25, z, 0.4, 0.5, 5); }
     fence(ctx, [[-89.5, -22.6], [-89.5, 97], [-29, 97]], { h: 1.2, gaps: [[20, 26], [70, 76], [126, 134], [160, 168]] });
@@ -342,16 +370,20 @@ export function buildLandmarks(ctx) {
       g.fillStyle = '#a5503f'; g.fillRect(X - hw, Z - hl, 2 * hw, 2 * hl);
       g.strokeRect(X - hw, Z - hl, 2 * hw, 2 * hl); g.strokeRect(X - sw, Z - hl, 2 * sw, 2 * hl); g.strokeRect(X - sw, Z - sl, 2 * sw, 2 * sl);
       g.beginPath(); g.moveTo(X, Z - sl); g.lineTo(X, Z + sl); g.stroke();
+      for (const sg of [-1, 1]) { g.beginPath(); g.moveTo(X, Z + sg * hl); g.lineTo(X, Z + sg * (hl - 0.1 * ppm)); g.stroke(); }
       // nets
-      B.v('net').quad([cx - 6.4, 0.05, cz], [cx - 6.4, 1.0, cz], [cx + 6.4, 1.0, cz], [cx + 6.4, 0.05, cz], [0, 0], [0, 3], [40, 3], [40, 0]);
-      B.v('paint', true).setColor(...WHITE).box(cx, 1.0, cz, 12.8, 0.06, 0.03);
-      B.v('paint', true).setColor(...DKGREEN).cyl(cx - 6.4, 0, cz, 0.05, 0.05, 1.07, 8, 1, true).cyl(cx + 6.4, 0, cz, 0.05, 0.05, 1.07, 8, 1, true);
+      // net: 3 ft 6 in (1.07 m) at the posts sagging to 3 ft (0.914 m) at the centre strap
+      for (const sg of [-1, 1]) B.v('net').quad([cx, 0.05, cz], [cx, 0.914, cz], [cx + sg * 6.4, 1.07, cz], [cx + sg * 6.4, 0.05, cz], [20, 0], [20, 2.8], [sg > 0 ? 40 : 0, 3.2], [sg > 0 ? 40 : 0, 0]);
+      const wp = B.v('paint', true); wp.setColor(...WHITE);
+      for (const sg of [-1, 1]) wp.tube([cx, 0.914, cz], [cx + sg * 6.4, 1.07, cz], 0.028, 5);
+      wp.box(cx, 0.46, cz, 0.05, 0.92, 0.012);
+      wp.setColor(...DKGREEN).cyl(cx - 6.4, 0, cz, 0.05, 0.05, 1.09, 8, 1, true).cyl(cx + 6.4, 0, cz, 0.05, 0.05, 1.09, 8, 1, true);
       B.c('metal:mesh').box(cx, 0.5, cz, 12.8, 1.0, 0.08);
     }
     turfNoise(g, W, H, 22, 13);
     addOverlay(ctx, c, x0, z0, x1, z1, { nScale: 1.6, rough: 0.82 });
     // 3 m fence with wind screens, gates at the corners / between banks
-    fence(ctx, [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]], { h: 3.05, screen: 1.9, gaps: [[20, 23], [86, 89], [124, 127], [165, 168], [205, 208], [262, 265], [299, 302]] });
+    fence(ctx, [[x0, z0], [x1, z0], [x1, z1], [x0, z1], [x0, z0]], { h: 3.66, screen: 2.0, gaps: [[20, 23], [86, 89], [124, 127], [165, 168], [205, 208], [262, 265], [299, 302]] });
     fence(ctx, [[x0, -139.6], [x1, -139.6]], { h: 3.05, gaps: [[0.5, 3], [24, 27], [47, 50]] });
     fence(ctx, [[x0, -102.2], [x1, -102.2]], { h: 3.05, gaps: [[0.5, 3], [24, 27], [47, 50]] });
     for (const z of [z0 + 1, -139.6, -102.2, z1 - 1]) for (const x of [x0 + 0.6, x1 - 0.6]) lotLight(ctx, x, z, 10);
@@ -390,70 +422,78 @@ export function buildLandmarks(ctx) {
     fence(ctx, [[-64, 108], [-21, 108], [-21, 143], [-64, 143], [-64, 108]], { h: 2.1, gaps: [[58, 63], [128, 133]] });
   }
 
-  // ================= varsity baseball
+  // ================= varsity baseball (90 ft bases, 60 ft 6 in mound, 95 ft infield arc)
   {
-    const p = B.v('paint', true);
+    const p = B.v('paint', true); const HOME = [68.3, 76.0], ANG = Math.PI / 2;      // centre field is due south
+    const dia = buildDiamond(ctx, { home: HOME, ang: ANG, kind: 'baseball', big });
+    outfield(ctx, { home: HOME, ang: ANG, rLeft: 97.5, rRight: 93.0, rCentre: 110.5, fenceFn: fence });   // ~320 / 305 / 362 ft
     // backstop: brick knee wall + tall netting
-    const bs = [[53.5, 78.5], [60.5, 67.6], [75.5, 67.6], [82.5, 78.5]];
+    const bs = [[53.8, 79.5], [60.8, 68.0], [75.8, 68.0], [82.8, 79.5]];
     for (let i = 0; i < bs.length - 1; i++) {
       const a = bs[i], b = bs[i + 1]; const F = edgeFrame(a[0], a[1], b[0], b[1]); const m = F.P(F.L / 2, 0.55, 0);
       B.v('brickRed').box(m[0], 0.55, m[2], F.L, 1.1, 0.3, F.rotY, 0.5); B.c('brick').box(m[0], 0.55, m[2], F.L, 1.1, 0.3, F.rotY);
+      B.v('paint', true).setColor(...DKGREEN).box(m[0], 1.14, m[2], F.L, 0.09, 0.36, F.rotY);
       B.v('net').quad([a[0], 1.1, a[1]], [a[0], 7, a[1]], [b[0], 7, b[1]], [b[0], 1.1, b[1]], [0, 0], [0, 12], [F.L * 2, 12], [F.L * 2, 0]);
+      B.c('metal:mesh').box(m[0], 4.05, m[2], F.L, 5.9, 0.06, F.rotY);
     }
     for (const a of bs) { B.v('blackMetal').cyl(a[0], 0, a[1], 0.09, 0.07, 7.1, 8, 1, true); B.c('metal').box(a[0], 3.5, a[1], 0.3, 7, 0.3); }
-    // dugouts (red roofs)
-    for (const [cx, cz, rot] of [[44.5, 85.0, -Math.PI * 0.277], [91.5, 83.5, Math.PI * 0.277]]) {
+    for (let i = 0; i < bs.length - 1; i++) B.v('blackMetal').tube([bs[i][0], 7.05, bs[i][1]], [bs[i + 1][0], 7.05, bs[i + 1][1]], 0.04, 5);
+    // dugouts (red roofs), parallel to the base lines
+    for (const [cx, cz, rot] of [[44.0, 86.5, -Math.PI * 0.25], [92.6, 86.5, Math.PI * 0.25]]) {
       const c = Math.cos(rot), s = Math.sin(rot); const Wp = (u, d) => [cx + u * c + d * s, cz - u * s + d * c];
       const back = Wp(0, -1.5), l = Wp(-6.4, 0), r = Wp(6.4, 0), roof = Wp(0, 0);
       B.v('brickRed').box(back[0], 1.2, back[1], 13, 2.4, 0.25, rot, 0.5); B.c('brick').box(back[0], 1.2, back[1], 13, 2.4, 0.25, rot);
       B.v('brickRed').box(l[0], 1.2, l[1], 0.25, 2.4, 3.0, rot, 0.5).box(r[0], 1.2, r[1], 0.25, 2.4, 3.0, rot, 0.5);
       B.c('brick').box(l[0], 1.2, l[1], 0.25, 2.4, 3.0, rot).box(r[0], 1.2, r[1], 0.25, 2.4, 3.0, rot);
       p.setColor(...RED).box(roof[0], 2.5, roof[1], 13.6, 0.16, 3.8, rot); B.c('metal').box(roof[0], 2.5, roof[1], 13.6, 0.16, 3.8, rot);
-      const bn = Wp(0, -0.9); B.v('aluminum').box(bn[0], 0.45, bn[1], 11.5, 0.05, 0.3, rot);
+      B.v('concrete').box(roof[0], 0.03, roof[1], 12.6, 0.06, 3.0, rot, 1 / 3);
+      const bn = Wp(0, -0.9); B.v('aluminum').box(bn[0], 0.45, bn[1], 11.5, 0.05, 0.3, rot); B.c('metal').box(bn[0], 0.25, bn[1], 11.5, 0.5, 0.35, rot);
       const fr = Wp(0, 1.55), f0 = Wp(-6.4, 1.55), f1 = Wp(6.4, 1.55);
       B.v('chainlink').quad([f0[0], 0, f0[1]], [f0[0], 1.1, f0[1]], [f1[0], 1.1, f1[1]], [f1[0], 0, f1[1]], [0, 0], [0, 2.2], [25, 2.2], [25, 0]);
+      B.v('paint', true).setColor(0.95, 0.72, 0.05).tube([f0[0], 1.13, f0[1]], [f1[0], 1.13, f1[1]], 0.05, 5);
       B.c('metal:mesh').box(fr[0], 0.55, fr[1], 12.8, 1.1, 0.06, rot);
     }
     // spectator bleachers behind the backstop + press box
-    bleachers(ctx, { x: 58.6, z: 66.4, dir: -Math.PI * 0.75, len: 10, rows: 5, run: 0.65, rise: 0.3, frontH: 0 });
-    bleachers(ctx, { x: 86.0, z: 75.0, dir: Math.PI * 0.75, len: 10, rows: 5, run: 0.65, rise: 0.3, frontH: 0 });
-    B.v('whitePanel').box(69.5, 2.6, 62.0, 5.2, 3.0, 3.2); B.v('galv').cyl(67.5, 0, 62, 0.1, 0.1, 1.2, 6).cyl(71.5, 0, 62, 0.1, 0.1, 1.2, 6); B.v('carGlass').box(69.5, 3.0, 63.62, 4.6, 1.1, 0.04);
-    B.c('metal').box(69.5, 2.05, 62.0, 5.2, 4.1, 3.2);
-    // outfield + foul line fences from the OSM pitch outline
-    const of = [[-1, 138], [11, 158], [17, 167], [22, 172], [29, 176], [50, 184], [58, 186], [69, 187], [96, 186], [103, 185], [110, 183], [117, 179], [125, 172], [131, 166], [136, 158], [135, 127]];
-    fence(ctx, of, { h: 2.4, screen: 2.2, gaps: [[2, 6], [196, 200]] });
-    fence(ctx, [[36.5, 98.0], [-1, 138]], { h: 1.3, gaps: [[20, 24]] });
-    fence(ctx, [[99.5, 92.5], [135, 127]], { h: 1.3, gaps: [[22, 26]] });
-    // yellow foul poles
-    p.setColor(...YELLOW).cyl(-1, 0, 138, 0.08, 0.08, 9, 8, 1, true).cyl(135, 0, 127, 0.08, 0.08, 9, 8, 1, true);
+    bleachers(ctx, { x: 58.9, z: 66.8, dir: -Math.PI * 0.75, len: 10, rows: 5, run: 0.61, rise: 0.22, frontH: 0 });
+    bleachers(ctx, { x: 86.3, z: 75.4, dir: Math.PI * 0.75, len: 10, rows: 5, run: 0.61, rise: 0.22, frontH: 0 });
+    B.v('whitePanel').box(69.5, 2.6, 62.4, 5.2, 3.0, 3.2); B.v('galv').cyl(67.5, 0, 62.4, 0.1, 0.1, 1.2, 6).cyl(71.5, 0, 62.4, 0.1, 0.1, 1.2, 6); B.v('carGlass').box(69.5, 3.0, 64.02, 4.6, 1.1, 0.04);
+    B.c('metal').box(69.5, 2.05, 62.4, 5.2, 4.1, 3.2);
+    // foul-territory fences from the dugouts out to the foul poles, bullpen mounds beside them
+    for (const sgn of [-1, 1]) {
+      const a = dia.Wd(sgn * 38 * Math.SQRT1_2 + sgn * 6.5, 38 * Math.SQRT1_2 - 6.5), b = dia.Wd(sgn * 96 * Math.SQRT1_2 + sgn * 1.2, 96 * Math.SQRT1_2 - 1.2);
+      fence(ctx, [a, b], { h: 1.3, gaps: [[20, 24]] });
+      const bp = dia.Wd(sgn * 58 * Math.SQRT1_2 + sgn * 3.6, 58 * Math.SQRT1_2 - 3.6);
+      B.v('clay').cyl(bp[0], 0, bp[1], 2.6, 0.8, 0.22, 20, 1 / 2.5, true); B.c('dirt').cyl(bp[0], 0, bp[1], 2.6, 0.8, 0.22, 10, 1, true);
+      p.setColor(...WHITE).box(bp[0], 0.235, bp[1], 0.61, 0.03, 0.152, sgn * Math.PI / 4);
+    }
     // batting cage (netted tunnel) south-west of the infield
     {
-      const cx = 19, cz = 110, rot = Math.PI * 0.25; const c = Math.cos(rot), s = Math.sin(rot); const Wp = (u, y, d) => [cx + u * c + d * s, y, cz - u * s + d * c];
+      const cx = 17, cz = 106, rot = Math.PI * 0.25; const c = Math.cos(rot), s = Math.sin(rot); const Wp = (u, y, d) => [cx + u * c + d * s, y, cz - u * s + d * c];
       for (const d of [-2.2, 2.2]) { B.v('net').quad(Wp(-11, 0, d), Wp(-11, 3.6, d), Wp(11, 3.6, d), Wp(11, 0, d), [0, 0], [0, 7], [44, 7], [44, 0]); const m = Wp(0, 1.8, d); B.c('metal:mesh').box(m[0], 1.8, m[2], 22, 3.6, 0.06, rot); }
       B.v('net').quad(Wp(-11, 3.6, -2.2), Wp(-11, 3.6, 2.2), Wp(11, 3.6, 2.2), Wp(11, 3.6, -2.2), [0, 0], [0, 9], [44, 9], [44, 0]);
       for (const u of [-11, -3.7, 3.7, 11]) for (const d of [-2.2, 2.2]) B.v('blackMetal').tube(Wp(u, 0, d), Wp(u, 3.6, d), 0.04, 5);
     }
-    // scoreboard beyond left-centre
-    for (const dx of [-2.2, 2.2]) B.v('galv').cyl(96 + dx, 0, 189.5, 0.12, 0.12, 5, 8, 1, true);
-    p.setColor(...RED).box(96, 5.6, 189.5, 6.4, 2.6, 0.3); B.c('metal').box(96, 3.5, 189.5, 6.4, 7, 0.4);
+    // scoreboard beyond the left-centre fence
+    for (const dx of [-2.2, 2.2]) B.v('galv').cyl(104 + dx, 0, 184.5, 0.12, 0.12, 5, 8, 1, true);
+    p.setColor(...RED).box(104, 5.6, 184.5, 6.4, 2.6, 0.3); B.c('metal').box(104, 3.5, 184.5, 6.4, 7, 0.4);
+    const stx = ctx.M.textDecal(['HINSDALE CENTRAL'], { w: 1024, h: 128, font: 84, color: '#ffffff', align: 'center', weight: 800 });
+    const sm = new THREE.Mesh(new THREE.PlaneGeometry(6, 0.75), new THREE.MeshStandardMaterial({ map: stx, alphaTest: 0.4, roughness: 0.6 })); sm.position.set(104, 6.4, 184.33); sm.rotation.y = Math.PI; ctx.scene.add(sm);
   }
 
-  // ================= softball diamonds east of Madison St: backstops, benches, bleachers
+  // ================= softball diamonds east of Madison St (60 ft bases, 43 ft pitching distance, skinned infields)
   {
     const fields = [[267.5, -155.5, Math.PI * 0.75], [268.5, -37.0, Math.PI * 1.25], [217.5, 176.5, Math.PI * 1.75]];
     for (const [hx, hz, ang] of fields) {
-      // ang = direction from home plate toward centre field (atan2(z, x))
+      buildDiamond(ctx, { home: [hx, hz], ang, kind: 'softball', big });
       const dx = Math.cos(ang), dz = Math.sin(ang); const px = -dz, pz = dx;
       const bk = (u, d) => [hx - dx * d + px * u, hz - dz * d + pz * u];
-      const pts = [bk(-9, -2), bk(-4.5, 4.5), bk(4.5, 4.5), bk(9, -2)];
-      fence(ctx, pts, { h: 4.5, every: 2.5 });
+      fence(ctx, [bk(-9, -2), bk(-4.5, 7.6), bk(4.5, 7.6), bk(9, -2)], { h: 4.5, every: 2.5 });
       for (const sgn of [-1, 1]) {
-        const b0 = bk(sgn * 11, -6), b1 = bk(sgn * 11, -16);
-        fence(ctx, [b0, b1], { h: 1.6 });
+        fence(ctx, [bk(sgn * 11, -6), bk(sgn * 11, -16)], { h: 1.6 });
         const bc = bk(sgn * 12.5, -11); const brot = Math.atan2(-dz, dx);
         B.v('aluminum').box(bc[0], 0.45, bc[1], 7, 0.05, 0.3, brot); B.c('metal').box(bc[0], 0.25, bc[1], 7, 0.5, 0.4, brot);
-        const bl = bk(sgn > 0 ? 6 : -12, 7.0);
-        bleachers(ctx, { x: bl[0], z: bl[1], dir: Math.atan2(-dx, -dz), len: 6, rows: 4, run: 0.65, rise: 0.3, frontH: 0 });
+        const bl = bk(sgn > 0 ? 6 : -12, 9.6);
+        bleachers(ctx, { x: bl[0], z: bl[1], dir: Math.atan2(-dx, -dz), len: 6, rows: 4, run: 0.61, rise: 0.22, frontH: 0 });
       }
     }
     // red equipment building + shed by the north-east diamond (imagery)
@@ -464,6 +504,9 @@ export function buildLandmarks(ctx) {
     fence(ctx, [[288.5, 72], [291, 190]], { h: 1.8 });
     fence(ctx, [[205, -26], [284, -29]], { h: 1.2, gaps: [[20, 26], [50, 56]] });
   }
+
+  // ================= grass practice field (west): regulation soccer markings
+  soccerLines(ctx, -157.3, 73.5, 100, 64, Math.PI / 2, big);
 
   // ================= parking / walkway lighting
   for (const x of [215, 245, 275]) for (const z of [-5, 25, 55]) lotLight(ctx, x, z);
