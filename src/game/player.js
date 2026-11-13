@@ -15,8 +15,8 @@ const SLIDE_TIME = 0.8;
 // Exo-suit movement kit.
 export const KIT = {
   doubleJumpV: 6.2,           // vertical speed set by the mid-air thruster jump
-  dashSpeed: 12,              // horizontal burst speed
-  dashTime: 0.28,             // seconds the dash ignores ground friction
+  dashSpeed: 13,              // horizontal burst speed
+  dashTime: 0.32,             // seconds the dash ignores ground friction
   dashCooldown: 2,
   grappleRange: 60,
   grappleCooldown: 3,
@@ -76,12 +76,12 @@ export class PlayerController {
   }
 
   /** Nearest hit against collision meshes (ignores bulletPassthrough surfaces). */
-  raycast(origin, dir, far) {
+  raycast(origin, dir, far, includePassthrough = false) {
     this.ray.set(origin, dir);
     this.ray.near = 0;
     this.ray.far = far;
     const hits = this.ray.intersectObjects(this.world.collisionMeshes, false);
-    for (const h of hits) if (!h.object.userData.bulletPassthrough) return h;
+    for (const h of hits) if (includePassthrough || !h.object.userData.bulletPassthrough) return h;
     return null;
   }
 
@@ -316,7 +316,9 @@ export class PlayerController {
     const k = 1 - Math.exp(-7 * dt);
     this.velocity.x += (to.x * g.speed - this.velocity.x) * k;
     this.velocity.z += (to.z * g.speed - this.velocity.z) * k;
-    this.velocity.y += (to.y * g.speed + KIT.grappleUpBias - this.velocity.y) * k;
+    // Upward bias grows near the anchor so the player crests roof edges / catwalks instead of stopping under them.
+    const crest = KIT.grappleUpBias + 6 * (1 - Math.min(1, dist / 6));
+    this.velocity.y += (to.y * g.speed + crest - this.velocity.y) * k;
   }
 
   /** Looks for a climbable ledge just ahead; starts a short scripted mantle if found. */
@@ -328,12 +330,12 @@ export class PlayerController {
     if (fx * -Math.sin(this.yaw) + fz * -Math.cos(this.yaw) < 0.3 && !this.grapple && !force) return;
     const chest = _m1.set(this.position.x, this.position.y + 1.0, this.position.z);
     const fwd = _m2.set(fx, 0, fz);
-    const wall = this.raycast(chest, fwd, RADIUS + (force ? 2.2 : 0.45));
+    const wall = this.raycast(chest, fwd, RADIUS + (force ? 2.2 : 0.45), true); // fences/rails count as climbable
     if (!wall) return;
     // Probe down onto the ledge top just past the wall face.
     const topY = this.position.y + this.eye + KIT.mantleReach;
     const probe = new THREE.Vector3(wall.point.x + fx * 0.45, topY + 0.05, wall.point.z + fz * 0.45);
-    const down = this.raycast(probe, _down, topY - this.position.y - 0.35);
+    const down = this.raycast(probe, _down, topY - this.position.y - 0.35, true);
     if (!down) return;
     if (down.face && down.face.normal.clone().transformDirection(down.object.matrixWorld).y < 0.7) return;
     if (down.point.y < this.position.y + 0.45) return;
@@ -341,7 +343,7 @@ export class PlayerController {
     let target = null, crouch = false;
     for (const off of [0.2, 0.55, 0.95, 1.4]) {
       const q = new THREE.Vector3(wall.point.x + fx * (0.45 + off), topY + 0.05, wall.point.z + fz * (0.45 + off));
-      const d2 = this.raycast(q, _down, topY - this.position.y - 0.35);
+      const d2 = this.raycast(q, _down, topY - this.position.y - 0.35, true);
       if (!d2 || d2.point.y < this.position.y + 0.3) continue;
       const t2 = new THREE.Vector3(q.x, d2.point.y + 0.06, q.z);
       if (this._resolve(t2, STAND.height, _dir).lengthSq() < 1e-4) { target = t2; break; }

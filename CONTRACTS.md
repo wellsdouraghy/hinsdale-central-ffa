@@ -163,3 +163,10 @@ Hitboxes are NOT the visuals' job: gameplay uses simple capsules/spheres around 
     is unchanged; if grappling chain-link feels wrong, exclude those meshes with that same flag.
   - The surrounding neighbourhood is no longer built: only school-owned structures have geometry/collision; outside the school grounds the
     ground is lawn + the street network with a dense wooded border.
+- (Gameplay, round 2) Uses `world.ctfBases`, `world.ctfSpawns` (fallback: open ground 25-60 m around each base, then nearest
+  `spawnPoints`), `createFlag/createFlagBase` (flag parented to the carrier's `character.object3D` + `setCarried(true)`; hidden
+  for the local carrier). `mesh.userData.bulletPassthrough` meshes are ignored by bullets and grapple targeting but are still
+  solid for movement, and mantle treats them as climbable (fences/rails). Grapple rejects ground hits (up-facing within 0.8 m
+  of `groundY`). Remote characters' grapple cable is a gameplay-owned mesh from an approximate left-hand point; Visuals may
+  later expose a hand anchor (optional `Character.handWorldPosition(target)`) and Gameplay will use it if present.
+  State message gained optional `ga: [x,y,z]` (grapple anchor). Team names shown to players: red = "Red Devils", blue = "Lions".

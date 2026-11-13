@@ -67,7 +67,7 @@ export class Game {
     this.dashReadyAt = 0;
     this.fovKick = 0;
     this.grappleTarget = null;
-    this.cable = createCable(this.scene);
+    this.cable = createCable(this.scene, 0.008);
 
     this.roster = new Map();
     this.remotes = new Map();
@@ -438,7 +438,9 @@ export class Game {
     if (!r.alive || !r.grappleAnchor) { r.cable.hide(); r._hadAnchor = false; return; }
     if (!r._hadAnchor) { r._hadAnchor = true; this.audio.remoteGrapple(r.grappleAnchor.clone()); }
     const sy = Math.sin(r.yaw), cy = Math.cos(r.yaw);
-    const from = _v1.set(r.feet.x - sy * 0.35 - cy * 0.25, r.feet.y + (r.crouch > 0.5 ? 0.9 : 1.35), r.feet.z - cy * 0.35 + sy * 0.25);
+    const from = r.character.handWorldPosition
+      ? r.character.handWorldPosition(_v1)
+      : _v1.set(r.feet.x - sy * 0.35 - cy * 0.25, r.feet.y + (r.crouch > 0.5 ? 0.9 : 1.35), r.feet.z - cy * 0.35 + sy * 0.25);
     r.cable.set(from, r.grappleAnchor);
   }
 
