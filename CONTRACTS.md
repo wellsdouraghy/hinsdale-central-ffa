@@ -212,3 +212,15 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   position + rotation each frame), `createCarePackage({ team })` with `setParachute(true)` while descending from 120 m and
   `open()` on capture. A landed crate becomes a solid 1.2 x 0.9 x 0.9 box for player movement (gameplay-owned collider).
   Entry is now `src/main.js` (mobile gate + intro) -> dynamic `import('./game/app.js')`, so phones never download the world.
+
+### Round 6 additions (bots, team deathmatch, attack helicopter)
+- **`src/visuals/helicopter.js`** (Fable visuals, placeholder exists): `createHelicopter() -> { object3D, gunMuzzle, rocketPods[2],
+  seatEye, setRotorSpeed(0..1), setDamage(0..1), fireGun(), fireRocket(side), destroy(), reset(), update(dt), dispose() }`
+  (origin at skid bottoms, nose toward -z) and `createRocket() -> { object3D, update(dt), dispose() }` (points along -z;
+  gameplay moves it; the visual adds its own exhaust trail). Original design: a generic one-seat light attack helicopter, no real
+  manufacturer markings. Explosions/tracers/impacts come from `effects.js`.
+- **`world.navGrid`** (Fable world): `{ x0, z0, cell, nx, nz, walk: Uint8Array /* 1 walkable ground cell */, cost?: Float32Array }`
+  ground-level walkable grid for bot pathfinding (gameplay runs A*), plus `world.navSample(x, z) -> bool` helper.
+- **`world.heliSpawns`** (Fable world): `[{ pos: Vector3, yaw }]`, >= 12 candidate parking spots, ground or flat roof, with ~8 m
+  rotor clearance all around and open sky above, chosen to be hidden/out of the way (courtyards, behind the field house, service
+  yards, between buildings, roof corners). Gameplay picks one at random each FFA match (and after each destruction).
