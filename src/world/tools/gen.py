@@ -266,31 +266,51 @@ def polys(g):
     return [p for p in getattr(g, 'geoms', []) if p.geom_type == 'Polygon' and p.area > 4]
 flat = []
 for g, h, name in pieces:
-    for p in polys(g): flat.append((p.simplify(0.12), h, name))
+    for p in polys(g): flat.append((p.simplify(0.005), h, name))
 fb = foot_poly.boundary
 school = []
+def base_at(p, x, z, nx, nz):
+    """height of whatever is on the other side of piece p's wall at (x, z): 0 = open air (exterior / courtyard)"""
+    pt = Point(x, z)
+    if fb.distance(pt) < 0.05: return 0.0
+    nb = 0.0
+    for sgn in (1, -1):
+        q_ = Point(x + sgn * nx * 0.3, z + sgn * nz * 0.3)
+        if p.contains(q_): continue
+        for p2, h2, _ in flat:
+            if p2 is not p and p2.contains(q_): nb = max(nb, h2)
+    return nb
+n_split = 0
 for p, h, name in flat:
     rings = []
     for ring in [p.exterior] + list(p.interiors):
         pts = list(ring.coords)[:-1]
-        base = []
+        out_pts, base = [], []
         for i in range(len(pts)):
             a = pts[i]; b = pts[(i + 1) % len(pts)]
-            mid = Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
-            if fb.distance(mid) < 0.05: base.append(0.0)       # exterior wall
-            else:
-                # find neighbour piece height across the edge
-                nx, nz = (b[1] - a[1]), -(b[0] - a[0]); ln = math.hypot(nx, nz) or 1
-                nb = 0.0
-                for sgn in (1, -1):
-                    q_ = Point(mid.x + sgn * nx / ln * 0.3, mid.y + sgn * nz / ln * 0.3)
-                    if p.contains(q_): continue
-                    for p2, h2, _ in flat:
-                        if p2 is not p and p2.contains(q_): nb = h2
-                base.append(nb)
-        rings.append(dict(pts=[[round(x, 2), round(z, 2)] for x, z in pts], base=base))
-    # roof parallax fit: best shift near LEAN*h maximising gradient along outline
+            Le = math.hypot(b[0] - a[0], b[1] - a[1])
+            if Le < 1e-6: continue
+            nx, nz = (b[1] - a[1]) / Le, -(b[0] - a[0]) / Le
+            at = lambda t: base_at(p, a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, nx, nz)
+            # a wall can face a lower wing for part of its length and open air for the rest: split it there,
+            # otherwise the open part would get no wall below the neighbour's roof (a see-through hole)
+            n = max(1, int(math.ceil(Le / 0.35)))
+            ts = [(k + 0.5) / n for k in range(n)]
+            vals = [at(t) for t in ts]
+            cuts = [0.0]; segv = [vals[0]]
+            for k in range(1, n):
+                if vals[k] != vals[k - 1]:
+                    lo, hi = ts[k - 1], ts[k]
+                    for _ in range(8):
+                        mid = (lo + hi) / 2
+                        if at(mid) == vals[k - 1]: lo = mid
+                        else: hi = mid
+                    cuts.append((lo + hi) / 2); segv.append(vals[k]); n_split += 1
+            for t, v in zip(cuts, segv):
+                out_pts.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)); base.append(v)
+        rings.append(dict(pts=[[round(x, 3), round(z, 3)] for x, z in out_pts], base=base))
     school.append(dict(name=name, h=h, outer=rings[0], holes=rings[1:], lean=[round(LEAN[0] * h, 2), round(LEAN[1] * h, 2)]))
+print('edge splits', n_split)
 print('school pieces', [(s['name'], s['h'], len(s['outer']['pts'])) for s in school])
 
 # ---------------------------------------------------------------- house roof colours

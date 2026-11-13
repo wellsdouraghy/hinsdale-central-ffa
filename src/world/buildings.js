@@ -41,7 +41,7 @@ export function buildSchool(ctx) {
       for (let i = 0; i < n; i++) {
         const a = ring.pts[i], b = ring.pts[(i + 1) % n]; const base = ring.base[i];
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-        if (base >= h - 0.5 || L < 0.05) { uOff += L; continue; }
+        if (base >= h - 0.05 || L < 0.02) { uOff += L; continue; }
         const F = edgeFrame(a[0], a[1], b[0], b[1]);
         const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
         const plain = PLAIN_ZONES.some(([x0, z0, x1, z1]) => mx > x0 && mx < x1 && mz > z0 && mz < z1);
@@ -147,6 +147,8 @@ function schoolFeatures(ctx) {
       const pa = F.P(uC - W2, 0, dep), pb = F.P(uC + W2, 0, dep); const F2 = edgeFrame(pa[0], pa[2], pb[0], pb[2]);
       brick.setColor(0.97, 0.95, 0.92);
       fbox(brick, F, uC - W2, uC + W2, 0, top, 0, dep, BRICK_S, 0, 'st');
+      // back of the pavilion where it rises above the roof (visible from the roof deck)
+      quadFacing(brick, F.P(uC - W2, 9.4, 0), F.P(uC + W2, 9.4, 0), F.P(uC + W2, top, 0), F.P(uC - W2, top, 0), [-F.nx, 0, -F.nz]);
       // front with the door opening cut out
       brickFront(F2, 0, W2 - 1.1, 0.5, top, 0.97); brickFront(F2, W2 + 1.1, 2 * W2, 0.5, top, 0.97); brickFront(F2, W2 - 1.1, W2 + 1.1, 2.95, top, 0.97);
       fbox(B.v('concrete'), F2, -0.05, W2 - 1.1, 0, 0.5, 0, 0.06, STONE_S, 0, 'fst'); fbox(B.v('concrete'), F2, W2 + 1.1, 2 * W2 + 0.05, 0, 0.5, 0, 0.06, STONE_S, 0, 'fst');
@@ -210,7 +212,7 @@ function frontApproach55(ctx, addDecal) {
     conc.box((x0 + x1) / 2, 0.02, (-168.6 + z1) / 2, x1 - x0, 0.045, z1 + 168.6, 0, 1 / 3);
     if (paver) {   // brick paver runner down the middle, like the engraved-brick walks at the school
       const br = B.v('brickRed'); const a = 59.2, b = 62.8;
-      br.quad([a, 0.047, z1], [b, 0.047, z1], [b, 0.047, -168.6], [a, 0.047, -168.6], [0, 0], [1.6, 0], [1.6, 8], [0, 8]);
+      br.quad([a, 0.062, z1], [b, 0.062, z1], [b, 0.062, -168.6], [a, 0.062, -168.6], [0, 0], [1.6, 0], [1.6, 8], [0, 8]);
     }
   }
   // limestone planters with corner piers flanking the main walk (cover) + lamp posts on them, as in the photos
@@ -254,7 +256,7 @@ function grantPlaza(ctx, addDecal) {
   const lift = (F) => ({ ...F, P: (u, y, o) => { const p = F.P(u, y, o); p[1] += T; return p; } });
   // terrace
   B.solidBox('concrete', 'concrete', (wx + xe) / 2, T / 2, 1.25, wx - xe, T, 37.5, 0, 1 / 3);
-  B.v('brickRed').quad([-18.2, T + 0.012, 17.6], [-6.7, T + 0.012, 17.6], [-6.7, T + 0.012, 6.4], [-18.2, T + 0.012, 6.4], [0, 0], [5.6, 0], [5.6, 5.4], [0, 5.4]);
+  B.v('brickRed').quad([-18.2, T + 0.03, 17.6], [-6.7, T + 0.03, 17.6], [-6.7, T + 0.03, 6.4], [-18.2, T + 0.03, 6.4], [0, 0], [5.6, 0], [5.6, 5.4], [0, 5.4]);
   // steps (7 risers) on the west side in front of the doors, with a ramp in collision
   const conc = B.v('concrete');
   for (let k = 0; k < 6; k++) { const top = T - (k + 1) * (T / 7); conc.box(xe - 0.19 - k * 0.38, top / 2, 12, 0.38, top, 16, 0, 1 / 3); }
@@ -277,7 +279,8 @@ function grantPlaza(ctx, addDecal) {
   {
     const z0 = 20, z1 = 32, x0 = -9.4, x1 = wx - 0.05;
     conc.quad([x0, T, z0], [x1, T, z0], [x1, 0, z1], [x0, 0, z1], [0, 0], [1, 0], [1, 4], [0, 4]);
-    conc.quad([x0, 0, z0], [x0, T, z0], [x0, 0, z1], [x0, 0, z1]); conc.tri([x0, 0, z0], [x0, T, z0], [x0, 0, z1]);
+    conc.tri([x0, 0, z0], [x0, T, z0], [x0, 0, z1]); conc.tri([x0, 0, z0], [x0, 0, z1], [x0, T, z0]);
+    conc.quad([x0, 0, z0], [x1, 0, z0], [x1, T, z0], [x0, T, z0]); conc.quad([x0, 0, z0], [x0, T, z0], [x1, T, z0], [x1, 0, z0]);
     B.c('concrete').quad([x0, T, z0], [x1, T, z0], [x1, 0, z1], [x0, 0, z1]);
     rail.tube([x0, T + 0.92, z0], [x0, 0.92, z1], 0.025, 6); for (let k = 0; k <= 4; k++) { const z = z0 + (k / 4) * (z1 - z0), y = T * (1 - k / 4); rail.tube([x0, y, z], [x0, y + 0.92, z], 0.022, 5); }
     B.c('metal:mesh').box(x0, 0.95, (z0 + z1) / 2, 0.06, 1.9, z1 - z0);

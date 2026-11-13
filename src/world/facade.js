@@ -88,10 +88,11 @@ function windowUnit(ctx, F, u0, u1, y0, y1, st, tint, uOff, kind, opts = {}) {
   // soldier-course lintel (bricks on end): same texture rotated 90 degrees, a hair proud of the wall
   if (!opts.noLintel) {
     setTint(brick, tint, 0.93);
-    const lh = 0.23, lo = 0.014;
+    const lh = 0.23, lo = 0.03;
     brick.quad(F.P(u0 - 0.12, y1, lo), F.P(u0 - 0.12, y1 + lh, lo), F.P(u1 + 0.12, y1 + lh, lo), F.P(u1 + 0.12, y1, lo),
       [0, (uOff + u0) * BRICK_S], [lh * BRICK_S, (uOff + u0) * BRICK_S], [lh * BRICK_S, (uOff + u1) * BRICK_S], [0, (uOff + u1) * BRICK_S]);
     quadFacing(brick, F.P(u0 - 0.12, y1, 0), F.P(u1 + 0.12, y1, 0), F.P(u1 + 0.12, y1, lo), F.P(u0 - 0.12, y1, lo), [0, -1, 0]);
+    quadFacing(brick, F.P(u0 - 0.12, y1 + lh, 0), F.P(u1 + 0.12, y1 + lh, 0), F.P(u1 + 0.12, y1 + lh, lo), F.P(u0 - 0.12, y1 + lh, lo), [0, 1, 0]);
     setTint(brick, tint);
   }
   // limestone sill, projecting and sloped
@@ -100,6 +101,7 @@ function windowUnit(ctx, F, u0, u1, y0, y1, st, tint, uOff, kind, opts = {}) {
   fbox(ls, F, u0 - 0.06, u1 + 0.06, y0 - sh, y0 - 0.03, 0, 0.075, STONE_S, 0, 'fsb');
   // glazing
   const go = -D + 0.035; const kindRow = kind;
+  wallRect(fr, F, u0, u1, y0, y1, -D);
   glassPane(B, F, u0 + 0.04, u1 - 0.04, y0 + 0.04, y1 - 0.04, go, kindRow);
   // frame: perimeter, mullions, transoms (boxes with real depth)
   const fo0 = -D, fo1 = -D + 0.1, fw = 0.06;
@@ -122,6 +124,7 @@ function doorUnit(ctx, F, uc, st, tint, uOff, opts = {}) {
   quadFacing(fr, F.P(u1, 0, 0), F.P(u1, ht, 0), F.P(u1, ht, -D), F.P(u1, 0, -D), [-t[0], 0, -t[2]]);
   quadFacing(fr, F.P(u0, ht, 0), F.P(u1, ht, 0), F.P(u1, ht, -D), F.P(u0, ht, -D), [0, -1, 0]);
   const go = -D + 0.03, fo0 = -D, fo1 = -D + 0.11, fw = 0.07;
+  wallRect(fr, F, u0, u1, 0, ht, -D);                                             // opaque backing behind the whole opening
   fbox(fr, F, u0, u0 + fw, 0, ht, fo0, fo1, 1, 0, 'fs'); fbox(fr, F, u1 - fw, u1, 0, ht, fo0, fo1, 1, 0, 'fs');
   fbox(fr, F, u0, u1, ht - fw, ht, fo0, fo1, 1, 0, 'fb'); fbox(fr, F, u0, u1, hd, hd + fw, fo0, fo1, 1, 0, 'ftb');
   glassPane(B, F, u0 + fw, u1 - fw, hd + fw, ht - fw, go, 0);                     // transom
@@ -180,8 +183,8 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
   if (st.top === 'panel') {
     const wp = B.v('whitePanel');
     fbox(wp, F, -0.04, L + 0.04, bandY, h - 0.3, 0, 0.07, 1, 0, 'fsb');
-    fbox(B.v('panelGray'), F, -0.04, L + 0.04, bandY + bandH * 0.5 - 0.012, bandY + bandH * 0.5 + 0.012, 0.07, 0.075, 1, 0, 'f');
-    for (let u = 1.2; u < L; u += 2.4) fbox(B.v('panelGray'), F, u - 0.008, u + 0.008, bandY, h - 0.3, 0.07, 0.075, 1, 0, 'f');
+    fbox(B.v('panelGray'), F, -0.04, L + 0.04, bandY + bandH * 0.5 - 0.012, bandY + bandH * 0.5 + 0.012, 0.07, 0.09, 1, 0, 'ftb');
+    for (let u = 1.2; u < L; u += 2.4) fbox(B.v('panelGray'), F, u - 0.008, u + 0.008, bandY, h - 0.3, 0.07, 0.09, 1, 0, 'fs');
     fbox(B.v('frameAlu'), F, -0.1, L + 0.1, h - 0.3, h + 0.03, 0, 0.14, 1, 0, 'fsb');
   } else {
     const ls = B.v('limestone');
@@ -274,7 +277,7 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
 
   // ---- brick field with the openings cut out, row by row
   openings.sort((a, b) => a[0] - b[0]);
-  for (const [, , list] of openings) for (const o of list) if (o[2] === 'door') doorSpans.push([o[0] - 0.02, o[1] + 0.02]);
+  for (const [, , list] of openings) for (const o of list) if (o[2] === 'door') doorSpans.push([o[0], o[1]]);
   for (const [a, b] of runs(-0.05, L + 0.05)) {
     fbox(pl, F, a, b, 0, pY - 0.06, 0, 0.06, STONE_S, uOff, 'fs');
     quadFacing(pl, F.P(a, pY - 0.06, 0.06), F.P(b, pY - 0.06, 0.06), F.P(b, pY, 0), F.P(a, pY, 0), [F.nx, 1, F.nz]);

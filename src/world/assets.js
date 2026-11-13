@@ -312,6 +312,9 @@ export function createMaterials(T, quality) {
       map: `#include <map_fragment>
   { float dist = length(vWPos - cameraPosition); float nearW = 1.0 - smoothstep(25.0, 90.0, dist);
     float lum = dot(diffuseColor.rgb, vec3(0.333));
+    // the aerial photo has old building shadows baked in: lift them back to the roof's own tone
+    diffuseColor.rgb = mix(vec3(0.42, 0.40, 0.33) * (0.85 + 0.3 * lum), diffuseColor.rgb, smoothstep(0.05, 0.22, lum));
+    lum = dot(diffuseColor.rgb, vec3(0.333));
     float white = smoothstep(0.55, 0.85, lum);                       // bright single-ply membrane vs gravel ballast
     vec3 dt = texture2D(uRoofD, vWPos.xz / 2.6).rgb; float dl = clamp(dot(dt, vec3(0.333)) / 0.62, 0.7, 1.25);
     float grav = wNoise(vWPos.xz * 55.0) * 0.5 + wNoise(vWPos.xz * 23.0) * 0.5;
@@ -350,7 +353,7 @@ export function createMaterials(T, quality) {
   M.panelGray = std({ color: 0x7d8388, roughness: 0.45, metalness: 0.55 });
   M.louver = std({ map: louverTexture(aniso), roughness: 0.5, metalness: 0.6 });
   M.frost = std({ map: frostPanelTexture(aniso), roughness: 0.55, metalness: 0.0, emissive: 0xffffff, emissiveMap: null, emissiveIntensity: 0.0 });
-  M.mulch = std({ map: T.barkColor, roughness: 1.0 });
+  M.mulch = std({ map: T.barkColor, roughness: 1.0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   M.mulch.color.setRGB(0.75, 0.5, 0.36);
   M.clay = std({ map: T.concreteColor, normalMap: T.concreteNormal, roughness: 0.96, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   M.clay.color.setRGB(0.92, 0.6, 0.38);
