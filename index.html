@@ -201,9 +201,14 @@
               <button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button>
             </div>
           </label>
-          <label class="wide">Google Photorealistic 3D Tiles API key
-            <input id="s-gkey" type="password" placeholder="Optional: paste a Map Tiles API key" autocomplete="off" spellcheck="false" />
-            <small>Optional. With a key (Google Cloud &rarr; Map Tiles API) the campus is drawn with Google's photorealistic 3D tiles; without one the built-in model is used. Stored only in this browser. Quality and key changes apply to the next match.</small>
+          <label class="wide">Map style
+            <div class="seg" id="s-mapstyle">
+              <button data-v="built">Built campus</button><button data-v="scan">Real 3D scan</button>
+            </div>
+            <small>Built campus is a detailed model of the real campus: sharp up close, loads fast, full shadows. Real 3D scan streams Google's photographed 3D model of the actual campus instead: the real thing from a distance, but melty up close and slower to load. Applies to the next match.</small>
+          </label>
+          <label class="wide">Google Map Tiles API key (advanced)
+            <input id="s-gkey" type="password" placeholder="Leave empty to use the built-in key" autocomplete="off" spellcheck="false" />
           </label>
         </div>
         <div class="set-actions"><button id="btn-settings-close" class="btn primary">Done</button></div>

@@ -82,6 +82,11 @@ export function createMenus({ settings, onSettingsChange }) {
   const syncSeg = () => segBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.quality));
   segBtns.forEach((b) => b.addEventListener('click', () => { settings.quality = b.dataset.v; syncSeg(); onSettingsChange('quality'); }));
   syncSeg();
+  const mapBtns = [...document.querySelectorAll('#s-mapstyle button')];
+  const syncMap = () => mapBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.mapStyle));
+  mapBtns.forEach((b) => b.addEventListener('click', () => { settings.mapStyle = b.dataset.v; syncMap(); onSettingsChange('mapStyle'); }));
+  syncMap();
+
   const gkey = $('s-gkey');
   gkey.value = settings.googleTilesKey || '';
   gkey.addEventListener('input', () => { settings.googleTilesKey = gkey.value.trim(); onSettingsChange('googleTilesKey'); });

@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   quality: 'medium',       // 'low' | 'medium' | 'high'
   volume: 0.8,             // master volume 0..1
   googleTilesKey: '',
+  mapStyle: 'built',       // 'scan' = Google photorealistic 3D tiles (if a key is available), 'built' = built-in campus model
   primary: 'ar',           // last chosen primary weapon
 });
 
@@ -30,6 +31,7 @@ export function loadSettings() {
   if (!['ar', 'smg', 'sniper', 'shotgun'].includes(s.primary)) s.primary = 'ar';
   if (typeof s.name !== 'string') s.name = '';
   if (typeof s.googleTilesKey !== 'string') s.googleTilesKey = '';
+  if (!['scan', 'built'].includes(s.mapStyle)) s.mapStyle = 'built';
   return s;
 }
 
@@ -44,6 +46,7 @@ function clampNum(v, lo, hi, def) {
 
 /** `?gkey=` URL param > localStorage setting > VITE_GOOGLE_TILES_KEY > null */
 export function resolveGoogleKey(settings) {
+  if (settings.mapStyle === 'built') return null;
   const url = new URLSearchParams(location.search).get('gkey');
   if (url) return url;
   if (settings.googleTilesKey) return settings.googleTilesKey;
