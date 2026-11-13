@@ -136,3 +136,15 @@ Hitboxes are NOT the visuals' job: gameplay uses simple capsules/spheres around 
   - Dev page: `/dev/world.html?cam=x,y,z,yawDeg,pitchDeg&q=low|medium|high[&tiles=1|&gkey=KEY][&col=1][&spawns=1][&hud=0]`.
   - Offline generator `src/world/tools/gen.py` (pillow/numpy/scipy/shapely; not part of the build) regenerates
     `public/assets/world/{ground_macro.jpg,ground_mask.png,roofs.jpg,surface_classes.png,gen.json}` from `campus.json` + the satellite image.
+
+### Round 2 additions (capture the flag, controls, buildings)
+- **`src/visuals/flag.js`** (owner: World builder, Fable; placeholder exists):
+  `createFlag({ team: 'red'|'blue' }) -> { object3D, setCarried(bool), update(dt), dispose() }`
+  (origin at ground; when carried, gameplay parents `object3D` to the carrier's `character.object3D` and calls `setCarried(true)`)
+  and `createFlagBase({ team }) -> { object3D, update(dt), dispose() }` (ground marker / base stand at a flag's home).
+- **`world.ctfBases`** (owner: World builder): `{ red: THREE.Vector3, blue: THREE.Vector3 }` on open walkable ground.
+  Default if missing (gameplay uses `world.ctfBases ?? DEFAULT`): red = Dickinson Field stadium midfield `(-150, 0, -99)`,
+  blue = varsity baseball diamond outfield (SE of the main building) `(7, 0, 128)`.
+- **`world.ctfSpawns`** (optional, World builder): `{ red: Vector3[], blue: Vector3[] }`, >= 8 each, near (25-70 m) their base,
+  outdoors. Gameplay falls back to picking from `world.spawnPoints` by distance to own base.
+- Teams' accent colors: red `0xe0242c`, blue `0x2a6bff` (pass as `color` to `createCharacter`).
