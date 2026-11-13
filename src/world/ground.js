@@ -59,9 +59,9 @@ float gNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 *
   vec3 cG = mix(texture2D(uGrassC, pC / 11.0).rgb, texture2D(uGrassC, pF / 2.2).rgb, nearW) / uGrassAvg;
   vec3 cA = mix(texture2D(uAsphC, pC / 13.0).rgb, texture2D(uAsphC, pF / 3.0).rgb, nearW) / uAsphAvg;
   vec3 cC = mix(texture2D(uConcC, pC / 14.0).rgb, texture2D(uConcC, pF / 3.5).rgb, nearW) / uConcAvg;
-  cG = mix(vec3(1.0), cG, 0.9 * midW);
-  float aL = dot(cA, vec3(0.333)); cA = mix(vec3(1.0), vec3(aL), 0.75 * midW);
-  float cL = dot(cC, vec3(0.333)); cC = mix(vec3(1.0), vec3(cL), 0.8 * midW);
+  cG = mix(vec3(1.0), clamp(cG, 0.55, 1.7), 0.9 * midW);
+  float aL = clamp(dot(cA, vec3(0.333)), 0.82, 1.16); cA = mix(vec3(1.0), vec3(aL), 0.6 * midW);
+  float cL = clamp(dot(cC, vec3(0.333)), 0.8, 1.2); cC = mix(vec3(1.0), vec3(cL), 0.8 * midW);
   // sidewalk expansion joints every 1.5 m (subtle), fade with distance
   vec2 jt = abs(fract(vWPos.xz / 1.524) - 0.5);
   float joint = (1.0 - smoothstep(0.004, 0.012, min(jt.x, jt.y))) * nearW;

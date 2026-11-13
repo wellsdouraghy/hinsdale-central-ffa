@@ -1,5 +1,5 @@
 // Free-fly viewer for the world module.
-//   ?cam=x,y,z,yawDeg,pitchDeg  &q=low|medium|high  &gkey=GOOGLE_KEY  &col=1 (show collision)  &hud=0
+//   ?cam=x,y,z,yawDeg,pitchDeg  &q=low|medium|high  &gkey=GOOGLE_KEY or &tiles=1 (uses VITE_GOOGLE_TILES_KEY)  &col=1 (show collision)  &hud=0
 // WASD + mouse (click to lock), Space/C up/down, Shift fast. Exposes window.__world, __camera, __scene, __renderer.
 import * as THREE from 'three';
 import { createWorld } from '../src/world/index.js';
@@ -26,7 +26,7 @@ window.__setCam = setCam;
 const loadEl = document.getElementById('load');
 const world = await createWorld({
   renderer, scene, camera,
-  settings: { quality, googleTilesKey: qs.get('gkey') || null },
+  settings: { quality, googleTilesKey: qs.get('gkey') || (qs.get('tiles') === '1' ? import.meta.env.VITE_GOOGLE_TILES_KEY : null) || null },
   onProgress: (f, label) => { loadEl.textContent = `${Math.round(f * 100)}% ${label}`; },
 });
 loadEl.remove();
@@ -81,3 +81,26 @@ renderer.setAnimationLoop(() => {
     if (attr.innerHTML !== world.attributionHTML) attr.innerHTML = world.attributionHTML;
   }
 });
+
+// Dev helper: save the current view to a local receiver (python script on :5199) -> dev/shots/<name>.jpg
+window.__shot = async (name, cam, frames = 8) => {
+  if (cam) setCam(cam);
+  for (let i = 0; i < frames; i++) { world.update(0.016, camera); world.render(null, null); await new Promise((r) => setTimeout(r, 30)); }
+  world.update(0.016, camera); world.render(null, null);
+  const blob = await new Promise((r) => renderer.domElement.toBlob(r, 'image/jpeg', 0.9));
+  await fetch('http://127.0.0.1:5199/' + name, { method: 'POST', body: blob });
+  return name + ' ' + blob.size;
+};
+
+// Dev helper: average ms per frame (update + render, GPU flushed) at a list of camera strings.
+window.__bench = (cams, n = 40) => {
+  const gl = renderer.getContext(); const out = {}; const px = new Uint8Array(4);
+  for (const c of cams) {
+    setCam(c); world.update(0.016, camera); world.render(null, null); gl.finish();
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) { world.update(0.016, camera); renderer.info.reset(); world.render(null, null); }
+    gl.finish(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    out[c] = +((performance.now() - t0) / n).toFixed(2);
+  }
+  return out;
+};

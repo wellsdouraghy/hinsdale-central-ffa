@@ -96,7 +96,7 @@ function makeDeciduous(seed, o) {
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   const h1 = H * (0.24 + rnd() * 0.08); const lean = (rnd() - 0.5) * 0.5, lean2 = (rnd() - 0.5) * 0.5;
   const tr = o.trunk || 0.42;
-  limb(wood, [V(0, -0.3, 0), V(lean * 0.2, h1 * 0.5, lean2 * 0.2), V(lean * 0.5, h1, lean2 * 0.5), V(lean * 0.7, H * 0.55, lean2 * 0.7), V(lean, H * 0.8, lean2)], tr, tr * 0.18, 8);
+  limb(wood, [V(0, -0.3, 0), V(lean * 0.2, h1 * 0.5, lean2 * 0.2), V(lean * 0.5, h1, lean2 * 0.5), V(lean * 0.7, H * 0.5, lean2 * 0.7), V(lean, H * 0.62, lean2)], tr, tr * 0.12, 8);
   // root flare
   limb(wood, [V(0, -0.2, 0), V(0, 0.5, 0)], tr * 1.45, tr * 1.0, 8);
   const cc = V(lean * 0.6, H * 0.63, lean2 * 0.6); const ry = H * 0.37;
@@ -193,10 +193,10 @@ export function createTrees(ctx) {
     return m;
   };
   const uSunDirV = { value: new THREE.Vector3() }, uTime = { value: 0 };
-  const barkMat = new THREE.MeshStandardMaterial({ map: T.barkColor, normalMap: quality === 'low' ? null : T.barkNormal, roughness: 0.95, color: 0x8d8478, vertexColors: true });
+  const barkMat = new THREE.MeshStandardMaterial({ map: T.barkColor, normalMap: quality === 'low' ? null : T.barkNormal, roughness: 0.95, color: 0x6e5d50, vertexColors: true });
   const leafMats = [mkLeaf(leafTexA, 0xffffff), mkLeaf(leafTexB, 0xf2ffd8), mkLeaf(conTex, 0xffffff)];
-  const cards = quality === 'low' ? 110 : quality === 'medium' ? 170 : 230;
-  const cs = quality === 'low' ? 1.35 : quality === 'medium' ? 1.12 : 1.0;
+  const cards = quality === 'low' ? 110 : quality === 'medium' ? 190 : 400;
+  const cs = quality === 'low' ? 1.35 : quality === 'medium' ? 1.1 : 0.86;
   const variants = [
     { ...makeDeciduous(11, { H: 15.5, R: 6.2, cards, cardSize: cs }), leafMat: leafMats[0] },
     { ...makeDeciduous(23, { H: 13.0, R: 5.4, cards, cardSize: cs }), leafMat: leafMats[1] },
@@ -217,7 +217,7 @@ export function createTrees(ctx) {
     const prevRT = renderer.getRenderTarget(); const prevCC = renderer.getClearColor(new THREE.Color()), prevCA = renderer.getClearAlpha(); const prevTM = renderer.toneMapping;
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.setRenderTarget(atlas); renderer.setClearColor(0x2a3d1c, 0); renderer.clear();
-    renderer.setScissorTest(true);
+    atlas.scissorTest = true;
     variants.forEach((v, i) => {
       const g = new THREE.Group(); g.add(new THREE.Mesh(v.wood, barkMat), new THREE.Mesh(v.leaves, v.leafMat)); s2.add(g);
       const hw = v.radius, hh = v.height / 2;
@@ -229,10 +229,10 @@ export function createTrees(ctx) {
       renderer.render(s2, cam);
       s2.remove(g);
     });
-    renderer.setScissorTest(false); atlas.viewport.set(0, 0, IW * NV, IH); atlas.scissor.set(0, 0, IW * NV, IH);
+    atlas.scissorTest = false; atlas.viewport.set(0, 0, IW * NV, IH); atlas.scissor.set(0, 0, IW * NV, IH);
     renderer.setRenderTarget(prevRT); renderer.setClearColor(prevCC, prevCA); renderer.toneMapping = prevTM;
   }
-  const impMat = new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.5, side: THREE.DoubleSide, fog: true });
+  const impMat = new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.35, side: THREE.DoubleSide, fog: true });
   const impGeos = variants.map((v, i) => {
     const acc = new GeoAcc(); const hw = v.radius, h = v.height; const u0 = i / NV, u1 = (i + 1) / NV;
     for (const [dx, dz] of [[1, 0], [0, 1], [0.707, 0.707], [0.707, -0.707]].slice(0, 2)) {

@@ -42,13 +42,13 @@ function windowTextures(aniso) {
   const W = 128, H = 256;
   const c = makeCanvas(W, H), g = c.getContext('2d');
   const o = makeCanvas(W, H), go = o.getContext('2d');   // G = roughness, B = metalness
-  g.fillStyle = '#2b3740'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#7f95a3'; g.fillRect(0, 0, W, H);
   go.fillStyle = 'rgb(0,18,255)'; go.fillRect(0, 0, W, H);
   // frosted upper row
   g.fillStyle = '#aebdb9'; g.fillRect(0, 0, W, H * 0.34);
   go.fillStyle = 'rgb(0,120,60)'; go.fillRect(0, 0, W, H * 0.34);
   // slight gradient on clear glass
-  const gr = g.createLinearGradient(0, H * 0.34, 0, H); gr.addColorStop(0, 'rgba(60,80,95,0.55)'); gr.addColorStop(1, 'rgba(20,26,30,0.4)');
+  const gr = g.createLinearGradient(0, H * 0.34, 0, H); gr.addColorStop(0, 'rgba(120,140,155,0.3)'); gr.addColorStop(1, 'rgba(40,50,58,0.45)');
   g.fillStyle = gr; g.fillRect(0, H * 0.34, W, H * 0.66);
   // frames (dark bronze)
   const frame = (x, y, w, h) => { g.fillStyle = '#1b1917'; g.fillRect(x, y, w, h); go.fillStyle = 'rgb(0,130,90)'; go.fillRect(x, y, w, h); };
@@ -63,7 +63,7 @@ function doorTextures(aniso) {
   const W = 256, H = 256;
   const c = makeCanvas(W, H), g = c.getContext('2d'); const o = makeCanvas(W, H), go = o.getContext('2d');
   g.fillStyle = '#1b1917'; g.fillRect(0, 0, W, H); go.fillStyle = 'rgb(0,130,90)'; go.fillRect(0, 0, W, H);
-  const glass = (x, y, w, h) => { g.fillStyle = '#26323a'; g.fillRect(x, y, w, h); go.fillStyle = 'rgb(0,18,255)'; go.fillRect(x, y, w, h); };
+  const glass = (x, y, w, h) => { g.fillStyle = '#6f828e'; g.fillRect(x, y, w, h); go.fillStyle = 'rgb(0,18,255)'; go.fillRect(x, y, w, h); };
   glass(10, 8, W - 20, 34);                    // transom
   glass(22, 62, W / 2 - 34, 150); glass(W / 2 + 12, 62, W / 2 - 34, 150);
   g.fillStyle = '#b9b9b4'; g.fillRect(W / 2 - 16, 150, 6, 34); g.fillRect(W / 2 + 10, 150, 6, 34); // pulls
@@ -171,7 +171,8 @@ export function createMaterials(T, quality) {
   M.brick.color.setRGB(1.0, 1.0, 1.0);
   M.brick.normalScale.set(1.2, 1.2);
   M.brickRed = std({ map: T.brickColor, normalMap: T.brickNormal, roughnessMap: T.brickRough, roughness: 1.0, color: 0xc9705c });
-  M.limestone = std({ map: T.concreteColor, normalMap: T.concreteNormal, color: 0xe6dcc4, roughness: 0.82 });
+  M.limestone = std({ map: T.concreteColor, normalMap: T.concreteNormal, roughness: 0.82 });
+  M.limestone.color.setRGB(1.25, 1.14, 0.92);
   M.limestone.normalScale.set(0.5, 0.5);
   M.concrete = std({ map: T.concreteColor, normalMap: T.concreteNormal, color: 0xc9c7c0, roughness: 0.85 });
   M.bronze = std({ color: 0x1d1a18, roughness: 0.5, metalness: 0.55 });
@@ -179,7 +180,7 @@ export function createMaterials(T, quality) {
   M.glass = std({ map: win.map, roughnessMap: win.orm, metalnessMap: win.orm, roughness: 1, metalness: 1, envMapIntensity: 1.5 });
   const door = doorTextures(aniso);
   M.door = std({ map: door.map, roughnessMap: door.orm, metalnessMap: door.orm, roughness: 1, metalness: 1, envMapIntensity: 1.4 });
-  M.curtainGlass = std({ color: 0x3c4a55, roughness: 0.06, metalness: 1.0, envMapIntensity: 1.5 });
+  M.curtainGlass = std({ color: 0x8395a1, roughness: 0.06, metalness: 1.0, envMapIntensity: 1.5 });
   M.roofSat = std({ map: T.roofs, roughness: 0.95, metalness: 0 });
   M.roofSat.color.setRGB(1.06, 1.0, 0.9);
   M.whitePanel = std({ color: 0xeeebe2, roughness: 0.45, metalness: 0.1 });
@@ -189,7 +190,7 @@ export function createMaterials(T, quality) {
   M.paint = std({ vertexColors: true, roughness: 0.62, metalness: 0.0 });          // generic matte coloured props
   M.gloss = std({ vertexColors: true, roughness: 0.28, metalness: 0.35, envMapIntensity: 1.1 }); // painted metal (vehicles, scoreboards)
   M.rubber = std({ color: 0x101011, roughness: 0.9 });
-  M.carGlass = std({ color: 0x1a2228, roughness: 0.05, metalness: 1.0, envMapIntensity: 1.6 });
+  M.carGlass = std({ color: 0x4a5760, roughness: 0.05, metalness: 1.0, envMapIntensity: 1.6 });
   M.lightEmit = std({ color: 0xffffff, emissive: 0xfff3d0, emissiveIntensity: 0.6, roughness: 0.4 });
   M.wood = std({ map: T.barkColor, color: 0xb08a62, roughness: 0.85 });
   const cl = chainlinkTexture(aniso);

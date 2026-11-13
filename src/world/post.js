@@ -30,7 +30,7 @@ export function createPost({ renderer, scene, camera, quality }) {
   const preset = POST_PRESETS[quality] || POST_PRESETS.high;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;   // only applies when rendering straight to the canvas
-  renderer.toneMappingExposure = 0.78;
+  renderer.toneMappingExposure = 0.86;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, preset.pixelRatio));
 
   let composer = null, overlayPass = null, aoPass = null;

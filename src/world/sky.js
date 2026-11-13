@@ -44,7 +44,7 @@ export async function createSky({ renderer, scene, quality }) {
     scene.backgroundRotation.set(0, rot, 0);
     scene.environmentRotation.set(0, rot, 0);
     scene.backgroundIntensity = 0.9;
-    scene.environmentIntensity = 0.95;
+    scene.environmentIntensity = 1.3;
   } catch (e) {
     console.warn('[world] HDRI failed to load, using flat sky', e);
     scene.background = new THREE.Color(0x8fb8e6);
@@ -53,7 +53,7 @@ export async function createSky({ renderer, scene, quality }) {
   scene.fog = new THREE.FogExp2(HAZE_COLOR.getHex(), 0.00085);
 
   // ---- sun
-  const sun = new THREE.DirectionalLight(0xfff1dc, 3.4);
+  const sun = new THREE.DirectionalLight(0xfff1dc, 3.3);
   sun.position.copy(sunDirection).multiplyScalar(400);
   scene.add(sun); scene.add(sun.target);
   renderer.shadowMap.enabled = true;

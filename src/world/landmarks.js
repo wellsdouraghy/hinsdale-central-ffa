@@ -168,7 +168,7 @@ function drawFootballField(g, ppm, cx, cy, o) {
   const m = (v) => v * ppm; const FW = 53.333 * YD, HL = 50 * YD, EZ = 10 * YD;
   g.save(); g.translate(cx, cy);
   // mowing-style stripes every 5 yards
-  for (let i = -10; i < 10; i++) { g.fillStyle = (i & 1) ? '#2e7a3d' : '#2a7038'; g.fillRect(m(-FW / 2), m(i * 5 * YD), m(FW), m(5 * YD) + 1); }
+  for (let i = -10; i < 10; i++) { g.fillStyle = (i & 1) ? '#24724c' : '#206a46'; g.fillRect(m(-FW / 2), m(i * 5 * YD), m(FW), m(5 * YD) + 1); }
   // end zones
   for (const sgn of [-1, 1]) {
     g.fillStyle = o.endColor; g.fillRect(m(-FW / 2), sgn > 0 ? m(HL) : m(-HL - EZ), m(FW), m(EZ));
@@ -248,22 +248,22 @@ export function buildLandmarks(ctx) {
     const x0 = -182.6, x1 = -123.4, z0 = -160.6, z1 = -42.8, fcx = -153.0, fcz = -101.7;
     const W = 1024 * big, H = Math.round(W * (z1 - z0) / (x1 - x0)), ppm = W / (x1 - x0);
     const c = makeCanvas(W, H), g = c.getContext('2d');
-    g.fillStyle = '#24633a'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#1e6040'; g.fillRect(0, 0, W, H);
     const px = (x) => (x - x0) * ppm, pz = (z) => (z - z0) * ppm;
     // red surround at both ends, white team areas along the middle third (as in the imagery)
-    g.fillStyle = '#b3352b'; g.fillRect(px(-181.4), pz(-159.6), (181.4 - 124.6) * ppm, (159.6 - 124) * ppm); g.fillRect(px(-181.4), pz(-79.5), (181.4 - 124.6) * ppm, (79.5 - 43.8) * ppm);
+    g.fillStyle = '#cf4330'; g.fillRect(px(-181.4), pz(-159.6), (181.4 - 124.6) * ppm, (159.6 - 124) * ppm); g.fillRect(px(-181.4), pz(-79.5), (181.4 - 124.6) * ppm, (79.5 - 43.8) * ppm);
     g.fillStyle = '#d9dad6'; g.fillRect(px(-181.4), pz(-124), (181.4 - 124.6) * ppm, (124 - 79.5) * ppm);
-    g.fillStyle = '#24633a'; g.fillRect(px(-178.6), pz(-124), (178.6 - 127.4) * ppm, (124 - 79.5) * ppm);
+    g.fillStyle = '#1e6040'; g.fillRect(px(-178.6), pz(-124), (178.6 - 127.4) * ppm, (124 - 79.5) * ppm);
     g.fillStyle = '#d9dad6'; g.fillRect(px(-181.0), pz(-124), 3.0 * ppm, 44.5 * ppm); g.fillRect(px(-128.0), pz(-124), 3.0 * ppm, 44.5 * ppm);
-    drawFootballField(g, ppm, px(fcx), pz(fcz), { endColor: '#c0392f', endText: ['HINSDALE', 'CENTRAL'], logo: true });
+    drawFootballField(g, ppm, px(fcx), pz(fcz), { endColor: '#d8452f', endText: ['HINSDALE', 'CENTRAL'], logo: true });
     turfNoise(g, W, H, 34, 11);
     addOverlay(ctx, c, x0, z0, x1, z1);
     goalPost(ctx, fcx, fcz - 60 * YD, 1); goalPost(ctx, fcx, fcz + 60 * YD, -1);
 
     // home stand (west), press box on top
-    const hs = bleachers(ctx, { x: -189.3, z: -137.8, dir: -Math.PI / 2, len: 79.6, rows: 17, run: 0.72, rise: 0.38, frontH: 1.15, redCenter: true });
+    const hs = bleachers(ctx, { x: -189.3, z: -137.8, dir: -Math.PI / 2, len: 79.6, rows: 12, run: 0.74, rise: 0.3, frontH: 1.0, redCenter: true });
     {
-      const pbx = -202.6, pz0 = -113, pz1 = -83, y0 = hs.topY + 0.25, hh = 3.3;
+      const pbx = -200.6, pz0 = -113, pz1 = -83, y0 = hs.topY + 0.25, hh = 3.0;
       B.v('whitePanel').box(pbx, y0 + hh / 2, (pz0 + pz1) / 2, 3.4, hh, pz1 - pz0);
       B.c('metal').box(pbx, y0 + hh / 2, (pz0 + pz1) / 2, 3.4, hh, pz1 - pz0);
       B.v('carGlass').box(pbx + 1.72, y0 + 1.9, (pz0 + pz1) / 2, 0.04, 1.3, pz1 - pz0 - 1.2);
@@ -275,7 +275,7 @@ export function buildLandmarks(ctx) {
       sm.position.set(pbx + 1.77, y0 + 0.55, (pz0 + pz1) / 2); sm.rotation.y = Math.PI / 2; ctx.scene.add(sm);
     }
     // visitors (east)
-    bleachers(ctx, { x: -101.2, z: -69.8, dir: Math.PI / 2, len: 64, rows: 9, run: 0.7, rise: 0.33, frontH: 0.85 });
+    bleachers(ctx, { x: -101.2, z: -69.8, dir: Math.PI / 2, len: 64, rows: 7, run: 0.7, rise: 0.33, frontH: 0.85 });
     // lights
     lightPole(ctx, -205.2, -131, 27, Math.PI / 2 + Math.PI); lightPole(ctx, -205.2, -65, 27, Math.PI / 2 + Math.PI);
     lightPole(ctx, -97.6, -137.6, 27, Math.PI / 2); lightPole(ctx, -97.6, -66, 27, Math.PI / 2);
@@ -283,13 +283,13 @@ export function buildLandmarks(ctx) {
     {
       const sx = -152.5, sz = -24.5;
       for (const dx of [-3.4, 3.4]) { B.v('galv').cyl(sx + dx, 0, sz, 0.16, 0.16, 7.6, 8, 1, true); B.c('metal').box(sx + dx, 3.8, sz, 0.4, 7.6, 0.4); }
-      B.v('paint', true).setColor(...RED).box(sx, 5.6, sz, 9.6, 4.0, 0.35);
+      B.v('paint', true).setColor(...BLACK).box(sx, 5.6, sz, 9.6, 4.0, 0.35);
       B.c('metal').box(sx, 5.6, sz, 9.6, 4.0, 0.35);
       const c2 = makeCanvas(1024, 426), g2 = c2.getContext('2d');
-      g2.fillStyle = '#9e1b16'; g2.fillRect(0, 0, 1024, 426);
+      g2.fillStyle = '#141414'; g2.fillRect(0, 0, 1024, 426); g2.fillStyle = '#9e1b16'; g2.fillRect(0, 0, 1024, 96);
       g2.fillStyle = '#fff'; g2.font = '800 70px Arial, sans-serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText('HINSDALE CENTRAL', 512, 52);
       g2.font = '700 40px Arial'; g2.fillText('HOME', 180, 130); g2.fillText('GUEST', 844, 130); g2.fillText('QTR', 512, 250); g2.fillText('DOWN', 180, 330); g2.fillText('TO GO', 512, 330); g2.fillText('BALL ON', 844, 330);
-      g2.fillStyle = '#111'; for (const [x, y, w, h] of [[90, 160, 180, 110], [754, 160, 180, 110], [400, 110, 224, 100], [472, 270, 80, 50]]) g2.fillRect(x, y, w, h);
+      g2.fillStyle = '#000'; for (const [x, y, w, h] of [[90, 160, 180, 110], [754, 160, 180, 110], [400, 110, 224, 100], [472, 270, 80, 50]]) g2.fillRect(x, y, w, h);
       g2.fillStyle = '#ffb000'; g2.font = '700 96px "Courier New", monospace'; g2.fillText('21', 180, 218); g2.fillText('14', 844, 218); g2.fillStyle = '#ff3b30'; g2.fillText('12:00', 512, 164); g2.font = '700 44px "Courier New", monospace'; g2.fillText('4', 512, 296);
       const sm = new THREE.Mesh(new THREE.PlaneGeometry(9.5, 3.95), new THREE.MeshStandardMaterial({ map: canvasTexture(c2, { repeat: false }), roughness: 0.5, emissive: 0xffffff, emissiveMap: canvasTexture(c2, { repeat: false }), emissiveIntensity: 0.12 }));
       sm.position.set(sx, 5.6, sz - 0.185); sm.rotation.y = Math.PI; ctx.scene.add(sm);
@@ -310,8 +310,8 @@ export function buildLandmarks(ctx) {
     const c = makeCanvas(W, H), g = c.getContext('2d');
     g.fillStyle = '#b3352b'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#d9dad6'; g.fillRect(0, (9 - z0) * ppm, W, (58) * ppm);
-    g.fillStyle = '#24633a'; g.fillRect(2.4 * ppm, 2.4 * ppm, W - 4.8 * ppm, H - 4.8 * ppm);
-    drawFootballField(g, ppm, (fcx - x0) * ppm, (fcz - z0) * ppm, { endColor: '#2a7038', endText: null, logo: false });
+    g.fillStyle = '#1e6040'; g.fillRect(2.4 * ppm, 2.4 * ppm, W - 4.8 * ppm, H - 4.8 * ppm);
+    drawFootballField(g, ppm, (fcx - x0) * ppm, (fcz - z0) * ppm, { endColor: '#206a46', endText: null, logo: false });
     // soccer markings in yellow
     g.strokeStyle = '#e8c832'; g.lineWidth = Math.max(2, 0.1 * ppm); const sx = (fcx - x0) * ppm, sy = (fcz - z0) * ppm;
     g.strokeRect(sx - 24.6 * ppm, sy - 53 * ppm, 49.2 * ppm, 106 * ppm); g.beginPath(); g.arc(sx, sy, 9.15 * ppm, 0, Math.PI * 2); g.stroke();
@@ -360,15 +360,15 @@ export function buildLandmarks(ctx) {
 
   // ================= water tower (standpipe) + compound
   {
-    const x = -36.8, z = 125.0, r = 7.4, h = 31; const s = 2 / (2 * Math.PI * r);
+    const x = -36.8, z = 125.0, r = 7.4, h = 30; const s = 2 / (2 * Math.PI * r);
     const t = B.v('tower');
     t.cyl(x, 0.5, z, r, r, h - 0.5, 56, s, false);
     const rings = 8;
     for (let i = 0; i < rings; i++) {
       const a0 = (i / rings) * Math.PI / 2, a1 = ((i + 1) / rings) * Math.PI / 2;
-      t.cyl(x, h + 4.6 * Math.sin(a0), z, r * Math.cos(a0), Math.max(0.0, r * Math.cos(a1)), 4.6 * (Math.sin(a1) - Math.sin(a0)), 56, s, i === rings - 1);
+      t.cyl(x, h + 4.3 * Math.sin(a0), z, r * Math.cos(a0), Math.max(0.0, r * Math.cos(a1)), 4.3 * (Math.sin(a1) - Math.sin(a0)), 56, s, i === rings - 1);
     }
-    t.cyl(x, h + 4.55, z, 0.5, 0.5, 0.9, 10, s, true);
+    t.cyl(x, h + 4.25, z, 0.5, 0.5, 0.9, 10, s, true);
     B.v('galv').cyl(x + 1.5, h + 4.3, z + 0.5, 0.03, 0.03, 4.5, 5, 1, true).cyl(x - 1.2, h + 4.2, z - 0.8, 0.03, 0.03, 3.2, 5, 1, true);
     B.v('concrete').cyl(x, 0, z, r + 0.5, r + 0.5, 0.5, 40, 1 / 3, true);
     // handrail ring at the shoulder + ladder with cage on the north-east side

@@ -61,12 +61,14 @@ function opening(B, F, u0, u1, y0, y1, kind) {
 
 const STYLES = {
   main: { windows: true, doors: true },
-  link: { windows: true, doors: false },
-  addition: { windows: true, doors: true, single: true },
-  gym: { windows: false, doors: true },
-  fieldhouse: { windows: false, doors: true, clerestory: true },
-  auditorium: { windows: false, doors: false },
-  southeast: { windows: false, doors: true, clerestory: true },
+  ss: { windows: true, doors: true }, c12: { windows: true, doors: true }, e11: { windows: true, doors: true },
+  link: { windows: false, doors: false },
+  addition: { windows: true, doors: true, single: true }, annex: { windows: true, doors: true, single: true },
+  low7: { windows: true, doors: true, single: true }, low8: { windows: true, doors: true, single: true }, low7b: { windows: true, doors: false, single: true },
+  lowN: { windows: false, doors: true }, lowE: { windows: false, doors: true },
+  gymW: { windows: false, doors: true, clerestory: true }, gymE: { windows: false, doors: true },
+  fieldhouse: { windows: false, doors: true, clerestory: true }, fieldhouseW: { windows: false, doors: true },
+  southeast: { windows: false, doors: true },
 };
 
 function facade(B, ax, az, bx, bz, y0, h, styleName, uOff, rnd) {
@@ -96,7 +98,7 @@ function facade(B, ax, az, bx, bz, y0, h, styleName, uOff, rnd) {
       r2.push([c - (bay - 0.45) / 2, c + (bay - 0.45) / 2, 'win']);
     }
     rows.push([1.0, 3.15, r1]);
-    if (!style.single && bandY >= 7.6) rows.push([5.0, 7.45, r2]);
+    if (!style.single && bandY >= 7.6) rows.push([h * 0.5 + 0.3, h * 0.5 + 2.75, r2]);
   } else if (style.doors && L > 16) {
     const c = L * (0.3 + 0.4 * rnd());
     rows.push([0.0, 2.5, [[c - 1.0, c + 1.0, 'door', 0.0, 2.5]]]);
@@ -150,7 +152,8 @@ export function buildSchool(ctx) {
         const a = ring.pts[i], b = ring.pts[(i + 1) % n]; const base = ring.base[i];
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
         if (base < h - 0.5) facade(B, a[0], a[1], b[0], b[1], base > 0 ? Math.max(0, base - 0.4) : 0, h, piece.name, uOff, rnd);
-        // parapet cap + inner face
+        // parapet cap + inner face (not between two wings of equal height)
+        if (base >= h - 0.5) { uOff += L; continue; }
         const F = edgeFrame(a[0], a[1], b[0], b[1]);
         quadFacing(B.v('bronze'), F.P(-0.08, h + 0.02, 0.09), F.P(L + 0.08, h + 0.02, 0.09), F.P(L, h + 0.02, -0.3), F.P(0, h + 0.02, -0.3), [0, 1, 0]);
         quadFacing(B.v('concrete'), F.P(0, roofY, -0.3), F.P(L, roofY, -0.3), F.P(L, h + 0.02, -0.3), F.P(0, h + 0.02, -0.3), [-F.nx, 0, -F.nz]);
@@ -208,7 +211,7 @@ function schoolFeatures(ctx) {
   {
     const F = edgeFrame(-11.17, -152.39, -1.25, -152.66);   // CCW order of the outer ring: west->east along the north face
     const tex = M.textDecal(['HINSDALE', 'TOWNSHIP', 'HIGH SCHOOL', 'CENTRAL'], { w: 1024, h: 768, font: 150, color: '#eef0f1', spacing: '10px' });
-    addDecal(tex, F, F.L * 0.42, 5.6, 5.2, 3.9, 0.04);
+    addDecal(tex, F, F.L * 0.42, 6.2, 5.2, 3.9, 0.04);
   }
   // --- 55th St (north) entrance: brick pier with limestone portal, like the Wikimedia photos
   {
@@ -216,8 +219,8 @@ function schoolFeatures(ctx) {
     const F = edgeFrame(ax, az, bx, bz);
     for (const uC of [F.L * 0.36, F.L * 0.74]) {
       const c = F.P(uC, 0, 0.35);
-      B.v('brick').box(c[0], 4.85, c[2], 6.4, 9.7, 0.7, F.rotY, BRICK_S);
-      B.c('brick').box(c[0], 4.85, c[2], 6.4, 9.7, 0.7, F.rotY);
+      B.v('brick').box(c[0], 5.35, c[2], 6.4, 10.7, 0.7, F.rotY, BRICK_S);
+      B.c('brick').box(c[0], 5.35, c[2], 6.4, 10.7, 0.7, F.rotY);
       const s = F.P(uC, 0, 0.75);
       B.v('limestone').box(s[0], 2.6, s[2], 3.9, 5.2, 0.16, F.rotY, STONE_S);
       const F2 = edgeFrame(...F.P(uC - 1.2, 0, 0.84).filter((_, i) => i !== 1), ...F.P(uC + 1.2, 0, 0.84).filter((_, i) => i !== 1));
@@ -301,9 +304,9 @@ function hipRoof(bucket, ring, eaveY, pitch, overhang, uvS) {
 
 const SPECIAL = {
   587068096: { type: 'concession' },
-  227528871: { type: 'flat', h: 5.5 },
+  227528871: { type: 'flat', h: 4.0 },
   227528875: { type: 'flat', h: 4.0 },
-  1443736359: { type: 'pump', h: 4.2 },
+  1443736359: { type: 'pump', h: 5.5 },
 };
 
 export function buildHouses(ctx) {
@@ -340,11 +343,11 @@ export function buildHouses(ctx) {
       for (let i = 0; i < ring.length; i++) {
         const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]);
         const F = edgeFrame(a[0], a[1], c[0], c[1]);
-        brickRect(B.v('brickRed'), F, 0, L, 0, h, u);
+        wallRect(B.v('house0'), F, 0, L, 0, h, 0, [0.02, 0.04, 0.2, 0.9]);
         if (L > 9) for (let k = 0; k < Math.floor(L / 5); k++) { const uc = 2.5 + k * 5; wallRect(B.v('bronze'), F, uc - 1.4, uc + 1.4, 1.0, 2.4, 0.03); }
         u += L;
       }
-      B.v('shingles', true).setColor(2.6, 0.55, 0.42); hipRoof(B.v('shingles', true), ring, h, 0.55, 0.8, 1 / 3);
+      B.v('shingles', true).setColor(3.4, 0.5, 0.36); hipRoof(B.v('shingles', true), ring, h, 0.55, 0.8, 1 / 3);
       B.c('brick').prism(ring, 0, h + 1.2, 1, true);
       continue;
     }

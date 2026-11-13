@@ -25,7 +25,7 @@ H, W, _ = A.shape
 X0, X1, Z0, Z1 = -394.85, 394.85, -305.44, 305.44
 sx = W / (X1 - X0); sz = H / (Z1 - Z0)
 PLAY = dict(minX=-222, maxX=292, minZ=-212, maxZ=214)
-LEAN = (3.5 / 9.0, 2.0 / 9.0)   # imagery is off-nadir: roofs appear shifted by LEAN*height
+LEAN = (3.5 / 10.0, 2.0 / 10.0)   # imagery is off-nadir: roofs appear shifted by LEAN*height
 random.seed(7); np.random.seed(7)
 
 def P(x, z): return ((x - X0) * sx, (z - Z0) * sz)
@@ -57,7 +57,7 @@ S = (mx - mn) / np.maximum(mx, 1)
 SCHOOL_ID = 7822857
 def bheight(b):
     t = b['tags']
-    if b['id'] == SCHOOL_ID: return 9.0
+    if b['id'] == SCHOOL_ID: return 10.0
     if t.get('building') == 'garage': return 3.0
     return 6.5
 bld = np.zeros((H, W), bool)
@@ -162,15 +162,17 @@ bl = base.mean(2, keepdims=True)
 gmean_p = float(bl[pm].mean())
 bl = gmean_p + np.clip(bl - gmean_p, -22, 22) * 0.55      # compress tone variation of pavement
 base = bl + (base - bl) * 0.25
-conc_rgb = np.clip(bl * 0.25 + 150 + (base - bl), 0, 255) * np.array([1.0, 0.985, 0.95], np.float32)
-base = base * 0.66
+conc_rgb = np.clip(bl * 0.25 + 122 + (base - bl), 0, 255) * np.array([1.0, 0.985, 0.95], np.float32)
+base = base * 0.5
 base[..., 2] *= 1.0
 # markings: white top-hat of each channel (features thinner than ~1.3 m)
 th = np.stack([A[..., c] - ndi.grey_opening(A[..., c], size=(6, 6)) for c in range(3)], 2)
 thL = th.mean(2)
-line = np.clip((thL - 16) / 22, 0, 1) * (cls == ASPH) * (~shadow)
+line = np.clip((thL - 24) / 26, 0, 1) * 0.75 * (cls == ASPH) * (~shadow)
+blob = ndi.grey_opening(line, size=(3, 3))
+line = np.clip(line - 4 * ndi.grey_dilation(blob, size=(7, 7)), 0, 1)
 line = ndi.gaussian_filter(line, 0.5)[..., None]
-linecol = np.clip(A * 1.15 + 20, 0, 235)
+linecol = np.clip(A * 1.05 + 10, 0, 215)
 paved_rgb = base * (1 - line) + linecol * line
 # conc gets brighter/cleaner tone
 # dirt: warm tan from luminance
@@ -201,27 +203,35 @@ sb = [b for b in D['buildings'] if b['id'] == SCHOOL_ID][0]
 foot_poly = Polygon(sb['outer'][0], sb['inner'])
 if not foot_poly.is_valid: foot_poly = foot_poly.buffer(0)
 # OSM is older than the imagery: two former courtyards now hold buildings (student services infill, fine-arts block)
-infill_a = Polygon(sb['inner'][1]).intersection(box(20.0, -131.0, 57.5, -89.0))
-infill_b = Polygon(sb['inner'][2])
-foot_poly = unary_union([foot_poly, infill_a.buffer(0.05), infill_b.buffer(0.05)]).buffer(0)
-# hand-authored height regions (x0,z0,x1,z1,height,name) in OSM ground coordinates
+infill_a = Polygon(sb['inner'][1]).intersection(box(20.0, -131.0, 70.0, -97.0))
+infill_b = Polygon(sb['inner'][2]).intersection(box(72.0, -123.0, 91.5, -96.0))
+annex = box(97.0, 29.3, 117.0, 56.0)
+foot_poly = unary_union([foot_poly, infill_a.buffer(0.05), infill_b.buffer(0.05), annex]).buffer(0)
+# Hand-authored height regions (x0,z0,x1,z1,height,name) in OSM ground coordinates, in priority order.
+# Heights were measured from Google Photorealistic 3D Tiles (roof sampling on a 3 m grid).
 REGIONS = [
-    (108.0, -108.0, 160.0, -52.0, 13.5, 'fieldhouse'),
-    (-8.0, -22.0, 87.0, 56.0, 10.8, 'gym'),
-    (72.5, -132.0, 101.0, -96.0, 12.5, 'auditorium'),
-    (116.0, 4.0, 158.0, 34.0, 10.5, 'southeast'),
-    (22.0, 26.0, 44.0, 54.0, 7.0, 'addition'),
-    (94.0, -45.0, 103.0, -5.0, 7.5, 'link'),
+    (22.0, 26.0, 44.0, 54.0, 6.0, 'addition'),
+    (97.0, 29.3, 117.0, 56.0, 6.5, 'annex'),
+    (108.0, -106.0, 160.0, -52.0, 13.5, 'fieldhouse'),
+    (92.0, -104.0, 108.0, -66.0, 11.5, 'fieldhouseW'),
+    (116.0, 4.0, 158.0, 34.0, 15.5, 'southeast'),
+    (45.0, -27.5, 87.0, -18.0, 5.0, 'lowN'),
+    (80.0, -18.0, 87.0, 56.0, 5.0, 'lowE'),
+    (-8.0, -27.5, 45.0, 27.5, 12.0, 'gymW'),
+    (45.0, -18.0, 80.0, 56.0, 11.0, 'gymE'),
+    (94.0, -45.0, 101.2, -5.0, 4.0, 'link'),
+    (101.2, -52.0, 122.0, 3.0, 7.0, 'low7'),
+    (95.0, -5.0, 116.0, 29.3, 8.0, 'low8'),
+    (122.0, -52.0, 153.0, -28.0, 11.0, 'e11'),
+    (80.5, -97.0, 92.0, -58.0, 7.0, 'low7b'),
+    (31.0, -131.0, 55.0, -80.0, 11.0, 'ss'),
+    (55.0, -131.0, 92.0, -97.0, 12.0, 'c12'),
+    (55.0, -97.0, 80.5, -58.0, 12.0, 'c12'),
 ]
-DEFAULT_H = 9.0
+DEFAULT_H = 10.0
 pieces = []
-used = None
-for (x0, z0, x1, z1, h, name) in REGIONS[::-1]:
-    pass
 taken = []
-order = [4, 0, 1, 2, 3, 5]   # 'addition' overrides 'gym'
-for i in order:
-    x0, z0, x1, z1, h, name = REGIONS[i]
+for (x0, z0, x1, z1, h, name) in REGIONS:
     g = foot_poly.intersection(box(x0, z0, x1, z1))
     for t in taken: g = g.difference(t)
     g = g.buffer(0)
@@ -236,7 +246,7 @@ def polys(g):
     return [p for p in getattr(g, 'geoms', []) if p.geom_type == 'Polygon' and p.area > 4]
 flat = []
 for g, h, name in pieces:
-    for p in polys(g): flat.append((p.simplify(0.05), h, name))
+    for p in polys(g): flat.append((p.simplify(0.12), h, name))
 fb = foot_poly.boundary
 school = []
 for p, h, name in flat:
@@ -308,7 +318,7 @@ HAND = [(-206, -178, 1, 1.0), (-207, -168, 1, 1.1), (-205, -158, 1, 1.0), (-206,
         (-205, -45, 1, 1.0), (-206, -32, 1, 1.1), (-204, -20, 1, 1.0), (-203, 20, 1, 1.0),
         (-185, -190, 0, 1.0), (-160, -190, 0, 0.9), (-130, -190.5, 0, 1.0), (-98, -188, 0, 1.0), (-70, -190, 0, 1.1), (-30, -186, 0, 1.0), (10, -180, 0, 0.9), (50, -182, 0, 1.0), (90, -182, 0, 1.0), (125, -184, 0, 0.9),
         (-100, -45, 0, 0.9), (-104, -20, 0, 1.0), (-98, 0, 0, 0.8), (-22, 150, 0, 1.0), (-70, 122, 0, 0.9), (-80, 150, 0, 1.1), (-60, 165, 0, 1.0), (-25, 175, 0, 1.0),
-        (166, -120, 0, 0.8), (165, -45, 1, 0.8), (188, -150, 0, 0.9), (189, -120, 0, 0.9), (190, -90, 0, 1.0), (190, -55, 0, 0.9), (192, 95, 0, 1.0), (193, 125, 0, 0.9), (192, 160, 0, 1.0),
+        (166, -120, 0, 0.8), (165, -45, 1, 0.8), (128, -126, 0, 1.1), (147, -125, 0, 1.2), (60, -80, 0, 0.7), (188, -150, 0, 0.9), (189, -120, 0, 0.9), (190, -90, 0, 1.0), (190, -55, 0, 0.9), (192, 95, 0, 1.0), (193, 125, 0, 0.9), (192, 160, 0, 1.0),
         (-15, 60, 0, 0.7), (-18, 35, 0, 0.7), (-14, -30, 0, 0.8)]
 for z_ in range(0, 9): HAND.append((52 + z_ * 7.5, 184 + (z_ % 2) * 1.5, 1, 0.9 + 0.2 * (z_ % 3) / 2))
 for (x, z, k, s) in HAND: add_tree(x, z, k, s)

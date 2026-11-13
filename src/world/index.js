@@ -120,7 +120,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
       trees.update(c, dt);
       if (grass) grass.update(c, dt);
       for (const u of ctx.updaters) u(dt, c);
-      if (tiles) { tiles.update(c); attributionHTML = tiles.attributionHTML(BASE_ATTRIBUTION); }
+      if (tiles) { tiles.update(c, dt); attributionHTML = tiles.attributionHTML(BASE_ATTRIBUTION); }
     },
     render(overlayScene, overlayCamera) { post.render(overlayScene, overlayCamera); },
     setSize(w, h) { post.setSize(w, h); if (tiles) tiles.setSize(); },
@@ -136,7 +136,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     progress(0.96, 'Connecting to Google 3D Tiles');
     try {
       tiles = await createTiles({ renderer, scene: root, camera, key: settings.googleTilesKey.trim(), quality, customVisuals, sky, collisionMeshes });
-      world.googleTilesActive = true;
+      world.googleTilesActive = true; world.tiles = tiles;
     } catch (e) {
       console.warn('[world] Google 3D Tiles unavailable, using the built-in campus instead:', e && e.message ? e.message : e);
       tiles = null; customVisuals.visible = true;
