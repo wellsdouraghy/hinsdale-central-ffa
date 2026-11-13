@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "3d-tiles-renderer": "^0.5.4",
