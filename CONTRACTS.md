@@ -177,3 +177,18 @@ Hitboxes are NOT the visuals' job: gameplay uses simple capsules/spheres around 
   pad at regulation run-offs), 90 ft baseball diamond with a raised mound (collision bump 0.25 m, surface `'dirt'`), three 60 ft softball
   diamonds, soccer lines on the west practice field. The Grant St entrance now sits on a 1.0 m raised terrace (walkable, with a step
   ramp on the west side and an accessible ramp at the south end); the 55th St front has the main walk, planters, flagpoles and sign.
+
+### Round 4 additions (melee motion, grenades, care packages, kill cam, classes)
+Gameplay must call the new optional methods with `?.` so either side can land first.
+- **Viewmodel** (`src/visuals/weapons.js`, Fable): `melee(durationSec)` big visible strike (rifle-butt/knife slash with
+  body motion, ~0.45 s), `throwGrenade(durationSec)` (gun dips, off hand pulls pin and throws, ~0.6 s; the release moment is at
+  ~55% of the duration), optional `setGrenadeInHand(bool)` for cooking.
+- **Character** (`src/visuals/character.js`, Fable): `melee()`, `throwGrenade()` third-person animations.
+- **Effects** (`src/visuals/effects.js`, Fable): `explosion(point, { radius = 6, surface })` fireball, flash light, smoke column,
+  debris, dust ring, scorch decal (pooled); `smokeMarker(point, { color = 0xff4422, durationSec = 8 })` colored signal smoke
+  for care-package drop zones.
+- **`src/visuals/grenade.js`** (Fable, placeholder exists): `createGrenade() -> { object3D, update(dt), dispose() }`
+  (world-space thrown frag; gameplay drives position/rotation).
+- **`src/visuals/carePackage.js`** (Fable, placeholder exists): `createCarePackage({ team }) -> { object3D, setParachute(bool),
+  open(), update(dt), dispose() }` (origin at crate bottom center; gameplay moves it while it descends).
+- Camera shake / kill cam / HUD are gameplay's job (Opus).
