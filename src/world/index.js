@@ -61,7 +61,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
 
   progress(0.42, 'Building terrain');
   const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality });
-  const ctx = { data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: PLAY_BOUNDS, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [] };
+  const ctx = { data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: PLAY_BOUNDS, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
 
   progress(0.48, 'Building school'); await tick();
   buildSchool(ctx);
@@ -111,6 +111,8 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     spawnPoints,
     ctfBases,
     ctfSpawns,
+    grapplePoles: ctx.grapplePoles,   // [{ x, z, y0, y1, r }] thin vertical poles for grapple aim assist
+    ladders: ctx.ladders,             // [{ x, z, nx, nz, y0, y1, exitY }] climbable ladders
     playBounds: { ...PLAY_BOUNDS },
     sunDirection: sunDirection.clone(),
     get attributionHTML() { return attributionHTML; },

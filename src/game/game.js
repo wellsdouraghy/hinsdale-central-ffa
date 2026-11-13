@@ -480,14 +480,50 @@ export class Game {
     const p = this.player;
     const eye = p.getEye(new THREE.Vector3());
     const dir = this._viewDir(new THREE.Vector3());
-    const hit = p.raycast(eye, dir, KIT.grappleRange * (this.classDef.grappleRangeMult ?? 1));
-    if (!hit) return null;
-    const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
-    const gy = this.world.groundY ? this.world.groundY(hit.point.x, hit.point.z) : 0;
-    if (n.y > 0.7 && hit.point.y - gy < 0.8) return null; // the ground itself
-    if (hit.distance < 2.5) return null;
-    // Anchor slightly off the surface so the cable stays clear.
-    return hit.point.clone().addScaledVector(n, 0.3);
+    const range = KIT.grappleRange * (this.classDef.grappleRangeMult ?? 1);
+    const hit = p.raycast(eye, dir, range);
+    let direct = null;
+    if (hit) {
+      const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
+      const gy = this.world.groundY ? this.world.groundY(hit.point.x, hit.point.z) : 0;
+      const isGround = n.y > 0.7 && hit.point.y - gy < 0.8;
+      // Anchor slightly off the surface so the cable stays clear.
+      if (!isGround && hit.distance >= 2.5) direct = { point: hit.point.clone().addScaledVector(n, 0.3), dist: hit.distance };
+    }
+    // Aim assist for thin poles (light poles, stadium lights, lamp posts): snap when the crosshair is close.
+    const pole = this._poleAssist(eye, dir, range, direct ? direct.dist : Infinity);
+    if (pole) return pole;
+    return direct ? direct.point : null;
+  }
+
+  /** Nearest grapple pole within a small angular cone of the view ray (and not behind a direct hit), or null. */
+  _poleAssist(eye, dir, range, directDist) {
+    const poles = this.world.grapplePoles;
+    if (!poles?.length) return null;
+    const CONE = THREE.MathUtils.degToRad(4.5);
+    let best = null, bestAng = CONE;
+    const q = new THREE.Vector3(), to = new THREE.Vector3(), nd = new THREE.Vector3();
+    const hl2 = dir.x * dir.x + dir.z * dir.z;
+    if (hl2 < 1e-6) return null;
+    for (const pl of poles) {
+      // Where the view ray passes the pole horizontally, clamped to the pole's height.
+      const along = ((pl.x - eye.x) * dir.x + (pl.z - eye.z) * dir.z) / hl2;
+      if (along <= 0) continue;
+      q.set(pl.x, THREE.MathUtils.clamp(eye.y + dir.y * along, pl.y0, pl.y1), pl.z);
+      to.subVectors(q, eye);
+      const d = to.length();
+      if (d < 2.5 || d > range || d > directDist + 1.5) continue;
+      // Angular error measured to the pole's surface, so thick poles are easier to catch.
+      const ang = Math.max(0, to.angleTo(dir) - Math.atan(pl.r / d));
+      if (ang >= bestAng) continue;
+      // Line of sight: nothing solid between us and the pole (hitting the pole itself is fine).
+      nd.copy(to).normalize();
+      const los = this.player.raycast(eye, nd, d);
+      if (los && los.distance < d - Math.max(0.8, pl.r + 0.5)) continue;
+      bestAng = ang;
+      best = q.clone().addScaledVector(nd, -(pl.r + 0.35));
+    }
+    return best;
   }
 
   _grappleKey(t) {
@@ -746,7 +782,7 @@ export class Game {
     p.update(dt, move, { ads: ar.ads, moveMult: st.moveMult * speedMult, blockSprint: fireHeld || aimWanted || this.throwables.cookStart !== null });
     for (const ev of p.events) {
       if (ev === 'doubleJump') this.audio.thruster();
-      else if (ev === 'mantle') this.audio.mantle();
+      else if (ev === 'mantle' || ev === 'ladder') this.audio.mantle();
       else if (ev === 'grappleArrive' || ev === 'grappleBreak') this.audio.grappleRelease();
     }
     p.events.length = 0;

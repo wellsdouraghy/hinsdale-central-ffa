@@ -11,6 +11,8 @@ const SPEED = { walk: 5, sprint: 7.5, crouch: 2.5, ads: 3, slide: 10 };
 const STEP = 0.45;            // max curb / step height climbed automatically
 const SPRINT_OUT = 0.18;      // seconds after sprint ends before the gun can fire
 const SLIDE_TIME = 0.8;
+const LADDER_OFF = 0.45;      // climber stands this far out from the ladder line
+const LADDER_SPEED = 4.2;     // m/s up/down (sprint key: faster)
 
 // Exo-suit movement kit.
 export const KIT = {
@@ -74,6 +76,8 @@ export class PlayerController {
     this.dashT = 0;
     this.grapple = null;      // { anchor: Vector3, speed, t, lastDist, stuckT }
     this.mantle = null;       // { from, to, t }
+    this.ladder = null;       // the world ladder being climbed (see world.ladders)
+    this.ladderCooldown = 0;  // seconds before a ladder can be grabbed again after jumping off
     this.events = [];         // 'doubleJump' | 'mantle' | 'land' | 'grappleArrive' | 'grappleBreak'
     this.ray = new THREE.Raycaster();
     this.ray.firstHitOnly = true;
@@ -103,6 +107,7 @@ export class PlayerController {
   }
 
   startGrapple(anchor) {
+    this.ladder = null;
     this.grapple = { anchor: anchor.clone(), speed: Math.max(8, this.velocity.length()), t: 0, lastDist: 1e9, stuckT: 0, checkT: 0 };
     this.sliding = false;
     this.mantle = null;
@@ -140,6 +145,7 @@ export class PlayerController {
   teleport(pos, yaw = this.yaw) {
     this.grapple = null;
     this.mantle = null;
+    this.ladder = null;
     this.dashT = 0;
     this.airJumps = this.maxAirJumps;
     this.position.copy(pos);
@@ -201,6 +207,11 @@ export class PlayerController {
 
     // Mantle in progress: scripted climb, no other movement.
     if (this.mantle) { this._updateMantle(dt); return; }
+
+    // Ladders: walk into one to grab it; W/S climb, Space jumps off, C lets go.
+    this.ladderCooldown = Math.max(0, this.ladderCooldown - dt);
+    if (!this.ladder && !this.grapple && this.ladderCooldown <= 0) this._tryLadder(input);
+    if (this.ladder) { this._updateLadder(dt, input); return; }
 
     // Jump (crouched jump stands up instead). Mid-air: one thruster double jump (Space while grappling = fling).
     const canJump = this.grounded || this.airTime < 0.1;
@@ -295,6 +306,55 @@ export class PlayerController {
       if (pz !== this.position.z) { this.position.z = pz; this.velocity.z = 0; }
     }
     if (this.position.y < -20 && this.onFellOut) this.onFellOut();
+  }
+
+  // ---------- ladders ----------
+  _tryLadder(input) {
+    const ladders = this.world.ladders;
+    if (!ladders?.length || input.forward <= 0.2) return;
+    const fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);
+    for (const L of ladders) {
+      const sx = L.x + L.nx * LADDER_OFF, sz = L.z + L.nz * LADDER_OFF;      // where a climber stands
+      if (Math.hypot(this.position.x - sx, this.position.z - sz) > 0.75) continue;
+      if (this.position.y < L.y0 - 0.8 || this.position.y > L.y1 - 0.3) continue;
+      if (fx * -L.nx + fz * -L.nz < 0.35) continue;                        // must be facing the ladder
+      this.ladder = L;
+      this.grapple = null; this.sliding = false; this.crouching = false; this.dashT = 0;
+      this.velocity.set(0, 0, 0);
+      this.position.x = sx; this.position.z = sz;
+      this.position.y = Math.max(this.position.y, L.y0 - 0.5);
+      this.events.push('ladder');
+      return;
+    }
+  }
+
+  _updateLadder(dt, input) {
+    const L = this.ladder;
+    // Jump off backward.
+    if (input.jump) {
+      this.ladder = null; this.ladderCooldown = 0.6;
+      this.velocity.set(L.nx * 5, 4.5, L.nz * 5);
+      this.grounded = false; this.airTime = 1;
+      return;
+    }
+    if (input.crouchToggle) { this.ladder = null; this.ladderCooldown = 0.6; this.velocity.set(L.nx * 0.5, 0, L.nz * 0.5); return; }
+    const climb = input.forward * (input.sprint ? LADDER_SPEED * 1.6 : LADDER_SPEED);
+    this.position.x = L.x + L.nx * LADDER_OFF; this.position.z = L.z + L.nz * LADDER_OFF;
+    this.position.y += climb * dt;
+    this.velocity.set(0, climb, 0);
+    this.grounded = false; this.airTime = 0; this.airJumps = this.maxAirJumps;
+    this.sprinting = false;
+    if (this.position.y >= L.y1) {                 // top: step off onto the platform
+      this.position.y = L.exitY ?? L.y1;
+      this.velocity.set(0, 0, 0);
+      this.ladder = null; this.ladderCooldown = 0.6; this.grounded = true;
+      this.events.push('mantle');
+    } else if (this.position.y <= L.y0 - 0.5 && climb < 0) { // bottom: back on the ground
+      this.ladder = null; this.ladderCooldown = 0.6;
+    }
+    const ks = 1 - Math.exp(-14 * dt);
+    this.height += (STAND.height - this.height) * ks;
+    this.eye += (STAND.eye - this.eye) * ks;
   }
 
   _updateGrapple(dt) {

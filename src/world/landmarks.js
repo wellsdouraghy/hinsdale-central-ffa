@@ -112,6 +112,8 @@ function lightPole(ctx, x, z, h, face, banks = 3) {
   const { B } = ctx;
   B.v('galv').cyl(x, 0, z, 0.36, 0.2, h, 10, 1, true);
   B.c('metal').box(x, 3, z, 0.7, 6, 0.7);
+  B.c('metal').box(x, h / 2 + 3, z, 0.45, h - 6, 0.45);                       // upper shaft: solid so grapples catch it
+  ctx.grapplePoles?.push({ x, z, y0: 1, y1: h + 0.4, r: 0.36 });
   B.solidBox('concrete', 'concrete', x, 0.3, z, 1.1, 0.6, 1.1, 0, 1 / 3);
   const c = Math.cos(face), s = Math.sin(face);
   for (let r = 0; r < banks; r++) {
@@ -123,12 +125,24 @@ function lightPole(ctx, x, z, h, face, banks = 3) {
       B.v('lightEmit').box(lx - 0.19 * s, y, lz - 0.19 * c, 0.5, 0.5, 0.03, face);
     }
   }
+  // the light bank as one solid block (grapple target / cover for anyone who climbs up)
+  B.c('metal').box(x - 0.2 * s, h - 0.6 - (banks - 1) * 0.525, z - 0.2 * c, 5.6, banks * 1.05 + 0.4, 0.8, face);
+  // service deck on top of the bank (grated, railed): a perch to land on after grappling up
+  const top = h - 0.6 - (banks - 1) * 1.05 + (banks * 1.05 + 0.4) / 2, dx = x + 0.3 * s, dz = z + 0.3 * c;
+  B.v('galv').box(dx, top + 0.05, dz, 6.0, 0.08, 1.9, face); B.c('metal').box(dx, top + 0.05, dz, 6.0, 0.1, 1.9, face);
+  const rail = B.v('galv');
+  const P = (u, v, y) => [dx + u * c + v * s, y, dz - u * s + v * c];     // local u along the bank, v toward the back
+  rail.tube(P(-3, 0.95, top + 1.05), P(3, 0.95, top + 1.05), 0.03, 5).tube(P(-3, -0.95, top + 1.05), P(3, -0.95, top + 1.05), 0.03, 5);
+  for (const u of [-3, -1, 1, 3]) for (const v of [-0.95, 0.95]) rail.tube(P(u, v, top + 0.08), P(u, v, top + 1.05), 0.025, 4);
+  B.c('metal:mesh').box(P(0, 0.95, 0)[0], top + 0.6, P(0, 0.95, 0)[2], 6.0, 1.0, 0.05, face);
 }
 
 function lotLight(ctx, x, z, h = 8.5) {
   const { B } = ctx;
   B.solidBox('concrete', 'concrete', x, 0.45, z, 0.6, 0.9, 0.6, 0, 1 / 3);
   B.v('blackMetal').cyl(x, 0.9, z, 0.09, 0.07, h - 0.9, 8, 1, true);
+  B.c('metal').box(x, h / 2 + 0.45, z, 0.22, h - 0.9, 0.22); B.c('metal').box(x, h - 0.05, z, 2.4, 0.3, 0.4);
+  ctx.grapplePoles?.push({ x, z, y0: 1, y1: h, r: 0.12 });
   B.v('blackMetal').box(x, h, z, 1.8, 0.1, 0.12); B.v('blackMetal').box(x - 0.9, h - 0.08, z, 0.6, 0.14, 0.34); B.v('blackMetal').box(x + 0.9, h - 0.08, z, 0.6, 0.14, 0.34);
 }
 
@@ -138,6 +152,7 @@ export function lampPost(ctx, x, z) {
   B.v('blackMetal').cyl(x, 0, z, 0.16, 0.11, 0.7, 10, 1, false).cyl(x, 0.7, z, 0.07, 0.055, 3.0, 8, 1, false).cyl(x, 3.7, z, 0.13, 0.1, 0.12, 8, 1, true);
   B.v('lightEmit').cyl(x, 3.82, z, 0.13, 0.2, 0.28, 10, 1, false).cyl(x, 4.1, z, 0.2, 0.05, 0.34, 10, 1, true);
   B.c('metal').box(x, 2, z, 0.3, 4, 0.3);
+  ctx.grapplePoles?.push({ x, z, y0: 1, y1: 4.2, r: 0.16 });
 }
 
 function goalPost(ctx, x, z, dirZ) {
@@ -406,8 +421,11 @@ export function buildLandmarks(ctx) {
     // handrail ring at the shoulder + ladder with cage on the north-east side
     const hr = B.v('galv');
     const la = -0.9, lx = x + Math.cos(la) * (r + 0.25), lz = z + Math.sin(la) * (r + 0.25); const tx = -Math.sin(la) * 0.25, tz = Math.cos(la) * 0.25;
-    hr.tube([lx - tx, 2.5, lz - tz], [lx - tx, h + 1, lz - tz], 0.025, 4); hr.tube([lx + tx, 2.5, lz + tz], [lx + tx, h + 1, lz + tz], 0.025, 4);
-    for (let y = 2.8; y < h + 1; y += 0.6) hr.tube([lx - tx, y, lz - tz], [lx + tx, y, lz + tz], 0.014, 3);
+    hr.tube([lx - tx, 0.5, lz - tz], [lx - tx, h + 1, lz - tz], 0.025, 4); hr.tube([lx + tx, 0.5, lz + tz], [lx + tx, h + 1, lz + tz], 0.025, 4);
+    for (let y = 0.8; y < h + 1; y += 0.3) hr.tube([lx - tx, y, lz - tz], [lx + tx, y, lz + tz], 0.014, 3);
+    for (const y of [0.5, 10, 20]) { hr.tube([lx - tx, y, lz - tz], [x + Math.cos(la - 0.03) * r, y, z + Math.sin(la - 0.03) * r], 0.02, 4); hr.tube([lx + tx, y, lz + tz], [x + Math.cos(la + 0.03) * r, y, z + Math.sin(la + 0.03) * r], 0.02, 4); }
+    // climbable: gameplay snaps players onto it (outward normal = away from the tank), exits onto the catwalk at h
+    ctx.ladders?.push({ x: lx, z: lz, nx: Math.cos(la), nz: Math.sin(la), y0: 0.5, y1: h, exitY: h + 0.03 });
     B.c('metal').cyl(x, 0, z, r + 0.05, r + 0.05, h, 24, 1, false);
     for (let i = 0; i < 6; i++) { const a0 = (i / 6) * Math.PI / 2, a1 = ((i + 1) / 6) * Math.PI / 2; B.c('metal').cyl(x, h + 4.3 * Math.sin(a0), z, r * Math.cos(a0), Math.max(0.0, r * Math.cos(a1)), 4.3 * (Math.sin(a1) - Math.sin(a0)), 24, 1, i === 5); }
     // catwalk around the shoulder (grating + toe board + rail): reachable with the grapple, good overwatch
