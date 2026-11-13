@@ -94,3 +94,27 @@ Hitboxes are NOT the visuals' job: gameplay uses simple capsules/spheres around 
 - Google key resolution order: `?gkey=` URL param > localStorage > `import.meta.env.VITE_GOOGLE_TILES_KEY` > null.
 
 ## Change log
+- (Gameplay) No interface changes required. Clarifications of how Gameplay calls the existing interfaces:
+  - `Viewmodel.update(dt, state)`: `state.lookDelta` = view change this frame in radians, `x` = yaw to the right, `y` = pitch up.
+    `moveSpeed` = horizontal speed / 7.5 (sprint speed), clamped 0..1. The sniper viewmodel is hidden (`object3D.visible = false`)
+    while the scope overlay is up (ads > 0.85). Gameplay adds a HemisphereLight + DirectionalLight (from `world.sunDirection`) to the overlay scene.
+  - `createEffects(scene)` is called once per World (same scene) and reused across matches.
+  - `Character.setState().weaponId` is the remote player's current weapon id; dummies in Practice are plain Characters that never move.
+  - Remote hitboxes are gameplay-owned: head sphere r=0.17 at 1.62 m (1.04 crouched), body capsule r=0.29 from 0.33 m to 1.25 m (0.72 crouched).
+  - World: Gameplay reads `collisionMeshes` once per frame-change of the array length (it caches per-mesh world AABBs and inverse matrices),
+    so meshes must be static after `createWorld` resolves (adding new meshes later is fine; moving existing ones is not).
+- (Visuals) All contract interfaces kept; optional additions:
+  - `weapons.js`: `preloadViewmodels(): Promise` (hands are async; viewmodels work before it resolves, hands pop in), `ADS_OVERLAY_FOV = 70`.
+    Viewmodel extras: `lights` (built-in hemisphere + sun rig; it switches itself off automatically when the overlay scene contains
+    any other light, so Gameplay's own overlay lights are fine; the built-in rig is tuned for highlights from the front-top-left, so
+    removing the overlay scene's lights or lighting from in front of the camera looks best), `setLighting({ sunDirection, camera, sunIntensity, ambientIntensity, sunColor })`,
+    `weaponId`. If `overlayScene.environment` is null the viewmodel installs a small procedural sky PMREM there for reflections
+    (recommended instead: `overlayScene.environment = scene.environment`).
+    ADS: at `ads = 1` the sight's optical axis is the overlay camera's -z axis (sight centre = screen centre at any FOV); sizes tuned for a
+    70 degree vertical-FOV overlay camera with near <= 0.02. `fire()` on the sniper/shotgun also plays the bolt/pump cycle (0.95 s / 0.5 s).
+    `muzzleWorldPosition` re-projects from the overlay camera into the world camera so tracers start at the on-screen muzzle.
+  - `character.js`: `charactersReady: Promise` (model loads async; characters appear when ready). Crouch lowers the head to ~1.05 m.
+    Name tag and accent bands use `color`; `die()` hides the tag, `reset()` restores it.
+  - `effects.js`: signature unchanged (decals are instanced quads, no mesh param needed). Extra: `object3D`, `dispose()`.
+    `blood(point, dir)`: `dir` = bullet travel direction. Pools: 1536 particles, 192 decals, 32 tracers.
+  - Dev page: `/dev/visuals.html` (`?view=vm|chars|fx|gun&w=<id>&ads=1&fire=1&reload=2&pause=<s>&warm=<s>`).

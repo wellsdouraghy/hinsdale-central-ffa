@@ -1,0 +1,293 @@
+// First-person capsule character controller colliding with world.collisionMeshes via three-mesh-bvh shapecast.
+import * as THREE from 'three';
+
+export const RADIUS = 0.35;
+export const STAND = { height: 1.8, eye: 1.65 };
+export const CROUCH = { height: 1.2, eye: 1.05 };
+
+const GRAVITY = 22;
+const JUMP_V = 6.4;
+const SPEED = { walk: 5, sprint: 7.5, crouch: 2.5, ads: 3, slide: 10 };
+const STEP = 0.45;            // max curb / step height climbed automatically
+const SPRINT_OUT = 0.18;      // seconds after sprint ends before the gun can fire
+const SLIDE_TIME = 0.8;
+
+const _seg = new THREE.Line3();
+const _segLocal = new THREE.Line3();
+const _box = new THREE.Box3();
+const _tri = new THREE.Vector3();
+const _cap = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _push = new THREE.Vector3();
+const _v = new THREE.Vector3();
+const _wish = new THREE.Vector3();
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+
+export class PlayerController {
+  constructor(world) {
+    this.world = world;
+    this.position = new THREE.Vector3();   // feet
+    this.velocity = new THREE.Vector3();
+    this.yaw = 0;
+    this.pitch = 0;
+    this.crouching = false;
+    this.sprinting = false;
+    this.sliding = false;
+    this.grounded = false;
+    this.height = STAND.height;
+    this.eye = STAND.eye;
+    this.slideTime = 0;
+    this.airTime = 0;
+    this.sprintEndTime = -10;
+    this.time = 0;
+    this.onFellOut = null;
+    this._colliders = [];
+    this._colliderCount = -1;
+  }
+
+  /** Cache per-mesh world AABB and inverse matrix (static world). */
+  _refreshColliders() {
+    const meshes = this.world.collisionMeshes;
+    if (meshes.length === this._colliderCount) return;
+    this._colliderCount = meshes.length;
+    this._colliders = meshes.filter((m) => m.geometry?.boundsTree).map((m) => {
+      m.updateWorldMatrix(true, false);
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      return {
+        mesh: m,
+        box: m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld),
+        inv: m.matrixWorld.clone().invert(),
+        identity: isIdentity(m.matrixWorld),
+      };
+    });
+  }
+
+  teleport(pos, yaw = this.yaw) {
+    this.position.copy(pos);
+    this.velocity.set(0, 0, 0);
+    this.yaw = yaw;
+    this.pitch = 0;
+    this.crouching = false;
+    this.sliding = false;
+    this.sprinting = false;
+    this.height = STAND.height;
+    this.eye = STAND.eye;
+    this.grounded = true;
+  }
+
+  getEye(target) {
+    return target.set(this.position.x, this.position.y + this.eye, this.position.z);
+  }
+
+  /** Seconds since sprint ended is < SPRINT_OUT, or currently sprinting/sliding. */
+  gunBlocked() {
+    return this.sprinting || this.time - this.sprintEndTime < SPRINT_OUT;
+  }
+
+  horizontalSpeed() { return Math.hypot(this.velocity.x, this.velocity.z); }
+
+  /**
+   * input: { forward, strafe (-1..1), jump (edge), crouchToggle (edge), sprint (held) }
+   * opts: { ads (0..1), moveMult, blockSprint }
+   */
+  update(dt, input, opts = {}) {
+    this._refreshColliders();
+    this.time += dt;
+    const ads = opts.ads || 0;
+    const moveMult = opts.moveMult || 1;
+
+    // Crouch toggle / slide start.
+    if (input.crouchToggle) {
+      if (this.sprinting && this.grounded && this.horizontalSpeed() > 6) {
+        this.sliding = true;
+        this.slideTime = SLIDE_TIME;
+        this.crouching = true;
+        const sp = Math.max(SPEED.slide, this.horizontalSpeed() * 1.2);
+        _dir.set(this.velocity.x, 0, this.velocity.z).normalize().multiplyScalar(sp);
+        this.velocity.x = _dir.x;
+        this.velocity.z = _dir.z;
+      } else if (this.crouching) {
+        if (this._canStand()) this.crouching = false;
+      } else {
+        this.crouching = true;
+      }
+    }
+
+    // Sprint: forward only, not while aiming, cancels crouch.
+    const wantSprint = input.sprint && input.forward > 0.3 && !opts.blockSprint && ads < 0.3 && !this.sliding;
+    if (wantSprint && this.crouching && this._canStand()) this.crouching = false;
+    const sprintNow = wantSprint && !this.crouching;
+    if (this.sprinting && !sprintNow) this.sprintEndTime = this.time;
+    this.sprinting = sprintNow;
+
+    // Jump (crouched jump stands up instead).
+    const canJump = this.grounded || this.airTime < 0.1;
+    if (input.jump && canJump) {
+      if (this.crouching && !this.sliding) {
+        if (this._canStand()) this.crouching = false;
+      } else {
+        if (this.sliding) { this.sliding = false; if (this._canStand()) this.crouching = false; }
+        this.velocity.y = JUMP_V;
+        this.grounded = false;
+        this.airTime = 1;
+      }
+    }
+
+    // Target velocity.
+    const sinY = Math.sin(this.yaw), cosY = Math.cos(this.yaw);
+    _wish.set(-sinY * input.forward + cosY * input.strafe, 0, -cosY * input.forward - sinY * input.strafe);
+    if (_wish.lengthSq() > 1) _wish.normalize();
+    let speed = SPEED.walk;
+    if (this.sprinting) speed = SPEED.sprint;
+    else if (this.crouching) speed = SPEED.crouch;
+    speed = THREE.MathUtils.lerp(speed, Math.min(speed, SPEED.ads), ads);
+    speed *= moveMult;
+
+    if (this.sliding) {
+      this.slideTime -= dt;
+      const friction = this.grounded ? 2.2 : 0.3;
+      const k = Math.exp(-friction * dt);
+      this.velocity.x *= k;
+      this.velocity.z *= k;
+      // slight steering
+      this.velocity.x += _wish.x * 4 * dt;
+      this.velocity.z += _wish.z * 4 * dt;
+      if (this.slideTime <= 0 || this.horizontalSpeed() < SPEED.crouch) this.sliding = false;
+    } else {
+      const accel = this.grounded ? 14 : 2.5;
+      const k = 1 - Math.exp(-accel * dt);
+      this.velocity.x += (_wish.x * speed - this.velocity.x) * k;
+      this.velocity.z += (_wish.z * speed - this.velocity.z) * k;
+    }
+
+    // Integrate with substeps.
+    const travel = this.velocity.length() * dt;
+    const steps = Math.min(6, Math.max(1, Math.ceil(travel / 0.12)));
+    const h = dt / steps;
+    const wasGrounded = this.grounded;
+    let groundedAny = false;
+    for (let i = 0; i < steps; i++) {
+      this.velocity.y -= GRAVITY * h;
+      groundedAny = this._step(h, wasGrounded || groundedAny) || groundedAny;
+    }
+    this.grounded = groundedAny;
+    this.airTime = this.grounded ? 0 : this.airTime + dt;
+
+    // Crouch height / eye smoothing.
+    const target = this.crouching ? CROUCH : STAND;
+    const ks = 1 - Math.exp(-14 * dt);
+    this.height += (target.height - this.height) * ks;
+    this.eye += (target.eye - this.eye) * ks;
+
+    // Play bounds (invisible walls).
+    const b = this.world.playBounds;
+    if (b) {
+      const px = THREE.MathUtils.clamp(this.position.x, b.minX + RADIUS, b.maxX - RADIUS);
+      const pz = THREE.MathUtils.clamp(this.position.z, b.minZ + RADIUS, b.maxZ - RADIUS);
+      if (px !== this.position.x) { this.position.x = px; this.velocity.x = 0; }
+      if (pz !== this.position.z) { this.position.z = pz; this.velocity.z = 0; }
+    }
+    if (this.position.y < -20 && this.onFellOut) this.onFellOut();
+  }
+
+  _step(h, allowStepUp) {
+    const start = _a.copy(this.position);
+    const want = _b.copy(this.velocity).multiplyScalar(h);
+    this.position.add(want);
+    const push = this._resolve(this.position, this.height, _push);
+    let grounded = push.y > Math.abs(want.y) * 0.25 && push.y > 1e-6 && this.velocity.y <= 0.01;
+    this.position.add(push);
+
+    // Step-up assist when blocked horizontally while on the ground.
+    const wantH = Math.hypot(want.x, want.z);
+    if (allowStepUp && wantH > 1e-4) {
+      const gotH = Math.hypot(this.position.x - start.x, this.position.z - start.z);
+      if (gotH < wantH * 0.6) {
+        const alt = _v.copy(start);
+        alt.y += STEP;
+        if (this._resolve(alt, this.height, _dir).lengthSq() < 1e-6) {
+          alt.x += want.x; alt.z += want.z;
+          alt.add(this._resolve(alt, this.height, _dir));
+          alt.y -= STEP + 0.05;
+          const down = this._resolve(alt, this.height, _dir);
+          alt.add(down);
+          const altH = Math.hypot(alt.x - start.x, alt.z - start.z);
+          if (down.y > 0 && altH > gotH + 1e-4 && alt.y - start.y <= STEP + 0.01) {
+            this.position.copy(alt);
+            this.velocity.y = 0;
+            return true;
+          }
+        }
+      }
+    }
+
+    if (grounded) {
+      this.velocity.y = Math.max(0, this.velocity.y);
+    } else if (push.lengthSq() > 1e-10) {
+      _dir.copy(push).normalize();
+      const d = _dir.dot(this.velocity);
+      if (d < 0) this.velocity.addScaledVector(_dir, -d);
+    }
+    return grounded;
+  }
+
+  /** Returns the push vector that moves a capsule at `feet` out of all colliders. */
+  _resolve(feet, height, out) {
+    _seg.start.set(feet.x, feet.y + RADIUS, feet.z);
+    _seg.end.set(feet.x, feet.y + height - RADIUS, feet.z);
+    const origStartX = _seg.start.x, origStartY = _seg.start.y, origStartZ = _seg.start.z;
+    for (let iter = 0; iter < 2; iter++) {
+      for (const c of this._colliders) {
+        _box.makeEmpty();
+        _box.expandByPoint(_seg.start).expandByPoint(_seg.end);
+        _box.min.addScalar(-RADIUS);
+        _box.max.addScalar(RADIUS);
+        if (!_box.intersectsBox(c.box)) continue;
+        _segLocal.copy(_seg);
+        if (!c.identity) {
+          _segLocal.start.applyMatrix4(c.inv);
+          _segLocal.end.applyMatrix4(c.inv);
+          _box.makeEmpty().expandByPoint(_segLocal.start).expandByPoint(_segLocal.end);
+          _box.min.addScalar(-RADIUS);
+          _box.max.addScalar(RADIUS);
+        }
+        let moved = false;
+        c.mesh.geometry.boundsTree.shapecast({
+          intersectsBounds: (bb) => bb.intersectsBox(_box),
+          intersectsTriangle: (tri) => {
+            const dist = tri.closestPointToSegment(_segLocal, _tri, _cap);
+            if (dist < RADIUS) {
+              const depth = RADIUS - dist;
+              if (dist < 1e-6) tri.getNormal(_cap); else _cap.sub(_tri).normalize();
+              _segLocal.start.addScaledVector(_cap, depth);
+              _segLocal.end.addScaledVector(_cap, depth);
+              moved = true;
+            }
+          },
+        });
+        if (moved) {
+          if (!c.identity) {
+            _segLocal.start.applyMatrix4(c.mesh.matrixWorld);
+            _segLocal.end.applyMatrix4(c.mesh.matrixWorld);
+          }
+          _seg.copy(_segLocal);
+        }
+      }
+    }
+    return out.set(_seg.start.x - origStartX, _seg.start.y - origStartY, _seg.start.z - origStartZ);
+  }
+
+  _canStand() {
+    _v.copy(this.position);
+    _v.y += 0.08;
+    return this._resolve(_v, STAND.height, _dir).lengthSq() < 1e-5;
+  }
+}
+
+function isIdentity(m) {
+  const e = m.elements;
+  const id = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  for (let i = 0; i < 16; i++) if (Math.abs(e[i] - id[i]) > 1e-9) return false;
+  return true;
+}

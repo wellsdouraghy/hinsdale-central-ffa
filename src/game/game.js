@@ -1,0 +1,712 @@
+// Game: runs one match (practice or online) on top of an already-loaded World.
+// Owns the local player, weapons, remote players, HUD updates and the per-frame loop body.
+import * as THREE from 'three';
+import { PlayerController } from './player.js';
+import { WEAPON_STATS, damageAt, MELEE, PRIMARY_IDS } from './weapons.js';
+import { Arsenal, weaponName } from './arsenal.js';
+import { createHitscan } from './hitscan.js';
+import { RemotePlayer, PLAYER_COLORS } from './remotePlayer.js';
+import { now as clock, MATCH } from './authority.js';
+import { colorCss } from '../ui/hud.js';
+
+const DEG = Math.PI / 180;
+const BASE_SENS = 0.0021;   // radians per mouse pixel at sensitivity 1
+const STATE_INTERVAL = 1 / 20;
+const REGEN_DELAY = MATCH.regenDelay, REGEN_RATE = MATCH.regenRate;
+
+const _v1 = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+const _v3 = new THREE.Vector3();
+const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
+
+const r2 = (x) => Math.round(x * 100) / 100;
+const r3 = (x) => Math.round(x * 1000) / 1000;
+
+export class Game {
+  constructor({ world, scene, camera, effects, settings, session, hud, minimap, audio, input, ui }) {
+    Object.assign(this, { world, scene, camera, effects, settings, session, hud, minimap, audio, input, ui });
+    this.localId = session.localId;
+    this.hitscan = createHitscan(world);
+
+    // First-person overlay (viewmodel) scene.
+    this.overlayScene = new THREE.Scene();
+    this.overlayCamera = new THREE.PerspectiveCamera(70, camera.aspect, 0.01, 20);
+    this.overlayScene.add(new THREE.HemisphereLight(0xe8f0ff, 0x4a4036, 1.4));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    sun.position.copy(world.sunDirection || new THREE.Vector3(0.4, 0.8, 0.3)).multiplyScalar(10);
+    this.overlayScene.add(sun);
+    this.overlayScene.add(this.overlayCamera);
+
+    this.player = new PlayerController(world);
+    this.player.onFellOut = () => this._rescue();
+    this.arsenal = new Arsenal(this.overlayScene, audio);
+    this.selectedPrimary = PRIMARY_IDS.includes(settings.primary) ? settings.primary : 'ar';
+
+    this.alive = false;
+    this.deployed = false;
+    this.hp = 100;
+    this.life = 0;
+    this.lastDamage = -100;
+    this.protectUntil = 0;
+    this.deathTime = 0;
+    this.meleeUntil = 0;
+    this.stateTimer = 0;
+    this.stepDist = 0;
+    this.wasGrounded = true;
+    this.airPeak = 0;
+    this.lookDelta = { x: 0, y: 0 };
+    this.deathCam = 0;
+
+    this.roster = new Map();
+    this.remotes = new Map();
+    this.blips = new Map();
+    this.match = { state: 'playing', practice: false, scoreLimit: MATCH.scoreLimit, timeLeft: null, timeRef: clock() };
+
+    session.onMessage = (m) => this.handle(m);
+    this._applyWelcome(session.welcome);
+    this.hud.reset();
+    this.hud.show(true);
+    if (this.match.state === 'ended') this.ui.showEnd(this._endData(this._lastEnd));
+    else this.ui.showDeploy({ mode: 'deploy', selected: this.selectedPrimary });
+  }
+
+  // ======================= roster / remotes =======================
+  _applyWelcome(w) {
+    this.match.state = w.match.state;
+    this.match.practice = w.match.practice;
+    this.match.scoreLimit = w.match.scoreLimit;
+    this.match.timeLeft = w.match.timeLeft;
+    this.match.timeRef = clock();
+    for (const p of w.players) this._addPlayer(p);
+    if (w.match.state === 'ended') this._lastEnd = { standings: [], winner: null };
+  }
+
+  _addPlayer(p) {
+    const entry = {
+      id: p.id, name: p.name, color: PLAYER_COLORS[p.color % PLAYER_COLORS.length],
+      k: p.k || 0, d: p.d || 0, ping: p.ping, alive: !!p.alive, bot: !!p.bot,
+    };
+    this.roster.set(p.id, entry);
+    if (p.id === this.localId) return;
+    const r = new RemotePlayer({ id: p.id, name: p.name, color: entry.color, scene: this.scene });
+    r.bot = !!p.bot;
+    r.protectUntil = 0;
+    this.remotes.set(p.id, r);
+    if (p.alive && p.pos) r.spawn(_v1.fromArray(p.pos), p.yaw || 0, p.life);
+    else r.life = p.life ?? -1;
+  }
+
+  _removePlayer(id) {
+    const r = this.remotes.get(id);
+    if (r) { r.dispose(); this.remotes.delete(id); }
+    this.roster.delete(id);
+    this.blips.delete(id);
+  }
+
+  nameOf(id) { return this.roster.get(id)?.name ?? '???'; }
+
+  // ======================= network messages =======================
+  handle(m) {
+    const t = clock();
+    switch (m.t) {
+      case 'join':
+        if (!this.roster.has(m.p.id)) {
+          this._addPlayer(m.p);
+          if (!m.p.bot) this.ui.toast(`${m.p.name} joined`);
+        }
+        break;
+      case 'leave': {
+        const name = this.nameOf(m.id);
+        this._removePlayer(m.id);
+        this.ui.toast(`${name} left`);
+        break;
+      }
+      case 'sts':
+        for (const s of m.s) {
+          if (s.id === this.localId) continue;
+          this.remotes.get(s.id)?.pushState(s, t);
+        }
+        break;
+      case 'shot': this._remoteShot(m); break;
+      case 'melee': {
+        const r = this.remotes.get(m.id);
+        if (r) this.audio.melee(r.eye(_v1));
+        break;
+      }
+      case 'dmg': {
+        const e = this.roster.get(m.id);
+        if (m.id === this.localId) this._takeDamage(m);
+        else if (e) e.hp = m.hp;
+        break;
+      }
+      case 'kill': this._onKill(m); break;
+      case 'spawn': this._onSpawn(m); break;
+      case 'roster':
+        for (const p of m.players) {
+          const e = this.roster.get(p.id);
+          if (!e) continue;
+          e.k = p.k; e.d = p.d; e.ping = p.ping; e.alive = p.alive;
+          if (p.id === this.localId && this.alive && p.alive && Math.abs(p.hp - this.hp) > 15) this.hp = p.hp;
+        }
+        this.match.timeLeft = m.match.timeLeft;
+        this.match.timeRef = t;
+        break;
+      case 'end':
+        this.match.state = 'ended';
+        this._lastEnd = m;
+        this.arsenal.ads = 0;
+        this.input.exitLock();
+        this.ui.hideDeploy();
+        this.ui.showEnd(this._endData(m));
+        break;
+      case 'restart':
+        this.match.state = 'playing';
+        this.match.timeLeft = m.match.timeLeft;
+        this.match.timeRef = t;
+        for (const e of this.roster.values()) { e.k = 0; e.d = 0; }
+        this.ui.hideEnd();
+        this.hud.reset();
+        if (!this.deployed) this.ui.showDeploy({ mode: 'deploy', selected: this.selectedPrimary });
+        break;
+      default: break;
+    }
+  }
+
+  _endData(m) {
+    let src = m?.standings || [];
+    if (!src.length) {
+      src = [...this.roster.values()].filter((e) => !e.bot).sort((a, b) => b.k - a.k || a.d - b.d)
+        .map((e) => ({ id: e.id, name: e.name, k: e.k, d: e.d }));
+    }
+    const standings = src.map((s) => ({ ...s, me: s.id === this.localId, color: colorCss(this.roster.get(s.id)?.color ?? 0x888888) }));
+    const winner = m?.winner != null ? this.nameOf(m.winner) : null;
+    return { standings, winner, winnerIsMe: m?.winner === this.localId, isHost: this.session.isHost };
+  }
+
+  _onSpawn(m) {
+    const e = this.roster.get(m.id);
+    if (e) e.alive = true;
+    if (m.id === this.localId) {
+      const t = clock();
+      this.arsenal.setLoadout(this.selectedPrimary, t);
+      this.alive = true;
+      this.everSpawned = true;
+      this.hp = 100;
+      this.life = m.life;
+      this.protectUntil = t + m.prot;
+      this.lastDamage = -100;
+      this.deathCam = 0;
+      this.player.teleport(_v1.fromArray(m.p), m.yaw);
+      this.deathInfo = null;
+      this.audio.equip();
+      this.ui.hideDeploy();
+      this.stateTimer = STATE_INTERVAL; // send state right away
+      return;
+    }
+    const r = this.remotes.get(m.id);
+    if (r) {
+      r.spawn(_v1.fromArray(m.p), m.yaw, m.life);
+      r.protectUntil = clock() + m.prot;
+    }
+  }
+
+  _onKill(m) {
+    const killer = this.roster.get(m.killer), victim = this.roster.get(m.victim);
+    if (killer) killer.k = m.kk;
+    if (victim) { victim.d = m.vd; victim.alive = false; }
+    const meK = m.killer === this.localId, meV = m.victim === this.localId;
+    this.hud.killfeed({
+      killer: killer?.name ?? '???', victim: victim?.name ?? '???', weapon: shortName(m.w),
+      headshot: m.hs, mine: meK || meV, killerIsMe: meK, victimIsMe: meV,
+    });
+    if (meK && !meV) {
+      this.hud.hitmarker('kill');
+      this.audio.kill(m.hs);
+      this.hud.killBanner(victim?.name ?? '', m.hs);
+    }
+    if (meV) this._die(m);
+    else this.remotes.get(m.victim)?.kill();
+  }
+
+  _die(m) {
+    this.alive = false;
+    this.hp = 0;
+    this.deathTime = clock();
+    this.arsenal.ads = 0;
+    this.arsenal.hideAll();
+    this.hud.scope(false);
+    const r = this.remotes.get(m.killer);
+    if (r) {
+      // Face toward the killer for the death cam.
+      const dx = r.feet.x - this.player.position.x, dz = r.feet.z - this.player.position.z;
+      this.deathYawTarget = Math.atan2(-dx, -dz);
+    } else this.deathYawTarget = this.player.yaw;
+    this.deathInfo = {
+      mode: 'death', selected: this.selectedPrimary,
+      killer: m.killer === this.localId ? 'Yourself' : this.nameOf(m.killer),
+      weapon: weaponName(m.w), headshot: m.hs,
+    };
+    this.ui.showDeploy(this.deathInfo);
+  }
+
+  _takeDamage(m) {
+    if (!this.alive) return;
+    this.hp = m.hp;
+    this.lastDamage = clock();
+    this.hud.damageFlash();
+    this.audio.hurt();
+    const r = this.remotes.get(m.by);
+    if (r) {
+      const dx = r.feet.x - this.player.position.x, dz = r.feet.z - this.player.position.z;
+      const sy = Math.sin(this.player.yaw), cy = Math.cos(this.player.yaw);
+      const fwd = -dx * sy - dz * cy;
+      const right = dx * cy - dz * sy;
+      this.hud.damageDirection(Math.atan2(right, fwd));
+    }
+    // Small view punch.
+    this.arsenal.recoil.pitch += 0.6 * DEG;
+    this.arsenal.recoil.yaw += (Math.random() - 0.5) * 1.2 * DEG;
+  }
+
+  _remoteShot(m) {
+    const r = this.remotes.get(m.id);
+    if (!r) return;
+    r.character.fire();
+    r.protectUntil = 0;
+    this.blips.set(m.id, clock());
+    const from = r.alive ? r.muzzle(_v1) : _v1.fromArray(m.o);
+    m.e.forEach((e, i) => {
+      _v2.set(e[0], e[1], e[2]);
+      if (i < 3) this.effects.tracer(from, _v2);
+      if (e[3] === 1) this.effects.impact(_v2, _v3.set(e[4], e[5], e[6]), e[7] || 'concrete');
+      else if (e[3] === 2) this.effects.blood(_v2, _v3.subVectors(_v2, from).normalize());
+    });
+    this.audio.shot(m.w, from.clone());
+  }
+
+  // ======================= player actions =======================
+  /** Deploy button / first spawn. */
+  deploy() {
+    this.deployed = true;
+    this.settings.primary = this.selectedPrimary;
+    this.session.send({ t: 'ready' });
+  }
+
+  selectPrimary(id) {
+    if (!PRIMARY_IDS.includes(id)) return;
+    this.selectedPrimary = id;
+    this.settings.primary = id;
+    this.ui.setLoadout(id);
+  }
+
+  _rescue() {
+    const pts = this.world.spawnPoints;
+    const p = pts[Math.floor(Math.random() * pts.length)];
+    this.player.teleport(p, this.player.yaw);
+  }
+
+  _viewDir(out) {
+    _euler.set(this.player.pitch + this.arsenal.recoil.pitch, this.player.yaw + this.arsenal.recoil.yaw, 0);
+    return out.set(0, 0, -1).applyEuler(_euler);
+  }
+
+  _targets() {
+    const list = [];
+    for (const r of this.remotes.values()) if (r.alive) list.push(r.hitbox());
+    return list;
+  }
+
+  _fire(t) {
+    const ar = this.arsenal, gun = ar.gun, st = gun.stats;
+    const eye = this.player.getEye(new THREE.Vector3());
+    const aim = this._viewDir(new THREE.Vector3());
+    const moving = Math.min(1, this.player.horizontalSpeed() / 5);
+    let spread = gun.spread({ ads: ar.ads, moving, airborne: !this.player.grounded, crouching: this.player.crouching });
+    if (st.scope && ar.ads < 0.98) spread = Math.max(spread, 2.5 * DEG * (1 - ar.ads * 0.6));
+    const targets = this._targets();
+    const vm = ar.viewmodel;
+    const muzzle = vm.muzzleWorldPosition(new THREE.Vector3(), this.overlayCamera, this.camera);
+    const ends = [];
+    const dmgBy = new Map();
+    let anyHit = false, anyHead = false;
+
+    for (let i = 0; i < st.pellets; i++) {
+      const dir = coneDir(aim, spread, st.pellets > 1 ? i / st.pellets : null);
+      const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
+      const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : st.maxRange, targets);
+      let end;
+      if (th) {
+        end = th.point;
+        const r = this.remotes.get(th.id);
+        const protectedNow = r && t < r.protectUntil;
+        if (!protectedNow) {
+          const dmg = damageAt(st, th.distance) * (th.headshot ? st.headMult : 1);
+          const acc = dmgBy.get(th.id) || { dmg: 0, hs: false };
+          acc.dmg += dmg;
+          acc.hs = acc.hs || th.headshot;
+          dmgBy.set(th.id, acc);
+          anyHit = true;
+          anyHead = anyHead || th.headshot;
+        }
+        this.effects.blood(end, dir);
+        ends.push([r2(end.x), r2(end.y), r2(end.z), 2]);
+      } else if (wh) {
+        end = wh.point;
+        this.effects.impact(end, wh.normal, wh.surface);
+        ends.push([r2(end.x), r2(end.y), r2(end.z), 1, r3(wh.normal.x), r3(wh.normal.y), r3(wh.normal.z), wh.surface]);
+      } else {
+        end = eye.clone().addScaledVector(dir, Math.min(st.maxRange, 400));
+        ends.push([r2(end.x), r2(end.y), r2(end.z), 0]);
+      }
+      if (i < 3 && !(st.scope && ar.ads > 0.9)) this.effects.tracer(muzzle, end);
+    }
+
+    for (const [id, a] of dmgBy) {
+      this.session.send({ t: 'hit', target: id, dmg: Math.round(a.dmg * 10) / 10, hs: a.hs, w: gun.id });
+    }
+    if (anyHit) {
+      this.hud.hitmarker(anyHead ? 'head' : 'hit');
+      this.audio.hitmarker(anyHead ? 'head' : 'hit');
+    }
+    this.session.send({ t: 'shot', w: gun.id, o: [r2(muzzle.x), r2(muzzle.y), r2(muzzle.z)], e: ends });
+    this.protectUntil = 0;
+
+    // Recoil: part permanent, part recovering.
+    const kick = gun.consume(t);
+    const k = (1 + (st.recoil.adsMult - 1) * ar.ads) * (this.player.crouching ? 0.85 : 1);
+    this.player.pitch = Math.min(89 * DEG, this.player.pitch + kick.pitch * k * 0.35);
+    ar.recoil.pitch += kick.pitch * k * 0.65;
+    this.player.yaw += kick.yaw * k * 0.5;
+    ar.recoil.yaw += kick.yaw * k * 0.5;
+    vm.fire();
+    this.audio.shot(gun.id, null);
+  }
+
+  _melee(t) {
+    this.meleeUntil = t + MELEE.cooldown;
+    this.audio.melee();
+    this.session.send({ t: 'melee' });
+    const eye = this.player.getEye(new THREE.Vector3());
+    const aim = this._viewDir(new THREE.Vector3());
+    let best = null;
+    for (const r of this.remotes.values()) {
+      if (!r.alive || t < r.protectUntil) continue;
+      const chest = _v1.set(r.feet.x, r.feet.y + (r.crouch > 0.5 ? 0.7 : 1.1), r.feet.z);
+      const to = _v2.subVectors(chest, eye);
+      const d = to.length();
+      if (d > MELEE.range + 0.4) continue;
+      if (to.normalize().dot(aim) < 0.55) continue;
+      const wh = this.hitscan.castWorld(eye, to, d);
+      if (wh) continue;
+      if (!best || d < best.d) best = { r, d, point: chest.clone(), dir: to.clone() };
+    }
+    if (best) {
+      this.session.send({ t: 'hit', target: best.r.id, dmg: MELEE.damage, hs: false, w: 'melee' });
+      this.effects.blood(best.point, best.dir);
+      this.hud.hitmarker('hit');
+      this.audio.hitmarker('hit');
+    }
+  }
+
+  // ======================= frame =======================
+  update(dt) {
+    const t = clock();
+    this.session.tick(dt);
+    const inp = this.input;
+    const pressed = new Set(inp.pressed);
+    const { dx, dy, wheel } = inp.consume();
+    const playing = this.match.state === 'playing';
+    const active = inp.active && playing;
+
+    if (!this.alive && inp.enabled) {
+      for (let i = 0; i < 4; i++) if (pressed.has('Digit' + (i + 1))) this.selectPrimary(PRIMARY_IDS[i]);
+    }
+
+    if (this.alive) this._updateAlive(dt, t, active, pressed, dx, dy, wheel);
+    else this._updateDead(dt, t);
+
+    this._updateCamera(dt);
+    for (const r of this.remotes.values()) {
+      r.update(dt, t);
+      this._remoteFootsteps(r, dt);
+    }
+    this.audio.setListener(this.camera);
+
+    // Network state at 20 Hz.
+    this.stateTimer += dt;
+    if (this.alive && this.stateTimer >= STATE_INTERVAL) {
+      this.stateTimer = 0;
+      const p = this.player;
+      this.session.sendState({
+        t: 'st', l: this.life, ts: r3(t),
+        p: [r2(p.position.x), r2(p.position.y), r2(p.position.z)],
+        v: [r2(p.velocity.x), r2(p.velocity.y), r2(p.velocity.z)],
+        yaw: r3(p.yaw), pitch: r3(p.pitch), c: p.crouching ? 1 : 0, s: p.sprinting ? 1 : 0,
+        w: this.arsenal.gun?.id || 'ar', g: p.grounded ? 1 : 0,
+      });
+    }
+
+    this._updateHud(dt, t, inp);
+  }
+
+  _updateAlive(dt, t, active, pressed, dx, dy, wheel) {
+    const ar = this.arsenal, p = this.player, gun = ar.gun, st = gun.stats;
+    const S = this.settings;
+
+    // Look.
+    const baseV = this._baseVFov();
+    const zoomRatio = this.camera.fov / baseV;
+    const sens = BASE_SENS * S.sensitivity * (1 + (zoomRatio * S.adsMultiplier - 1) * ar.ads);
+    const lx = active ? -dx * sens : 0, ly = active ? -dy * sens : 0;
+    p.yaw += lx;
+    p.pitch = THREE.MathUtils.clamp(p.pitch + ly, -89 * DEG, 89 * DEG);
+    // Viewmodel convention: x = yaw to the right, y = pitch up (radians this frame).
+    this.lookDelta.x = -lx;
+    this.lookDelta.y = ly;
+
+    const key = (c) => active && this.input.isDown(c);
+    const fireHeld = key('Mouse0');
+    const adsHeld = key('Mouse2');
+    const move = {
+      forward: (key('KeyW') ? 1 : 0) - (key('KeyS') ? 1 : 0),
+      strafe: (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0),
+      jump: active && pressed.has('Space'),
+      crouchToggle: active && pressed.has('KeyC'),
+      sprint: key('ShiftLeft') || key('ShiftRight'),
+    };
+    p.update(dt, move, { ads: ar.ads, moveMult: st.moveMult, blockSprint: fireHeld || adsHeld });
+
+    // Weapon switching.
+    if (active) {
+      if (pressed.has('Digit1')) ar.switchTo(0, t);
+      if (pressed.has('Digit2')) ar.switchTo(1, t);
+      if (wheel) ar.switchTo(ar.slot === 0 ? 1 : 0, t);
+      if (pressed.has('KeyR') && !p.sprinting) ar.startReload(t);
+      if (pressed.has('KeyV') && t >= this.meleeUntil && !ar.switching(t)) this._melee(t);
+    }
+    const g = ar.gun, gs = g.stats;
+    const wantAds = adsHeld && !p.sprinting && !ar.switching(t) && !(g.reloading && !gs.perShell);
+    ar.update(dt, t, wantAds, fireHeld);
+
+    // Camera must be current before firing (muzzle position, aim direction).
+    this._updateCamera(0);
+
+    const canFire = active && !ar.switching(t) && !p.gunBlocked() && t >= this.meleeUntil - MELEE.cooldown * 0.4;
+    const trigger = gs.mode === 'auto' ? fireHeld : pressed.has('Mouse0');
+    if (trigger && canFire) {
+      if (g.canInterruptReload()) g.cancelReload();
+      if (g.ammo <= 0) {
+        if (pressed.has('Mouse0')) { this.audio.dryFire(); ar.startReload(t); }
+      } else if (g.ready(t)) this._fire(t);
+    }
+    if (g.ammo === 0 && !g.reloading && g.reserve > 0 && t >= g.nextFire + 0.15 && !p.sprinting) ar.startReload(t);
+
+    // Footsteps / landing.
+    if (p.grounded) {
+      if (!this.wasGrounded && this.airPeak > 0.25) this._footstep(1.3);
+      this.stepDist += p.horizontalSpeed() * dt;
+      const stride = p.sprinting ? 2.7 : p.crouching ? 1.5 : 2.1;
+      if (this.stepDist > stride) { this.stepDist = 0; this._footstep(p.crouching ? 0.35 : p.sprinting ? 1.15 : 0.8); }
+      this.airPeak = 0;
+    } else this.airPeak += dt;
+    this.wasGrounded = p.grounded;
+
+    // Local health regen (display; host is authoritative and corrects via roster).
+    if (this.hp < 100 && t - this.lastDamage > REGEN_DELAY) this.hp = Math.min(100, this.hp + REGEN_RATE * dt);
+
+    // Viewmodel.
+    const scoped = gs.scope && ar.ads > 0.85;
+    const vm = ar.viewmodel;
+    if (!vm) return;
+    vm.object3D.visible = !scoped;
+    vm.update(dt, {
+      moveSpeed: Math.min(1, p.horizontalSpeed() / 7.5), sprinting: p.sprinting, ads: ar.ads,
+      grounded: p.grounded, lookDelta: this.lookDelta,
+    });
+  }
+
+  _updateDead(dt, t) {
+    this.deathCam = Math.min(1, this.deathCam + dt * 1.6);
+    const remain = Math.max(0, MATCH.respawnDelay - (t - this.deathTime));
+    this.ui.setDeathCountdown(this.deployed ? remain : null);
+    if (this.deathYawTarget !== undefined) {
+      let d = this.deathYawTarget - this.player.yaw;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      this.player.yaw += d * Math.min(1, dt * 3);
+    }
+  }
+
+  _baseVFov() {
+    const h = this.settings.fov * DEG;
+    return (2 * Math.atan(Math.tan(h / 2) / this.camera.aspect)) / DEG;
+  }
+
+  _updateCamera(dt) {
+    const p = this.player, ar = this.arsenal, cam = this.camera;
+    if (!this.everSpawned) {
+      // Pre-deploy overview: slow orbit above the middle of the play area.
+      const b = this.world.playBounds;
+      const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+      const a = clock() * 0.03;
+      cam.position.set(cx + Math.sin(a) * 170, 70, cz + Math.cos(a) * 170);
+      cam.lookAt(cx, 0, cz);
+      if (dt > 0) { cam.fov = this._baseVFov(); cam.updateProjectionMatrix(); }
+      cam.updateMatrixWorld();
+      return;
+    }
+    const eyeDrop = this.alive ? 0 : this.deathCam * 1.25;
+    cam.position.set(p.position.x, p.position.y + p.eye - eyeDrop, p.position.z);
+    const roll = this.alive ? -this.lookDelta.x * 0.0 : this.deathCam * 0.35;
+    cam.rotation.set(p.pitch + ar.recoil.pitch, p.yaw + ar.recoil.yaw, roll, 'YXZ');
+    if (dt > 0) {
+      const base = this._baseVFov();
+      const gs = ar.gun?.stats;
+      let fov = base;
+      if (gs && this.alive) {
+        if (gs.scope) fov = base + (gs.adsFov - base) * smooth(ar.ads);
+        else fov = base * (1 + (gs.adsZoom - 1) * ar.ads);
+        if (p.sprinting) fov *= 1.04;
+      }
+      cam.fov += (fov - cam.fov) * Math.min(1, dt * 20);
+      cam.updateProjectionMatrix();
+    }
+    cam.updateMatrixWorld();
+  }
+
+  _footstep(gain) {
+    const p = this.player;
+    const wh = this.hitscan.castWorld(_v1.set(p.position.x, p.position.y + 0.3, p.position.z), _v2.set(0, -1, 0), 1.5);
+    this.audio.footstep(wh?.surface || 'concrete', null, gain);
+  }
+
+  _remoteFootsteps(r, dt) {
+    if (!r.alive || r.bot || !r.grounded) return;
+    const sp = Math.hypot(r.velocity.x, r.velocity.z);
+    if (sp < 1.5) return;
+    r.stepDist += sp * dt;
+    const stride = r.sprinting ? 2.7 : 2.1;
+    if (r.stepDist > stride) {
+      r.stepDist = 0;
+      const d = r.feet.distanceTo(this.camera.position);
+      if (d < 45) this.audio.footstep('concrete', r.feet.clone(), r.crouch > 0.5 ? 0.25 : r.sprinting ? 1.2 : 0.8);
+    }
+  }
+
+  _updateHud(dt, t, inp) {
+    const hud = this.hud, ar = this.arsenal, p = this.player;
+    hud.update(dt);
+    hud.setAlive(this.alive);
+    hud.setHealth(this.alive ? this.hp : 100);
+    hud.protect(this.alive && t < this.protectUntil);
+
+    const g = ar.gun;
+    if (g) {
+      hud.weapon({
+        slots: ar.guns.map((x) => x.stats.short), current: ar.slot, label: weaponName(g.id),
+        ammo: g.ammo, reserve: g.reserve, mag: g.stats.mag, reloading: g.reloading,
+      });
+    }
+    const scoped = this.alive && g?.stats.scope && ar.ads > 0.85;
+    hud.scope(!!scoped);
+
+    // Crosshair + target name.
+    let enemyName = null;
+    if (this.alive) {
+      const eye = p.getEye(_v1), dir = this._viewDir(_v2);
+      const wh = this.hitscan.castWorld(eye, dir, 120);
+      const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : 120, this._targets());
+      if (th) enemyName = this.nameOf(th.id);
+    }
+    const moving = Math.min(1, p.horizontalSpeed() / 5);
+    const spread = g ? g.spread({ ads: ar.ads, moving, airborne: !p.grounded, crouching: p.crouching }) : 0;
+    const px = (Math.tan(spread) / Math.tan((this.camera.fov * DEG) / 2)) * (innerHeight / 2);
+    hud.crosshair({ visible: this.alive && ar.ads < 0.5 && !p.sprinting && this.match.state === 'playing', spreadPx: px, enemy: !!enemyName });
+    hud.targetName(enemyName);
+
+    // Score / rank.
+    const list = [...this.roster.values()].filter((e) => !e.bot || this.match.practice);
+    const me = this.roster.get(this.localId);
+    const myK = me?.k ?? 0;
+    const rank = 1 + list.filter((e) => e.k > myK).length;
+    const leader = list.filter((e) => e.id !== this.localId).sort((a, b) => b.k - a.k)[0];
+    hud.score({
+      myKills: myK, rank: this.match.practice ? 0 : rank, leaderName: leader ? leader.name : '-',
+      leaderKills: leader ? leader.k : 0, limit: this.match.scoreLimit, practice: this.match.practice,
+    });
+    const timeLeft = this.match.timeLeft === null ? null : this.match.timeLeft - (this.match.state === 'playing' ? t - this.match.timeRef : 0);
+    hud.timer(timeLeft, this.match.practice ? 'Free roam' : `First to ${this.match.scoreLimit}`);
+
+    // Net info.
+    if (this.session.mode === 'host') hud.netInfo(`ROOM ${this.session.roomCode} · ${this.roster.size}/${MATCH.maxPlayers}`);
+    else if (this.session.mode === 'client') hud.netInfo(`ROOM ${this.session.roomCode} · ${me?.ping ?? '-'} ms`);
+    else hud.netInfo('');
+
+    // Scoreboard.
+    const showSb = inp.enabled && inp.isDown('Tab');
+    if (showSb || this._sbVisible) {
+      const rows = list.slice().sort((a, b) => b.k - a.k || a.d - b.d).map((e) => ({
+        name: e.name, k: e.k, d: e.d, ping: e.bot ? 'BOT' : e.id === 1 && this.session.mode !== 'practice' ? 'HOST' : (e.ping ?? '-'),
+        me: e.id === this.localId, alive: e.alive, color: colorCss(e.color),
+      }));
+      const meta = this.session.roomCode ? `Room ${this.session.roomCode}` : 'Practice';
+      hud.scoreboard(showSb, rows, meta, this.match.practice ? 'Practice range' : 'Free-for-all');
+    }
+    this._sbVisible = showSb;
+
+    // Minimap.
+    const blips = [];
+    for (const r of this.remotes.values()) {
+      if (!r.alive) continue;
+      if (r.bot) { blips.push({ x: r.feet.x, z: r.feet.z, color: '#bbbbbb', alpha: 0.7, size: 3 }); continue; }
+      const last = this.blips.get(r.id);
+      const age = last === undefined ? 99 : t - last;
+      if (age < 2) blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 1 - age / 2, size: 4.5 });
+    }
+    this.minimap.draw({ x: p.position.x, z: p.position.z, yaw: p.yaw, alive: this.alive }, blips, this.world.playBounds);
+  }
+
+  /** Renders one frame. */
+  render(dt) {
+    this.world.update(dt, this.camera);
+    this.effects.update(dt, this.camera);
+    this.world.render(this.alive ? this.overlayScene : null, this.overlayCamera);
+  }
+
+  resize(aspect) {
+    this.overlayCamera.aspect = aspect;
+    this.overlayCamera.updateProjectionMatrix();
+  }
+
+  restartMatch() {
+    if (this.session.isHost && this.session.authority) this.session.authority.restart();
+  }
+
+  dispose() {
+    this.session.onMessage = null;
+    this.session.close();
+    for (const r of this.remotes.values()) r.dispose();
+    this.remotes.clear();
+    this.arsenal.disposeViewmodels();
+    this.hud.show(false);
+  }
+}
+
+function smooth(x) { return x * x * (3 - 2 * x); }
+
+function shortName(w) {
+  return w === 'melee' ? 'MELEE' : WEAPON_STATS[w]?.short || String(w).toUpperCase();
+}
+
+/** Random direction inside a cone of half-angle `spread` around `aim`. ring: pellet index fraction for even shotgun spread. */
+function coneDir(aim, spread, ring) {
+  if (spread <= 0) return aim.clone();
+  const up = Math.abs(aim.y) > 0.99 ? _v3.set(1, 0, 0) : _v3.set(0, 1, 0);
+  const u = new THREE.Vector3().crossVectors(aim, up).normalize();
+  const v = new THREE.Vector3().crossVectors(u, aim).normalize();
+  let a, r;
+  if (ring !== null) { a = ring * Math.PI * 2 + Math.random() * 0.6; r = spread * (0.35 + 0.65 * Math.sqrt(Math.random())); }
+  else { a = Math.random() * Math.PI * 2; r = spread * Math.sqrt(Math.random()); }
+  const tr = Math.tan(r);
+  return aim.clone().addScaledVector(u, Math.cos(a) * tr).addScaledVector(v, Math.sin(a) * tr).normalize();
+}
