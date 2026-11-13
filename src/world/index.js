@@ -92,8 +92,8 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const collisionGroup = new THREE.Group(); collisionGroup.name = 'world-collision'; collisionGroup.visible = false; root.add(collisionGroup);
   const collisionMeshes = buildCollision(ctx, collisionGroup);
   const spawnPoints = computeSpawns(ctx, collisionMeshes);
-  // capture-the-flag: red = centre of the practice turf south of Dickinson Field, blue = varsity baseball shallow centre field (~155 m apart); team spawns 25-70 m from their base
-  const ctfBases = { red: nearestOpenGround(ctx, -59.2, 37), blue: nearestOpenGround(ctx, 66, 130) };
+  // capture-the-flag: red = Dickinson Field stadium (west end), blue = east ball fields across the east street (~395 m apart); team spawns 25-70 m from their base
+  const ctfBases = { red: nearestOpenGround(ctx, -154, -88), blue: nearestOpenGround(ctx, 241, -95) };
   const ctfSpawns = { red: spawnsNear(ctx, ctfBases.red, 25, 70, 10, ctfBases.blue), blue: spawnsNear(ctx, ctfBases.blue, 25, 70, 10, ctfBases.red) };
 
   progress(0.93, 'Baking shadows'); await tick();
