@@ -19,6 +19,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   mapStyle: 'built',       // 'scan' = Google photorealistic 3D tiles (if a key is available), 'built' = built-in campus model
   primary: 'ar',           // (legacy) last chosen primary weapon
   cls: 'rifleman',         // last chosen class
+  botCount: 0,             // AI bots added by Host / Practice setup (0-7)
+  botDiff: 'normal',       // 'easy' | 'normal' | 'hard'
   sprintKey: 'shift',      // 'ctrl' | 'shift'
   controlsRev: 2,          // bump to migrate old saved control defaults
   mode: 'ffa',             // last chosen game mode for Host / Practice: 'ffa' | 'ctf'
@@ -48,7 +50,9 @@ export function loadSettings() {
   if (!['ctrl', 'shift'].includes(s.sprintKey)) s.sprintKey = DEFAULT_SETTINGS.sprintKey;
   // rev 2: Shift is the default sprint key again for everyone (Ctrl stays available in Settings)
   if (stored && !(stored.controlsRev >= 2)) { s.sprintKey = 'shift'; s.controlsRev = 2; saveSettings(s); }
-  if (!['ffa', 'ctf'].includes(s.mode)) s.mode = 'ffa';
+  if (!['ffa', 'ctf', 'tdm'].includes(s.mode)) s.mode = 'ffa';
+  s.botCount = Math.max(0, Math.min(7, Math.round(Number(s.botCount) || 0)));
+  if (!['easy', 'normal', 'hard'].includes(s.botDiff)) s.botDiff = 'normal';
   return s;
 }
 

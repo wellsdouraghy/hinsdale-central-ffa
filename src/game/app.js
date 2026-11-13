@@ -75,7 +75,7 @@ async function getWorld(onProgress) {
 }
 
 // ---------- game lifecycle ----------
-async function start(mode, code = null, gameMode = 'ffa') {
+async function start(mode, code = null, gameMode = 'ffa', bots = null) {
   if (starting || game) return;
   starting = true;
   audio.ensure();
@@ -102,9 +102,9 @@ async function start(mode, code = null, gameMode = 'ffa') {
     if (mode === 'practice') {
       menus.setProgress(0.95, 'Setting up targets');
       const plan = gameMode === 'ctf' ? planCtfPractice(wc.world) : planPractice(wc.world, createHitscan(wc.world));
-      session = createPracticeSession({ world: wc.world, name: settings.name, dummies: plan.dummies, spawn: plan.spawn, mode: gameMode });
+      session = createPracticeSession({ world: wc.world, name: settings.name, dummies: plan.dummies, spawn: plan.spawn, mode: gameMode, bots });
     } else if (mode === 'host') {
-      session = await createHostSession({ world: wc.world, name: settings.name, mode: gameMode, onStatus: (s) => menus.setProgress(0.93, s) });
+      session = await createHostSession({ world: wc.world, name: settings.name, mode: gameMode, bots, onStatus: (s) => menus.setProgress(0.93, s) });
     }
     menus.setProgress(1, 'Ready');
     game = new Game({
@@ -247,15 +247,15 @@ function gameUi(session) {
     },
     toast: (t) => menus.toast(t),
     refreshTeam: () => {
-      const team = game?.isCtf ? game.myTeam : null;
+      const team = game?.isTeams ? game.myTeam : null;
       menus.setTeam(team ? { team, name: TEAM_NAMES[team], css: TEAM_CSS[team] } : null);
     },
   };
 }
 
 // ---------- menu wiring ----------
-menus.on('practice', (m) => start('practice', null, m));
-menus.on('host', (m) => start('host', null, m));
+menus.on('practice', (m, bots) => start('practice', null, m, bots));
+menus.on('host', (m, bots) => start('host', null, m, bots));
 menus.on('switchTeam', () => game?.switchTeam());
 menus.on('join', (code) => start('join', normalizeCode(code)));
 menus.on('deploy', () => {
@@ -359,7 +359,8 @@ window.__game = {
   tap(code, ms = 60) { input.simKey(code, true); setTimeout(() => input.simKey(code, false), ms); },
 };
 
-const autoMode = params.get('mode') === 'ctf' ? 'ctf' : 'ffa';
-if (autostart === 'practice') start('practice', null, autoMode);
-else if (autostart === 'host') start('host', null, autoMode);
+const autoMode = ['ctf', 'tdm'].includes(params.get('mode')) ? params.get('mode') : 'ffa';
+const autoBots = { count: Math.min(7, Number(params.get('bots')) || 0), difficulty: params.get('diff') || 'normal' };
+if (autostart === 'practice') start('practice', null, autoMode, autoBots);
+else if (autostart === 'host') start('host', null, autoMode, autoBots);
 else if (autostart === 'join' && joinParam.length === 6) start('join', joinParam);

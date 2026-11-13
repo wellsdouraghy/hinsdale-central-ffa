@@ -52,7 +52,7 @@ export const WEAPON_STATS = {
 };
 
 export const PRIMARY_IDS = ['ar', 'smg', 'sniper', 'shotgun'];
-export const MELEE = { damage: 55, range: 2.3, cooldown: 0.9, lungeRange: 4.5 };
+export const MELEE = { damage: 999, range: 2.0, cooldown: 0.9, lungeRange: 4.4 }; // any melee hit kills
 
 /** Damage of one pellet at distance d (meters), before headshot multiplier. */
 export function damageAt(stats, d) {

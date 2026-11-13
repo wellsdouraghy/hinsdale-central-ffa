@@ -92,6 +92,18 @@ export function createAudio() {
       }
     });
     buffers.ring = synthTone(sr, [[3520, 0.5], [3610, 0.4]], 1.2, 0.5);
+    // Rotor wash loop: 1.0 s = exactly 5 blade slaps (seamless), plus a turbine whine.
+    buffers.rotor = makeBuffer(sr, 1.0, (d, n) => {
+      let l = 0;
+      const a = onePole(420, sr);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        l += a * ((Math.random() * 2 - 1) - l);
+        const ph = (t * 5) % 1;
+        const slap = Math.exp(-ph / 0.07);
+        d[i] = l * 3 * (0.35 + slap) + Math.sin(2 * Math.PI * 880 * t) * 0.04 + Math.sin(2 * Math.PI * 40 * t) * slap * 0.5;
+      }
+    });
     buffers.jet = makeBuffer(sr, 3.5, (d, n) => {
       let l = 0;
       for (let i = 0; i < n; i++) {
@@ -380,6 +392,30 @@ export function createAudio() {
     jet(pos, delay = 0) { play('jet', pos, { gain: 1.2, ref: 40, rolloff: 0.4, delay: Math.max(0, delay - 1.6) }); },
     plane(pos) { play('jet', pos, { gain: 0.9, ref: 60, rolloff: 0.3 }); },
     crateLand(pos) { play('boom', pos, { gain: 0.35, rate: 2.2, ref: 6 }); play('clank', pos, { gain: 0.6, ref: 6 }); },
+    /** Looping positional sound (helicopter rotor). Returns { set(pos, gain, rate, local), stop() } or null. */
+    loop(name) {
+      if (!ctx || ctx.state !== 'running' || !buffers[name]) return null;
+      const src = ctx.createBufferSource();
+      src.buffer = buffers[name];
+      src.loop = true;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      const pan = ctx.createPanner();
+      pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 12; pan.rolloffFactor = 0.9; pan.maxDistance = 2000;
+      src.connect(g).connect(pan).connect(sfx);
+      src.start();
+      return {
+        set(pos, gain, rate, local = false) {
+          const p = local ? listenerPos : pos;
+          if (pan.positionX) { pan.positionX.value = p.x; pan.positionY.value = p.y; pan.positionZ.value = p.z; } else pan.setPosition(p.x, p.y, p.z);
+          g.gain.setTargetAtTime(gain, ctx.currentTime, 0.1);
+          src.playbackRate.setTargetAtTime(Math.max(0.3, rate), ctx.currentTime, 0.1);
+        },
+        stop() { try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.2); src.stop(ctx.currentTime + 0.8); } catch { /* ignore */ } },
+      };
+    },
+    cannon(pos = null) { play('shot_smg', pos, { gain: pos ? 1.1 : 0.7, rate: 0.72 + Math.random() * 0.05, distanceMuffle: !!pos, ref: 14 }); },
+    rocket(pos = null) { play('swoosh', pos, { gain: 0.9, rate: 0.6, ref: 10 }); play('thrust', pos, { gain: 0.8, rate: 0.7, ref: 10 }); },
     /** The AudioContext (for voice chat), created on the first user gesture. */
     get context() { return ctx; },
     get masterVolume() { return volume; },

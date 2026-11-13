@@ -12,8 +12,8 @@ export const CLASSES = {
   },
   brawler: {
     id: 'brawler', name: 'Brawler', tag: 'BRW', primary: 'shotgun', frags: 1,
-    ability: 'One-hit melee kills with a short lunge',
-    meleeDamage: 150, lunge: true,
+    ability: 'Lunging melee (2x reach) and much faster melee recovery',
+    lunge: true, meleeCooldownMult: 0.5,
   },
   recon: {
     id: 'recon', name: 'Recon', tag: 'REC', primary: 'sniper', frags: 1,
@@ -29,7 +29,8 @@ export const CLASSES = {
 
 export const CLASS_IDS = Object.keys(CLASSES);
 export const DEFAULT_CLASS = 'rifleman';
-export const BASE_MELEE_DAMAGE = 55;
+// Every melee hit is a one-hit kill (through armor); the host applies it as lethal.
+export const BASE_MELEE_DAMAGE = 999;
 
 export function classOf(id) { return CLASSES[id] || CLASSES[DEFAULT_CLASS]; }
 

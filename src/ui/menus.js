@@ -65,9 +65,16 @@ export function createMenus({ settings, onSettingsChange }) {
   $('btn-host').addEventListener('click', () => openSetup('host'));
   $('btn-practice').addEventListener('click', () => openSetup('practice'));
   $('btn-setup-back').addEventListener('click', () => el.setup.classList.add('hidden'));
+  const botsIn = $('s-bots'), botsOut = $('o-bots');
+  botsIn.value = settings.botCount; botsOut.textContent = settings.botCount;
+  botsIn.addEventListener('input', () => { settings.botCount = Number(botsIn.value); botsOut.textContent = botsIn.value; onSettingsChange('botCount'); });
+  const diffBtns = [...document.querySelectorAll('#s-botdiff button')];
+  const syncDiff = () => diffBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.botDiff));
+  diffBtns.forEach((b) => b.addEventListener('click', () => { settings.botDiff = b.dataset.v; syncDiff(); onSettingsChange('botDiff'); }));
+  syncDiff();
   $('btn-setup-go').addEventListener('click', () => {
     el.setup.classList.add('hidden');
-    handlers[setupKind]?.(settings.mode);
+    handlers[setupKind]?.(settings.mode, { count: settings.botCount, difficulty: settings.botDiff });
   });
   $('btn-join').addEventListener('click', () => {
     el.joinBox.classList.toggle('open');
@@ -133,10 +140,10 @@ export function createMenus({ settings, onSettingsChange }) {
       ['<kbd>Q</kbd>', 'Aim (toggle)'],
       ['<kbd>R</kbd>', 'Reload'],
       ['<kbd>1</kbd><kbd>2</kbd>', 'Switch / wheel'],
-      ['<kbd>V</kbd>', 'Melee'],
+      ['<kbd>V</kbd>', 'Melee (one-hit kill)'],
       ['<kbd>G</kbd>', 'Frag (hold to cook)'],
       ['<kbd>4</kbd>', 'Use killstreak'],
-      ['<kbd>X</kbd>', 'Capture care package (hold)'],
+      ['<kbd>X</kbd>', 'Hold: care package / enter heli'],
       ['<kbd>Tab</kbd>', 'Scoreboard'],
       ['<kbd>Esc</kbd>', 'Menu'],
     ];

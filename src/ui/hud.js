@@ -38,6 +38,7 @@ export function createHud() {
     equip: $('equip'), frags: $('eq-frags'), cook: root.querySelector('.eq-cook'), cookFill: $('eq-cook'),
     micLive: $('mic-live'), micLevel: $('mic-level'), speakers: $('speakers'),
     ebars: $('enemy-bars'), swapHint: $('swap-hint'),
+    heli: $('heli-hud'), hhHp: $('hh-hp'), hhHeat: $('hh-heat'), hhRk: $('hh-rk'), hhLeft: $('hh-left'), hhMeta: $('hh-meta'),
   };
   const spkEls = new Map();
   const barEls = new Map();
@@ -180,11 +181,12 @@ export function createHud() {
       if (!visible) return;
       el.sbMeta.textContent = meta;
       el.sbTitle.textContent = title;
-      const head = teams
+      const caps = teams && teams.caps !== false;
+      const head = caps
         ? '<th>#</th><th class="name">Player</th><th>Class</th><th>Caps</th><th>Returns</th><th>Kills</th><th>Deaths</th><th>Ping</th>'
         : '<th>#</th><th class="name">Player</th><th>Class</th><th>Kills</th><th>Deaths</th><th>Ping</th>';
       set('sbhead', head, (v) => { el.sbHead.innerHTML = v; });
-      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}</td><td class="cls">${esc(r.cls || '')}</td>${teams ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td>${r.ping}</td></tr>`;
+      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}</td><td class="cls">${esc(r.cls || '')}</td>${caps ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td>${r.ping}</td></tr>`;
       let html;
       if (teams) {
         html = ['red', 'blue'].map((tm) => {
@@ -208,8 +210,12 @@ export function createHud() {
       });
       set('sR', score.red, (v) => { el.ctfRedScore.textContent = v; });
       set('sB', score.blue, (v) => { el.ctfBlueScore.textContent = v; });
-      set('fR', status.red.text + status.red.kind, () => { el.ctfRedFlag.textContent = status.red.text; el.ctfRedFlag.dataset.kind = status.red.kind; });
-      set('fB', status.blue.text + status.blue.kind, () => { el.ctfBlueFlag.textContent = status.blue.text; el.ctfBlueFlag.dataset.kind = status.blue.kind; });
+      // TDM passes status null: no flag rows.
+      set('fShow', !!status, (v) => { el.ctfRedFlag.classList.toggle('hidden', !v); el.ctfBlueFlag.classList.toggle('hidden', !v); });
+      if (status) {
+        set('fR', status.red.text + status.red.kind, () => { el.ctfRedFlag.textContent = status.red.text; el.ctfRedFlag.dataset.kind = status.red.kind; });
+        set('fB', status.blue.text + status.blue.kind, () => { el.ctfBlueFlag.textContent = status.blue.text; el.ctfBlueFlag.dataset.kind = status.blue.kind; });
+      }
       set('carry', !!carrying, (v) => el.carry.classList.toggle('hidden', !v));
     },
 
@@ -309,6 +315,18 @@ export function createHud() {
         e.children[0].firstChild.style.width = Math.max(0, Math.min(100, b.armor)) + '%';
       }
       for (const [id, e] of barEls) if (!seen.has(id)) { e.remove(); barEls.delete(id); }
+    },
+
+    /** Pilot HUD; null hides it (also hides the infantry HUD pieces via a class). */
+    heli(info) {
+      set('heliOn', !!info, (v) => { el.heli.classList.toggle('hidden', !v); root.classList.toggle('piloting', v); });
+      if (!info) return;
+      el.hhHp.style.width = Math.round(Math.max(0, info.hp) * 100) + '%';
+      el.hhHeat.style.width = Math.round(info.heat * 100) + '%';
+      el.hhHeat.parentElement.classList.toggle('over', info.overheated);
+      set('hhRk', info.rockets > 0 ? info.rockets.toFixed(1) + 's' : 'Ready', (v) => { el.hhRk.textContent = v; });
+      set('hhLeft', Math.ceil(info.left), (v) => { el.hhLeft.textContent = v + 's'; el.hhLeft.classList.toggle('warn', info.warn); });
+      set('hhMeta', `${Math.round(info.speed * 3.6)} km/h · ALT ${Math.round(info.alt)} m`, (v) => { el.hhMeta.textContent = v; });
     },
 
     swapHint(v) { set('swap', v, (x) => el.swapHint.classList.toggle('hidden', !x)); },

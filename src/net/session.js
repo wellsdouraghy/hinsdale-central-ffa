@@ -20,19 +20,21 @@ class LocalQueue {
 }
 
 /** Practice: local authority with static bot dummies. */
-export function createPracticeSession({ world, name, dummies, spawn, mode = 'ffa' }) {
+export function createPracticeSession({ world, name, dummies, spawn, mode = 'ffa', bots = null }) {
   const queue = new LocalQueue();
   const localId = 1;
   const authority = new Authority({
     world, mode, practice: true, practiceSpawn: spawn,
     out: (msg, to = null, except = null) => {
-      if (msg.t === 'ping' || msg.t === 'sts') return;
+      if (msg.t === 'ping') return;
       if ((to === null || to === localId) && except !== localId) queue.push(msg);
     },
   });
-  authority.addPlayer(localId, name, { team: mode === 'ctf' ? 'red' : null });
+  const teams = mode === 'ctf' || mode === 'tdm';
+  authority.addPlayer(localId, name, { team: teams ? 'red' : null });
   const welcome = authority.welcomeFor(localId);
-  dummies.forEach((d, i) => authority.addPlayer(100 + i, `Dummy ${i + 1}`, { bot: true, pos: d.pos, yaw: d.yaw, team: mode === 'ctf' ? 'blue' : null }));
+  if (bots?.count > 0) authority.bots.configure(bots);    // real AI opponents instead of static dummies
+  else dummies.forEach((d, i) => authority.addPlayer(100 + i, `Dummy ${i + 1}`, { bot: true, pos: d.pos, yaw: d.yaw, team: teams ? 'blue' : null }));
   return {
     mode: 'practice', isHost: true, localId, roomCode: null, authority, welcome,
     set onMessage(fn) { queue.onMessage = fn; },
@@ -45,7 +47,7 @@ export function createPracticeSession({ world, name, dummies, spawn, mode = 'ffa
 }
 
 /** Host: opens a PeerJS peer with a room code and accepts up to MATCH.maxPlayers. */
-export async function createHostSession({ world, name, onStatus, mode = 'ffa' }) {
+export async function createHostSession({ world, name, onStatus, mode = 'ffa', bots = null }) {
   const queue = new LocalQueue();
   const localId = 1;
   let nextId = 2;
@@ -75,6 +77,7 @@ export async function createHostSession({ world, name, onStatus, mode = 'ffa' })
 
   const { peer, code } = await openPeer(onStatus);
   authority.players.get(localId).pid = peer.id; // PeerJS id, used for voice calls
+  if (bots?.count > 0) authority.bots.configure(bots);
 
   const dropClient = (id) => {
     const c = clients.get(id);
@@ -108,6 +111,7 @@ export async function createHostSession({ world, name, onStatus, mode = 'ffa' })
           byPeer.set(conn.peer, id);
           clients.set(id, { ev: conn, st: null, peerId: conn.peer });
           authority.addPlayer(id, String(msg.name || 'Player').slice(0, 20), { pid: conn.peer });
+          authority.trimBots();
           send(conn, authority.welcomeFor(id));
           return;
         }

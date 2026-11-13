@@ -182,7 +182,7 @@ export class CtfRules {
     }
     if (this.auth.state !== 'playing') return null;
     for (const p of this.auth.players.values()) {
-      if (!p.alive || p.bot || !p.pos || !p.team) continue;
+      if (!p.alive || (p.bot && !p.ai) || !p.pos || !p.team) continue;
       const enemyTeam = otherTeam(p.team);
       const ef = this.flags[enemyTeam], of = this.flags[p.team];
       // Take the enemy flag (home or dropped).

@@ -68,6 +68,16 @@ export function createMinimap(canvas) {
       if (len > r) { px *= r / len; py *= r / len; }
       ctx.globalAlpha = b.alpha ?? 1;
       ctx.fillStyle = b.color;
+      if (b.shape === 'heli') {
+        const hx = W / 2 + px, hy = H / 2 + py;
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(hx - 9, hy - 9); ctx.lineTo(hx + 9, hy + 9); ctx.moveTo(hx + 9, hy - 9); ctx.lineTo(hx - 9, hy + 9); ctx.stroke();
+        continue;
+      }
       if (b.shape === 'flag') {
         const fx = W / 2 + px, fy = H / 2 + py;
         ctx.strokeStyle = '#000';

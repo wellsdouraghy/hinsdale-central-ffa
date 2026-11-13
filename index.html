@@ -114,6 +114,14 @@
       <div id="markers"></div>
       <div id="speakers"></div>
       <div id="enemy-bars"></div>
+      <div id="heli-hud" class="hidden">
+        <div class="hh-row"><span>Hull</span><span class="hh-bar"><i id="hh-hp"></i></span></div>
+        <div class="hh-row"><span>Cannon</span><span class="hh-bar heat"><i id="hh-heat"></i></span></div>
+        <div class="hh-row"><span>Rockets</span><b id="hh-rk">Ready</b></div>
+        <div class="hh-row"><span>Fuel</span><b id="hh-left">75</b></div>
+        <div class="hh-meta" id="hh-meta"></div>
+        <div class="hh-reticle"></div>
+      </div>
       <div id="swap-hint" class="hidden"><kbd>B</kbd> change class</div>
       <div id="announce"></div>
       <div id="carry-msg" class="hidden">You have the flag &middot; return it to your base</div>
@@ -220,10 +228,21 @@
             <div class="mc-name">Free-for-all</div>
             <div class="mc-desc">Every player for themselves. First to 30 kills or 10 minutes.</div>
           </button>
+          <button class="mode-card" data-mode="tdm">
+            <div class="mc-name">Team Deathmatch</div>
+            <div class="mc-desc">Red Devils vs Lions. First team to 50 kills or 10 minutes.</div>
+          </button>
           <button class="mode-card" data-mode="ctf">
             <div class="mc-name">Capture the Flag</div>
             <div class="mc-desc">Red Devils vs Lions. Steal the enemy flag from their base and bring it home. First to 3 captures or 12 minutes.</div>
           </button>
+        </div>
+        <div class="bot-setup">
+          <label>Bots <output id="o-bots">0</output><input id="s-bots" type="range" min="0" max="7" step="1" /></label>
+          <label>Difficulty
+            <div class="seg" id="s-botdiff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div>
+          </label>
+          <small id="bot-note">Bots fill empty slots (humans + bots &le; 8). FFA has one attack helicopter hidden somewhere on campus.</small>
         </div>
         <div class="end-actions">
           <button id="btn-setup-back" class="btn">Back</button>

@@ -236,3 +236,8 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   (place the wreck's `object3D` on the ground, upright). Smoke/fire/rocket trails live in one shared world-space particle cloud that adds itself to whatever
   Scene the heli/rocket is in on `update(dt)`; a rocket's trail keeps fading for ~2 s after `dispose()`. Call `rocket.update(dt)` after moving it each frame;
   a jump of more than 30 m in one frame is treated as a teleport (no trail drawn).
+- (Gameplay, round 6) Uses `world.navGrid` (cost treated as a per-cell multiplier >= 1; weighted A*, string-pulled paths;
+  a raycast fallback grid is built if it is missing), `world.heliSpawns` (fallback: spawnPoints), `createHelicopter()`
+  (`setRotorSpeed`, `setDamage`, `setOccupied?`, `aimGun?`, `fireGun`, `fireRocket(side)`, `destroy`, `reset`; gameplay drives
+  object3D position + YXZ rotation) and `createRocket()` (`update(dt)` after each move). Modes: 'ffa' | 'tdm' | 'ctf'.
+  AI bots are host-side players (`p.ai`), visible to clients through the normal state stream.

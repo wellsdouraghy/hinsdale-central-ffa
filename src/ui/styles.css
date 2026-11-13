@@ -427,3 +427,20 @@ h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: .14em; text-transform: up
 .ehp-armor i { display: block; height: 100%; background: #6fb6ff; transition: width .12s; }
 #swap-hint { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #ffd27a; background: rgba(10,12,15,0.6); padding: 4px 10px; border-radius: 4px; }
 #hud.is-dead #enemy-bars, #hud.is-dead #swap-hint { visibility: hidden; }
+#heli-hud { position: absolute; right: 22px; bottom: 30px; width: 230px; padding: 10px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line-strong); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.hh-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0; color: var(--muted); }
+.hh-row b { font: 700 13px var(--mono); color: var(--text); }
+.hh-row b.warn { color: #ff4b4b; animation: flagblink 0.6s steps(2) infinite; }
+.hh-bar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); overflow: hidden; }
+.hh-bar i { display: block; height: 100%; background: #57d18a; }
+.hh-bar.heat i { background: linear-gradient(90deg, #f2b544, #ff4b4b); }
+.hh-bar.over { box-shadow: 0 0 0 1px #ff4b4b; }
+.hh-meta { margin-top: 6px; font: 600 11px var(--mono); color: var(--muted); text-align: right; }
+.hh-reticle { position: fixed; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px; border: 2px solid rgba(255,255,255,0.85); border-radius: 50%; box-shadow: 0 0 2px #000; }
+#hud.piloting #br, #hud.piloting #crosshair, #hud.piloting #kit, #hud.piloting #grapple-ind, #hud.piloting #equip { visibility: hidden; }
+.mode-cards { grid-template-columns: repeat(3, 1fr); }
+.bot-setup { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.bot-setup label { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.bot-setup output { float: right; font: 700 12px var(--mono); color: var(--text); }
+.bot-setup input[type=range] { width: 100%; margin-top: 8px; accent-color: var(--accent); }
+.bot-setup small { grid-column: 1 / -1; font-size: 12px; color: rgba(255,255,255,0.5); }

@@ -15,6 +15,7 @@ import { CLASSES, CLASS_IDS, DEFAULT_CLASS, classOf } from './classes.js';
 import { Throwables } from './throwables.js';
 import { StreakView } from './streakView.js';
 import { KillCamRecorder, KillCam } from './killcam.js';
+import { HeliView } from './heliView.js';
 
 const DEG = Math.PI / 180;
 const BASE_SENS = 0.0021;   // radians per mouse pixel at sensitivity 1
@@ -73,7 +74,11 @@ export class Game {
     this.deathCam = 0;
     this.adsToggled = false;
     this.ctfView = null;
-    this.enemyBars = new Map();   // id -> { hp, armor, until } for enemies we are damaging
+    this.enemyBars = new Map();
+    this.teamScore = { red: 0, blue: 0 };
+    this.heliView = null;
+    this.piloting = false;
+    this._frameDx = 0; this._frameDy = 0;   // id -> { hp, armor, until } for enemies we are damaging
     this.spawnInfo = null;
     this.swapOpen = false;
     // Movement kit.
@@ -111,15 +116,20 @@ export class Game {
 
   _applyWelcome(w) {
     this._applyMatch(w.match);
+    if (w.match.teamScore) this.teamScore = { ...w.match.teamScore };
+    if (w.match.heli) this.heliView = new HeliView(this, w.match.heli);
     if (w.match.ctf) this.ctfView = new CtfView(this, w.match.ctf);
     for (const p of w.players) this._addPlayer(p);
     if (w.match.state === 'ended') this._lastEnd = { standings: [], winner: null };
   }
 
   get isCtf() { return this.match.mode === 'ctf'; }
+  get isTdm() { return this.match.mode === 'tdm'; }
+  /** Team modes (CTF, TDM): friendly fire off, teammates on the minimap, team-grouped scoreboard. */
+  get isTeams() { return this.match.mode === 'ctf' || this.match.mode === 'tdm'; }
   get myTeam() { return this.roster.get(this.localId)?.team ?? null; }
   isTeammate(id) {
-    if (!this.isCtf) return false;
+    if (!this.isTeams) return false;
     const t = this.roster.get(id)?.team;
     return !!t && t === this.myTeam;
   }
@@ -128,13 +138,14 @@ export class Game {
   _addPlayer(p) {
     const entry = {
       id: p.id, name: p.name, color: this._colorFor(p), paletteIndex: p.color, team: p.team || null,
-      k: p.k || 0, d: p.d || 0, caps: p.caps || 0, ret: p.ret || 0, ping: p.ping, alive: !!p.alive, bot: !!p.bot,
+      k: p.k || 0, d: p.d || 0, caps: p.caps || 0, ret: p.ret || 0, ping: p.ping, alive: !!p.alive, bot: !!p.bot, ai: !!p.ai,
       pid: p.pid || null, cls: p.cls,
     };
     this.roster.set(p.id, entry);
     if (p.id === this.localId) return;
     const r = new RemotePlayer({ id: p.id, name: p.name, color: entry.color, scene: this.scene });
-    r.bot = !!p.bot;
+    r.bot = !!p.bot && !p.ai;   // static practice dummy
+    r.ai = !!p.ai;
     r.protectUntil = 0;
     this.remotes.set(p.id, r);
     if (p.alive && p.pos) r.spawn(_v1.fromArray(p.pos), p.yaw || 0, p.life);
@@ -187,6 +198,22 @@ export class Game {
       case 'armor': this.streaks.onArmor(m); break;
       case 'strike': this.streaks.onStrike(m); break;
       case 'crate': this.streaks.onCrate(m); break;
+      case 'tscore': this.teamScore = { ...m.score }; break;
+      case 'heli': this.heliView?.apply(m.h, m.spawned); break;
+      case 'hst': this.heliView?.onPose(m); break;
+      case 'rocket': this.heliView?.onRocket(m); break;
+      case 'rboom': this.heliView?.onRocketBoom(m); break;
+      case 'heliBoom': this.heliView?.onBoom(m); this.announce('Helicopter destroyed', m.by != null ? this.nameOf(m.by) : '', '#ff4d55', 'neutral'); break;
+      case 'heliGone': this.ui.toast('The helicopter ran out of fuel'); break;
+      case 'heliExit':
+        if (m.id === this.localId) {
+          this.heliView?.pilot?.dispose();
+          if (this.heliView) this.heliView.pilot = null;
+          this.player.teleport(new THREE.Vector3().fromArray(m.p), this.player.yaw);
+          this.arsenal.viewmodel?.equip();
+          this.stateTimer = STATE_INTERVAL;
+        }
+        break;
       case 'cls': { const e = this.roster.get(m.id); if (e) e.cls = m.cls; break; }
       case 'swapped': {
         const e = this.roster.get(m.id);
@@ -229,6 +256,7 @@ export class Game {
         this.match.timeRef = t;
         this.match.overtime = !!m.match.overtime;
         if (m.match.ctf && this.ctfView) this.ctfView.apply(m.match.ctf);
+        if (m.match.teamScore) this.teamScore = { ...m.match.teamScore };
         break;
       case 'end':
         this.match.state = 'ended';
@@ -242,6 +270,7 @@ export class Game {
         this._applyMatch(m.match);
         if (m.match.ctf && this.ctfView) this.ctfView.apply(m.match.ctf);
         for (const e of this.roster.values()) { e.k = 0; e.d = 0; e.caps = 0; e.ret = 0; }
+        this.teamScore = { red: 0, blue: 0 };
         this.adsToggled = false;
         this._endDeathFlow();
         this.ui.hideEnd();
@@ -255,12 +284,12 @@ export class Game {
   _endData(m) {
     let src = m?.standings || [];
     if (!src.length) {
-      src = [...this.roster.values()].filter((e) => !e.bot).sort((a, b) => b.k - a.k || a.d - b.d)
+      src = [...this.roster.values()].filter((e) => !e.bot || e.ai).sort((a, b) => b.k - a.k || a.d - b.d)
         .map((e) => ({ id: e.id, name: e.name, k: e.k, d: e.d }));
     }
     const standings = src.map((s) => ({ ...s, me: s.id === this.localId, color: colorCss(this.roster.get(s.id)?.color ?? 0x888888) }));
-    if (this.isCtf) {
-      const score = m?.score || this.ctfView?.score || { red: 0, blue: 0 };
+    if (this.isTeams) {
+      const score = m?.score || (this.isCtf ? this.ctfView?.score : this.teamScore) || { red: 0, blue: 0 };
       const wt = m?.winnerTeam ?? null;
       return {
         standings, ctf: true, score, winnerTeam: wt, isHost: this.session.isHost,
@@ -308,7 +337,7 @@ export class Game {
 
   /** Ask the host to move us to the other team. */
   switchTeam() {
-    if (!this.isCtf || !this.myTeam) return;
+    if (!this.isTeams || !this.myTeam) return;
     this.session.send({ t: 'team', team: otherTeam(this.myTeam) });
   }
 
@@ -489,14 +518,14 @@ export class Game {
     r.character.fire();
     r.protectUntil = 0;
     this.blips.set(m.id, clock());
-    const from = r.alive ? r.muzzle(_v1) : _v1.fromArray(m.o);
+    const from = r.alive && m.w !== 'heligun' ? r.muzzle(_v1) : _v1.fromArray(m.o);
     m.e.forEach((e, i) => {
       _v2.set(e[0], e[1], e[2]);
       if (i < 3) this.effects.tracer(from, _v2);
       if (e[3] === 1) this.effects.impact(_v2, _v3.set(e[4], e[5], e[6]), e[7] || 'concrete');
       else if (e[3] === 2) this.effects.blood(_v2, _v3.subVectors(_v2, from).normalize());
     });
-    this.audio.shot(m.w, from.clone());
+    if (m.w === 'heligun') this.audio.cannon?.(from.clone()); else this.audio.shot(m.w, from.clone());
     this.killcamRec.recordShot(m.id, from, m.e, m.w);
   }
 
@@ -616,7 +645,7 @@ export class Game {
 
   _targets() {
     const list = [];
-    for (const r of this.remotes.values()) if (r.alive && !this.isTeammate(r.id)) list.push(r.hitbox());
+    for (const r of this.remotes.values()) if (r.alive && !this.isTeammate(r.id) && !r.inHeliSeat) list.push(r.hitbox());
     return list;
   }
 
@@ -634,14 +663,20 @@ export class Game {
     const muzzle = vm.muzzleWorldPosition(new THREE.Vector3(), this.overlayCamera, this.camera);
     const ends = [];
     const dmgBy = new Map();
-    let anyHit = false, anyHead = false;
+    let anyHit = false, anyHead = false, heliDmg = 0;
 
     for (let i = 0; i < st.pellets; i++) {
       const dir = coneDir(aim, spread, st.pellets > 1 ? i / st.pellets : null);
       const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
       const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : st.maxRange, targets);
+      const hd = this.heliView ? this.heliView.rayHit(eye, dir, Math.min(wh ? wh.distance : st.maxRange, th ? th.distance : Infinity)) : null;
       let end;
-      if (th) {
+      if (hd !== null) {
+        end = eye.clone().addScaledVector(dir, hd);
+        heliDmg += damageAt(st, hd);
+        this.effects.impact(end, dir.clone().negate(), 'metal');
+        ends.push([r2(end.x), r2(end.y), r2(end.z), 1, r3(-dir.x), r3(-dir.y), r3(-dir.z), 'metal']);
+      } else if (th) {
         end = th.point;
         const r = this.remotes.get(th.id);
         const protectedNow = r && t < r.protectUntil;
@@ -669,6 +704,11 @@ export class Game {
       if (i < 3 && !(st.scope && ar.ads > 0.9)) this.effects.tracer(muzzle, end);
     }
 
+    if (heliDmg > 0) {
+      this.session.send({ t: 'hit', target: 'heli', dmg: Math.round(heliDmg * 10) / 10, w: gun.id });
+      this.hud.hitmarker('hit');
+      this.audio.hitmarker('hit');
+    }
     for (const [id, a] of dmgBy) {
       this.session.send({ t: 'hit', target: id, dmg: Math.round(a.dmg * 10) / 10, hs: a.hs, w: gun.id, ...(a.ik ? { ik: 1 } : {}) });
     }
@@ -693,7 +733,7 @@ export class Game {
   _melee(t) {
     this.markDirty();
     const cd = this.classDef;
-    this.meleeUntil = t + MELEE.cooldown;
+    this.meleeUntil = t + MELEE.cooldown * (cd.meleeCooldownMult ?? 1);
     this.audio.melee();
     this.arsenal.viewmodel?.melee?.(0.45);
     this.meleeShake = 1;
@@ -721,7 +761,7 @@ export class Game {
     }
     this.session.send({ t: 'melee', hit: !!best });
     if (best) {
-      this.session.send({ t: 'hit', target: best.r.id, dmg: cd.meleeDamage ?? MELEE.damage, hs: false, w: 'melee' });
+      this.session.send({ t: 'hit', target: best.r.id, dmg: MELEE.damage, hs: false, w: 'melee' });
       this.effects.blood(best.point, best.dir);
       this.hud.hitmarker('hit');
       this.audio.hitmarker('hit');
@@ -747,7 +787,10 @@ export class Game {
     // Hit-stop: a brief slow-down of our own motion when a melee connects.
     const pdt = this.hitStop > 0 ? dt * 0.15 : dt;
     this.hitStop = Math.max(0, this.hitStop - dt);
-    if (this.alive) {
+    this._frameDx = dx; this._frameDy = dy; this._framePressed = pressed;
+    if (this.alive && this.piloting) {
+      this.killcamRec.recordSelf(t, this.player);
+    } else if (this.alive) {
       this._updateAlive(pdt, t, active, pressed, dx, dy, wheel);
       this.killcamRec.recordSelf(t, this.player);
     } else {
@@ -755,11 +798,18 @@ export class Game {
       this._updateDeathFlow(dt, t, pressed);
     }
     this.throwables.update(dt, t);
-    this.streakPrompt = this.streaks.update(dt, t, this.alive && active && this.input.isDown('KeyX'));
+    const holdX = this.alive && active && this.input.isDown('KeyX');
+    const heliPrompt = this.heliView ? this.heliView.update(dt, t, holdX && !this.piloting) : null;
+    this.streakPrompt = heliPrompt || this.streaks.update(dt, t, holdX && !heliPrompt && !this.piloting);
 
     if (!this.killcam) {
-      this._updateCamera(dt);
-      for (const r of this.remotes.values()) r.update(dt, t);
+      if (!this.piloting) this._updateCamera(dt);
+      const pilotId = this.heliView?.flying ? this.heliView.s.pilot : null;
+      for (const r of this.remotes.values()) {
+        r.update(dt, t);
+        r.inHeliSeat = r.id === pilotId;
+        if (r.inHeliSeat) r.character.object3D.visible = false; // the helicopter model shows its pilot
+      }
     }
     this._updateCable();
     for (const r of this.remotes.values()) {
@@ -1029,15 +1079,19 @@ export class Game {
     hud.targetName(aimName, aimFriendly ? TEAM_CSS[this.myTeam] : null);
 
     const me = this.roster.get(this.localId);
-    const list = [...this.roster.values()].filter((e) => !e.bot || this.match.practice);
+    const list = [...this.roster.values()].filter((e) => !e.bot || e.ai || this.match.practice);
     const timeLeft = this.match.timeLeft === null ? null : this.match.timeLeft - (this.match.state === 'playing' ? t - this.match.timeRef : 0);
     const markers = this.isCtf ? this._updateCtfHud(t, timeLeft) : [];
+    if (this.isTdm) {
+      hud.timer(timeLeft, this.match.practice ? 'TDM practice' : `First to ${this.match.scoreLimit} kills`);
+      hud.ctf({ score: this.teamScore, status: null, myTeam: this.myTeam || 'red', carrying: false });
+    }
     // Grenade danger indicators.
     if (this.alive) {
       this.throwables.dangers(p.position).forEach((pos, i) => markers.push({ id: 'nade' + i, pos: pos.clone(), label: 'Grenade', color: '#ff4b4b', icon: 'nade', pulse: true }));
     }
     hud.markers(this.everSpawned && this.match.state === 'playing' && !this.killcam ? markers : [], this.camera);
-    if (!this.isCtf) {
+    if (!this.isTeams) {
       // FFA score / rank.
       const myK = me?.k ?? 0;
       const rank = 1 + list.filter((e) => e.k > myK).length;
@@ -1058,13 +1112,13 @@ export class Game {
     const showSb = inp.enabled && inp.isDown('Tab');
     if (showSb || this._sbVisible) {
       const rows = list.slice().sort((a, b) => (b.caps - a.caps) * (this.isCtf ? 1 : 0) || b.k - a.k || a.d - b.d).map((e) => ({
-        name: e.name, k: e.k, d: e.d, caps: e.caps || 0, ret: e.ret || 0, team: e.team, cls: e.bot ? '' : classOf(e.cls).tag,
+        name: e.name, k: e.k, d: e.d, caps: e.caps || 0, ret: e.ret || 0, team: e.team, cls: e.bot && !e.ai ? '' : classOf(e.cls).tag,
         ping: e.bot ? 'BOT' : e.id === 1 && this.session.mode !== 'practice' ? 'HOST' : (e.ping ?? '-'),
         me: e.id === this.localId, alive: e.alive, color: colorCss(e.color)
       }));
       const meta = this.session.roomCode ? `Room ${this.session.roomCode}` : 'Practice';
-      const title = this.isCtf ? 'Capture the Flag' : this.match.practice ? 'Practice range' : 'Free-for-all';
-      hud.scoreboard(showSb, rows, meta, title, this.isCtf ? { score: this.ctfView?.score, names: TEAM_NAMES } : null);
+      const title = this.isCtf ? 'Capture the Flag' : this.isTdm ? 'Team Deathmatch' : this.match.practice ? 'Practice range' : 'Free-for-all';
+      hud.scoreboard(showSb, rows, meta, title, this.isTeams ? { score: this.isCtf ? this.ctfView?.score : this.teamScore, names: TEAM_NAMES, caps: this.isCtf } : null);
     }
     this._sbVisible = showSb;
 
@@ -1089,6 +1143,8 @@ export class Game {
         blips.push({ x: fp.x, z: fp.z, color: TEAM_CSS[team], alpha: 1, size: 6, shape: 'flag' });
       }
     }
+    // The helicopter is on everyone's minimap while it flies.
+    if (this.heliView?.flying) blips.push({ x: this.heliView.pos.x, z: this.heliView.pos.z, color: this.heliView.mine ? '#ffd76a' : '#ff8a3b', alpha: 1, size: 7, shape: 'heli', edge: true });
     this.minimap.draw({ x: p.position.x, z: p.position.z, yaw: p.yaw, alive: this.alive }, blips, this.world.playBounds);
   }
 
@@ -1145,6 +1201,7 @@ export class Game {
     for (const r of this.remotes.values()) { r.cable?.dispose(); r.dispose(); }
     this._endDeathFlow();
     this.throwables.dispose();
+    this.heliView?.dispose();
     this.streaks.dispose();
     this.remotes.clear();
     this.ctfView?.dispose();
@@ -1161,6 +1218,8 @@ function shortName(w) {
   if (w === 'melee') return 'MELEE';
   if (w === 'frag') return 'FRAG';
   if (w === 'airstrike') return 'AIRSTRIKE';
+  if (w === 'heli' || w === 'heligun') return 'HELI';
+  if (w === 'rocket') return 'ROCKET';
   return WEAPON_STATS[w]?.short || String(w).toUpperCase();
 }
 
