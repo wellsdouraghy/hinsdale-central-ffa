@@ -18,7 +18,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   googleTilesKey: '',
   mapStyle: 'built',       // 'scan' = Google photorealistic 3D tiles (if a key is available), 'built' = built-in campus model
   primary: 'ar',           // last chosen primary weapon
-  sprintKey: IS_MAC ? 'ctrl' : 'shift', // 'ctrl' | 'shift'
+  sprintKey: 'shift',      // 'ctrl' | 'shift'
+  controlsRev: 2,          // bump to migrate old saved control defaults
   mode: 'ffa',             // last chosen game mode for Host / Practice: 'ffa' | 'ctf'
 });
 
@@ -28,9 +29,10 @@ function storage() {
 
 export function loadSettings() {
   const s = { ...DEFAULT_SETTINGS };
+  let stored = null;
   try {
     const raw = storage()?.getItem(KEY);
-    if (raw) Object.assign(s, JSON.parse(raw));
+    if (raw) { stored = JSON.parse(raw); Object.assign(s, stored); }
   } catch { /* corrupt or blocked storage: use defaults */ }
   s.sensitivity = clampNum(s.sensitivity, 0.1, 5, 1);
   s.fov = clampNum(s.fov, 60, 110, 90);
@@ -42,6 +44,8 @@ export function loadSettings() {
   if (typeof s.googleTilesKey !== 'string') s.googleTilesKey = '';
   if (!['scan', 'built'].includes(s.mapStyle)) s.mapStyle = 'built';
   if (!['ctrl', 'shift'].includes(s.sprintKey)) s.sprintKey = DEFAULT_SETTINGS.sprintKey;
+  // rev 2: Shift is the default sprint key again for everyone (Ctrl stays available in Settings)
+  if (stored && !(stored.controlsRev >= 2)) { s.sprintKey = 'shift'; s.controlsRev = 2; saveSettings(s); }
   if (!['ffa', 'ctf'].includes(s.mode)) s.mode = 'ffa';
   return s;
 }
