@@ -224,3 +224,10 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
 - **`world.heliSpawns`** (Fable world): `[{ pos: Vector3, yaw }]`, >= 12 candidate parking spots, ground or flat roof, with ~8 m
   rotor clearance all around and open sky above, chosen to be hidden/out of the way (courtyards, behind the field house, service
   yards, between buildings, roof corners). Gameplay picks one at random each FFA match (and after each destruction).
+- (World, round 6) `world.navGrid = { x0, z0, cell: 1.25, nx: 408, nz: 338, walk, cost, walkableCells, unreachable }` (ground level only; a cell is
+  walkable when nothing solid sits between 0.3 m and 2 m above it and no wall/fence/net separates it from its neighbours; flood-filled so all
+  walkable cells are mutually connected; kerbs/low steps/the pitcher's mound are walkable, the raised Grant St terrace and roofs are not;
+  `cost` is 1 next to cover rising to 2.5 in open fields, 0 on non-walkable cells) and `world.navSample(x, z) -> bool`. Spawns/CTF points that fall
+  on a blocked cell are within a few cells of a walkable one (snap to the nearest walkable cell before pathing).
+  `world.heliSpawns = [{ pos, yaw, roof }]` (19 validated spots: 13 on the ground, 6 on roof decks; >= 8 m clear of solids and tree trunks,
+  open sky; yaw points the nose (-z) at an unobstructed direction). Dev page: `?show=heli`, `?show=nav`.

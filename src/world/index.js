@@ -12,7 +12,7 @@ import { buildProps } from './props.js';
 import { createTrees } from './trees.js';
 import { createGrass } from './grass.js';
 import { createTiles } from './tiles.js';
-import { buildCollision, computeSpawns, nearestOpenGround, spawnsNear } from './collision.js';
+import { buildCollision, computeSpawns, nearestOpenGround, spawnsNear, buildNav, pickHeliSpawns } from './collision.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -95,6 +95,10 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   // capture-the-flag: red = Dickinson Field stadium (west end), blue = east ball fields across the east street (~395 m apart); team spawns 25-70 m from their base
   const ctfBases = { red: nearestOpenGround(ctx, -154, -88), blue: nearestOpenGround(ctx, 241, -95) };
   const ctfSpawns = { red: spawnsNear(ctx, ctfBases.red, 25, 70, 10, ctfBases.blue), blue: spawnsNear(ctx, ctfBases.blue, 25, 70, 10, ctfBases.red) };
+  // bot navigation grid + helicopter parking spots (see CONTRACTS.md round 6)
+  const nav = buildNav(ctx, collisionMeshes, [...spawnPoints, ctfBases.red, ctfBases.blue, ...ctfSpawns.red, ...ctfSpawns.blue]);
+  const heliSpawns = pickHeliSpawns(ctx, nav.bvh);
+  nav.bvh.dispose();
 
   progress(0.93, 'Baking shadows'); await tick();
   scene.updateMatrixWorld(true);
@@ -110,6 +114,9 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     groundY: () => 0,
     spawnPoints,
     ctfBases,
+    navGrid: nav.grid,
+    navSample: nav.sample,
+    heliSpawns,
     ctfSpawns,
     grapplePoles: ctx.grapplePoles,   // [{ x, z, y0, y1, r }] thin vertical poles for grapple aim assist
     ladders: ctx.ladders,             // [{ x, z, nx, nz, y0, y1, exitY }] climbable ladders

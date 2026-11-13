@@ -53,6 +53,21 @@ if (world.ctfBases) {
   }
   window.__ctf = ctfBits;
 }
+if (qs.get('show') === 'heli' && world.heliSpawns) {
+  for (const h of world.heliSpawns) {
+    const g = new THREE.Group(); g.position.copy(h.pos); g.rotation.y = h.yaw;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.8, 6.5), new THREE.MeshStandardMaterial({ color: 0x3d4a3a })); body.position.y = 1.3;
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.6, 10).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xffcc00 })); nose.position.set(0, 1.3, -4.0);
+    const disc = new THREE.Mesh(new THREE.RingGeometry(7.9, 8.0, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x00ffff, side: THREE.DoubleSide })); disc.position.y = 3.2;
+    g.add(body, nose, disc); scene.add(g);
+  }
+}
+if (qs.get('show') === 'nav' && world.navGrid) {
+  const n = world.navGrid; const pos = [], col = [];
+  for (let j = 0; j < n.nz; j += 1) for (let i = 0; i < n.nx; i += 1) { const k = j * n.nx + i; if (!n.walk[k]) continue; pos.push(n.x0 + (i + 0.5) * n.cell, 0.25, n.z0 + (j + 0.5) * n.cell); const c = (n.cost[k] - 1) / 1.5; col.push(c, 1 - c, 0.2); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 0.5, vertexColors: true })));
+}
 const keys = {};
 addEventListener('keydown', (e) => { keys[e.code] = true; });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
