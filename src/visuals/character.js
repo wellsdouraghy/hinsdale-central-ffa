@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { buildGun } from './guns.js';
+import { buildGrenadeModel } from './grenade.js';
 import { ASSET_BASE } from './hands.js';
 import * as T from './textures.js';
 
@@ -31,7 +32,7 @@ async function load() {
     const fL = f.clone().applyQuaternion(q), pL = new THREE.Vector3(0, -1, 0).applyQuaternion(q);
     pL.addScaledVector(fL, -pL.dot(fL)).normalize();
     const m = new THREE.Matrix4().makeBasis(fL, pL, fL.clone().cross(pL));
-    hand[s] = { frameInv: new THREE.Quaternion().setFromRotationMatrix(m).invert(), curlAxis: fL.clone().cross(pL).normalize() };
+    hand[s] = { frameInv: new THREE.Quaternion().setFromRotationMatrix(m).invert(), curlAxis: fL.clone().cross(pL).normalize(), fL, pL };
   }
   const height = wp('HeadTop_End').y - Math.min(wp('LeftToeBase').y, 0);
   // Arms, hands and fingers are driven procedurally: strip their tracks so the mixer does not fight the IK.
@@ -170,6 +171,7 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
   let rig = null, mixer = null, actions = null;
   let crouchT = 0, lowT = 0, pitch = 0, dead = false, deathT = 0, deathRoll = 0, airT = 0;
   const wIdle = { v: 1 }, wWalk = { v: 0 }, wRun = { v: 0 };
+  let act = null, actT = 0, actDur = 0.5, nade = null;        // 'melee' | 'nade' third-person actions
   const fwdW = new THREE.Vector3(), rightW = new THREE.Vector3(), upW = new THREE.Vector3(0, 1, 0), rootQ = new THREE.Quaternion();
   const footL = new THREE.Vector3(), footR = new THREE.Vector3(), footLQ = new THREE.Quaternion(), footRQ = new THREE.Quaternion();
   const gx = new THREE.Vector3(), gy = new THREE.Vector3(), gz = new THREE.Vector3(), tgt = new THREE.Vector3(), pole = new THREE.Vector3(), fDir = new THREE.Vector3(), pDir = new THREE.Vector3(), gq = new THREE.Quaternion();
@@ -202,6 +204,11 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
       band.castShadow = true;
       bone.add(band);
     }
+    // grenade prop in the left hand (bone space is centimetres)
+    nade = buildGrenadeModel();
+    nade.group.scale.setScalar(100); nade.group.visible = false;
+    nade.group.position.copy(template.hand.Left.fL).multiplyScalar(8.5).addScaledVector(template.hand.Left.pL, 3.5);
+    rig.Left.hand.add(nade.group);
     // Bones the procedural layer overrides. The mixer only writes a property when its animated value changes, so the
     // animated pose is saved after each mixer update and restored before the next one (no accumulation).
     rig.mod = [rig.hips, ...rig.spine, rig.neck, rig.head];
@@ -262,6 +269,18 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
       return;
     }
 
+    // --- melee butt-stroke / grenade throw: torso twist
+    let mW = 0, mS = 0, gW = 0, gT = 0, gBlend = 0, ap = 0;
+    if (act) {
+      ap = actT / actDur;
+      if (act === 'melee') { mW = seg(ap, 0, 0.22) * (1 - seg(ap, 0.22, 0.4)); mS = seg(ap, 0.2, 0.42) - seg(ap, 0.6, 1); }
+      else { gW = seg(ap, 0.1, 0.38) * (1 - seg(ap, 0.4, 0.55)); gT = seg(ap, 0.4, 0.56) - seg(ap, 0.7, 1); gBlend = seg(ap, 0, 0.18) - seg(ap, 0.78, 1); }
+      const tw = (mW * 0.35 - mS * 0.5 - gW * 0.4 + gT * 0.45) / 3;
+      if (Math.abs(tw) > 1e-4) { _q.setFromAxisAngle(upW, tw); for (const sp of spine) rotateWorld(sp, _q); }
+      const bend = (mS * 0.25 + gT * 0.3 - gW * 0.15) / 3;
+      if (Math.abs(bend) > 1e-4) { _q.setFromAxisAngle(rightW, -bend); for (const sp of spine) rotateWorld(sp, _q); }
+    }
+
     // --- weapon pivot at the right shoulder, pitched with the aim
     const hold = HOLD[gunId];
     _v1.setFromMatrixPosition(rig.Right.arm.matrixWorld);
@@ -271,6 +290,13 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
     weaponPivot.rotation.set(pitch * (1 - low) - low * 0.65, low * 0.75, low * 0.25, 'YXZ');
     gunSlot.position.set(hold.off[0], hold.off[1], hold.off[2]).sub(gun.anchors.butt);
     if (hold.pistol) gunSlot.position.z += low * 0.22;
+    if (act === 'melee') {
+      // butt-stroke: cock the weapon back, then drive the stock forward across the body as the muzzle swings away
+      weaponPivot.rotation.y += -0.35 * mW + 1.25 * mS; weaponPivot.rotation.x += 0.25 * mW + 0.15 * mS; weaponPivot.rotation.z += -0.5 * mS;
+      gunSlot.position.z += 0.12 * mW - 0.3 * mS; gunSlot.position.x += -0.12 * mS; gunSlot.position.y += 0.06 * mS;
+    } else if (act === 'nade') {
+      weaponPivot.rotation.x -= 0.45 * gBlend; weaponPivot.rotation.y += 0.35 * gBlend;
+    }
     weaponPivot.updateWorldMatrix(false, true);
     worldQuat(gun.root, gq);
     gx.set(1, 0, 0).applyQuaternion(gq); gy.set(0, 1, 0).applyQuaternion(gq); gz.set(0, 0, 1).applyQuaternion(gq);
@@ -288,6 +314,18 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
     else { fDir.copy(gx).multiplyScalar(0.75).addScaledVector(gz, -0.5).addScaledVector(gy, 0.35).normalize(); pDir.copy(gy); }
     tgt.copy(gun.anchors.gripL); gun.root.localToWorld(tgt);
     tgt.addScaledVector(fDir, -0.08 * scale).addScaledVector(pDir, -0.025 * scale);
+    if (act === 'nade') {
+      // overhand throw with the left arm: cocked behind the head, whipped forward, follow-through
+      _a.setFromMatrixPosition(rig.Left.arm.matrixWorld);
+      const back = gW, fwd = seg(ap, 0.4, 0.58), down = seg(ap, 0.58, 0.8);
+      _b.copy(_a).addScaledVector(rightW, (-0.12 - 0.1 * back + 0.12 * fwd) * scale)
+        .addScaledVector(upW, (0.12 + 0.3 * back + 0.28 * fwd * (1 - down) - 0.3 * down) * scale)
+        .addScaledVector(fwdW, (0.2 - 0.38 * back + 0.42 * fwd) * scale);
+      tgt.lerp(_b, gBlend);
+      fDir.lerp(_c.copy(upW).multiplyScalar(1 - fwd).addScaledVector(fwdW, 0.3 + fwd).addScaledVector(upW, -down), gBlend).normalize();
+      pDir.lerp(_c.copy(fwdW).addScaledVector(upW, -fwd * 0.6), gBlend).normalize();
+      nade.group.visible = ap > 0.12 && ap < 0.55;
+    }
     pole.copy(rightW).multiplyScalar(-0.6).addScaledVector(upW, -1);
     solveTwoBone(rig.Left.arm, rig.Left.fore, rig.Left.hand, tgt, pole);
     setWorldQuat(rig.Left.hand, handFrame('Left', fDir, pDir, _q));
@@ -296,6 +334,9 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
   return {
     object3D: root,
     setState(s) { Object.assign(st, s); if (s.weaponId) setGun(s.weaponId); },
+    // Third-person melee (rifle butt-stroke, ~0.45 s) and overhand frag throw (~0.7 s, grenade leaves the hand at 55 %).
+    melee(durationSec = 0.45) { if (!dead) { act = 'melee'; actT = 0; actDur = Math.max(0.2, durationSec); if (nade) nade.group.visible = false; } },
+    throwGrenade(durationSec = 0.7) { if (!dead) { act = 'nade'; actT = 0; actDur = Math.max(0.3, durationSec); } },
     fire() {
       if (dead) return;
       flashT = 0.06; flash.visible = true;
@@ -319,6 +360,7 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
       lowT = damp(lowT, st.sprinting && st.speed > 2 ? 1 : 0, 8, dt);
       pitch = damp(pitch, THREE.MathUtils.clamp(st.aimPitch || 0, -1.4, 1.4), 14, dt);
       airT = damp(airT, st.grounded === false ? 1 : 0, 8, dt);
+      if (act) { actT += dt; if (actT >= actDur || dead) { act = null; if (nade) nade.group.visible = false; } }
       if (!rig) return;
 
       // locomotion blend

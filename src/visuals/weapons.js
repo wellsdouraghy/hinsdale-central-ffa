@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { buildGun, gunMaterials } from './guns.js';
 import { createHand, handsReady } from './hands.js';
+import { buildGrenadeModel } from './grenade.js';
 import * as T from './textures.js';
 
 export const WEAPONS = {
@@ -64,6 +65,60 @@ const sat = (x) => Math.min(1, Math.max(0, x));
 const seg = (p, a, b) => { const t = sat((p - a) / (b - a)); return t * t * (3 - 2 * t); };
 const damp = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-rate * dt));
 
+// Keyframes: [p, x, y, z, pitch, yaw, roll]. Off-hand tracks are in camera space (palm centre, 'YXZ' rotation);
+// WHIP is an offset added to the gun pose. p = normalised action time.
+const KNIFE = [
+  [0, -0.30, -0.42, -0.22, 0.6, -0.2, 1.5],
+  [0.2, -0.30, 0.05, -0.30, 0.25, -0.15, 2.3],      // wound up high on the left, blade cocked back
+  [0.42, 0.17, -0.09, -0.44, 0.45, -1.0, 0.35],     // slash across to the lower right
+  [0.6, 0.21, -0.12, -0.42, 0.5, -1.1, 0.25],       // impact hold / follow-through
+  [1, -0.05, -0.5, -0.25, 0.7, -0.5, 1.2],
+];
+const NADE = [
+  [0, -0.25, -0.45, -0.3, 0.3, -0.3, 2.6],
+  [0.18, -0.13, -0.13, -0.36, 0.15, -0.45, 2.5],    // presented: pin comes out here (also the cooking pose)
+  [0.4, -0.33, 0.10, -0.17, 1.2, -0.2, 2.0],        // cocked back by the ear
+  [0.55, -0.06, 0.08, -0.5, 0.3, -0.25, 1.7],       // release
+  [0.72, 0.04, -0.2, -0.5, -0.6, -0.35, 1.5],       // follow-through
+  [1, -0.2, -0.5, -0.3, 0.3, -0.3, 2.0],
+];
+const WHIP = [
+  [0, 0, 0, 0, 0, 0, 0],
+  [0.22, 0.05, 0.11, 0.10, 0.95, -0.15, -0.35],     // raised by the shoulder, muzzle up
+  [0.42, -0.14, 0.0, -0.16, 0.35, 0.75, 0.7],       // butt of the grip driven forward-left
+  [0.58, -0.16, -0.02, -0.15, 0.3, 0.85, 0.75],
+  [1, 0, 0, 0, 0, 0, 0],
+];
+function evalKeys(keys, p, pos, rot) {
+  let i = 0;
+  while (i < keys.length - 2 && p > keys[i + 1][0]) i++;
+  const a = keys[i], b = keys[i + 1], u = seg(p, a[0], b[0]);
+  pos.set(a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u, a[3] + (b[3] - a[3]) * u);
+  rot.set(a[4] + (b[4] - a[4]) * u, a[5] + (b[5] - a[5]) * u, a[6] + (b[6] - a[6]) * u);
+}
+
+// Combat knife in the off-hand frame: handle across the palm (x axis), blade out of the thumb side.
+let knifeRes = null;
+function buildKnife() {
+  if (!knifeRes) {
+    const blade = new THREE.Shape([[0.062, -0.015], [0.165, -0.017], [0.2, -0.008], [0.222, 0.006], [0.19, 0.0125], [0.062, 0.0125]].map(([x, y]) => new THREE.Vector2(x, y)));
+    const bg = new THREE.ExtrudeGeometry(blade, { depth: 0.0012, bevelEnabled: true, bevelThickness: 0.0011, bevelSize: 0.004, bevelOffset: -0.004, bevelSegments: 1 });
+    bg.translate(0, 0, -0.0006); bg.rotateX(Math.PI / 2);
+    const hg = new THREE.CapsuleGeometry(0.0125, 0.085, 4, 10); hg.rotateZ(Math.PI / 2); hg.scale(1, 0.8, 1.15); hg.translate(0.005, 0, 0);
+    const gg = new THREE.BoxGeometry(0.006, 0.012, 0.046); gg.translate(0.058, 0, 0);
+    knifeRes = {
+      bg, hg, gg,
+      steel: new THREE.MeshStandardMaterial({ color: 0x9a9da1, metalness: 1, roughness: 0.28 }),
+      dark: new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0, roughness: 0.8, normalMap: T.stippleNormal(), normalScale: new THREE.Vector2(0.6, 0.6) }),
+      guard: new THREE.MeshStandardMaterial({ color: 0x2a2b2d, metalness: 0.8, roughness: 0.45 }),
+    };
+  }
+  const g = new THREE.Group();
+  for (const [geo, mat] of [[knifeRes.bg, knifeRes.steel], [knifeRes.hg, knifeRes.dark], [knifeRes.gg, knifeRes.guard]]) { const m = new THREE.Mesh(geo, mat); m.frustumCulled = false; g.add(m); }
+  g.position.set(0, -0.02, -0.012); g.scale.setScalar(0.88);
+  return g;
+}
+
 // ---- shared resources -----------------------------------------------------------------------------------------------
 let shared = null;
 function sharedRes() {
@@ -88,7 +143,8 @@ export function createViewmodel(weaponId) {
   const id = CFG[weaponId] ? weaponId : 'ar';
   const cfg = CFG[id], res = sharedRes(), mats = gunMaterials();
   const root = new THREE.Group(); root.name = 'viewmodel_' + id;
-  const sway = new THREE.Group(); root.add(sway);
+  const body = new THREE.Group(); root.add(body);       // whole-body lunge / twist during melee and throws
+  const sway = new THREE.Group(); body.add(sway);
   const { root: gun, parts, anchors } = buildGun(id);
   sway.add(gun);
   gun.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
@@ -116,6 +172,96 @@ export function createViewmodel(weaponId) {
   const lParent = cfg.handL.parent && parts[cfg.handL.parent] ? parts[cfg.handL.parent] : gun;
   lParent.add(handL.group);
   if (lParent !== gun) { handL.base.sub(lParent.position); handL.group.position.copy(handL.base); }
+
+  // --- off hand (camera space) for knife slashes and grenades
+  const aux = createHand('L');
+  aux.group.visible = false; aux.group.rotation.order = 'YXZ';
+  body.add(aux.group);
+  const knife = buildKnife(); aux.group.add(knife);
+  const nade = buildGrenadeModel();
+  nade.group.position.set(0.004, -0.036, -0.014); nade.group.rotation.z = -Math.PI / 2;      // fuze toward the thumb
+  nade.group.traverse((o) => { o.frustumCulled = false; });
+  aux.group.add(nade.group);
+  // loose pin / safety lever that fly off
+  const bits = [];
+  for (const src of [nade.ring, nade.spoon]) {
+    const m = src.clone(true); m.visible = false; m.traverse((o) => { o.frustumCulled = false; });
+    root.add(m);
+    bits.push({ m, v: new THREE.Vector3(), w: new THREE.Vector3(), life: 0 });
+  }
+  function fling(i, src, vx, vy, vz) {
+    const b = bits[i];
+    src.updateWorldMatrix(true, false); root.updateWorldMatrix(true, false);
+    src.matrixWorld.decompose(b.m.position, b.m.quaternion, _v2);
+    root.worldToLocal(b.m.position);
+    b.v.set(vx, vy, vz); b.w.set(Math.random() * 20 - 10, Math.random() * 20 - 10, 14); b.life = 0.8; b.m.visible = true;
+  }
+  // slash smear: a ribbon through the blade's recent positions
+  const SM = 12, smPos = new Float32Array((SM + 1) * 6), smCol = new Float32Array((SM + 1) * 8).fill(1), smIdx = [];
+  for (let i = 0; i < SM; i++) smIdx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 2, i * 2 + 1, i * 2 + 3);
+  const smGeo = new THREE.BufferGeometry();
+  smGeo.setAttribute('position', new THREE.BufferAttribute(smPos, 3)); smGeo.setAttribute('color', new THREE.BufferAttribute(smCol, 4)); smGeo.setIndex(smIdx);
+  const smMat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
+  const smear = new THREE.Mesh(smGeo, smMat); smear.frustumCulled = false; smear.visible = false; smear.renderOrder = 12;
+  body.add(smear);
+  const _kp = new THREE.Vector3(), _kr = new THREE.Vector3(), _km = new THREE.Matrix4(), _kq = new THREE.Quaternion(), _one = new THREE.Vector3(1, 1, 1);
+  let act = null, actT = 0, actDur = 0.45, holding = false, fromHold = false, pinOut = false, released = false;
+  function endAct() {
+    act = null; holding = false; fromHold = false;
+    aux.group.visible = false; smear.visible = false; handL.group.visible = true;
+    body.position.set(0, 0, 0); body.rotation.set(0, 0, 0);
+  }
+  function startAct(type, dur) {
+    act = type; actT = 0; actDur = dur; pinOut = false; released = false;
+    aux.group.visible = true;
+    knife.visible = type === 'melee' && id !== 'pistol';
+    nade.group.visible = type === 'nade'; nade.ring.visible = true; nade.spoon.visible = true;
+    if (type === 'melee' && id === 'pistol') aux.group.visible = false;
+    aux.setPose(type === 'nade' ? { curl: [0.45, 0.72, 0.75, 0.78, 0.8], forearm: [0.1, 0, 0] } : { curl: [0.95, 1.3, 1.3, 1.3, 1.3], forearm: [0.1, 0, 0] });
+  }
+  function applyAct(p) {
+    const env = seg(p, 0, 0.14) - seg(p, act === 'nade' ? 0.78 : 0.72, 1);
+    offL.y -= 0.32 * env; offL.x -= 0.06 * env;                 // the support hand leaves the weapon
+    handL.group.visible = env < 0.9;
+    if (act === 'melee') {
+      const w = seg(p, 0, 0.2) * (1 - seg(p, 0.2, 0.3)), s2 = seg(p, 0.2, 0.42) - seg(p, 0.6, 1);
+      body.position.set(0.035 * s2 - 0.02 * w, -0.015 * s2, -0.075 * s2 + 0.03 * w);
+      body.rotation.set(0.03 * s2, -0.14 * s2 + 0.08 * w, -0.1 * s2 + 0.05 * w);
+      if (id === 'pistol') {
+        evalKeys(WHIP, p, _kp, _kr);
+        lift.add(_kp); tilt.add(_kr);
+        return;
+      }
+      lift.x += 0.05 * env; lift.y -= 0.09 * env; lift.z += 0.04 * env;
+      tilt.x -= 0.3 * env; tilt.y -= 0.3 * env; tilt.z -= 0.35 * env;
+      evalKeys(KNIFE, p, aux.group.position, _kr); aux.group.rotation.set(_kr.x, _kr.y, _kr.z);
+      // smear: sample the blade (base + tip) along the recent path
+      const on = p > 0.21 && p < 0.62;
+      smear.visible = on;
+      if (on) {
+        for (let i = 0; i <= SM; i++) {
+          const pi = Math.max(0.2, p - i * 0.016);
+          evalKeys(KNIFE, pi, _kp, _kr);
+          _km.compose(_kp, _kq.setFromEuler(_e.set(_kr.x, _kr.y, _kr.z, 'YXZ')), _one);
+          _v.set(0.075, -0.02, -0.012).applyMatrix4(_km); _v2.set(0.225, -0.02, -0.008).applyMatrix4(_km);
+          smPos.set([_v.x, _v.y, _v.z, _v2.x, _v2.y, _v2.z], i * 6);
+          const f = Math.pow(1 - i / SM, 2) * 0.2 * (1 - seg(p, 0.4, 0.56));
+          smCol[i * 8 + 3] = f * 0.15; smCol[i * 8 + 7] = f;
+        }
+        _e.order = 'XYZ';
+        smGeo.attributes.position.needsUpdate = true; smGeo.attributes.color.needsUpdate = true;
+      }
+    } else {
+      lift.x += 0.03 * env; lift.y -= 0.075 * env; lift.z += 0.03 * env;
+      tilt.x -= 0.26 * env; tilt.y -= 0.3 * env; tilt.z -= 0.28 * env;
+      evalKeys(NADE, p, aux.group.position, _kr); aux.group.rotation.set(_kr.x, _kr.y, _kr.z);
+      const wind = seg(p, 0.22, 0.4) * (1 - seg(p, 0.42, 0.55)), thr = seg(p, 0.42, 0.56) - seg(p, 0.68, 1);
+      body.position.set(-0.015 * wind + 0.02 * thr, 0.01 * wind - 0.02 * thr, 0.035 * wind - 0.07 * thr);
+      body.rotation.set(0.05 * wind - 0.09 * thr, 0.1 * wind - 0.12 * thr, 0.04 * wind - 0.05 * thr);
+      if (!pinOut && p >= 0.17) { pinOut = true; fling(0, nade.ring, 0.9, 0.5, 0.3); nade.ring.visible = false; }
+      if (!released && p >= 0.55) { released = true; fling(1, nade.spoon, -0.5, 1.4, -0.6); nade.group.visible = false; }
+    }
+  }
 
   // --- red dot reticle (only resolves when looking down the tube)
   let dot = null;
@@ -327,7 +473,16 @@ export function createViewmodel(weaponId) {
         cycleT += dt / cfg.cycleDur;
         if (cycleT >= 1) { cycleT = -1; applyCycle(1); } else applyCycle(cycleT);
       }
-      const busy = reloadT >= 0 ? 0.5 : 0;   // reloading pulls the weapon partly out of ADS / sprint poses
+      if (act) {
+        actT += dt;
+        let p = actT / actDur;
+        if (act === 'nade') {
+          if (holding) p = Math.min(0.18, (actT / 0.16) * 0.18);                    // cooking: wait in the presented pose
+          else if (fromHold) { const tr = 0.55 * actDur; p = actT < tr ? 0.18 + 0.37 * (actT / tr) : 0.55 + 0.45 * ((actT - tr) / Math.max(0.05, actDur - tr)); }
+        }
+        if (p >= 1) endAct(); else applyAct(p);
+      }
+      const busy = act ? 0.9 : reloadT >= 0 ? 0.5 : 0;   // reloading / melee / throwing pull the weapon out of ADS
       const a = adsE * (1 - busy * 0.6);
 
       // compose pose
@@ -358,6 +513,30 @@ export function createViewmodel(weaponId) {
         sh.m.quaternion.multiply(_q.setFromEuler(_e));
       }
       if (pendingShell) { pendingShell = false; ejectShell(); }
+      for (const b of bits) {
+        if (b.life <= 0) continue;
+        b.life -= dt;
+        if (b.life <= 0) { b.m.visible = false; continue; }
+        b.v.y -= 9.8 * dt; b.m.position.addScaledVector(b.v, dt);
+        _e.set(b.w.x * dt, b.w.y * dt, b.w.z * dt); b.m.quaternion.multiply(_q.setFromEuler(_e));
+      }
+    },
+
+    // Melee strike (~0.45 s): knife slash with the off hand for long guns, pistol-whip for the pistol.
+    // Timeline: wind-up 0-20 %, strike 20-42 % (contact ~40 %), hold to 60 %, recover.
+    melee(durationSec = 0.45) { startAct('melee', Math.max(0.2, durationSec)); },
+
+    // Frag throw (~0.6 s): gun dips, off hand presents the grenade, pin out, overhand throw. Release at 55 %.
+    throwGrenade(durationSec = 0.6) {
+      const wasHolding = act === 'nade' && holding;
+      if (!wasHolding) startAct('nade', Math.max(0.25, durationSec));
+      else { actT = 0; actDur = Math.max(0.25, durationSec); }
+      holding = false; fromHold = wasHolding;
+    },
+    // Cooking: true presents the grenade (pin pulled) and holds it until throwGrenade(); false puts it away.
+    setGrenadeInHand(on) {
+      if (on) { if (!(act === 'nade' && holding)) { startAct('nade', 0.6); holding = true; fromHold = false; } }
+      else if (act === 'nade' && holding) endAct();
     },
 
     fire() {
@@ -385,7 +564,7 @@ export function createViewmodel(weaponId) {
       if (cfg.cycle) applyCycle(1);
     },
 
-    equip() { equipT = 0; reloadT = -1; cycleT = -1; if (parts.mag) { parts.mag.visible = true; parts.mag.position.copy(magBase); parts.mag.rotation.x = 0; } if (cfg.cycle) applyCycle(1); },
+    equip() { endAct(); equipT = 0; reloadT = -1; cycleT = -1; if (parts.mag) { parts.mag.visible = true; parts.mag.position.copy(magBase); parts.mag.rotation.x = 0; } if (cfg.cycle) applyCycle(1); },
 
     // Muzzle position mapped from the overlay camera's projection into the world camera's, so a tracer starts exactly
     // where the muzzle appears on screen even when the two cameras use different FOVs.
@@ -411,13 +590,13 @@ export function createViewmodel(weaponId) {
 
     dispose() {
       root.removeFromParent();
-      handR.dispose(); handL.dispose();
+      handR.dispose(); handL.dispose(); aux.dispose(); smGeo.dispose(); smMat.dispose();
       fSideMat.dispose(); fFrontMat.dispose(); dot?.material.dispose();
       hemi.dispose?.(); sun.dispose?.(); flashLight.dispose?.();
     },
   };
   // debug handles for the dev page
-  api._debug = { gun, parts, handR, handL, anchors, cfg, sway, hipPos, adsPos, lights };
+  api._debug = { gun, parts, handR, handL, anchors, cfg, sway, hipPos, adsPos, lights, aux, body, KNIFE, NADE, WHIP };
   return api;
 }
 

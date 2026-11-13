@@ -294,6 +294,22 @@ export const bulletHoleTex = () => cached('hole', () => {
   return tex(c, { srgb: true, repeat: false });
 });
 
+// Blast scorch: irregular soot patch with radial streaks (black, alpha only matters).
+export const scorchTex = () => cached('scorch', () => {
+  const size = 256, c = canvas(size), ctx = c.getContext('2d'), r = rng(1234);
+  radial(ctx, 128, 128, 124, [[0, 'rgba(8,7,6,0.92)'], [0.3, 'rgba(12,10,9,0.8)'], [0.62, 'rgba(20,17,14,0.38)'], [1, 'rgba(20,17,14,0)']]);
+  for (let i = 0; i < 46; i++) {
+    const a = r() * Math.PI * 2, l = 50 + r() * 74, w = 3 + r() * 9;
+    ctx.save(); ctx.translate(128, 128); ctx.rotate(a);
+    const g = ctx.createLinearGradient(20, 0, l, 0);
+    g.addColorStop(0, 'rgba(6,5,5,0.5)'); g.addColorStop(1, 'rgba(6,5,5,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(20, -w); ctx.lineTo(l, 0); ctx.lineTo(20, w); ctx.fill();
+    ctx.restore();
+  }
+  for (let i = 0; i < 60; i++) { const a = r() * Math.PI * 2, d = r() * 70; radial(ctx, 128 + Math.cos(a) * d, 128 + Math.sin(a) * d, 4 + r() * 14, [[0, 'rgba(0,0,0,0.35)'], [1, 'rgba(0,0,0,0)']]); }
+  return tex(c, { srgb: true, repeat: false });
+});
+
 // Outdoor sky-ish equirect used as a fallback reflection environment for the viewmodel.
 export const skyEquirect = () => cached('skyEq', () => {
   const w = 256, h = 128, c = canvas(w, h), ctx = c.getContext('2d');

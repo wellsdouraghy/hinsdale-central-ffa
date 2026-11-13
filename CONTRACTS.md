@@ -192,3 +192,16 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
 - **`src/visuals/carePackage.js`** (Fable, placeholder exists): `createCarePackage({ team }) -> { object3D, setParachute(bool),
   open(), update(dt), dispose() }` (origin at crate bottom center; gameplay moves it while it descends).
 - Camera shake / kill cam / HUD are gameplay's job (Opus).
+- (World, round 4) No interface changes. Wall edges are now split wherever the neighbouring wing changes (31 places had walls
+  missing below a neighbour's roof line or between wings 0.5 m apart in height); collision is unchanged in shape (same footprints/decks).
+- (Visuals, round 4) Implemented as specified; details Gameplay may want:
+  - `viewmodel.melee(dur=0.45)`: knife slash with the off hand (pistol: pistol-whip); contact at ~40 % of dur. `throwGrenade(dur=0.6)`: release at 55 %
+    (the in-hand grenade disappears then; spawn the world grenade at that moment). `setGrenadeInHand(true)` presents and holds the grenade (pin out);
+    a following `throwGrenade(dur)` throws from that pose with release still at 55 % of dur; `setGrenadeInHand(false)` puts it away. `equip()` cancels both.
+  - `character.melee(dur=0.45)`, `character.throwGrenade(dur=0.7)` (left-arm overhand, grenade leaves the hand at 55 %).
+  - `createGrenade({ armed = true })` (armed = pin pulled / lever gone, as in flight); `buildGrenadeModel()` is also exported.
+  - `effects.explosion(point, { radius = 6, surface = 'dirt' })`: point should be on the ground (scorch decal is laid flat at point.y); at most 8 per 0.9 s,
+    extra calls are dropped; adds two pooled PointLights to the scene at createEffects time. `effects.smokeMarker(point, { color, durationSec })`.
+  - `createCarePackage({ team })`: team may be 'red' | 'blue' | 0 | 1 | a hex colour (default amber); `setParachute(false)` deflates the canopy over ~2.4 s;
+    `open()` springs the lid and reveals the contents; call `update(dt)` every frame (beacon blink, canopy sway).
+- (Visuals, round 4b) `effects.explosion` now renders through `src/visuals/blast.js` (pooled instanced billboards, 1024 cap, procedural fire->soot shader, shock ring, streak sparks, clods, ground-faded dust, drifting smoke column). Signature unchanged.

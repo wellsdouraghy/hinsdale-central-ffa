@@ -2,11 +2,12 @@
 // Everything is pooled in fixed-size ring buffers: no allocations and no scene graph changes after creation.
 import * as THREE from 'three';
 import * as T from './textures.js';
+import { createBlast } from './blast.js';
 
-const MAX_PARTICLES = 1536, MAX_DECALS = 192, MAX_TRACERS = 32;
+const MAX_PARTICLES = 4096, MAX_DECALS = 192, MAX_TRACERS = 32, MAX_SCORCH = 16, MAX_EMITTERS = 16, MAX_BLASTS = 8;
 const rand = (a, b) => a + Math.random() * (b - a);
 
-// kind: 0 = soft puff, 1 = hard chip/droplet, 2 = spark (additive)
+// kind: 0 = soft puff, 1 = hard chip/droplet, 2 = spark (additive), 3 = soft fire (additive)
 const SURFACES = {
   concrete: { dust: [0.62, 0.6, 0.56], nDust: 5, chip: [0.7, 0.69, 0.66], nChip: 7, sparks: 1, decal: [0.9, 0.9, 0.88], size: 0.1 },
   brick: { dust: [0.56, 0.36, 0.29], nDust: 5, chip: [0.5, 0.26, 0.2], nChip: 7, sparks: 0, decal: [0.95, 0.8, 0.75], size: 0.1 },
@@ -49,7 +50,7 @@ export function createEffects(scene) {
       void main() {
         vec2 c = gl_PointCoord - 0.5; float r = length(c) * 2.0;
         float a;
-        if (vKind < 0.5) a = texture2D(uTex, gl_PointCoord).a;
+        if (vKind < 0.5 || vKind > 2.5) a = texture2D(uTex, gl_PointCoord).a * (vKind > 2.5 ? 1.6 : 1.0);
         else if (vKind < 1.5) a = 1.0 - smoothstep(0.75, 1.0, r);
         else a = pow(max(0.0, 1.0 - r), 1.5);
         a *= vColor.a;
@@ -97,6 +98,31 @@ export function createEffects(scene) {
   group.add(decals);
   let dNext = 0;
 
+  // ---- explosions: scorch decals, flash lights, timed smoke emitters ----------------------------------------------------
+  const sMat = new THREE.MeshBasicMaterial({ map: T.scorchTex(), color: 0x000000, transparent: true, opacity: 0.82, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+  const sGeo = new THREE.PlaneGeometry(1, 1); sGeo.rotateX(-Math.PI / 2);
+  const scorch = new THREE.InstancedMesh(sGeo, sMat, MAX_SCORCH);
+  scorch.frustumCulled = false; scorch.renderOrder = 1;
+  _m.makeScale(0, 0, 0);
+  for (let i = 0; i < MAX_SCORCH; i++) scorch.setMatrixAt(i, _m);
+  group.add(scorch);
+  let sNext = 0;
+  // two pooled flash lights (always in the scene so no shader recompiles when an explosion starts)
+  const blastLights = [0, 1].map(() => { const l = new THREE.PointLight(0xffb060, 0, 30, 2); l.userData.peak = 0; l.userData.t = 0; group.add(l); return l; });
+  let lNext = 0;
+  const emitters = [];
+  for (let i = 0; i < MAX_EMITTERS; i++) emitters.push({ on: false, marker: false, x: 0, y: 0, z: 0, t: 0, dur: 0, rate: 0, acc: 0, r: 0, g: 0, b: 0, radius: 1 });
+  let eNext = 0, eLive = 0, blasts = 0, blastWindow = 0;
+  function emitter() { const e = emitters[eNext]; eNext = (eNext + 1) % MAX_EMITTERS; e.on = true; e.t = 0; e.acc = 0; eLive = 1; return e; }
+  const blast = createBlast(group);
+  function smokePuff(e) {
+    if (e.marker) {
+      const k = rand(0.85, 1.2);
+      emit(0, e.x + rand(-0.08, 0.08), e.y + 0.1, e.z + rand(-0.08, 0.08), rand(-0.5, 0.9), rand(1.3, 2.4), rand(-0.6, 0.6),
+        e.r * k, e.g * k, e.b * k, rand(0.55, 0.8), rand(0.25, 0.45), rand(0.6, 1.0), rand(2.8, 4.4), -0.45, 0.9);
+    }
+  }
+
   // ---- tracers ------------------------------------------------------------------------------------------------------
   const tPos = new Float32Array(MAX_TRACERS * 4 * 3), tUv = new Float32Array(MAX_TRACERS * 4 * 2), tIdx = new Uint16Array(MAX_TRACERS * 6);
   for (let i = 0; i < MAX_TRACERS; i++) {
@@ -141,7 +167,7 @@ export function createEffects(scene) {
   return {
     object3D: group,
     // Optional: brightness of dust/debris (they are unlit); ~0.6 for daylight, lower at dusk.
-    setLightLevel(v) { pMat.uniforms.uLight.value = v; },
+    setLightLevel(v) { pMat.uniforms.uLight.value = v; blast.setLightLevel(v); },
 
     impact(point, normal, surface) {
       const cfg = SURFACES[surface] || SURFACES.concrete;
@@ -189,6 +215,31 @@ export function createEffects(scene) {
       }
     },
 
+    // Frag / blast. radius = lethal radius in metres (visual scale); surface picks debris + dust colours.
+    explosion(point, { radius = 6, surface = 'dirt' } = {}) {
+      if (blasts >= MAX_BLASTS) return;                      // cap concurrent explosions
+      blasts++; blastWindow = Math.max(blastWindow, 0.9);
+      const cfg = SURFACES[surface] || SURFACES.dirt, R = radius, x = point.x, y = point.y, z = point.z;
+      blast.explode(x, y, z, R, cfg);                        // fireball, shockwave, smoke column, clods, sparks, dust (blast.js)
+      // scorch mark
+      const si = sNext; sNext = (sNext + 1) % MAX_SCORCH;
+      const sz = R * rand(0.55, 0.72);
+      _m.compose(_p.set(x, y + 0.025, z), _q.setFromAxisAngle(_s.set(0, 1, 0), rand(0, 6.283)), _s.set(sz, 1, sz));
+      scorch.setMatrixAt(si, _m); scorch.instanceMatrix.needsUpdate = true;
+      // light
+      const l = blastLights[lNext]; lNext = (lNext + 1) % blastLights.length;
+      l.position.set(x, y + 1.0, z); l.userData.peak = 600 * (R / 6) * (R / 6); l.userData.t = 0.28; l.distance = R * 4; l.intensity = l.userData.peak;
+    },
+
+    // Coloured signal smoke (care-package drop zones). Billows for durationSec, then drifts away.
+    smokeMarker(point, { color = 0xff4422, durationSec = 8 } = {}) {
+      const e = emitter(); _c.set(color);
+      e.marker = true; e.x = point.x; e.y = point.y; e.z = point.z; e.dur = durationSec; e.rate = 11;
+      e.r = _c.r * 1.9 + 0.06; e.g = _c.g * 1.9 + 0.06; e.b = _c.b * 1.9 + 0.06;   // unlit particles are scaled by the light level
+      for (let i = 0; i < 4; i++) smokePuff(e);
+      return e;
+    },
+
     tracer(from, to) {
       const t = tr[tNext]; tNext = (tNext + 1) % MAX_TRACERS;
       t.from.copy(from); t.dir.subVectors(to, from);
@@ -201,6 +252,28 @@ export function createEffects(scene) {
     },
 
     update(dt, camera) {
+      // explosion bookkeeping: concurrent cap window, flash lights, smoke emitters
+      if (blastWindow > 0) { blastWindow -= dt; if (blastWindow <= 0) blasts = 0; }
+      blast.update(dt);
+      for (const l of blastLights) {
+        if (l.userData.t <= 0) continue;
+        l.userData.t -= dt;
+        const f = Math.max(0, l.userData.t / 0.28);
+        l.intensity = l.userData.peak * f * f;
+      }
+      if (eLive) {
+        let any = 0;
+        for (const e of emitters) {
+          if (!e.on) continue;
+          e.t += dt;
+          if (e.t >= e.dur) { e.on = false; continue; }
+          any = 1;
+          const fade = e.marker ? Math.min(1, (e.dur - e.t) / 1.2) : 1;
+          e.acc += dt * e.rate * fade;
+          while (e.acc >= 1) { e.acc -= 1; smokePuff(e); }
+        }
+        eLive = any;
+      }
       // particles
       if (pLive) {
         let any = 0;
@@ -214,7 +287,8 @@ export function createEffects(scene) {
           pos[i3] += vel[i3] * dt; pos[i3 + 1] += vel[i3 + 1] * dt; pos[i3 + 2] += vel[i3 + 2] * dt;
           const f = life[i] / maxLife[i];
           par[i * 2] = Math.max(0.001, size0[i] + grow[i] * (1 - f) * maxLife[i]);
-          col[i * 4 + 3] = alpha0[i] * (par[i * 2 + 1] < 0.5 ? Math.min(1, f * 1.6) * Math.min(1, (1 - f) * 12) : Math.min(1, f * 4));
+          const kd = par[i * 2 + 1];
+          col[i * 4 + 3] = alpha0[i] * (kd < 0.5 ? Math.min(1, f * 1.6) * Math.min(1, (maxLife[i] - life[i]) * 9) : kd > 2.5 ? Math.pow(f, 1.25) : Math.min(1, f * 4));
         }
         pLive = any;
         aPos.needsUpdate = aCol.needsUpdate = aPar.needsUpdate = true;
@@ -248,6 +322,7 @@ export function createEffects(scene) {
 
     dispose() {
       group.removeFromParent();
+      blast.dispose(); sGeo.dispose(); sMat.dispose(); scorch.dispose(); for (const l of blastLights) l.dispose();
       pGeo.dispose(); pMat.dispose(); tGeo.dispose(); tMat.dispose(); decals.geometry.dispose(); dMat.dispose(); decals.dispose();
     },
   };

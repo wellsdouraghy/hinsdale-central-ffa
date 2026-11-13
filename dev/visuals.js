@@ -1,4 +1,5 @@
 // Visuals test page. URL params:
+//   view=vm|chars|fx|gun|melee|grenade|boom|crate   act=melee|nade|cook   dur=<s>   open=1 chute=0
 //   view=vm|chars|fx|gun   w=ar|smg|sniper|shotgun|pistol   ads=0..1   move=0..1  sprint=1  fire=1 (auto fire)
 //   reload=<sec>  pause=<sec> (freeze animation time after N seconds)  hud=0  cam=x,y,z,tx,ty,tz  look=<rad/s>
 import * as THREE from 'three';
@@ -7,6 +8,8 @@ import { WEAPONS, createViewmodel, preloadViewmodels } from '../src/visuals/weap
 import { createCharacter, charactersReady } from '../src/visuals/character.js';
 import { createEffects } from '../src/visuals/effects.js';
 import { skyEquirect } from '../src/visuals/textures.js';
+import { createGrenade } from '../src/visuals/grenade.js';
+import { createCarePackage } from '../src/visuals/carePackage.js';
 
 const Q = new URLSearchParams(location.search);
 const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
@@ -93,6 +96,32 @@ if (view === 'chars') {
   camera.position.set(0, 1.5, 1.2); camera.lookAt(0, 0.95, -4);
   window.dbg.chars = chars;
 }
+const extras = [];
+const ACT = Q.get('act') || (view === 'melee' ? 'melee' : view === 'grenade' ? 'nade' : null);
+function doAct(a) {
+  if (a === 'melee') { vm.melee?.(num('dur', 0.45)); chars.forEach((c) => c.c.melee?.()); }
+  if (a === 'nade') { vm.throwGrenade?.(num('dur', 0.6)); chars.forEach((c) => c.c.throwGrenade?.()); }
+  if (a === 'cook') vm.setGrenadeInHand?.(true);
+}
+if (view === 'melee' || view === 'grenade') {
+  const c = createCharacter({ color: 0x2f7fd4, name: view });
+  c.object3D.position.set(-1.6, 0, -3.4); c.object3D.rotation.y = Math.PI * 0.75 + num('yaw', 0);
+  scene.add(c.object3D);
+  const state = { speed: 0, crouching: false, aimPitch: 0, weaponId: IDS.includes(Q.get('w')) ? Q.get('w') : 'ar', grounded: true, sprinting: false };
+  c.setState(state); chars.push({ c, state, name: view });
+  if (view === 'grenade') {
+    for (let i = 0; i < 2; i++) { const g = createGrenade({ armed: i === 1 }); g.object3D.position.set(0.55 + i * 0.16, 1.5, -0.6); g.object3D.rotation.set(0.3, 0.6 + i, 0.2); scene.add(g.object3D); }
+  }
+}
+if (view === 'boom') { camera.position.set(0, 1.7, 7); camera.lookAt(0, 1.9, -4); if (Q.get('ground') === 'grass') ground.material.color.set(0x4f7a3a); }
+if (view === 'crate') {
+  const a = createCarePackage({ team: 'blue' }); a.object3D.position.set(-1.3, 0, -3.2); a.object3D.rotation.y = 0.5; a.setParachute(false); scene.add(a.object3D);
+  const b = createCarePackage({ team: 'red' }); b.object3D.position.set(3.2, 2.6, -8); b.object3D.rotation.y = -0.4; scene.add(b.object3D);
+  if (Q.get('chute') === '0') b.setParachute(false);
+  extras.push(a, b);
+  window.dbg.crates = [a, b];
+  camera.position.set(0.3, 1.7, 0.6); camera.lookAt(0.6, 2.2, -6);
+}
 if (Q.has('cam')) { const a = Q.get('cam').split(',').map(Number); camera.position.set(a[0], a[1], a[2]); camera.lookAt(a[3], a[4], a[5]); }
 if (view === 'gun' || Q.get('orbit') === '1') {
   if (view === 'gun' && !Q.has('cam')) camera.position.set(-0.7, 1.55, -0.45);
@@ -116,6 +145,13 @@ addEventListener('keydown', (e) => {
   if (e.key === 'k') chars.forEach((c) => c.c.die());
   if (e.key === 'l') chars.forEach((c) => c.c.reset());
   if (e.key === 'f') chars.forEach((c) => c.c.fire());
+  if (e.key === 'v') doAct('melee');
+  if (e.key === 'g') doAct('nade');
+  if (e.key === 'c') vm.setGrenadeInHand?.(true);
+  if (e.key === 'o') extras.forEach((x) => x.open?.());
+  if (e.key === 'p') extras.forEach((x, i) => x.setParachute?.(false));
+  if (e.key === 'b') { ndc.set(mx, my); ray.setFromCamera(ndc, camera); const h = ray.intersectObjects(targets, false)[0]; if (h) effects.explosion(h.point, { radius: 6, surface: h.object.userData.surface }); }
+  if (e.key === 'm') { ndc.set(mx, my); ray.setFromCamera(ndc, camera); const h = ray.intersectObjects(targets, false)[0]; if (h) effects.smokeMarker(h.point, { color: 0xff4422, durationSec: 8 }); }
 });
 addEventListener('keyup', (e) => { if (e.key === 'Shift') st.sprint = false; if (e.key === 'w') st.move = 0; });
 addEventListener('contextmenu', (e) => e.preventDefault());
@@ -143,14 +179,23 @@ addEventListener('resize', () => {
   camera.aspect = overlayCamera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); overlayCamera.updateProjectionMatrix();
 });
 
+const OVERLAY = ['vm', 'fx', 'melee', 'grenade'].includes(view);
 const hud = document.getElementById('hud');
 if (Q.get('hud') === '0') { hud.style.display = 'none'; document.getElementById('x').style.display = 'none'; }
 const clock = new THREE.Clock();
 let t = 0, fxT = 0;
 const pauseAt = num('pause', Infinity), look = { x: 0, y: 0 };
+let started = false;
 function tick(dt) {
   if (t >= pauseAt) dt = 0;
+  if (!started) {
+    started = true;
+    if (ACT) doAct(ACT);
+    if (view === 'boom') { effects.explosion(new THREE.Vector3(0, 0, -4), { radius: num('radius', 6), surface: Q.get('surface') || 'asphalt' }); effects.smokeMarker(new THREE.Vector3(6.5, 0, -5), { color: 0xff4422, durationSec: 8 }); effects.smokeMarker(new THREE.Vector3(-7, 0, -6), { color: 0x2f6fd6, durationSec: 8 }); }
+    if (view === 'crate' && Q.get('open') === '1') extras[0].open();
+  }
   t += dt;
+  for (const x of extras) x.update(dt);
   st.ads += (st.adsTarget - st.ads) * Math.min(1, dt * 14);
   if (Math.abs(st.ads - st.adsTarget) < 0.002) st.ads = st.adsTarget;
   const rate = { ar: 0.085, smg: 0.07, sniper: 1.3, shotgun: 0.85, pistol: 0.22 }[st.w];
@@ -178,6 +223,6 @@ renderer.setAnimationLoop(() => {
   controls?.update();
   renderer.clear();
   renderer.render(scene, camera);
-  if (view === 'vm' || view === 'fx') { renderer.clearDepth(); renderer.render(overlayScene, overlayCamera); }
-  if (hud.style.display !== 'none') hud.textContent = `${WEAPONS[st.w].name}  [1-5 weapon, LMB fire, RMB ADS, R reload, W move, Shift sprint, K/L die/reset]\ncalls ${renderer.info.render.calls}  tris ${renderer.info.render.triangles}`;
+  if (OVERLAY) { renderer.clearDepth(); renderer.render(overlayScene, overlayCamera); }
+  if (hud.style.display !== 'none') hud.textContent = `${WEAPONS[st.w].name}  [1-5 weapon, LMB fire, RMB ADS, R reload, V melee, G grenade, C cook, B boom, M smoke, O open, P chute]\ncalls ${renderer.info.render.calls}  tris ${renderer.info.render.triangles}`;
 });
