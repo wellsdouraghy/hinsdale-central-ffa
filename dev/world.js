@@ -42,6 +42,17 @@ if (qs.get('spawns') === '1') {
   for (const p of world.spawnPoints) { const s = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 30), new THREE.MeshBasicMaterial({ color: 0x00ffff })); s.position.copy(p).setY(15); scene.add(s); }
 }
 
+// CTF preview: flags + bases at world.ctfBases (always shown; cheap)
+const ctfBits = [];
+if (world.ctfBases) {
+  const { createFlag, createFlagBase } = await import('../src/visuals/flag.js');
+  for (const team of ['red', 'blue']) {
+    const base = createFlagBase({ team }), flag = createFlag({ team });
+    base.object3D.position.copy(world.ctfBases[team]); flag.object3D.position.copy(world.ctfBases[team]);
+    scene.add(base.object3D, flag.object3D); ctfBits.push(base, flag);
+  }
+  window.__ctf = ctfBits;
+}
 const keys = {};
 addEventListener('keydown', (e) => { keys[e.code] = true; });
 addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -71,6 +82,7 @@ renderer.setAnimationLoop(() => {
   if (keys.KeyA) camera.position.addScaledVector(right, -sp);
   if (keys.Space) camera.position.y += sp;
   if (keys.KeyC) camera.position.y -= sp;
+  for (const b of ctfBits) b.update(dt);
   world.update(dt, camera);
   world.render(null, null);
   frames++; acc += dt;
@@ -85,7 +97,7 @@ renderer.setAnimationLoop(() => {
 // Dev helper: save the current view to a local receiver (python script on :5199) -> dev/shots/<name>.jpg
 window.__shot = async (name, cam, frames = 8) => {
   if (cam) setCam(cam);
-  for (let i = 0; i < frames; i++) { world.update(0.016, camera); world.render(null, null); await new Promise((r) => setTimeout(r, 30)); }
+  for (let i = 0; i < frames; i++) { for (const b of ctfBits) b.update(0.016); world.update(0.016, camera); world.render(null, null); await new Promise((r) => setTimeout(r, 30)); }
   world.update(0.016, camera); world.render(null, null);
   const blob = await new Promise((r) => renderer.domElement.toBlob(r, 'image/jpeg', 0.9));
   await fetch('http://127.0.0.1:5199/' + name, { method: 'POST', body: blob });

@@ -1,5 +1,6 @@
 // Practice range layout: a player spawn and a lane of static target dummies with clear line of sight.
 import * as THREE from 'three';
+import { ctfBases } from './ctf.js';
 
 export function planPractice(world, hitscan) {
   const pts = world.spawnPoints;
@@ -40,4 +41,20 @@ export function planPractice(world, hitscan) {
     }
   }
   return { spawn: { pos: sp.clone(), yaw }, dummies };
+}
+
+/** CTF practice: blue-team dummies guarding the blue base; the player spawns with the red team. */
+export function planCtfPractice(world) {
+  const bases = ctfBases(world);
+  const blue = bases.blue, red = bases.red;
+  const toRed = Math.atan2(-(red.x - blue.x), -(red.z - blue.z));
+  const dummies = [];
+  const ring = [[6, 0.4], [9, -0.7], [12, 1.3], [16, -1.6], [22, 0.1]];
+  for (const [r, a] of ring) {
+    const ang = toRed + a;
+    const p = new THREE.Vector3(blue.x - Math.sin(ang) * r, 0, blue.z - Math.cos(ang) * r);
+    p.y = world.groundY ? world.groundY(p.x, p.z) : 0;
+    dummies.push({ pos: p, yaw: toRed + a * 0.3 });
+  }
+  return { spawn: null, dummies };
 }

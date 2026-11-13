@@ -60,6 +60,52 @@ export function createAudio() {
     buffers.hurt = synthHurt(sr);
     buffers.swoosh = synthSwoosh(sr);
     buffers.equip = synthClick(sr, 1300, 0.05, 0.7, 0.03);
+    // Movement kit.
+    buffers.clank = synthTone(sr, [[880, 0.5], [1390, 0.35], [2310, 0.25], [3650, 0.12]], 0.07, 0.8);
+    buffers.reel = makeBuffer(sr, 0.9, (d, n) => {
+      let ph = 0, l = 0;
+      const a = onePole(2400, sr);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        ph += (2 * Math.PI * (55 + 140 * t)) / sr;
+        l += a * ((Math.random() * 2 - 1) - l);
+        const saw = ((ph / (2 * Math.PI)) % 1) * 2 - 1;
+        d[i] = (saw * 0.5 + l * 0.6) * Math.min(1, t / 0.02) * Math.exp(-t * 2.2) * (0.7 + 0.3 * Math.sin(t * 90));
+      }
+    });
+    buffers.thrust = makeBuffer(sr, 0.4, (d, n) => {
+      let l = 0, l2 = 0;
+      const a = onePole(1100, sr);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        l += a * ((Math.random() * 2 - 1) - l);
+        l2 += a * (l - l2);
+        d[i] = (l2 * 3 + (Math.random() * 2 - 1) * 0.08) * Math.min(1, t / 0.006) * Math.exp(-t / 0.11);
+      }
+    });
+    // CTF announcement stingers (original note sequences: [semitones from A4, start s, length s]).
+    buffers.j_good = synthSeq(sr, [[3, 0, 0.18], [7, 0.1, 0.18], [10, 0.2, 0.35]]);
+    buffers.j_bad = synthSeq(sr, [[5, 0, 0.22], [1, 0.14, 0.22], [-4, 0.28, 0.45]], true);
+    buffers.j_neutral = synthSeq(sr, [[0, 0, 0.18], [0, 0.16, 0.25]]);
+    buffers.j_capture = synthSeq(sr, [[-2, 0, 0.16], [3, 0.12, 0.16], [7, 0.24, 0.16], [12, 0.36, 0.6], [15, 0.36, 0.6]]);
+    buffers.j_enemyCapture = synthSeq(sr, [[7, 0, 0.25], [3, 0.18, 0.25], [-2, 0.36, 0.25], [-5, 0.54, 0.7]], true);
+  }
+
+  function synthSeq(sr, notes, dark = false) {
+    const len = Math.max(...notes.map(([, s, l]) => s + l)) + 0.3;
+    return makeBuffer(sr, len, (d, n) => {
+      for (const [semi, start, l] of notes) {
+        const f = 440 * Math.pow(2, semi / 12);
+        const i0 = Math.floor(start * sr), i1 = Math.min(n, Math.floor((start + l + 0.25) * sr));
+        for (let i = i0; i < i1; i++) {
+          const t = i / sr - start;
+          const env = Math.min(1, t / 0.008) * (t < l ? 1 : Math.exp(-(t - l) / 0.06)) * Math.exp(-t * (dark ? 2.5 : 1.5));
+          // square-ish lead + octave sub for a radio-chirp feel
+          const s = Math.tanh(Math.sin(2 * Math.PI * f * t) * 2.5) * 0.6 + Math.sin(Math.PI * f * t) * (dark ? 0.5 : 0.3);
+          d[i] += s * env;
+        }
+      }
+    });
   }
 
   function makeBuffer(sr, len, fn) {
@@ -280,5 +326,18 @@ export function createAudio() {
     equip() { play('equip', null, { gain: 0.45 }); },
     melee(pos = null) { play('swoosh', pos, { gain: 0.6 }); },
     ui() { play('click', null, { gain: 0.3 }); },
+    grappleLaunch(dist = 20) {
+      play('swoosh', null, { gain: 0.5, rate: 1.7 });
+      play('clank', null, { gain: 0.55, delay: Math.min(0.25, dist / 120) });
+      play('reel', null, { gain: 0.35, delay: Math.min(0.25, dist / 120) + 0.03 });
+    },
+    grappleDeny() { play('dry', null, { gain: 0.45, rate: 0.7 }); },
+    grappleRelease() { play('click', null, { gain: 0.35, rate: 0.8 }); },
+    dash() { play('swoosh', null, { gain: 0.65, rate: 0.75 }); play('thrust', null, { gain: 0.45, rate: 1.3 }); },
+    thruster(pos = null) { play('thrust', pos, { gain: pos ? 0.8 : 0.55, ref: 4 }); },
+    mantle() { play('magOut', null, { gain: 0.3, rate: 0.6 }); play('foot_concrete', null, { gain: 0.5, delay: 0.18 }); },
+    remoteGrapple(pos) { play('clank', pos, { gain: 0.8, ref: 5 }); },
+    /** CTF stingers: 'good' | 'bad' | 'neutral' | 'capture' | 'enemyCapture' */
+    jingle(kind) { play('j_' + kind, null, { gain: 0.35 }); },
   };
 }

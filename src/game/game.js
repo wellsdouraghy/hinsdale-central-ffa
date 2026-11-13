@@ -1,13 +1,16 @@
 // Game: runs one match (practice or online) on top of an already-loaded World.
 // Owns the local player, weapons, remote players, HUD updates and the per-frame loop body.
 import * as THREE from 'three';
-import { PlayerController } from './player.js';
+import { PlayerController, KIT } from './player.js';
+import { createCable } from './cable.js';
 import { WEAPON_STATS, damageAt, MELEE, PRIMARY_IDS } from './weapons.js';
 import { Arsenal, weaponName } from './arsenal.js';
 import { createHitscan } from './hitscan.js';
 import { RemotePlayer, PLAYER_COLORS } from './remotePlayer.js';
 import { now as clock, MATCH } from './authority.js';
 import { colorCss } from '../ui/hud.js';
+import { TEAM_COLORS, TEAM_CSS, TEAM_NAMES, TEAMS, otherTeam } from './ctf.js';
+import { CtfView } from './ctfView.js';
 
 const DEG = Math.PI / 180;
 const BASE_SENS = 0.0021;   // radians per mouse pixel at sensitivity 1
@@ -56,11 +59,20 @@ export class Game {
     this.airPeak = 0;
     this.lookDelta = { x: 0, y: 0 };
     this.deathCam = 0;
+    this.adsToggled = false;
+    this.ctfView = null;
+    // Movement kit.
+    this.grappleReadyAt = 0;
+    this.grappleCd = KIT.grappleCooldown;
+    this.dashReadyAt = 0;
+    this.fovKick = 0;
+    this.grappleTarget = null;
+    this.cable = createCable(this.scene);
 
     this.roster = new Map();
     this.remotes = new Map();
     this.blips = new Map();
-    this.match = { state: 'playing', practice: false, scoreLimit: MATCH.scoreLimit, timeLeft: null, timeRef: clock() };
+    this.match = { mode: 'ffa', state: 'playing', practice: false, scoreLimit: MATCH.scoreLimit, respawnDelay: MATCH.respawnDelay, overtime: false, timeLeft: null, timeRef: clock() };
 
     session.onMessage = (m) => this.handle(m);
     this._applyWelcome(session.welcome);
@@ -71,20 +83,37 @@ export class Game {
   }
 
   // ======================= roster / remotes =======================
-  _applyWelcome(w) {
-    this.match.state = w.match.state;
-    this.match.practice = w.match.practice;
-    this.match.scoreLimit = w.match.scoreLimit;
-    this.match.timeLeft = w.match.timeLeft;
+  _applyMatch(mi) {
+    this.match.mode = mi.mode || 'ffa';
+    this.match.state = mi.state;
+    this.match.practice = mi.practice;
+    this.match.scoreLimit = mi.scoreLimit;
+    this.match.respawnDelay = mi.respawnDelay ?? MATCH.respawnDelay;
+    this.match.overtime = !!mi.overtime;
+    this.match.timeLeft = mi.timeLeft;
     this.match.timeRef = clock();
+  }
+
+  _applyWelcome(w) {
+    this._applyMatch(w.match);
+    if (w.match.ctf) this.ctfView = new CtfView(this, w.match.ctf);
     for (const p of w.players) this._addPlayer(p);
     if (w.match.state === 'ended') this._lastEnd = { standings: [], winner: null };
   }
 
+  get isCtf() { return this.match.mode === 'ctf'; }
+  get myTeam() { return this.roster.get(this.localId)?.team ?? null; }
+  isTeammate(id) {
+    if (!this.isCtf) return false;
+    const t = this.roster.get(id)?.team;
+    return !!t && t === this.myTeam;
+  }
+  _colorFor(p) { return p.team ? TEAM_COLORS[p.team] : PLAYER_COLORS[p.color % PLAYER_COLORS.length]; }
+
   _addPlayer(p) {
     const entry = {
-      id: p.id, name: p.name, color: PLAYER_COLORS[p.color % PLAYER_COLORS.length],
-      k: p.k || 0, d: p.d || 0, ping: p.ping, alive: !!p.alive, bot: !!p.bot,
+      id: p.id, name: p.name, color: this._colorFor(p), paletteIndex: p.color, team: p.team || null,
+      k: p.k || 0, d: p.d || 0, caps: p.caps || 0, ret: p.ret || 0, ping: p.ping, alive: !!p.alive, bot: !!p.bot,
     };
     this.roster.set(p.id, entry);
     if (p.id === this.localId) return;
@@ -98,7 +127,7 @@ export class Game {
 
   _removePlayer(id) {
     const r = this.remotes.get(id);
-    if (r) { r.dispose(); this.remotes.delete(id); }
+    if (r) { r.cable?.dispose(); r.dispose(); this.remotes.delete(id); }
     this.roster.delete(id);
     this.blips.delete(id);
   }
@@ -141,15 +170,25 @@ export class Game {
       }
       case 'kill': this._onKill(m); break;
       case 'spawn': this._onSpawn(m); break;
+      case 'flag': this.ctfView?.onFlag(m); break;
+      case 'team': this._onTeam(m); break;
+      case 'notice': this.ui.toast(m.text); break;
+      case 'overtime':
+        this._applyMatch(m.match);
+        this.announce('Overtime', 'Next capture wins', '#f2b544', 'neutral');
+        break;
       case 'roster':
         for (const p of m.players) {
           const e = this.roster.get(p.id);
           if (!e) continue;
           e.k = p.k; e.d = p.d; e.ping = p.ping; e.alive = p.alive;
+          if (p.caps != null) { e.caps = p.caps; e.ret = p.ret; }
           if (p.id === this.localId && this.alive && p.alive && Math.abs(p.hp - this.hp) > 15) this.hp = p.hp;
         }
         this.match.timeLeft = m.match.timeLeft;
         this.match.timeRef = t;
+        this.match.overtime = !!m.match.overtime;
+        if (m.match.ctf && this.ctfView) this.ctfView.apply(m.match.ctf);
         break;
       case 'end':
         this.match.state = 'ended';
@@ -160,10 +199,10 @@ export class Game {
         this.ui.showEnd(this._endData(m));
         break;
       case 'restart':
-        this.match.state = 'playing';
-        this.match.timeLeft = m.match.timeLeft;
-        this.match.timeRef = t;
-        for (const e of this.roster.values()) { e.k = 0; e.d = 0; }
+        this._applyMatch(m.match);
+        if (m.match.ctf && this.ctfView) this.ctfView.apply(m.match.ctf);
+        for (const e of this.roster.values()) { e.k = 0; e.d = 0; e.caps = 0; e.ret = 0; }
+        this.adsToggled = false;
         this.ui.hideEnd();
         this.hud.reset();
         if (!this.deployed) this.ui.showDeploy({ mode: 'deploy', selected: this.selectedPrimary });
@@ -179,8 +218,57 @@ export class Game {
         .map((e) => ({ id: e.id, name: e.name, k: e.k, d: e.d }));
     }
     const standings = src.map((s) => ({ ...s, me: s.id === this.localId, color: colorCss(this.roster.get(s.id)?.color ?? 0x888888) }));
+    if (this.isCtf) {
+      const score = m?.score || this.ctfView?.score || { red: 0, blue: 0 };
+      const wt = m?.winnerTeam ?? null;
+      return {
+        standings, ctf: true, score, winnerTeam: wt, isHost: this.session.isHost,
+        winner: wt ? TEAM_NAMES[wt] : null, winnerIsMe: false, teamNames: TEAM_NAMES,
+        headline: wt ? (wt === this.myTeam ? 'Victory' : 'Defeat') : 'Draw',
+      };
+    }
     const winner = m?.winner != null ? this.nameOf(m.winner) : null;
     return { standings, winner, winnerIsMe: m?.winner === this.localId, isHost: this.session.isHost };
+  }
+
+  _onTeam(m) {
+    const e = this.roster.get(m.id);
+    if (!e) return;
+    e.team = m.team;
+    e.color = TEAM_COLORS[m.team];
+    if (m.despawn) e.alive = false;
+    if (m.id === this.localId) {
+      this.ui.toast(`You joined the ${TEAM_NAMES[m.team]}`);
+      // Everyone else's colors are relative to nothing, but friend/foe changed: refresh deploy UI.
+      if (m.despawn && this.alive) {
+        this.alive = false;
+        this.deathTime = clock() - (this.match.respawnDelay - 1);
+        this.arsenal.ads = 0;
+        this.arsenal.hideAll();
+        this.deathInfo = { mode: 'death', selected: this.selectedPrimary, killer: 'Team change', weapon: '' };
+        this.ui.showDeploy(this.deathInfo);
+      }
+      this.ui.refreshTeam?.();
+      return;
+    }
+    const r = this.remotes.get(m.id);
+    if (r) {
+      r.recolor(e.color);
+      if (m.despawn) r.hide();
+    }
+    this.ui.toast(`${e.name} joined ${TEAM_NAMES[m.team]}`);
+  }
+
+  /** Big center announcement + stinger. */
+  announce(title, sub, color, sound) {
+    this.hud.announce(title, sub, color);
+    if (sound) this.audio.jingle(sound);
+  }
+
+  /** Ask the host to move us to the other team. */
+  switchTeam() {
+    if (!this.isCtf || !this.myTeam) return;
+    this.session.send({ t: 'team', team: otherTeam(this.myTeam) });
   }
 
   _onSpawn(m) {
@@ -198,6 +286,7 @@ export class Game {
       this.deathCam = 0;
       this.player.teleport(_v1.fromArray(m.p), m.yaw);
       this.deathInfo = null;
+      this.adsToggled = false;
       this.audio.equip();
       this.ui.hideDeploy();
       this.stateTimer = STATE_INTERVAL; // send state right away
@@ -218,6 +307,7 @@ export class Game {
     this.hud.killfeed({
       killer: killer?.name ?? '???', victim: victim?.name ?? '???', weapon: shortName(m.w),
       headshot: m.hs, mine: meK || meV, killerIsMe: meK, victimIsMe: meV,
+      killerColor: killer?.team ? TEAM_CSS[killer.team] : null, victimColor: victim?.team ? TEAM_CSS[victim.team] : null,
     });
     if (meK && !meV) {
       this.hud.hitmarker('kill');
@@ -233,6 +323,7 @@ export class Game {
     this.hp = 0;
     this.deathTime = clock();
     this.arsenal.ads = 0;
+    this.adsToggled = false;
     this.arsenal.hideAll();
     this.hud.scope(false);
     const r = this.remotes.get(m.killer);
@@ -305,6 +396,52 @@ export class Game {
     this.player.teleport(p, this.player.yaw);
   }
 
+  /** Grapple anchor along the view ray, or null (out of range, nothing there, the ground, or passthrough). */
+  _findGrappleTarget() {
+    const p = this.player;
+    const eye = p.getEye(new THREE.Vector3());
+    const dir = this._viewDir(new THREE.Vector3());
+    const hit = p.raycast(eye, dir, KIT.grappleRange);
+    if (!hit) return null;
+    const n = hit.face ? hit.face.normal.clone().transformDirection(hit.object.matrixWorld) : new THREE.Vector3(0, 1, 0);
+    const gy = this.world.groundY ? this.world.groundY(hit.point.x, hit.point.z) : 0;
+    if (n.y > 0.7 && hit.point.y - gy < 0.8) return null; // the ground itself
+    if (hit.distance < 2.5) return null;
+    // Anchor slightly off the surface so the cable stays clear.
+    return hit.point.clone().addScaledVector(n, 0.3);
+  }
+
+  _grappleKey(t) {
+    const p = this.player;
+    if (p.grapple) { p.releaseGrapple(false); this.audio.grappleRelease(); return; }
+    if (t < this.grappleReadyAt || p.mantle) { this.audio.grappleDeny(); return; }
+    const target = this._findGrappleTarget();
+    if (!target) { this.audio.grappleDeny(); this.hud.kitDenied?.(); return; }
+    p.startGrapple(target);
+    // Flag carriers get double the grapple cooldown.
+    const carrying = this.ctfView && this.myTeam && this.ctfView.carrierOf(otherTeam(this.myTeam)) === this.localId;
+    this.grappleCd = KIT.grappleCooldown * (carrying ? 2 : 1);
+    this.grappleReadyAt = t + this.grappleCd;
+    this.audio.grappleLaunch(target.distanceTo(p.position));
+  }
+
+  _updateCable() {
+    const p = this.player;
+    if (!this.alive || !p.grapple) { this.cable.hide(); return; }
+    // From the left wrist area (camera space) to the anchor.
+    const from = _v1.set(-0.2, -0.22, -0.35).applyMatrix4(this.camera.matrixWorld);
+    this.cable.set(from, p.grapple.anchor);
+  }
+
+  _remoteCable(r) {
+    if (!r.cable) r.cable = createCable(this.scene, 0.02);
+    if (!r.alive || !r.grappleAnchor) { r.cable.hide(); r._hadAnchor = false; return; }
+    if (!r._hadAnchor) { r._hadAnchor = true; this.audio.remoteGrapple(r.grappleAnchor.clone()); }
+    const sy = Math.sin(r.yaw), cy = Math.cos(r.yaw);
+    const from = _v1.set(r.feet.x - sy * 0.35 - cy * 0.25, r.feet.y + (r.crouch > 0.5 ? 0.9 : 1.35), r.feet.z - cy * 0.35 + sy * 0.25);
+    r.cable.set(from, r.grappleAnchor);
+  }
+
   _viewDir(out) {
     _euler.set(this.player.pitch + this.arsenal.recoil.pitch, this.player.yaw + this.arsenal.recoil.yaw, 0);
     return out.set(0, 0, -1).applyEuler(_euler);
@@ -312,7 +449,7 @@ export class Game {
 
   _targets() {
     const list = [];
-    for (const r of this.remotes.values()) if (r.alive) list.push(r.hitbox());
+    for (const r of this.remotes.values()) if (r.alive && !this.isTeammate(r.id)) list.push(r.hitbox());
     return list;
   }
 
@@ -323,6 +460,7 @@ export class Game {
     const moving = Math.min(1, this.player.horizontalSpeed() / 5);
     let spread = gun.spread({ ads: ar.ads, moving, airborne: !this.player.grounded, crouching: this.player.crouching });
     if (st.scope && ar.ads < 0.98) spread = Math.max(spread, 2.5 * DEG * (1 - ar.ads * 0.6));
+    if (this.player.grapple) spread += 1.5 * DEG;
     const targets = this._targets();
     const vm = ar.viewmodel;
     const muzzle = vm.muzzleWorldPosition(new THREE.Vector3(), this.overlayCamera, this.camera);
@@ -426,10 +564,13 @@ export class Game {
     else this._updateDead(dt, t);
 
     this._updateCamera(dt);
+    this._updateCable();
     for (const r of this.remotes.values()) {
       r.update(dt, t);
       this._remoteFootsteps(r, dt);
+      this._remoteCable(r);
     }
+    this.ctfView?.update(dt);
     this.audio.setListener(this.camera);
 
     // Network state at 20 Hz.
@@ -443,6 +584,7 @@ export class Game {
         v: [r2(p.velocity.x), r2(p.velocity.y), r2(p.velocity.z)],
         yaw: r3(p.yaw), pitch: r3(p.pitch), c: p.crouching ? 1 : 0, s: p.sprinting ? 1 : 0,
         w: this.arsenal.gun?.id || 'ar', g: p.grounded ? 1 : 0,
+        ...(p.grapple ? { ga: [r2(p.grapple.anchor.x), r2(p.grapple.anchor.y), r2(p.grapple.anchor.z)] } : {}),
       });
     }
 
@@ -467,14 +609,36 @@ export class Game {
     const key = (c) => active && this.input.isDown(c);
     const fireHeld = key('Mouse0');
     const adsHeld = key('Mouse2');
+    // Toggle aim: Ctrl+click (macOS secondary click) or Q. Aim wins over the sprint key until toggled off.
+    if (active && (pressed.has('AimToggle') || pressed.has('KeyQ'))) this.adsToggled = !this.adsToggled;
+    const aimWanted = adsHeld || this.adsToggled;
+    const sprintHeld = this.settings.sprintKey === 'ctrl'
+      ? key('ControlLeft') || key('ControlRight')
+      : key('ShiftLeft') || key('ShiftRight');
     const move = {
       forward: (key('KeyW') ? 1 : 0) - (key('KeyS') ? 1 : 0),
       strafe: (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0),
       jump: active && pressed.has('Space'),
       crouchToggle: active && pressed.has('KeyC'),
-      sprint: key('ShiftLeft') || key('ShiftRight'),
+      sprint: sprintHeld,
     };
-    p.update(dt, move, { ads: ar.ads, moveMult: st.moveMult, blockSprint: fireHeld || adsHeld });
+    if (active && pressed.has('KeyF')) this._grappleKey(t);
+    if (active && pressed.has('KeyE') && t >= this.dashReadyAt && !p.mantle) {
+      const sy = Math.sin(p.yaw), cy = Math.cos(p.yaw);
+      let dx = -sy * move.forward + cy * move.strafe, dz = -cy * move.forward - sy * move.strafe;
+      if (Math.hypot(dx, dz) < 0.1) { dx = -sy; dz = -cy; }
+      p.dash(dx, dz);
+      this.dashReadyAt = t + KIT.dashCooldown;
+      this.fovKick = 1;
+      this.audio.dash();
+    }
+    p.update(dt, move, { ads: ar.ads, moveMult: st.moveMult, blockSprint: fireHeld || aimWanted });
+    for (const ev of p.events) {
+      if (ev === 'doubleJump') this.audio.thruster();
+      else if (ev === 'mantle') this.audio.mantle();
+      else if (ev === 'grappleArrive' || ev === 'grappleBreak') this.audio.grappleRelease();
+    }
+    p.events.length = 0;
 
     // Weapon switching.
     if (active) {
@@ -485,11 +649,12 @@ export class Game {
       if (pressed.has('KeyV') && t >= this.meleeUntil && !ar.switching(t)) this._melee(t);
     }
     const g = ar.gun, gs = g.stats;
-    const wantAds = adsHeld && !p.sprinting && !ar.switching(t) && !(g.reloading && !gs.perShell);
+    const wantAds = aimWanted && !p.sprinting && !ar.switching(t) && !(g.reloading && !gs.perShell);
     ar.update(dt, t, wantAds, fireHeld);
 
     // Camera must be current before firing (muzzle position, aim direction).
     this._updateCamera(0);
+    this.grappleTarget = p.grapple ? null : this._findGrappleTarget();
 
     const canFire = active && !ar.switching(t) && !p.gunBlocked() && t >= this.meleeUntil - MELEE.cooldown * 0.4;
     const trigger = gs.mode === 'auto' ? fireHeld : pressed.has('Mouse0');
@@ -527,7 +692,7 @@ export class Game {
 
   _updateDead(dt, t) {
     this.deathCam = Math.min(1, this.deathCam + dt * 1.6);
-    const remain = Math.max(0, MATCH.respawnDelay - (t - this.deathTime));
+    const remain = Math.max(0, this.match.respawnDelay - (t - this.deathTime));
     this.ui.setDeathCountdown(this.deployed ? remain : null);
     if (this.deathYawTarget !== undefined) {
       let d = this.deathYawTarget - this.player.yaw;
@@ -567,7 +732,10 @@ export class Game {
         if (gs.scope) fov = base + (gs.adsFov - base) * smooth(ar.ads);
         else fov = base * (1 + (gs.adsZoom - 1) * ar.ads);
         if (p.sprinting) fov *= 1.04;
+        if (p.grapple) fov *= 1.06;
+        fov *= 1 + 0.08 * this.fovKick;
       }
+      this.fovKick = Math.max(0, this.fovKick - dt * 3);
       cam.fov += (fov - cam.fov) * Math.min(1, dt * 20);
       cam.updateProjectionMatrix();
     }
@@ -599,6 +767,13 @@ export class Game {
     hud.setAlive(this.alive);
     hud.setHealth(this.alive ? this.hp : 100);
     hud.protect(this.alive && t < this.protectUntil);
+    hud.kit({
+      grapple: Math.min(1, 1 - (this.grappleReadyAt - t) / this.grappleCd),
+      dash: Math.min(1, 1 - (this.dashReadyAt - t) / KIT.dashCooldown),
+      grappling: !!p.grapple,
+      target: this.alive && !p.grapple && !!this.grappleTarget,
+      visible: this.alive && this.match.state === 'playing',
+    });
 
     const g = ar.gun;
     if (g) {
@@ -610,32 +785,37 @@ export class Game {
     const scoped = this.alive && g?.stats.scope && ar.ads > 0.85;
     hud.scope(!!scoped);
 
-    // Crosshair + target name.
-    let enemyName = null;
+    // Crosshair + target name (teammates are shown in their team color and are not targets).
+    let aimName = null, aimFriendly = false;
     if (this.alive) {
       const eye = p.getEye(_v1), dir = this._viewDir(_v2);
       const wh = this.hitscan.castWorld(eye, dir, 120);
-      const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : 120, this._targets());
-      if (th) enemyName = this.nameOf(th.id);
+      const all = [];
+      for (const r of this.remotes.values()) if (r.alive) all.push(r.hitbox());
+      const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : 120, all);
+      if (th) { aimName = this.nameOf(th.id); aimFriendly = this.isTeammate(th.id); }
     }
     const moving = Math.min(1, p.horizontalSpeed() / 5);
     const spread = g ? g.spread({ ads: ar.ads, moving, airborne: !p.grounded, crouching: p.crouching }) : 0;
     const px = (Math.tan(spread) / Math.tan((this.camera.fov * DEG) / 2)) * (innerHeight / 2);
-    hud.crosshair({ visible: this.alive && ar.ads < 0.5 && !p.sprinting && this.match.state === 'playing', spreadPx: px, enemy: !!enemyName });
-    hud.targetName(enemyName);
+    hud.crosshair({ visible: this.alive && ar.ads < 0.5 && !p.sprinting && this.match.state === 'playing', spreadPx: px, enemy: !!aimName && !aimFriendly });
+    hud.targetName(aimName, aimFriendly ? TEAM_CSS[this.myTeam] : null);
 
-    // Score / rank.
-    const list = [...this.roster.values()].filter((e) => !e.bot || this.match.practice);
     const me = this.roster.get(this.localId);
-    const myK = me?.k ?? 0;
-    const rank = 1 + list.filter((e) => e.k > myK).length;
-    const leader = list.filter((e) => e.id !== this.localId).sort((a, b) => b.k - a.k)[0];
-    hud.score({
-      myKills: myK, rank: this.match.practice ? 0 : rank, leaderName: leader ? leader.name : '-',
-      leaderKills: leader ? leader.k : 0, limit: this.match.scoreLimit, practice: this.match.practice,
-    });
+    const list = [...this.roster.values()].filter((e) => !e.bot || this.match.practice);
     const timeLeft = this.match.timeLeft === null ? null : this.match.timeLeft - (this.match.state === 'playing' ? t - this.match.timeRef : 0);
-    hud.timer(timeLeft, this.match.practice ? 'Free roam' : `First to ${this.match.scoreLimit}`);
+    if (this.isCtf) this._updateCtfHud(t, timeLeft);
+    else {
+      // FFA score / rank.
+      const myK = me?.k ?? 0;
+      const rank = 1 + list.filter((e) => e.k > myK).length;
+      const leader = list.filter((e) => e.id !== this.localId).sort((a, b) => b.k - a.k)[0];
+      hud.score({
+        myKills: myK, rank: this.match.practice ? 0 : rank, leaderName: leader ? leader.name : '-',
+        leaderKills: leader ? leader.k : 0, limit: this.match.scoreLimit, practice: this.match.practice,
+      });
+      hud.timer(timeLeft, this.match.practice ? 'Free roam' : `First to ${this.match.scoreLimit}`);
+    }
 
     // Net info.
     if (this.session.mode === 'host') hud.netInfo(`ROOM ${this.session.roomCode} · ${this.roster.size}/${MATCH.maxPlayers}`);
@@ -645,25 +825,68 @@ export class Game {
     // Scoreboard.
     const showSb = inp.enabled && inp.isDown('Tab');
     if (showSb || this._sbVisible) {
-      const rows = list.slice().sort((a, b) => b.k - a.k || a.d - b.d).map((e) => ({
-        name: e.name, k: e.k, d: e.d, ping: e.bot ? 'BOT' : e.id === 1 && this.session.mode !== 'practice' ? 'HOST' : (e.ping ?? '-'),
+      const rows = list.slice().sort((a, b) => (b.caps - a.caps) * (this.isCtf ? 1 : 0) || b.k - a.k || a.d - b.d).map((e) => ({
+        name: e.name, k: e.k, d: e.d, caps: e.caps || 0, ret: e.ret || 0, team: e.team,
+        ping: e.bot ? 'BOT' : e.id === 1 && this.session.mode !== 'practice' ? 'HOST' : (e.ping ?? '-'),
         me: e.id === this.localId, alive: e.alive, color: colorCss(e.color),
       }));
       const meta = this.session.roomCode ? `Room ${this.session.roomCode}` : 'Practice';
-      hud.scoreboard(showSb, rows, meta, this.match.practice ? 'Practice range' : 'Free-for-all');
+      const title = this.isCtf ? 'Capture the Flag' : this.match.practice ? 'Practice range' : 'Free-for-all';
+      hud.scoreboard(showSb, rows, meta, title, this.isCtf ? { score: this.ctfView?.score, names: TEAM_NAMES } : null);
     }
     this._sbVisible = showSb;
 
-    // Minimap.
+    // Minimap: teammates always; enemies briefly when they fire; the enemy carrying our flag always.
     const blips = [];
+    const ourFlagCarrier = this.isCtf ? this.ctfView?.carrierOf(this.myTeam) : null;
     for (const r of this.remotes.values()) {
       if (!r.alive) continue;
+      const mate = this.isTeammate(r.id);
+      if (mate) { blips.push({ x: r.feet.x, z: r.feet.z, color: TEAM_CSS[this.myTeam], alpha: 1, size: 4 }); continue; }
+      if (r.id === ourFlagCarrier) { blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 0.6 + 0.4 * Math.abs(Math.sin(t * 5)), size: 6 }); continue; }
       if (r.bot) { blips.push({ x: r.feet.x, z: r.feet.z, color: '#bbbbbb', alpha: 0.7, size: 3 }); continue; }
       const last = this.blips.get(r.id);
       const age = last === undefined ? 99 : t - last;
       if (age < 2) blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 1 - age / 2, size: 4.5 });
     }
+    if (this.ctfView) {
+      for (const team of TEAMS) {
+        const fp = this.ctfView.flagPos(team, _v3);
+        blips.push({ x: fp.x, z: fp.z, color: TEAM_CSS[team], alpha: 1, size: 6, shape: 'flag' });
+      }
+    }
     this.minimap.draw({ x: p.position.x, z: p.position.z, yaw: p.yaw, alive: this.alive }, blips, this.world.playBounds);
+  }
+
+  _updateCtfHud(t, timeLeft) {
+    const hud = this.hud, cv = this.ctfView;
+    if (!cv) return;
+    const my = this.myTeam || 'red';
+    const sub = this.match.overtime ? 'Overtime · next capture wins' : this.match.practice ? 'CTF practice' : `First to ${this.match.scoreLimit} captures`;
+    hud.timer(timeLeft, sub);
+    hud.ctf({
+      score: cv.score, status: { red: cv.status('red'), blue: cv.status('blue') }, myTeam: my,
+      carrying: cv.carrierOf(otherTeam(my)) === this.localId && this.alive,
+    });
+    // Waypoints: both flags (where they are now) + own base while carrying.
+    const markers = [];
+    const enemy = otherTeam(my);
+    const ef = cv.flags[enemy], of = cv.flags[my];
+    if (cv.carrierOf(enemy) !== this.localId) {
+      const pos = cv.flagPos(enemy, new THREE.Vector3()).add(_v1.set(0, 2.6, 0));
+      const label = (ef.state === 'home' ? 'Attack' : ef.state === 'dropped' ? 'Take' : 'Escort') + ' · ' + TEAM_NAMES[enemy] + ' flag';
+      markers.push({ id: 'flag-' + enemy, pos, label, color: TEAM_CSS[enemy], icon: 'flag', pulse: ef.state === 'dropped' });
+    }
+    {
+      const pos = cv.flagPos(my, new THREE.Vector3()).add(_v1.set(0, 2.6, 0));
+      const label = (of.state === 'home' ? 'Defend' : of.state === 'dropped' ? 'Return' : 'Kill carrier') + ' · ' + TEAM_NAMES[my] + ' flag';
+      markers.push({ id: 'flag-' + my, pos, label, color: TEAM_CSS[my], icon: 'flag', pulse: of.state !== 'home' });
+    }
+    if (cv.carrierOf(enemy) === this.localId) {
+      const pos = cv.bases[my].clone().add(_v1.set(0, 2, 0));
+      markers.push({ id: 'base-' + my, pos, label: of.state === 'home' ? 'Capture · ' + TEAM_NAMES[my] + ' base' : 'Base (your flag is missing)', color: TEAM_CSS[my], icon: 'base', pulse: true });
+    }
+    hud.markers(this.everSpawned && this.match.state === 'playing' ? markers : [], this.camera);
   }
 
   /** Renders one frame. */
@@ -685,8 +908,11 @@ export class Game {
   dispose() {
     this.session.onMessage = null;
     this.session.close();
-    for (const r of this.remotes.values()) r.dispose();
+    for (const r of this.remotes.values()) { r.cable?.dispose(); r.dispose(); }
     this.remotes.clear();
+    this.ctfView?.dispose();
+    this.cable.dispose();
+    this.hud.markers([], this.camera);
     this.arsenal.disposeViewmodels();
     this.hud.show(false);
   }

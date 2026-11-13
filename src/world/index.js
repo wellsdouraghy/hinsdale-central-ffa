@@ -12,7 +12,7 @@ import { buildProps } from './props.js';
 import { createTrees } from './trees.js';
 import { createGrass } from './grass.js';
 import { createTiles } from './tiles.js';
-import { buildCollision, computeSpawns } from './collision.js';
+import { buildCollision, computeSpawns, nearestOpenGround, spawnsNear } from './collision.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -79,7 +79,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     const mat = key.startsWith('house') ? M.houseWalls[parseInt(key.slice(5), 10)] : M[key];
     if (!mat) { console.warn('[world] missing material', key); continue; }
     const mesh = new THREE.Mesh(bucket.toGeometry(), mat);
-    mesh.name = 'static:' + key; mesh.castShadow = key !== 'groundDecal'; mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
+    mesh.name = 'static:' + key; mesh.castShadow = key !== 'groundDecal' && key !== 'wallDecal'; if (key === 'groundDecal' || key === 'wallDecal') { mesh.receiveShadow = false; mesh.renderOrder = 2; } mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
     customVisuals.add(mesh);
   }
 
@@ -92,6 +92,9 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const collisionGroup = new THREE.Group(); collisionGroup.name = 'world-collision'; collisionGroup.visible = false; root.add(collisionGroup);
   const collisionMeshes = buildCollision(ctx, collisionGroup);
   const spawnPoints = computeSpawns(ctx, collisionMeshes);
+  // capture-the-flag: red = Dickinson Field midfield, blue = varsity baseball outfield; team spawns 25-70 m from their base
+  const ctfBases = { red: nearestOpenGround(ctx, -153, -101.7), blue: nearestOpenGround(ctx, 66, 130) };
+  const ctfSpawns = { red: spawnsNear(ctx, ctfBases.red, 25, 70, 10, ctfBases.blue), blue: spawnsNear(ctx, ctfBases.blue, 25, 70, 10, ctfBases.red) };
 
   progress(0.93, 'Baking shadows'); await tick();
   scene.updateMatrixWorld(true);
@@ -106,6 +109,8 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     collisionMeshes,
     groundY: () => 0,
     spawnPoints,
+    ctfBases,
+    ctfSpawns,
     playBounds: { ...PLAY_BOUNDS },
     sunDirection: sunDirection.clone(),
     get attributionHTML() { return attributionHTML; },

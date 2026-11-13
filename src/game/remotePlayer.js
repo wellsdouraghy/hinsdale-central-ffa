@@ -46,6 +46,20 @@ export class RemotePlayer {
     if (buf.length > 40) buf.splice(0, buf.length - 40);
   }
 
+  /** Rebuilds the character with a new accent color (team change). */
+  recolor(color) {
+    const old = this.character;
+    const visible = old.object3D.visible;
+    const children = old.object3D.children.filter((c) => c.userData.attachment);
+    this.scene.remove(old.object3D);
+    old.dispose();
+    this.character = createCharacter({ color, name: this.name });
+    this.character.object3D.visible = visible;
+    for (const c of children) this.character.object3D.add(c);
+    this.scene.add(this.character.object3D);
+    this._applyTransform();
+  }
+
   /** Static state (practice dummies). */
   setStatic(pos, yaw) {
     this.buffer = [];
@@ -123,6 +137,8 @@ export class RemotePlayer {
     this.weapon = s.w || this.weapon;
     this.sprinting = !!s.s;
     this.grounded = s.g !== 0;
+    if (s.ga) (this.grappleAnchor ||= new THREE.Vector3()).fromArray(s.ga);
+    else this.grappleAnchor = null;
   }
 
   _applyTransform() {

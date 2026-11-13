@@ -41,7 +41,7 @@
                 <button id="btn-join-go" class="btn primary">Join</button>
               </div>
             </div>
-            <button id="btn-practice" class="btn big"><span class="btn-k">03</span>Practice<small>Solo free roam with target dummies</small></button>
+            <button id="btn-practice" class="btn big"><span class="btn-k">03</span>Practice<small>Solo free roam or CTF run with target dummies</small></button>
             <button id="btn-settings" class="btn ghost">Settings</button>
             <div id="title-error" class="error-msg" role="alert"></div>
           </div>
@@ -49,25 +49,13 @@
           <div class="panel info-panel">
             <h3>Rules of engagement</h3>
             <ul class="rules">
-              <li><b>30</b> kills or <b>10:00</b> wins the match</li>
-              <li>Up to <b>8</b> players &middot; every player for themselves</li>
-              <li>Health regenerates after <b>4 s</b> out of combat</li>
-              <li>Shots reveal you on the minimap</li>
+              <li><b>Free-for-all:</b> 30 kills or 10:00 wins</li>
+              <li><b>Capture the Flag:</b> Red Devils vs Lions, 3 captures or 12:00</li>
+              <li>Up to <b>8</b> players &middot; health regenerates after <b>4 s</b></li>
+              <li>Shots reveal you on the enemy minimap</li>
             </ul>
             <h3>Controls</h3>
-            <div class="keys">
-              <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Move</span></div>
-              <div><kbd>Shift</kbd><span>Sprint</span></div>
-              <div><kbd>Space</kbd><span>Jump</span></div>
-              <div><kbd>C</kbd><span>Crouch / slide</span></div>
-              <div><kbd>LMB</kbd><span>Fire</span></div>
-              <div><kbd>RMB</kbd><span>Aim down sights</span></div>
-              <div><kbd>R</kbd><span>Reload</span></div>
-              <div><kbd>1</kbd><kbd>2</kbd><span>Switch / wheel</span></div>
-              <div><kbd>V</kbd><span>Melee</span></div>
-              <div><kbd>Tab</kbd><span>Scoreboard</span></div>
-              <div><kbd>Esc</kbd><span>Menu</span></div>
-            </div>
+            <div class="keys controls-list"></div>
           </div>
         </div>
         <footer class="title-foot">
@@ -103,6 +91,11 @@
         <i class="ch t"></i><i class="ch b"></i><i class="ch l"></i><i class="ch r"></i><i class="ch-dot"></i>
       </div>
       <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+      <div id="grapple-ind" title="Grapple point in range"></div>
+      <div id="kit">
+        <div class="kit-m" id="kit-grapple"><span class="kit-k">F</span><span class="kit-l">Grapple</span><span class="kit-bar"><i></i></span></div>
+        <div class="kit-m" id="kit-dash"><span class="kit-k">E</span><span class="kit-l">Dash</span><span class="kit-bar"><i></i></span></div>
+      </div>
       <div id="target-name"></div>
 
       <div id="tl">
@@ -113,7 +106,14 @@
         </div>
       </div>
 
-      <div id="timer-wrap"><div id="timer">10:00</div><div id="timer-sub">First to 30</div></div>
+      <div id="timer-wrap">
+        <div id="ctf-red" class="ctf-team red hidden"><div class="ctf-score"><span class="ctf-name">Red Devils</span><b id="ctf-red-score">0</b></div><div class="ctf-flag" id="ctf-red-flag">Home</div></div>
+        <div class="timer-col"><div id="timer">10:00</div><div id="timer-sub">First to 30</div></div>
+        <div id="ctf-blue" class="ctf-team blue hidden"><div class="ctf-score"><b id="ctf-blue-score">0</b><span class="ctf-name">Lions</span></div><div class="ctf-flag" id="ctf-blue-flag">Home</div></div>
+      </div>
+      <div id="markers"></div>
+      <div id="announce"></div>
+      <div id="carry-msg" class="hidden">You have the flag &middot; return it to your base</div>
 
       <div id="tr">
         <div id="net-info"></div>
@@ -136,7 +136,7 @@
 
       <div id="scoreboard" class="hidden">
         <div class="sb-head"><span id="sb-title">Free-for-all</span><span id="sb-meta"></span></div>
-        <table><thead><tr><th>#</th><th class="name">Player</th><th>Kills</th><th>Deaths</th><th>Ping</th></tr></thead><tbody id="sb-body"></tbody></table>
+        <table><thead><tr id="sb-headrow"><th>#</th><th class="name">Player</th><th>Kills</th><th>Deaths</th><th>Ping</th></tr></thead><tbody id="sb-body"></tbody></table>
       </div>
     </section>
 
@@ -147,6 +147,10 @@
           <div class="death-kicker">Eliminated by</div>
           <div class="death-killer" id="death-killer">-</div>
           <div class="death-count" id="death-count">Respawning in 3</div>
+        </div>
+        <div id="team-row" class="team-row hidden">
+          <span>Team: <b id="team-name">Red</b></span>
+          <button id="btn-team" class="btn small">Switch team</button>
         </div>
         <div class="deploy-title" id="deploy-title">Choose your loadout</div>
         <div id="loadout-cards" class="cards"></div>
@@ -168,8 +172,10 @@
         </div>
         <button id="btn-resume" class="btn primary">Resume</button>
         <button id="btn-loadout" class="btn">Change loadout</button>
+        <button id="btn-pause-team" class="btn hidden">Switch team</button>
         <button id="btn-pause-settings" class="btn">Settings</button>
         <button id="btn-leave" class="btn danger">Leave match</button>
+        <div class="keys controls-list small"></div>
       </div>
     </section>
 
@@ -178,11 +184,33 @@
       <div class="panel end-panel">
         <div class="end-kicker">Match over</div>
         <h2 id="end-winner">-</h2>
-        <table class="end-table"><thead><tr><th>#</th><th class="name">Player</th><th>Kills</th><th>Deaths</th></tr></thead><tbody id="end-body"></tbody></table>
+        <table class="end-table"><thead><tr id="end-headrow"><th>#</th><th class="name">Player</th><th>Kills</th><th>Deaths</th></tr></thead><tbody id="end-body"></tbody></table>
         <div class="end-actions">
           <button id="btn-restart" class="btn primary">Restart match</button>
           <span id="end-wait">Waiting for the host to restart&hellip;</span>
           <button id="btn-end-leave" class="btn">Leave</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MATCH SETUP (host / practice) ================= -->
+    <section id="setup" class="overlay hidden">
+      <div class="panel setup-panel">
+        <div class="end-kicker" id="setup-kicker">Host game</div>
+        <h2 id="setup-title">Choose a mode</h2>
+        <div class="mode-cards">
+          <button class="mode-card" data-mode="ffa">
+            <div class="mc-name">Free-for-all</div>
+            <div class="mc-desc">Every player for themselves. First to 30 kills or 10 minutes.</div>
+          </button>
+          <button class="mode-card" data-mode="ctf">
+            <div class="mc-name">Capture the Flag</div>
+            <div class="mc-desc">Red Devils vs Lions. Steal the enemy flag from their base and bring it home. First to 3 captures or 12 minutes.</div>
+          </button>
+        </div>
+        <div class="end-actions">
+          <button id="btn-setup-back" class="btn">Back</button>
+          <button id="btn-setup-go" class="btn primary">Start</button>
         </div>
       </div>
     </section>
@@ -200,6 +228,12 @@
             <div class="seg" id="s-quality">
               <button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button>
             </div>
+          </label>
+          <label class="wide">Sprint key
+            <div class="seg" id="s-sprint">
+              <button data-v="ctrl">Control (hold)</button><button data-v="shift">Shift (hold)</button>
+            </div>
+            <small id="sprint-warn" class="warn hidden">On Windows/Linux, Ctrl+W closes the tab. The game goes fullscreen and locks the keyboard during play when supported (Chrome/Edge); otherwise prefer Shift.</small>
           </label>
           <label class="wide">Map style
             <div class="seg" id="s-mapstyle">

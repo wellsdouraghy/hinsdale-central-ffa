@@ -148,3 +148,18 @@ Hitboxes are NOT the visuals' job: gameplay uses simple capsules/spheres around 
 - **`world.ctfSpawns`** (optional, World builder): `{ red: Vector3[], blue: Vector3[] }`, >= 8 each, near (25-70 m) their base,
   outdoors. Gameplay falls back to picking from `world.spawnPoints` by distance to own base.
 - Teams' accent colors: red `0xe0242c`, blue `0x2a6bff` (pass as `color` to `createCharacter`).
+- (World, round 2) Additions / changes:
+  - `world.ctfBases = { red, blue }` (red = Dickinson Field midfield `(-153, 0, -101)`, blue = varsity baseball shallow centre field
+    `(65, 0, 129)`, both snapped to open walkable ground) and `world.ctfSpawns = { red: Vector3[10], blue: Vector3[10] }`
+    (ground level, 25-70 m from their own base, on the own-base side, biased toward cover).
+  - `src/visuals/flag.js`: interface as specified. `createFlag().setCarried(true)` slings the pole across the carrier's back (expects to be
+    parented to `character.object3D`, origin at feet, facing -z). Call `update(dt)` on flags and bases every frame (cloth wave, ring pulse).
+  - Rooftops are play space: every school wing has a walkable roof deck in collision at `wing height - 0.4 m` (surface `'concrete'`), solid
+    parapets (0.43 m above the deck), solid rooftop units / stair penthouses / skylights, and courtyards are open (cut out of the roof).
+    Wing heights: 4-15.5 m (classroom wings 10 m, gym 11-12 m, field house 13.5 m, auditorium block 15.5 m). Press box, dugout roofs, buses,
+    containers and bleachers were already solid on top; the water tower now has a domed collision top (34.3 m) and a railed catwalk at 30 m.
+  - `spawnPoints` / `ctfSpawns` are ground-only (the flood fill never climbs onto roofs).
+  - No `userData.noGrapple` is set anywhere: everything in `collisionMeshes` is fine to grapple. `userData.bulletPassthrough` (fences/nets)
+    is unchanged; if grappling chain-link feels wrong, exclude those meshes with that same flag.
+  - The surrounding neighbourhood is no longer built: only school-owned structures have geometry/collision; outside the school grounds the
+    ground is lawn + the street network with a dense wooded border.

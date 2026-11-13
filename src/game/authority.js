@@ -1,6 +1,7 @@
-// Host-side match authority: players, health, damage validation, kills, scores, respawns, timer.
+// Host-side match authority: players, teams, health, damage validation, kills, scores, flags, respawns, timer.
 // Runs in the host's browser (online) or locally (practice). Transport-agnostic: emits messages via `out`.
 import { WEAPON_STATS, maxShotDamage, MELEE } from './weapons.js';
+import { CTF, CtfRules, ctfSpawnList, ctfBases, otherTeam, TEAMS } from './ctf.js';
 
 export const MATCH = {
   scoreLimit: 30,
@@ -13,27 +14,45 @@ export const MATCH = {
   stateHz: 20,
 };
 
+export const MODES = {
+  ffa: { label: 'Free-for-all' },
+  ctf: { label: 'Capture the Flag' },
+};
+
 export const now = () => performance.now() / 1000;
+
+/** Mode-dependent rules (read at call time so tests can tweak MATCH / CTF). */
+export function rulesFor(mode) {
+  return mode === 'ctf'
+    ? { scoreLimit: CTF.capLimit, timeLimit: CTF.timeLimit, respawnDelay: CTF.respawnDelay }
+    : { scoreLimit: MATCH.scoreLimit, timeLimit: MATCH.timeLimit, respawnDelay: MATCH.respawnDelay };
+}
 
 export class Authority {
   /**
    * out(msg, to, except): to = player id or null for everyone; except = player id to skip.
-   * opts: { world, practice, practiceSpawn: {pos, yaw} }
+   * opts: { world, mode: 'ffa'|'ctf', practice, practiceSpawn: {pos, yaw} }
    */
-  constructor({ world, practice = false, practiceSpawn = null, out }) {
+  constructor({ world, mode = 'ffa', practice = false, practiceSpawn = null, out }) {
     this.world = world;
+    this.mode = mode;
     this.practice = practice;
     this.practiceSpawn = practiceSpawn;
     this.out = out;
     this.players = new Map();
     this.colorIndex = 0;
     this.state = 'playing';
-    this.endTime = now() + MATCH.timeLimit;
+    this.overtime = false;
+    this.endTime = now() + rulesFor(mode).timeLimit;
+    this.ctf = mode === 'ctf' ? new CtfRules(this, world) : null;
     this.pendingStates = new Map();
     this.stateTimer = 0;
     this.rosterTimer = 0;
     this.pingTimer = 0;
   }
+
+  time() { return now(); }
+  get rules() { return rulesFor(this.mode); }
 
   // ---------- roster ----------
   uniqueName(name) {
@@ -49,10 +68,23 @@ export class Authority {
     return [...this.players.values()].filter((p) => !p.bot).length >= MATCH.maxPlayers;
   }
 
-  addPlayer(id, name, { bot = false, pos = null, yaw = 0 } = {}) {
+  teamCount(team, exceptId = null) {
+    let n = 0;
+    for (const p of this.players.values()) if (p.team === team && p.id !== exceptId && !p.bot) n++;
+    return n;
+  }
+
+  smallerTeam() {
+    const r = this.teamCount('red'), b = this.teamCount('blue');
+    if (r !== b) return r < b ? 'red' : 'blue';
+    return Math.random() < 0.5 ? 'red' : 'blue';
+  }
+
+  addPlayer(id, name, { bot = false, pos = null, yaw = 0, team = null } = {}) {
     const p = {
       id, name: this.uniqueName(name), color: this.colorIndex++, bot,
-      kills: 0, deaths: 0, hp: 100, alive: false, life: 0, lastDmg: -100,
+      team: this.mode === 'ctf' ? (team || this.smallerTeam()) : null,
+      kills: 0, deaths: 0, caps: 0, returns: 0, hp: 100, alive: false, life: 0, lastDmg: -100,
       protectUntil: 0, respawnAt: null, pos: null, ping: bot ? null : 0, ready: false,
       botPos: pos, botYaw: yaw, claims: [], lastSeen: now(),
     };
@@ -63,13 +95,19 @@ export class Authority {
   }
 
   removePlayer(id) {
-    if (!this.players.delete(id)) return;
+    const p = this.players.get(id);
+    if (!p) return;
+    this.ctf?.dropFrom(p);
+    this.players.delete(id);
     this.pendingStates.delete(id);
     this.out({ t: 'leave', id }, null, id);
   }
 
   publicPlayer(p) {
-    return { id: p.id, name: p.name, color: p.color, k: p.kills, d: p.deaths, hp: Math.round(p.hp), alive: p.alive, life: p.life, ping: p.ping, bot: p.bot, pos: p.pos, yaw: p.botYaw ?? 0 };
+    return {
+      id: p.id, name: p.name, color: p.color, team: p.team, k: p.kills, d: p.deaths, caps: p.caps, ret: p.returns,
+      hp: Math.round(p.hp), alive: p.alive, life: p.life, ping: p.ping, bot: p.bot, pos: p.pos, yaw: p.botYaw ?? 0,
+    };
   }
 
   welcomeFor(id) {
@@ -81,9 +119,12 @@ export class Authority {
   }
 
   matchInfo() {
+    const r = this.rules;
     return {
-      state: this.state, practice: this.practice, scoreLimit: MATCH.scoreLimit,
+      mode: this.mode, state: this.state, practice: this.practice, scoreLimit: r.scoreLimit, respawnDelay: r.respawnDelay,
+      overtime: this.overtime,
       timeLeft: this.practice ? null : Math.max(0, this.endTime - now()),
+      ctf: this.ctf ? this.ctf.snapshot() : null,
     };
   }
 
@@ -113,6 +154,9 @@ export class Authority {
       case 'melee':
         if (p.alive) this.out({ t: 'melee', id: from }, null, from);
         break;
+      case 'team':
+        this.switchTeam(p, msg.team);
+        break;
       case 'pong':
         p.ping = Math.round((now() - msg.ts) * 1000);
         break;
@@ -121,10 +165,28 @@ export class Authority {
     }
   }
 
+  /** Team switch is allowed when the teams stay within one player of each other. */
+  switchTeam(p, team) {
+    if (!this.ctf || !TEAMS.includes(team) || p.team === team || p.bot) return;
+    const after = this.teamCount(team) + 1;
+    const otherAfter = this.teamCount(p.team, p.id);
+    if (after - otherAfter > 1) {
+      this.out({ t: 'notice', text: `Teams would be unbalanced: ${team} has more players.` }, p.id);
+      return;
+    }
+    this.ctf.dropFrom(p);
+    p.team = team;
+    const wasAlive = p.alive;
+    p.alive = false;
+    p.respawnAt = p.ready ? now() + 1 : null;
+    this.out({ t: 'team', id: p.id, team, despawn: wasAlive });
+  }
+
   handleHit(a, msg) {
     const t = now();
     const v = this.players.get(msg.target);
     if (!v || v === a || !a.alive || !v.alive || this.state !== 'playing') return;
+    if (this.ctf && a.team && a.team === v.team) return; // friendly fire off
     const w = msg.w;
     if (w !== 'melee' && !WEAPON_STATS[w]) return;
     const dmg = Math.min(Number(msg.dmg) || 0, maxShotDamage(w));
@@ -155,17 +217,18 @@ export class Authority {
     v.hp = 0;
     v.alive = false;
     v.deaths++;
-    v.respawnAt = t + MATCH.respawnDelay;
+    v.respawnAt = t + this.rules.respawnDelay;
     a.kills++;
     this.out({ t: 'kill', killer: a.id, victim: v.id, w: weapon, hs: headshot, kk: a.kills, vd: v.deaths });
-    if (!this.practice && a.kills >= MATCH.scoreLimit) this.endMatch();
+    this.ctf?.dropFrom(v);
+    if (!this.ctf && !this.practice && a.kills >= this.rules.scoreLimit) this.endMatch();
   }
 
   // ---------- spawning ----------
   spawn(p) {
     let pos, yaw;
     if (p.bot) { pos = p.botPos; yaw = p.botYaw; }
-    else if (this.practice && this.practiceSpawn) { pos = this.practiceSpawn.pos; yaw = this.practiceSpawn.yaw; }
+    else if (this.practice && this.practiceSpawn && !this.ctf) { pos = this.practiceSpawn.pos; yaw = this.practiceSpawn.yaw; }
     else ({ pos, yaw } = this.pickSpawn(p));
     p.alive = true;
     p.hp = 100;
@@ -178,19 +241,25 @@ export class Authority {
     this.out({ t: 'spawn', id: p.id, p: [pos.x, pos.y, pos.z], yaw, life: p.life, prot: p.bot ? 0 : MATCH.protect });
   }
 
-  /** Spawn farthest from living enemies (random among the best few). */
+  /** Spawn farthest from living enemies (random among the best few). CTF: only the team's own spawn area. */
   pickSpawn(p) {
-    const pts = this.world.spawnPoints;
-    const enemies = [...this.players.values()].filter((o) => o !== p && o.alive && o.pos);
+    const pts = this.ctf && p.team ? ctfSpawnList(this.world, p.team) : this.world.spawnPoints;
+    const enemies = [...this.players.values()].filter((o) => o !== p && o.alive && o.pos && (!this.ctf || o.team !== p.team));
     const scored = pts.map((s) => {
       let min = 1e9;
       for (const e of enemies) min = Math.min(min, Math.hypot(s.x - e.pos[0], s.z - e.pos[2]));
       return { s, score: enemies.length ? min : Math.random() };
     }).sort((x, y) => y.score - x.score);
     const pick = scored[Math.floor(Math.random() * Math.min(3, scored.length))].s;
-    // Face roughly toward the middle of the play area.
-    const b = this.world.playBounds;
-    const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+    let cx, cz;
+    if (this.ctf && p.team) {
+      // Face the enemy base.
+      const eb = ctfBases(this.world)[otherTeam(p.team)];
+      cx = eb.x; cz = eb.z;
+    } else {
+      const b = this.world.playBounds;
+      cx = (b.minX + b.maxX) / 2; cz = (b.minZ + b.maxZ) / 2;
+    }
     const yaw = Math.atan2(-(cx - pick.x), -(cz - pick.z));
     return { pos: pick, yaw };
   }
@@ -200,20 +269,27 @@ export class Authority {
     if (this.state !== 'playing') return;
     this.state = 'ended';
     const standings = this.standings();
-    this.out({ t: 'end', standings, winner: standings[0]?.id ?? null });
+    let winnerTeam = null;
+    if (this.ctf) {
+      const s = this.ctf.score;
+      winnerTeam = s.red === s.blue ? null : s.red > s.blue ? 'red' : 'blue';
+    }
+    this.out({ t: 'end', standings, winner: this.ctf ? null : standings[0]?.id ?? null, winnerTeam, score: this.ctf?.score ?? null });
   }
 
   standings() {
     return [...this.players.values()].filter((p) => !p.bot)
-      .sort((x, y) => y.kills - x.kills || x.deaths - y.deaths)
-      .map((p) => ({ id: p.id, name: p.name, k: p.kills, d: p.deaths }));
+      .sort((x, y) => (y.caps - x.caps) * (this.ctf ? 1 : 0) || y.kills - x.kills || x.deaths - y.deaths)
+      .map((p) => ({ id: p.id, name: p.name, team: p.team, k: p.kills, d: p.deaths, caps: p.caps, ret: p.returns }));
   }
 
   restart() {
     this.state = 'playing';
-    this.endTime = now() + MATCH.timeLimit;
+    this.overtime = false;
+    this.endTime = now() + this.rules.timeLimit;
+    this.ctf?.reset();
     for (const p of this.players.values()) {
-      p.kills = 0; p.deaths = 0; p.alive = false; p.respawnAt = null; p.hp = 100;
+      p.kills = 0; p.deaths = 0; p.caps = 0; p.returns = 0; p.alive = false; p.respawnAt = null; p.hp = 100;
     }
     this.out({ t: 'restart', match: this.matchInfo() });
     for (const p of this.players.values()) if (p.ready || p.bot) this.spawn(p);
@@ -228,7 +304,21 @@ export class Authority {
         if (p.bot || p.ready) this.spawn(p);
       }
     }
-    if (!this.practice && this.state === 'playing' && t >= this.endTime) this.endMatch();
+    if (this.ctf) {
+      const capTeam = this.ctf.update();
+      if (capTeam && this.state === 'playing') {
+        const s = this.ctf.score;
+        if (!this.practice && (s[capTeam] >= this.rules.scoreLimit || this.overtime)) this.endMatch();
+      }
+    }
+    if (!this.practice && this.state === 'playing' && t >= this.endTime) {
+      const s = this.ctf?.score;
+      if (s && s.red === s.blue && !this.overtime) {
+        this.overtime = true;
+        this.endTime = t + CTF.overtime;
+        this.out({ t: 'overtime', match: this.matchInfo() });
+      } else this.endMatch();
+    }
 
     this.stateTimer += dt;
     if (this.stateTimer >= 1 / MATCH.stateHz) {
@@ -243,7 +333,7 @@ export class Authority {
       this.rosterTimer = 0;
       this.out({
         t: 'roster',
-        players: [...this.players.values()].map((p) => ({ id: p.id, k: p.kills, d: p.deaths, ping: p.ping, hp: Math.round(p.hp), alive: p.alive })),
+        players: [...this.players.values()].map((p) => ({ id: p.id, k: p.kills, d: p.deaths, caps: p.caps, ret: p.returns, team: p.team, ping: p.ping, hp: Math.round(p.hp), alive: p.alive })),
         match: this.matchInfo(),
       });
     }

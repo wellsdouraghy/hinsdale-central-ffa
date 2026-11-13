@@ -288,12 +288,15 @@ export function createTrees(ctx) {
   if (ctx.shrubs.length) {
     const acc = new GeoAcc(); const r2 = mulberry32(5);
     for (const [x, y, z, len, h, rot] of ctx.shrubs) {
-      const c = Math.cos(rot), s = Math.sin(rot); const n = Math.round(len * 9);
+      const c = Math.cos(rot), s = Math.sin(rot); const n = Math.round(len * 26);
       for (let i = 0; i < n; i++) {
-        const u = (r2() - 0.5) * len, d = (r2() - 0.5) * 1.1, yy = y + r2() * h; const px = x + u * c + d * s, pz = z - u * s + d * c;
-        const nrm = new THREE.Vector3(r2() - 0.5, r2() * 0.8 + 0.2, r2() - 0.5).normalize(); const a = new THREE.Vector3().crossVectors(nrm, new THREE.Vector3(0, 1, 0.01)).normalize(), b = new THREE.Vector3().crossVectors(nrm, a);
-        const sz = 0.45 + r2() * 0.3;
-        card(acc, px, yy, pz, a.x * sz, a.y * sz, a.z * sz, b.x * sz, b.y * sz, b.z * sz, nrm.x * 0.5, 0.85, nrm.z * 0.5, 0.6 + 0.4 * ((yy - y) / h));
+        // rounded clipped-hedge profile: denser shell, upright random cards
+        const u = (r2() - 0.5) * len, tt = r2() * Math.PI, rr = 0.55 + 0.45 * Math.sqrt(r2());
+        const d = Math.cos(tt) * 0.62 * rr, yy = y + Math.sin(tt) * h * rr; const px = x + u * c + d * s, pz = z - u * s + d * c;
+        const nrm = new THREE.Vector3(r2() - 0.5, (r2() - 0.5) * 0.9, r2() - 0.5).normalize(); const a = new THREE.Vector3().crossVectors(nrm, new THREE.Vector3(0.1, 1, 0.01)).normalize(), b = new THREE.Vector3().crossVectors(nrm, a);
+        const sz = 0.26 + r2() * 0.2;
+        const on = new THREE.Vector3(d * s, (yy - y) * 1.2 + 0.25, d * c).normalize();
+        card(acc, px, yy, pz, a.x * sz, a.y * sz, a.z * sz, b.x * sz, b.y * sz, b.z * sz, on.x, Math.max(0.35, on.y), on.z, 0.5 + 0.5 * ((yy - y) / h));
       }
     }
     const m = new THREE.Mesh(acc.build(), leafMats[1]); m.castShadow = true; m.receiveShadow = true; m.name = 'shrubs'; m.matrixAutoUpdate = false; group.add(m);

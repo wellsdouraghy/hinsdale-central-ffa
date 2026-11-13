@@ -126,3 +126,40 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
   for (let k = spawns.length; k < 24; k++) spawns.push(new THREE.Vector3(-150 + Math.cos(k) * 20, 0, 60 + Math.sin(k) * 20));
   return spawns;
 }
+
+// Walkable ground cells (from the flood fill in computeSpawns) near a point: used for CTF bases and team spawns.
+function clearCell(g, i, j, r) {
+  for (let b = -r; b <= r; b++) for (let a = -r; a <= r; a++) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= g.nx || jj >= g.nz || g.state[jj * g.nx + ii] !== 1) return false; }
+  return true;
+}
+export function nearestOpenGround(ctx, x, z, clear = 2) {
+  const g = ctx.walkGrid; if (!g) return new THREE.Vector3(x, 0, z);
+  let best = null, bd = Infinity;
+  for (let j = 0; j < g.nz; j++) for (let i = 0; i < g.nx; i++) {
+    const cx = g.x0 + (i + 0.5) * g.cell, cz = g.z0 + (j + 0.5) * g.cell; const d = (cx - x) ** 2 + (cz - z) ** 2;
+    if (d < bd && clearCell(g, i, j, clear)) { bd = d; best = [cx, cz]; }
+  }
+  return best ? new THREE.Vector3(best[0], 0, best[1]) : new THREE.Vector3(x, 0, z);
+}
+export function spawnsNear(ctx, center, rMin, rMax, count, awayFrom) {
+  const g = ctx.walkGrid; const out = []; if (!g) return out;
+  const cands = [];
+  for (let j = 0; j < g.nz; j++) for (let i = 0; i < g.nx; i++) {
+    const cx = g.x0 + (i + 0.5) * g.cell, cz = g.z0 + (j + 0.5) * g.cell; const d = Math.hypot(cx - center.x, cz - center.z);
+    if (d < rMin || d > rMax || !clearCell(g, i, j, 1)) continue;
+    // must not be closer to the enemy base than to our own, and prefer cells next to something solid (cover)
+    if (awayFrom && Math.hypot(cx - awayFrom.x, cz - awayFrom.z) < d + 30) continue;
+    let cover = 0; for (let b = -3; b <= 3; b++) for (let a = -3; a <= 3; a++) { const ii = i + a, jj = j + b; if (ii >= 0 && jj >= 0 && ii < g.nx && jj < g.nz && g.state[jj * g.nx + ii] === -1) cover++; }
+    cands.push([cx, cz, cover > 0 ? 1.35 : 1.0]);
+  }
+  if (!cands.length) return out;
+  const dist = new Float32Array(cands.length).fill(Infinity); let cur = 0, bc = -1;
+  cands.forEach((c, k) => { if (c[2] > bc) { bc = c[2]; cur = k; } });
+  for (let n = 0; n < count && n < cands.length; n++) {
+    const [cx, cz] = cands[cur]; out.push(new THREE.Vector3(cx, 0, cz));
+    let bi = 0, bd = -1;
+    for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; const sc = dist[k] * cands[k][2]; if (sc > bd) { bd = sc; bi = k; } }
+    cur = bi;
+  }
+  return out;
+}

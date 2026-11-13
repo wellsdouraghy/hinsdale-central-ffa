@@ -28,7 +28,7 @@
 - **Sky HDRI** `public/assets/world/sky_2k.hdr`: "Kloofendal 48d Partly Cloudy (Pure Sky)" by Greg Zaal, Poly Haven, CC0
   (https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky).
 - **Brick** `tex/brick_*.jpg`: "Brick Wall 09" by Rob Tuytel / Matterfield, Poly Haven, CC0 (https://polyhaven.com/a/brick_wall_09);
-  the colour map was re-toned toward the school's buff brick.
+  the colour map was re-toned toward the school's buff brick (2K maps, AO baked into the colour).
 - **ambientCG textures** (all CC0, https://ambientcg.com/, by Lennart Demes): `tex/grass_*` = Grass001 (https://ambientcg.com/view?id=Grass001),
   `tex/asphalt_*` = Asphalt012 (https://ambientcg.com/view?id=Asphalt012), `tex/concrete_*` = Concrete034 (https://ambientcg.com/view?id=Concrete034),
   `tex/bark_*` = Bark012 (https://ambientcg.com/view?id=Bark012), `tex/shingles_*` = RoofingTiles013A (https://ambientcg.com/view?id=RoofingTiles013A),

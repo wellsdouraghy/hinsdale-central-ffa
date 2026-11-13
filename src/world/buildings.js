@@ -2,133 +2,11 @@
 // ribbon windows, satellite-projected roofs) and the surrounding houses.
 import * as THREE from 'three';
 import { ensureCCW, signedArea, mulberry32, pointInRing, makeCanvas, canvasTexture } from './util.js';
-import { HOUSE_KINDS } from './assets.js';
+import { edgeFrame, quadFacing, wallRect, fbox, facade, roofUnit, doorFromKit, BRICK_S } from './facade.js';
 
-const BRICK_S = 1 / 2.01;          // brick texture covers 2.01 m
 const STONE_S = 1 / 3.0;
 const SCHOOL_ID = 7822857;
-
-// local frame of a wall edge: u along the edge, y up, "out" along the outward normal
-export function edgeFrame(ax, az, bx, bz) {
-  const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz) || 1e-6;
-  const tx = dx / L, tz = dz / L, nx = tz, nz = -tx;
-  return {
-    L, tx, tz, nx, nz, rotY: Math.atan2(-tz, tx),
-    P: (u, y, out = 0) => [ax + tx * u + nx * out, y, az + tz * u + nz * out],
-  };
-}
-function quadFacing(b, p0, p1, p2, p3, n, uv) {
-  const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2];
-  const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
-  if (cx * n[0] + cy * n[1] + cz * n[2] >= 0) b.quad(p0, p1, p2, p3, uv && uv[0], uv && uv[1], uv && uv[2], uv && uv[3]);
-  else b.quad(p0, p3, p2, p1, uv && uv[0], uv && uv[3], uv && uv[2], uv && uv[1]);
-}
-// rectangle on a wall plane: u0..u1, y0..y1 at offset out, facing outward. uv rect optional.
-function wallRect(b, F, u0, u1, y0, y1, out, uvr) {
-  const r = uvr || [u0, y0, u1, y1];
-  b.quad(F.P(u0, y0, out), F.P(u0, y1, out), F.P(u1, y1, out), F.P(u1, y0, out), [r[0], r[1]], [r[0], r[3]], [r[2], r[3]], [r[2], r[1]]);
-}
-function brickRect(b, F, u0, u1, y0, y1, uOff, out = 0) {
-  if (u1 - u0 < 0.01 || y1 - y0 < 0.01) return;
-  wallRect(b, F, u0, u1, y0, y1, out, [(uOff + u0) * BRICK_S, y0 * BRICK_S, (uOff + u1) * BRICK_S, y1 * BRICK_S]);
-}
-
-// a window (or door) opening: recessed glazing + bronze reveals + limestone sill
-function opening(B, F, u0, u1, y0, y1, kind) {
-  const D = 0.16;
-  const n = [F.nx, 0, F.nz], t = [F.tx, 0, F.tz];
-  if (kind === 'door') {
-    wallRect(B.v('door'), F, u0, u1, y0, y1, -D, [0, 0, 1, 1]);
-  } else {
-    const reps = Math.max(1, Math.round((u1 - u0) / 1.15));
-    wallRect(B.v('glass'), F, u0, u1, y0, y1, -D, [0, 0, reps, 1]);
-  }
-  const br = B.v('bronze');
-  // jambs
-  quadFacing(br, F.P(u0, y0, 0), F.P(u0, y1, 0), F.P(u0, y1, -D), F.P(u0, y0, -D), t);
-  quadFacing(br, F.P(u1, y0, 0), F.P(u1, y1, 0), F.P(u1, y1, -D), F.P(u1, y0, -D), [-t[0], 0, -t[2]]);
-  // head
-  quadFacing(br, F.P(u0, y1, 0), F.P(u1, y1, 0), F.P(u1, y1, -D), F.P(u0, y1, -D), [0, -1, 0]);
-  if (kind !== 'door') {
-    // projecting limestone sill
-    const st = B.v('limestone'); const sy = y0, so = 0.06, sh = 0.1;
-    quadFacing(st, F.P(u0 - 0.05, sy, so), F.P(u1 + 0.05, sy, so), F.P(u1 + 0.05, sy, -D), F.P(u0 - 0.05, sy, -D), [0, 1, 0]);
-    wallRect(st, F, u0 - 0.05, u1 + 0.05, sy - sh, sy, so, [0, 0, (u1 - u0) * STONE_S, sh * STONE_S]);
-  } else {
-    quadFacing(B.v('concrete'), F.P(u0, y0 + 0.02, 0.5), F.P(u1, y0 + 0.02, 0.5), F.P(u1, y0 + 0.02, -D), F.P(u0, y0 + 0.02, -D), [0, 1, 0]);
-  }
-}
-
-const STYLES = {
-  main: { windows: true, doors: true },
-  ss: { windows: true, doors: true }, c12: { windows: true, doors: true }, e11: { windows: true, doors: true },
-  link: { windows: false, doors: false },
-  addition: { windows: true, doors: true, single: true }, annex: { windows: true, doors: true, single: true },
-  low7: { windows: true, doors: true, single: true }, low8: { windows: true, doors: true, single: true }, low7b: { windows: true, doors: false, single: true },
-  lowN: { windows: false, doors: true }, lowE: { windows: false, doors: true },
-  gymW: { windows: false, doors: true, clerestory: true }, gymE: { windows: false, doors: true },
-  fieldhouse: { windows: false, doors: true, clerestory: true }, fieldhouseW: { windows: false, doors: true },
-  southeast: { windows: false, doors: true },
-};
-
-function facade(B, ax, az, bx, bz, y0, h, styleName, uOff, rnd) {
-  const F = edgeFrame(ax, az, bx, bz); const L = F.L;
-  const style = STYLES[styleName] || STYLES.main;
-  const brick = B.v('brick');
-  const bandY = h - 1.0;               // limestone band
-  // top band + coping (all walls)
-  wallRect(B.v('limestone'), F, 0, L, bandY, h - 0.14, 0.03, [uOff * STONE_S, 0, (uOff + L) * STONE_S, 0.86 * STONE_S]);
-  quadFacing(B.v('limestone'), F.P(0, bandY, 0), F.P(L, bandY, 0), F.P(L, bandY, 0.03), F.P(0, bandY, 0.03), [0, -1, 0]);
-  wallRect(B.v('bronze'), F, -0.08, L + 0.08, h - 0.14, h + 0.02, 0.09);
-  quadFacing(B.v('bronze'), F.P(-0.08, h - 0.14, 0), F.P(L + 0.08, h - 0.14, 0), F.P(L + 0.08, h - 0.14, 0.09), F.P(-0.08, h - 0.14, 0.09), [0, -1, 0]);
-  if (y0 > 0.01 || L < 4.2 || (!style.windows && !style.doors && !style.clerestory)) { brickRect(brick, F, 0, L, y0, bandY, uOff); return; }
-
-  // rows of openings: [yBottom, yTop, list of [u0,u1,kind]]
-  const rows = [];
-  const m = 1.4, usable = L - 2 * m;
-  const nb = Math.floor(usable / 4.6);
-  if (style.windows && nb >= 1) {
-    const bay = usable / nb;
-    const doorBay = (style.doors && L > 30) ? (nb >> 1) : -1;
-    const r1 = [], r2 = [];
-    for (let i = 0; i < nb; i++) {
-      const c = m + (i + 0.5) * bay;
-      if (i === doorBay) r1.push([c - 1.0, c + 1.0, 'door', 0.0, 2.5]);
-      else if (rnd() > 0.06) r1.push([c - (bay - 1.5) / 2, c + (bay - 1.5) / 2, 'win']);
-      r2.push([c - (bay - 0.45) / 2, c + (bay - 0.45) / 2, 'win']);
-    }
-    rows.push([1.0, 3.15, r1]);
-    if (!style.single && bandY >= 7.6) rows.push([h * 0.5 + 0.3, h * 0.5 + 2.75, r2]);
-  } else if (style.doors && L > 16) {
-    const c = L * (0.3 + 0.4 * rnd());
-    rows.push([0.0, 2.5, [[c - 1.0, c + 1.0, 'door', 0.0, 2.5]]]);
-  }
-  if (style.clerestory && L > 18) {
-    const n2 = Math.floor((L - 4) / 6); const bay = (L - 4) / n2; const r = [];
-    for (let i = 0; i < n2; i++) { const c = 2 + (i + 0.5) * bay; r.push([c - 1.6, c + 1.6, 'win']); }
-    rows.push([bandY - 2.6, bandY - 0.7, r]);
-  }
-  rows.sort((a, b) => a[0] - b[0]);
-  // brick with holes, row by row
-  let y = y0;
-  for (const [ry0, ry1, list] of rows) {
-    // doors in a window row start at the ground: split so each opening is cut exactly
-    const lo = Math.min(ry0, ...list.map((o) => (o[3] !== undefined ? o[3] : ry0)));
-    if (lo > y) brickRect(brick, F, 0, L, y, lo, uOff);
-    let u = 0;
-    for (const o of list) {
-      const oy0 = o[3] !== undefined ? o[3] : ry0, oy1 = o[4] !== undefined ? o[4] : ry1;
-      brickRect(brick, F, u, o[0], lo, ry1, uOff);
-      if (oy0 > lo) brickRect(brick, F, o[0], o[1], lo, oy0, uOff);
-      if (oy1 < ry1) brickRect(brick, F, o[0], o[1], oy1, ry1, uOff);
-      opening(B, F, o[0], o[1], oy0, oy1, o[2]);
-      u = o[1];
-    }
-    brickRect(brick, F, u, L, lo, ry1, uOff);
-    y = ry1;
-  }
-  brickRect(brick, F, 0, L, y, bandY, uOff);
-}
+export { edgeFrame };
 
 function orientRing(pts, base, ccw) {
   const isCCW = signedArea(pts) > 0;
@@ -138,46 +16,91 @@ function orientRing(pts, base, ccw) {
   return { pts: rp, base: rb };
 }
 
+// edges whose bays are replaced by hand-built entrances (world-space boxes: minX, minZ, maxX, maxZ)
+const PLAIN_ZONES = [[-9, -21, -3, 28]];
+
+function parapetTop(B, F, L, h, roofY, alu) {
+  quadFacing(B.v(alu ? 'frameAlu' : 'frame'), F.P(-0.1, h + 0.03, 0.13), F.P(L + 0.1, h + 0.03, 0.13), F.P(L, h + 0.03, -0.32), F.P(0, h + 0.03, -0.32), [0, 1, 0]);
+  quadFacing(B.v('concrete'), F.P(0, roofY, -0.32), F.P(L, roofY, -0.32), F.P(L, h + 0.03, -0.32), F.P(0, h + 0.03, -0.32), [-F.nx, 0, -F.nz]);
+}
+
 export function buildSchool(ctx) {
-  const { B, gen, M } = ctx; const rnd = mulberry32(42);
+  const { B, gen } = ctx; const rnd = mulberry32(42);
+  B.v('brick', true);
   const rr = gen.roofs;
   const roofUV = (lean) => (x, z) => [(x + lean[0] - rr.minX) / (rr.maxX - rr.minX), 1 - (z + lean[1] - rr.minZ) / (rr.maxZ - rr.minZ)];
   ctx.schoolRings = [];
   for (const piece of gen.school) {
     const h = piece.h; const roofY = h - 0.4;
     const rings = [orientRing(piece.outer.pts, piece.outer.base, true), ...piece.holes.map((r) => orientRing(r.pts, r.base, false))];
+    const alu = ['ss', 'c12', 'addition', 'low7b', 'fieldhouse'].includes(piece.name);
+    let unitsLeft = Math.min(9, Math.floor(Math.abs(signedArea(rings[0].pts)) / 420));
     for (const ring of rings) {
       let uOff = 0; const n = ring.pts.length;
       for (let i = 0; i < n; i++) {
         const a = ring.pts[i], b = ring.pts[(i + 1) % n]; const base = ring.base[i];
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-        if (base < h - 0.5) facade(B, a[0], a[1], b[0], b[1], base > 0 ? Math.max(0, base - 0.4) : 0, h, piece.name, uOff, rnd);
-        // parapet cap + inner face (not between two wings of equal height)
-        if (base >= h - 0.5) { uOff += L; continue; }
+        if (base >= h - 0.5 || L < 0.05) { uOff += L; continue; }
         const F = edgeFrame(a[0], a[1], b[0], b[1]);
-        quadFacing(B.v('bronze'), F.P(-0.08, h + 0.02, 0.09), F.P(L + 0.08, h + 0.02, 0.09), F.P(L, h + 0.02, -0.3), F.P(0, h + 0.02, -0.3), [0, 1, 0]);
-        quadFacing(B.v('concrete'), F.P(0, roofY, -0.3), F.P(L, roofY, -0.3), F.P(L, h + 0.02, -0.3), F.P(0, h + 0.02, -0.3), [-F.nx, 0, -F.nz]);
+        const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+        const plain = PLAIN_ZONES.some(([x0, z0, x1, z1]) => mx > x0 && mx < x1 && mz > z0 && mz < z1);
+        facade(ctx, F, base > 0 ? Math.max(0, base - 0.4) : 0, h, plain ? 'link' : piece.name, uOff, rnd, { tintFrom: piece.name });
+        parapetTop(B, F, L, h, roofY, alu);
+        { const pc = F.P(L / 2, (roofY + h + 0.03) / 2, -0.16); B.c('concrete').box(pc[0], pc[1], pc[2], L, h + 0.03 - roofY, 0.32, F.rotY); }
+        // mechanical units set back from long exterior edges: visible above the parapet from the ground
+        if (base === 0 && L > 20 && unitsLeft > 0 && ring === rings[0]) {
+          for (let u = 8 + rnd() * 8; u < L - 6 && unitsLeft > 0; u += 16 + rnd() * 14) {
+            const p = F.P(u, 0, -(4.2 + rnd() * 2.5));
+            let ok = pointInRing(p[0], p[2], rings[0].pts); for (const hr of rings.slice(1)) if (pointInRing(p[0], p[2], hr.pts)) ok = false;
+            const q = F.P(u, 0, -9); if (!pointInRing(q[0], q[2], rings[0].pts)) ok = false;
+            if (ok) { roofUnit(ctx, p[0], roofY, p[2], F.rotY, rnd); unitsLeft--; }
+          }
+        }
         uOff += L;
       }
     }
     B.v('roofSat').poly(rings[0].pts, rings.slice(1).map((r) => r.pts), roofY, roofUV(piece.lean));
-    B.c('brick').prism(rings[0].pts, 0, h, 1, true);
+    // collision: walls to the roof deck, a walkable roof (with the courtyards cut out) and courtyard walls
+    const col = B.c('brick');
+    col.prism(rings[0].pts, 0, roofY, 1, false);
+    B.c('concrete').poly(rings[0].pts, rings.slice(1).map((r) => r.pts), roofY);
+    for (const hr of rings.slice(1)) for (let i = 0; i < hr.pts.length; i++) { const a = hr.pts[i], b = hr.pts[(i + 1) % hr.pts.length]; col.wall(a[0], a[1], b[0], b[1], 0, roofY); }
     ctx.schoolRings.push(rings[0].pts);
-    // rooftop mechanical units
-    const pts = rings[0].pts; let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
-    for (const p of pts) { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minZ = Math.min(minZ, p[1]); maxZ = Math.max(maxZ, p[1]); }
-    const area = Math.abs(signedArea(pts)); const units = Math.min(10, Math.floor(area / 900));
-    for (let k = 0, tries = 0; k < units && tries < 200; tries++) {
-      const x = minX + rnd() * (maxX - minX), z = minZ + rnd() * (maxZ - minZ);
-      let ok = pointInRing(x, z, pts) && pointInRing(x + 4, z + 4, pts) && pointInRing(x - 4, z - 4, pts) && pointInRing(x + 4, z - 4, pts) && pointInRing(x - 4, z + 4, pts);
-      for (const hr of rings.slice(1)) if (pointInRing(x, z, hr.pts) || pointInRing(x + 4, z + 4, hr.pts) || pointInRing(x - 4, z - 4, hr.pts)) ok = false;
-      if (!ok) continue;
-      const w = 1.6 + rnd() * 2.2, d = 1.4 + rnd() * 1.6, hh = 1.0 + rnd() * 0.9;
-      B.v('galv').box(x, roofY + hh / 2, z, w, hh, d, 0.02, 1);
-      k++;
-    }
+    roofFurniture(ctx, rings, roofY, rnd);
   }
+  B.v('brick', true).setColor(1, 1, 1);
   schoolFeatures(ctx);
+  B.v('brick', true).setColor(1, 1, 1);
+}
+
+// Things a player meets when standing on a roof: drains, vent stacks, skylights, hatches, stair penthouses.
+function roofFurniture(ctx, rings, roofY, rnd) {
+  const { B } = ctx; const pts = rings[0].pts;
+  let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
+  for (const p of pts) { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minZ = Math.min(minZ, p[1]); maxZ = Math.max(maxZ, p[1]); }
+  const area = Math.abs(signedArea(pts));
+  const inside = (x, z, r) => {
+    for (const [dx, dz] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]]) {
+      if (!pointInRing(x + dx, z + dz, pts)) return false;
+      for (const hr of rings.slice(1)) if (pointInRing(x + dx, z + dz, hr.pts)) return false;
+    }
+    return true;
+  };
+  const place = (n, r, fn) => { for (let k = 0, tries = 0; k < n && tries < n * 40; tries++) { const x = minX + rnd() * (maxX - minX), z = minZ + rnd() * (maxZ - minZ); if (!inside(x, z, r)) continue; fn(x, z); k++; } };
+  // roof drains with strainer domes
+  place(Math.min(14, Math.floor(area / 160)), 2.0, (x, z) => { B.v('blackMetal').cyl(x, roofY, z, 0.2, 0.12, 0.1, 8, 1, true); B.v('groundDecal').quad([x - 0.9, roofY + 0.02, z + 0.9], [x + 0.9, roofY + 0.02, z + 0.9], [x + 0.9, roofY + 0.02, z - 0.9], [x - 0.9, roofY + 0.02, z - 0.9], [0, 0.35], [1, 0.35], [1, 0.9], [0, 0.9]); });
+  // plumbing vents and gooseneck exhausts
+  place(Math.min(16, Math.floor(area / 120)), 1.2, (x, z) => { if (rnd() < 0.6) B.v('galv').cyl(x, roofY, z, 0.06, 0.06, 0.55, 6, 1, true); else { B.v('galv').cyl(x, roofY, z, 0.16, 0.16, 0.6, 8, 1, false).cyl(x, roofY + 0.6, z, 0.3, 0.26, 0.22, 10, 1, true); B.c('metal').box(x, roofY + 0.4, z, 0.5, 0.8, 0.5); } });
+  // skylights (translucent domes on curbs) and roof hatches
+  place(Math.min(6, Math.floor(area / 500)), 2.5, (x, z) => { const w = 1.3, d = 2.4, r = rnd() < 0.5 ? 0 : Math.PI / 2; B.v('galv').box(x, roofY + 0.2, z, w + 0.2, 0.4, d + 0.2, r); B.v('frost').box(x, roofY + 0.5, z, w, 0.22, d, r, 1.5); B.c('glass').box(x, roofY + 0.3, z, w + 0.2, 0.62, d + 0.2, r); });
+  // stair penthouse on the big wings: solid cover with a door
+  if (area > 1500) place(area > 4000 ? 2 : 1, 5.5, (x, z) => {
+    const r = rnd() < 0.5 ? 0 : Math.PI / 2; const w = 3.4, d = 5.2, hh = 2.9;
+    const br = B.v('brick', true); br.setColor(0.95, 0.9, 0.85); br.box(x, roofY + hh / 2, z, w, hh, d, r, 1 / 2.2); br.setColor(1, 1, 1);
+    B.v('frame').box(x, roofY + hh + 0.06, z, w + 0.3, 0.14, d + 0.3, r);
+    const c = Math.cos(r), sn = Math.sin(r); B.v('frame').box(x + (d / 2 + 0.02) * sn, roofY + 1.05, z + (d / 2 + 0.02) * c, 1.0, 2.1, 0.05, r);
+    B.c('brick').box(x, roofY + hh / 2, z, w, hh, d, r);
+  });
 }
 
 function emblemTexture() {
@@ -196,7 +119,8 @@ function emblemTexture() {
 
 function schoolFeatures(ctx) {
   const { B, M, scene } = ctx;
-  const decalMat = (tex) => new THREE.MeshStandardMaterial({ map: tex, transparent: false, alphaTest: 0.4, roughness: 0.6, metalness: 0.2, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const brick = B.v('brick', true);
+  const decalMat = (tex) => new THREE.MeshStandardMaterial({ map: tex, transparent: false, alphaTest: 0.4, roughness: 0.45, metalness: 0.5, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const addDecal = (tex, F, uC, yC, w, h, out = 0.03) => {
     const g = new THREE.BufferGeometry();
     const p = [F.P(uC - w / 2, yC - h / 2, out), F.P(uC - w / 2, yC + h / 2, out), F.P(uC + w / 2, yC + h / 2, out), F.P(uC + w / 2, yC - h / 2, out)];
@@ -206,54 +130,85 @@ function schoolFeatures(ctx) {
     g.computeVertexNormals();
     const m = new THREE.Mesh(g, decalMat(tex)); m.receiveShadow = true; m.name = 'decal'; scene.add(m);
   };
+  const brickFront = (F, u0, u1, y0, y1, tint = 1) => { if (u1 - u0 < 0.01 || y1 - y0 < 0.01) return; brick.setColor(tint, tint, tint); wallRect(brick, F, u0, u1, y0, y1, 0, [u0 * BRICK_S, y0 * BRICK_S, u1 * BRICK_S, y1 * BRICK_S]); };
 
   // --- school name on the north-west block facing 55th St (as on the real building)
   {
-    const F = edgeFrame(-11.17, -152.39, -1.25, -152.66);   // CCW order of the outer ring: west->east along the north face
-    const tex = M.textDecal(['HINSDALE', 'TOWNSHIP', 'HIGH SCHOOL', 'CENTRAL'], { w: 1024, h: 768, font: 150, color: '#eef0f1', spacing: '10px' });
-    addDecal(tex, F, F.L * 0.42, 6.2, 5.2, 3.9, 0.04);
+    const F = edgeFrame(-11.17, -152.39, -1.25, -152.66);
+    const tex = M.textDecal(['HINSDALE', 'TOWNSHIP', 'HIGH SCHOOL', 'CENTRAL'], { w: 1024, h: 768, font: 150, color: '#e9ecee', spacing: '10px' });
+    addDecal(tex, F, F.L * 0.5, 6.1, 5.2, 3.9, 0.16);
   }
-  // --- 55th St (north) entrance: brick pier with limestone portal, like the Wikimedia photos
+  // --- 55th St (north) entrances: projecting brick pavilion with a limestone portal and deep storefront doors
   {
-    const ax = 145.93, az = -151.5, bx = -1.1, bz = -147.37;      // north wall, runs east->west in CCW order
-    const F = edgeFrame(ax, az, bx, bz);
+    const F = edgeFrame(145.93, -151.5, -1.1, -147.37);      // north wall, CCW order (east -> west)
     for (const uC of [F.L * 0.36, F.L * 0.74]) {
-      const c = F.P(uC, 0, 0.35);
-      B.v('brick').box(c[0], 5.35, c[2], 6.4, 10.7, 0.7, F.rotY, BRICK_S);
-      B.c('brick').box(c[0], 5.35, c[2], 6.4, 10.7, 0.7, F.rotY);
-      const s = F.P(uC, 0, 0.75);
-      B.v('limestone').box(s[0], 2.6, s[2], 3.9, 5.2, 0.16, F.rotY, STONE_S);
-      const F2 = edgeFrame(...F.P(uC - 1.2, 0, 0.84).filter((_, i) => i !== 1), ...F.P(uC + 1.2, 0, 0.84).filter((_, i) => i !== 1));
-      wallRect(B.v('door'), F2, 0, 2.4, 0, 3.4, 0, [0, 0, 1, 1]);
-      // limestone steps/landing
-      const l = F.P(uC, 0, 2.2);
-      B.solidBox('limestone', 'concrete', l[0], 0.09, l[2], 5.0, 0.18, 2.8, F.rotY, STONE_S);
+      const W2 = 3.4, dep = 0.85, top = 11.0;
+      const pa = F.P(uC - W2, 0, dep), pb = F.P(uC + W2, 0, dep); const F2 = edgeFrame(pa[0], pa[2], pb[0], pb[2]);
+      brick.setColor(0.97, 0.95, 0.92);
+      fbox(brick, F, uC - W2, uC + W2, 0, top, 0, dep, BRICK_S, 0, 'st');
+      // front with the door opening cut out
+      brickFront(F2, 0, W2 - 1.1, 0.5, top, 0.97); brickFront(F2, W2 + 1.1, 2 * W2, 0.5, top, 0.97); brickFront(F2, W2 - 1.1, W2 + 1.1, 2.95, top, 0.97);
+      fbox(B.v('concrete'), F2, -0.05, W2 - 1.1, 0, 0.5, 0, 0.06, STONE_S, 0, 'fst'); fbox(B.v('concrete'), F2, W2 + 1.1, 2 * W2 + 0.05, 0, 0.5, 0, 0.06, STONE_S, 0, 'fst');
+      // limestone surround: jambs, lintel block with the name, coping
+      const ls = B.v('limestone');
+      fbox(ls, F2, W2 - 1.75, W2 - 1.1, 0, 4.3, 0, 0.14, STONE_S, 0, 'fst'); fbox(ls, F2, W2 + 1.1, W2 + 1.75, 0, 4.3, 0, 0.14, STONE_S, 0, 'fst');
+      fbox(ls, F2, W2 - 1.75, W2 + 1.75, 2.95, 4.3, 0, 0.14, STONE_S, 0, 'fstb');
+      fbox(ls, F2, -0.06, 2 * W2 + 0.06, top - 0.5, top, 0, 0.07, STONE_S, 0, 'fstb');
+      fbox(B.v('frame'), F2, -0.12, 2 * W2 + 0.12, top, top + 0.2, -dep, 0.14, 1, 0, 'fstb');
+      // fluted brick strips either side (vertical relief like the real entrance pier)
+      brick.setColor(0.9, 0.88, 0.85);
+      for (const du of [-2.55, -2.25, 2.25, 2.55]) fbox(brick, F2, W2 + du - 0.11, W2 + du + 0.11, 0.5, top - 0.5, 0, 0.07, BRICK_S, 0, 'fs');
+      brick.setColor(1, 1, 1);
+      // vertical window slot above the door, like the photo
+      const fakeSt = { frame: 'frame', top: 'stone', tint: [1, 1, 1] };
+      doorFromKit(ctx, F2, W2, fakeSt);
+      const tex = M.textDecal(['HINSDALE CENTRAL'], { w: 1024, h: 128, font: 88, color: '#2a2622', align: 'center', weight: 700, spacing: '8px' });
+      addDecal(tex, F2, W2, 3.62, 3.2, 0.42, 0.15);
+      B.c('brick').box(...F.P(uC, top / 2, dep / 2), 2 * W2, top, dep, F.rotY);
+      const l = F.P(uC, 0, 2.6); B.solidBox('limestone', 'concrete', l[0], 0.08, l[2], 5.4, 0.16, 3.4, F.rotY, STONE_S);
     }
-    // limestone planters with lamp posts flanking the walk (cover)
+    // limestone planters flanking the walks (cover)
     for (const uC of [F.L * 0.36 - 9, F.L * 0.36 + 9, F.L * 0.74 - 9, F.L * 0.74 + 9]) {
       const c = F.P(uC, 0, 5.5);
       B.solidBox('limestone', 'concrete', c[0], 0.5, c[2], 7.0, 1.0, 2.2, F.rotY, STONE_S);
-      ctx.shrubs.push([c[0], 1.0, c[2], 2.6, 1.0, F.rotY]);
+      ctx.shrubs.push([c[0], 1.0, c[2], 5.6, 1.0, F.rotY]);
     }
   }
-  // --- Grant St plaza entrance (west side of the gym block): white canopy on round columns + curtain wall
+  // --- Grant St plaza entrance (west side of the gym block): white canopy on round columns, two-storey curtain wall
   {
     const wx = -6.1;                         // wall plane (x), faces west
-    B.v('curtainGlass').quad([wx - 0.06, 0.5, 3], [wx - 0.06, 6.4, 3], [wx - 0.06, 6.4, -15], [wx - 0.06, 0.5, -15]);
-    const br = B.v('bronze');
-    for (let z = -15; z <= 3.01; z += 2.25) br.box(wx - 0.1, 3.45, z, 0.1, 5.9, 0.09);
-    for (let y = 0.5; y <= 6.41; y += 1.475) br.box(wx - 0.1, y, -6, 0.1, 0.09, 18);
+    // curtain wall: interior-mapped glass behind an aluminium grid, set in a metal-framed recess
+    const g = B.v('glassInt');
+    g.quad([wx - 0.07, 0.45, 3], [wx - 0.07, 6.5, 3], [wx - 0.07, 6.5, -15], [wx - 0.07, 0.45, -15], [4 + 900, 0], [4 + 900, 1], [900, 1], [900, 0]);
+    const br = B.v('frameAlu');
+    for (let z = -15; z <= 3.01; z += 1.5) br.box(wx - 0.13, 3.47, z, 0.14, 6.1, 0.07);
+    for (const y of [0.45, 1.5, 3.3, 3.75, 5.2, 6.5]) br.box(wx - 0.13, y, -6, 0.14, 0.08, 18.1);
+    B.v('panelGray').box(wx - 0.1, 3.52, -6, 0.06, 0.4, 18);
+    B.v('concrete').box(wx - 0.12, 0.22, -6, 0.3, 0.45, 18.3, 0, STONE_S);
+    // main canopy: thick white metal-panel slab with a darker soffit edge and round columns
     B.v('whitePanel').box(-11.6, 7.35, -4.5, 11.0, 0.95, 25);
+    B.v('panelGray').box(-11.6, 6.86, -4.5, 10.7, 0.04, 24.7);
+    for (let z = -16.5; z <= 7.6; z += 2.4) B.v('panelGray').box(-17.11, 7.35, z, 0.012, 0.95, 0.02);
     B.c('metal').box(-11.6, 7.35, -4.5, 11.0, 0.95, 25);
-    for (const z of [-15.5, -9.5, -3.5, 2.5]) { B.v('whitePanel').cyl(-16.0, 0, z, 0.2, 0.2, 6.9, 14, 1, false); B.c('metal').box(-16.0, 3.45, z, 0.42, 6.9, 0.42); }
-    B.v('whitePanel').box(-9.3, 3.75, 12.0, 6.4, 0.75, 14.5);
-    B.c('metal').box(-9.3, 3.75, 12.0, 6.4, 0.75, 14.5);
-    for (const z of [5.6, 18.4]) { B.v('whitePanel').cyl(-11.9, 0, z, 0.2, 0.2, 3.4, 14, 1, false); B.c('metal').box(-11.9, 1.7, z, 0.42, 3.4, 0.42); }
-    const Fw = edgeFrame(wx, 19, wx, 5);     // walking north along the wall, outward = west
-    for (const u of [1.2, 4.6, 8.0]) wallRect(B.v('door'), Fw, u, u + 2.6, 0, 2.7, 0.05, [0, 0, 1, 1]);
-    wallRect(B.v('curtainGlass'), Fw, 0.6, 11.4, 2.75, 3.3, 0.05);
-    addDecal(emblemTexture(), edgeFrame(wx, 4.6, wx, 1.6), 1.5, 3.4, 2.6, 2.6, 0.06);
-    // plaza: low concrete seat walls / planters (cover) and paving
+    for (const z of [-15.5, -9.5, -3.5, 2.5]) { B.v('whitePanel').cyl(-16.0, 0.3, z, 0.2, 0.2, 6.6, 18, 1, false); B.v('concrete').cyl(-16.0, 0, z, 0.32, 0.3, 0.3, 14, 1, true); B.c('metal').box(-16.0, 3.45, z, 0.42, 6.9, 0.42); }
+    // lower entry canopy + storefront vestibule with three sets of doors
+    B.v('whitePanel').box(-9.3, 3.85, 12.0, 6.4, 0.7, 14.5);
+    B.v('panelGray').box(-9.3, 3.49, 12.0, 6.1, 0.03, 14.2);
+    B.c('metal').box(-9.3, 3.85, 12.0, 6.4, 0.7, 14.5);
+    for (const z of [5.6, 18.4]) { B.v('whitePanel').cyl(-11.9, 0.3, z, 0.2, 0.2, 3.2, 18, 1, false); B.v('concrete').cyl(-11.9, 0, z, 0.32, 0.3, 0.3, 14, 1, true); B.c('metal').box(-11.9, 1.7, z, 0.42, 3.4, 0.42); }
+    const dep = 0.5; const Fv = edgeFrame(wx - dep, 18.2, wx - dep, 5.6);     // vestibule front, outward = west
+    const Fw = edgeFrame(wx, 18.2, wx, 5.6);
+    fbox(B.v('frameAlu'), Fw, 0, Fv.L, 0, 3.3, 0, dep, 1, 0, 'st');
+    const fakeSt = { frame: 'frameAlu', top: 'none', tint: [1, 1, 1] };
+    for (const uc of [2.1, 6.3, 10.5]) doorFromKit(ctx, Fv, uc, fakeSt, true);
+    for (const [a, b2] of [[0, 0.25], [3.95, 4.45], [8.15, 8.65], [12.35, 12.6]]) fbox(B.v('frameAlu'), Fv, a, b2, 0, 3.3, -0.05, 0, 1, 0, 'f');
+    wallRect(B.v('frameAlu'), Fv, 0, Fv.L, 2.95, 3.3, 0);
+    B.c('glass').box(wx - dep / 2, 1.65, 11.9, dep, 3.3, 12.6);
+    addDecal(emblemTexture(), edgeFrame(wx, 4.9, wx, 1.3), 1.8, 4.9, 2.6, 2.6, 0.2);
+    // lettering on the canopy fascia
+    const tex = M.textDecal(['HINSDALE CENTRAL'], { w: 2048, h: 160, font: 120, color: '#34383c', align: 'center', weight: 700, spacing: '14px' });
+    addDecal(tex, edgeFrame(-17.1, 4, -17.1, -13), 8.5, 7.35, 11, 0.62, 0.02);
+    // plaza: low concrete seat walls / planters (cover)
     for (const [x, z, w, d] of [[-20.5, -12, 1.2, 9], [-20.5, 2, 1.2, 9], [-24.5, 14, 6, 1.2], [-15, 22.5, 7, 1.2]]) {
       B.solidBox('concrete', 'concrete', x, 0.45, z, w, 0.9, d, 0, 1 / 3);
       ctx.shrubs.push([x, 0.9, z, Math.max(w, d) * 0.8, 0.8, w > d ? 0 : Math.PI / 2]);
@@ -309,72 +264,47 @@ const SPECIAL = {
   1443736359: { type: 'pump', h: 5.5 },
 };
 
+// Only school-owned outbuildings remain; the surrounding houses are intentionally not built (see gen.py: the
+// neighbourhood is repainted as wooded lawn).
 export function buildHouses(ctx) {
-  const { B, data, gen } = ctx; const pb = ctx.playBounds;
+  const { B, data, gen } = ctx; const rnd = mulberry32(7);
   const rr = gen.roofs;
   const roofUV = (lean) => (x, z) => [(x + lean[0] - rr.minX) / (rr.maxX - rr.minX), 1 - (z + lean[1] - rr.minZ) / (rr.maxZ - rr.minZ)];
   ctx.buildingRings = ctx.buildingRings || [];
   for (const b of data.buildings) {
-    if (b.id === SCHOOL_ID) continue;
+    const sp = SPECIAL[b.id]; if (!sp) continue;
     const ring = ensureCCW(b.outer[0]); if (ring.length < 3) continue;
-    const rnd = mulberry32(b.id);
-    let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
-    const near = cx > pb.minX - 90 && cx < pb.maxX + 90 && cz > pb.minZ - 90 && cz < pb.maxZ + 90;
-    const sp = SPECIAL[b.id];
     ctx.buildingRings.push(ring);
-    if (sp && (sp.type === 'flat' || sp.type === 'pump')) {
-      const h = sp.h;
-      let u = 0;
+    if (sp.type === 'flat' || sp.type === 'pump') {
+      const h = sp.h; let u = 0;
       for (let i = 0; i < ring.length; i++) {
-        const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]);
+        const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 0.05) continue;
         const F = edgeFrame(a[0], a[1], c[0], c[1]);
-        brickRect(B.v('brick'), F, 0, L, 0, h - 0.3, u);
-        wallRect(B.v('bronze'), F, -0.05, L + 0.05, h - 0.3, h, 0.06);
-        if (L > 9) { const uc = L * 0.5; wallRect(B.v('door'), F, uc - 1.1, uc + 1.1, 0, 2.5, 0.03, [0, 0, 1, 1]); }
+        facade(ctx, F, 0, h, 'service', u, rnd);
+        parapetTop(B, F, L, h, h - 0.4, false);
+        { const pc = F.P(L / 2, h - 0.185, -0.16); B.c('concrete').box(pc[0], pc[1], pc[2], L, 0.43, 0.32, F.rotY); }
         u += L;
       }
-      B.v('roofSat').poly(ring, null, h - 0.02, roofUV([gen.lean[0] * h, gen.lean[1] * h]));
-      B.c('brick').prism(ring, 0, h, 1, true);
+      B.v('roofSat').poly(ring, null, h - 0.4, roofUV([gen.lean[0] * h, gen.lean[1] * h]));
+      B.c('brick').prism(ring, 0, h - 0.4, 1, true);
       continue;
     }
-    if (sp && sp.type === 'concession') {
-      // brick concession/ticket building south of the track with a red hipped roof
-      const h = 3.3; let u = 0;
-      for (let i = 0; i < ring.length; i++) {
-        const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]);
-        const F = edgeFrame(a[0], a[1], c[0], c[1]);
-        wallRect(B.v('house0'), F, 0, L, 0, h, 0, [0.02, 0.04, 0.2, 0.9]);
-        if (L > 9) for (let k = 0; k < Math.floor(L / 5); k++) { const uc = 2.5 + k * 5; wallRect(B.v('bronze'), F, uc - 1.4, uc + 1.4, 1.0, 2.4, 0.03); }
-        u += L;
-      }
-      B.v('shingles', true).setColor(3.4, 0.5, 0.36); hipRoof(B.v('shingles', true), ring, h, 0.55, 0.8, 1 / 3);
-      B.c('brick').prism(ring, 0, h + 1.2, 1, true);
-      continue;
-    }
-    // ---- generic house / garage
-    const garage = b.tags.building === 'garage' || Math.abs(signedArea(ring)) < 45;
-    const stories = garage ? 1 : (rnd() < 0.72 ? 2 : 1);
-    const h = garage ? 2.7 : stories * 2.9 + 0.2;
-    const kind = Math.floor(rnd() * HOUSE_KINDS.length);
-    const wb = B.v('house' + kind);
+    // concession / ticket building south of the track: white siding, red hipped roof, service counters
+    const h = 3.3; let u = 0;
     for (let i = 0; i < ring.length; i++) {
-      const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 0.05) continue;
-      const reps = Math.max(1, Math.round(L / 4));
-      // short jogs get a windowless slice of the texture
-      const u0 = L < 2.4 ? 0.02 : 0, u1 = L < 2.4 ? 0.2 : reps;
-      wb.quad([a[0], 0, a[1]], [a[0], h, a[1]], [c[0], h, c[1]], [c[0], 0, c[1]], [u0, 0.04], [u0, garage ? 0.2 : stories], [u1, garage ? 0.2 : stories], [u1, 0.04]);
+      const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]);
+      const F = edgeFrame(a[0], a[1], c[0], c[1]);
+      wallRect(B.v('house0'), F, 0, L, 0.5, h, 0, [0.02, 0.04, 0.2, 0.9]);
+      fbox(B.v('brickRed'), F, 0, L, 0, 0.5, 0, 0.05, 0.5, u, 'fst');
+      if (L > 9) for (let k = 0; k < Math.floor(L / 5); k++) {
+        const uc = 2.5 + k * 5;
+        fbox(B.v('frame'), F, uc - 1.45, uc + 1.45, 0.98, 2.42, 0, 0.05, 1, 0, 'fstb'); wallRect(B.v('louver'), F, uc - 1.38, uc + 1.38, 1.05, 2.35, 0.055, [0, 0, 1, 6]);
+        fbox(B.v('aluminum'), F, uc - 1.5, uc + 1.5, 0.93, 0.98, 0, 0.35, 1, 0, 'fstb');
+      }
+      B.v('groundDecal').quad(F.P(0, 0.025, 0.02), F.P(L, 0.025, 0.02), F.P(L, 0.025, 1.3), F.P(0, 0.025, 1.3), [0, 0], [1, 0], [1, 1], [0, 1]);
+      u += L;
     }
-    const sc = gen.houses[String(b.id)] || [80, 80, 80];
-    const lum = (sc[0] + sc[1] + sc[2]) / 3;
-    const k = THREE.MathUtils.clamp(lum / 78, 0.65, 2.3);
-    const sh = B.v('shingles', true);
-    sh.setColor(k * (0.9 + sc[0] / (lum + 1) * 0.12), k, k * (0.9 + sc[2] / (lum + 1) * 0.1));
-    const rise = hipRoof(sh, ring, h, 0.5 + rnd() * 0.25, 0.45, 1 / 3);
-    if (!garage && rnd() < 0.45) {
-      const o = ring[Math.floor(rnd() * ring.length)];
-      const px = cx + (o[0] - cx) * 0.4, pz = cz + (o[1] - cz) * 0.4;
-      B.v('brickRed').box(px, h + rise * 0.5 + 0.6, pz, 0.8, rise + 1.6, 0.8, 0, BRICK_S);
-    }
-    if (near) B.c('wood').prism(ring, 0, h + rise * 0.5, 1, true);
+    B.v('shingles', true).setColor(3.4, 0.5, 0.36); hipRoof(B.v('shingles', true), ring, h, 0.55, 0.8, 1 / 3);
+    B.c('brick').prism(ring, 0, h + 1.2, 1, true);
   }
 }

@@ -8,7 +8,9 @@ import { createAudio } from './game/audio.js';
 import { Input } from './game/input.js';
 import { Game } from './game/game.js';
 import { createHitscan } from './game/hitscan.js';
-import { planPractice } from './game/practice.js';
+import { planPractice, planCtfPractice } from './game/practice.js';
+import { TEAM_NAMES, TEAM_CSS } from './game/ctf.js';
+import { IS_MAC } from './game/settings.js';
 import { createPracticeSession, createHostSession, createClientSession } from './net/session.js';
 import { normalizeCode } from './net/peer.js';
 import { createHud } from './ui/hud.js';
@@ -71,7 +73,7 @@ async function getWorld(onProgress) {
 }
 
 // ---------- game lifecycle ----------
-async function start(mode, code = null) {
+async function start(mode, code = null, gameMode = 'ffa') {
   if (starting || game) return;
   starting = true;
   audio.ensure();
@@ -89,10 +91,10 @@ async function start(mode, code = null) {
     const wc = await getWorld((f, label) => menus.setProgress(0.08 + f * 0.82, label));
     if (mode === 'practice') {
       menus.setProgress(0.95, 'Setting up targets');
-      const plan = planPractice(wc.world, createHitscan(wc.world));
-      session = createPracticeSession({ world: wc.world, name: settings.name, dummies: plan.dummies, spawn: plan.spawn });
+      const plan = gameMode === 'ctf' ? planCtfPractice(wc.world) : planPractice(wc.world, createHitscan(wc.world));
+      session = createPracticeSession({ world: wc.world, name: settings.name, dummies: plan.dummies, spawn: plan.spawn, mode: gameMode });
     } else if (mode === 'host') {
-      session = await createHostSession({ world: wc.world, name: settings.name, onStatus: (s) => menus.setProgress(0.93, s) });
+      session = await createHostSession({ world: wc.world, name: settings.name, mode: gameMode, onStatus: (s) => menus.setProgress(0.93, s) });
     }
     menus.setProgress(1, 'Ready');
     game = new Game({
@@ -100,6 +102,7 @@ async function start(mode, code = null) {
       hud, minimap, audio, input, ui: gameUi(session),
     });
     game.resize(camera.aspect);
+    game.ui.refreshTeam();
     session.onDisconnect = (reason) => leave(reason);
     if (session.roomCode) history.replaceState(null, '', `${location.pathname}?join=${session.roomCode}${debugSuffix()}`);
     menus.hideLoading();
@@ -123,8 +126,32 @@ function debugSuffix() {
   return keep.join('');
 }
 
+/**
+ * Pointer lock for play. With Ctrl as the sprint key on Windows/Linux, also go fullscreen and lock the keyboard
+ * (Chrome/Edge) so Ctrl+W / Ctrl+T / Ctrl+N cannot close or replace the tab mid-sprint.
+ */
+function enterPlay() {
+  if (settings.sprintKey === 'ctrl' && !IS_MAC && !debug && document.documentElement.requestFullscreen && navigator.keyboard?.lock) {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen({ navigationUI: 'hide' })
+        .then(() => navigator.keyboard.lock(['KeyW', 'KeyT', 'KeyN', 'KeyQ', 'Tab']).catch(() => {}))
+        .catch(() => {})
+        .finally(() => input.requestLock());
+      return;
+    }
+    navigator.keyboard.lock(['KeyW', 'KeyT', 'KeyN', 'KeyQ', 'Tab']).catch(() => {});
+  }
+  input.requestLock();
+}
+
+function exitPlay() {
+  try { navigator.keyboard?.unlock?.(); } catch { /* ignore */ }
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+
 function leave(reason = null) {
   if (!game) return;
+  exitPlay();
   game.dispose();
   game = null;
   input.enabled = false;
@@ -148,20 +175,25 @@ function gameUi(session) {
       if (!input.locked && !debug && menus.deployMode === null) menus.showPause(session.roomCode);
     },
     toast: (t) => menus.toast(t),
+    refreshTeam: () => {
+      const team = game?.isCtf ? game.myTeam : null;
+      menus.setTeam(team ? { team, name: TEAM_NAMES[team], css: TEAM_CSS[team] } : null);
+    },
   };
 }
 
 // ---------- menu wiring ----------
-menus.on('practice', () => start('practice'));
-menus.on('host', () => start('host'));
+menus.on('practice', (m) => start('practice', null, m));
+menus.on('host', (m) => start('host', null, m));
+menus.on('switchTeam', () => game?.switchTeam());
 menus.on('join', (code) => start('join', normalizeCode(code)));
 menus.on('deploy', () => {
   if (!game) return;
-  input.requestLock();
+  enterPlay();
   game.deploy();
 });
 menus.on('selectPrimary', (id) => { game?.selectPrimary(id); if (!game) { settings.primary = id; menus.setLoadout(id); } saveSettings(settings); });
-menus.on('resume', () => { menus.hidePause(); input.enabled = true; input.requestLock(); });
+menus.on('resume', () => { menus.hidePause(); input.enabled = true; enterPlay(); });
 menus.on('leave', () => leave());
 menus.on('loadout', () => {
   menus.hidePause();
@@ -171,7 +203,7 @@ menus.on('loadout', () => {
 menus.on('loadoutDone', () => {
   menus.hideDeploy();
   if (game && !game.alive && game.deployed && game.deathInfo) game.ui.showDeploy({ ...game.deathInfo, selected: game.selectedPrimary });
-  input.requestLock();
+  enterPlay();
 });
 menus.on('restart', () => game?.restartMatch());
 menus.on('settingsClosed', () => saveSettings(settings));
@@ -192,7 +224,7 @@ input.onLockChange = (locked) => {
   }
 };
 renderer.domElement.addEventListener('click', () => {
-  if (game && game.deployed && !menus.pauseOpen && !menus.endOpen && menus.deployMode !== 'loadout') input.requestLock();
+  if (game && game.deployed && !menus.pauseOpen && !menus.endOpen && menus.deployMode !== 'loadout') enterPlay();
 });
 
 // Invite link: ?join=CODE
@@ -253,6 +285,7 @@ window.__game = {
   tap(code, ms = 60) { input.simKey(code, true); setTimeout(() => input.simKey(code, false), ms); },
 };
 
-if (autostart === 'practice') start('practice');
-else if (autostart === 'host') start('host');
+const autoMode = params.get('mode') === 'ctf' ? 'ctf' : 'ffa';
+if (autostart === 'practice') start('practice', null, autoMode);
+else if (autostart === 'host') start('host', null, autoMode);
 else if (autostart === 'join' && joinParam.length === 6) start('join', joinParam);

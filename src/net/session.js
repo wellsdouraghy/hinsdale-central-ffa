@@ -20,32 +20,32 @@ class LocalQueue {
 }
 
 /** Practice: local authority with static bot dummies. */
-export function createPracticeSession({ world, name, dummies, spawn }) {
+export function createPracticeSession({ world, name, dummies, spawn, mode = 'ffa' }) {
   const queue = new LocalQueue();
   const localId = 1;
   const authority = new Authority({
-    world, practice: true, practiceSpawn: spawn,
+    world, mode, practice: true, practiceSpawn: spawn,
     out: (msg, to = null, except = null) => {
       if (msg.t === 'ping' || msg.t === 'sts') return;
       if ((to === null || to === localId) && except !== localId) queue.push(msg);
     },
   });
-  authority.addPlayer(localId, name);
+  authority.addPlayer(localId, name, { team: mode === 'ctf' ? 'red' : null });
   const welcome = authority.welcomeFor(localId);
-  dummies.forEach((d, i) => authority.addPlayer(100 + i, `Dummy ${i + 1}`, { bot: true, pos: d.pos, yaw: d.yaw }));
+  dummies.forEach((d, i) => authority.addPlayer(100 + i, `Dummy ${i + 1}`, { bot: true, pos: d.pos, yaw: d.yaw, team: mode === 'ctf' ? 'blue' : null }));
   return {
     mode: 'practice', isHost: true, localId, roomCode: null, authority, welcome,
     set onMessage(fn) { queue.onMessage = fn; },
     onDisconnect: null,
     send(msg) { authority.handle(localId, msg); },
-    sendState() {},
+    sendState(msg) { authority.handle(localId, msg); }, // keeps the authority's idea of our position current (flags, spawns)
     tick(dt) { authority.update(dt); queue.flush(); },
     close() {},
   };
 }
 
 /** Host: opens a PeerJS peer with a room code and accepts up to MATCH.maxPlayers. */
-export async function createHostSession({ world, name, onStatus }) {
+export async function createHostSession({ world, name, onStatus, mode = 'ffa' }) {
   const queue = new LocalQueue();
   const localId = 1;
   let nextId = 2;
@@ -70,7 +70,7 @@ export async function createHostSession({ world, name, onStatus }) {
       } else send(c.ev, msg);
     }
   };
-  const authority = new Authority({ world, out });
+  const authority = new Authority({ world, mode, out });
   authority.addPlayer(localId, name);
 
   const { peer, code } = await openPeer(onStatus);

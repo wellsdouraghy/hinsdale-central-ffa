@@ -1,6 +1,13 @@
 // Persisted user settings (localStorage) and Google 3D Tiles key resolution.
 const KEY = 'hcffa.settings.v1';
 
+export const IS_MAC = (() => {
+  try {
+    const p = navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || '';
+    return /mac/i.test(p);
+  } catch { return false; }
+})();
+
 export const DEFAULT_SETTINGS = Object.freeze({
   name: '',
   sensitivity: 1.0,        // multiplier on base mouse speed
@@ -11,6 +18,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   googleTilesKey: '',
   mapStyle: 'built',       // 'scan' = Google photorealistic 3D tiles (if a key is available), 'built' = built-in campus model
   primary: 'ar',           // last chosen primary weapon
+  sprintKey: IS_MAC ? 'ctrl' : 'shift', // 'ctrl' | 'shift'
+  mode: 'ffa',             // last chosen game mode for Host / Practice: 'ffa' | 'ctf'
 });
 
 function storage() {
@@ -32,6 +41,8 @@ export function loadSettings() {
   if (typeof s.name !== 'string') s.name = '';
   if (typeof s.googleTilesKey !== 'string') s.googleTilesKey = '';
   if (!['scan', 'built'].includes(s.mapStyle)) s.mapStyle = 'built';
+  if (!['ctrl', 'shift'].includes(s.sprintKey)) s.sprintKey = DEFAULT_SETTINGS.sprintKey;
+  if (!['ffa', 'ctf'].includes(s.mode)) s.mode = 'ffa';
   return s;
 }
 

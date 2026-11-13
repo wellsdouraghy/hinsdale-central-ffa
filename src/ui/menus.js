@@ -1,6 +1,7 @@
 // Title, loading, settings, pause, deploy/death, end-of-match screens and toasts (DOM only, no game logic).
 import { renderLoadout, highlightLoadout } from './loadout.js';
 import { ordinal } from './hud.js';
+import { IS_MAC } from '../game/settings.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -14,6 +15,9 @@ const TIPS = [
   'The sniper is only accurate when fully scoped in.',
   'Shotgun reloads shell by shell: fire any time to interrupt.',
   'Respawns place you as far from enemies as possible.',
+  'Grapple (F) onto roofs, then press Space mid-reel to fling yourself.',
+  'Double jump and jump into ledges to climb onto dugouts, bleachers and low roofs.',
+  'Dash (E) works in the air too: chain it with a grapple fling.',
 ];
 
 function esc(s) {
@@ -31,6 +35,9 @@ export function createMenus({ settings, onSettingsChange }) {
     roomBox: $('room-box'), roomCode: $('room-code'),
     endWinner: $('end-winner'), endBody: $('end-body'), restart: $('btn-restart'), endWait: $('end-wait'),
     toast: $('toast'), attribution: $('attribution'),
+    setup: $('setup'), setupKicker: $('setup-kicker'), setupTitle: $('setup-title'),
+    teamRow: $('team-row'), teamName: $('team-name'), pauseTeam: $('btn-pause-team'),
+    endHead: $('end-headrow'), sprintWarn: $('sprint-warn'),
   };
   const handlers = {};
   let toastTimer = 0;
@@ -43,8 +50,25 @@ export function createMenus({ settings, onSettingsChange }) {
   // ---------- title ----------
   el.name.value = settings.name || '';
   el.name.addEventListener('input', () => { settings.name = el.name.value; onSettingsChange(); });
-  $('btn-host').addEventListener('click', () => handlers.host?.());
-  $('btn-practice').addEventListener('click', () => handlers.practice?.());
+  // Host / Practice go through a mode-selection step.
+  let setupKind = 'host';
+  const modeCards = [...document.querySelectorAll('.mode-card')];
+  const syncModes = () => modeCards.forEach((c) => c.classList.toggle('on', c.dataset.mode === settings.mode));
+  modeCards.forEach((c) => c.addEventListener('click', () => { settings.mode = c.dataset.mode; syncModes(); onSettingsChange('mode'); }));
+  const openSetup = (kind) => {
+    setupKind = kind;
+    el.setupKicker.textContent = kind === 'host' ? 'Host game' : 'Practice';
+    el.setupTitle.textContent = kind === 'host' ? 'Choose a mode' : 'Choose a practice mode';
+    syncModes();
+    el.setup.classList.remove('hidden');
+  };
+  $('btn-host').addEventListener('click', () => openSetup('host'));
+  $('btn-practice').addEventListener('click', () => openSetup('practice'));
+  $('btn-setup-back').addEventListener('click', () => el.setup.classList.add('hidden'));
+  $('btn-setup-go').addEventListener('click', () => {
+    el.setup.classList.add('hidden');
+    handlers[setupKind]?.(settings.mode);
+  });
   $('btn-join').addEventListener('click', () => {
     el.joinBox.classList.toggle('open');
     if (el.joinBox.classList.contains('open')) el.code.focus();
@@ -86,6 +110,37 @@ export function createMenus({ settings, onSettingsChange }) {
   const syncMap = () => mapBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.mapStyle));
   mapBtns.forEach((b) => b.addEventListener('click', () => { settings.mapStyle = b.dataset.v; syncMap(); onSettingsChange('mapStyle'); }));
   syncMap();
+  const sprintBtns = [...document.querySelectorAll('#s-sprint button')];
+  const syncSprint = () => {
+    sprintBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.sprintKey));
+    el.sprintWarn.classList.toggle('hidden', !(settings.sprintKey === 'ctrl' && !IS_MAC));
+    renderControls();
+  };
+  sprintBtns.forEach((b) => b.addEventListener('click', () => { settings.sprintKey = b.dataset.v; syncSprint(); onSettingsChange('sprintKey'); }));
+
+  function renderControls() {
+    const sprint = settings.sprintKey === 'ctrl' ? 'Ctrl' : 'Shift';
+    const rows = [
+      ['<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>', 'Move'],
+      [`<kbd>${sprint}</kbd>`, 'Sprint (hold)'],
+      ['<kbd>Space</kbd>', 'Jump · again in air: boost'],
+      ['<kbd>F</kbd>', 'Grapple (Space: fling)'],
+      ['<kbd>E</kbd>', 'Boost dash'],
+      ['<kbd>C</kbd>', 'Crouch / slide'],
+      ['<kbd>Click</kbd>', 'Fire'],
+      ['<kbd>Right-click</kbd>', 'Aim (hold)'],
+      ['<kbd>Ctrl</kbd>+<kbd>Click</kbd>', 'Aim (toggle)'],
+      ['<kbd>Q</kbd>', 'Aim (toggle)'],
+      ['<kbd>R</kbd>', 'Reload'],
+      ['<kbd>1</kbd><kbd>2</kbd>', 'Switch / wheel'],
+      ['<kbd>V</kbd>', 'Melee'],
+      ['<kbd>Tab</kbd>', 'Scoreboard'],
+      ['<kbd>Esc</kbd>', 'Menu'],
+    ];
+    const html = rows.map(([k, l]) => `<div>${k}<span>${l}</span></div>`).join('');
+    document.querySelectorAll('.controls-list').forEach((c) => { c.innerHTML = html; });
+  }
+  syncSprint();
 
   const gkey = $('s-gkey');
   gkey.value = settings.googleTilesKey || '';
@@ -107,6 +162,8 @@ export function createMenus({ settings, onSettingsChange }) {
   $('btn-leave').addEventListener('click', () => handlers.leave?.());
   $('btn-loadout').addEventListener('click', () => handlers.loadout?.());
   $('btn-copy').addEventListener('click', () => handlers.copyInvite?.());
+  el.pauseTeam.addEventListener('click', () => handlers.switchTeam?.());
+  $('btn-team').addEventListener('click', () => handlers.switchTeam?.());
 
   // ---------- deploy ----------
   el.deployBtn.addEventListener('click', () => {
@@ -121,6 +178,7 @@ export function createMenus({ settings, onSettingsChange }) {
 
   addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !el.settings.classList.contains('hidden')) closeSettings();
+    else if (e.key === 'Escape' && !el.setup.classList.contains('hidden')) el.setup.classList.add('hidden');
   });
 
   return {
@@ -135,7 +193,7 @@ export function createMenus({ settings, onSettingsChange }) {
 
     showTitle() {
       el.title.classList.remove('hidden');
-      for (const k of ['loading', 'deploy', 'pause', 'end', 'settings']) el[k].classList.add('hidden');
+      for (const k of ['loading', 'deploy', 'pause', 'end', 'settings', 'setup']) el[k].classList.add('hidden');
     },
     hideTitle() { el.title.classList.add('hidden'); },
 
@@ -189,10 +247,27 @@ export function createMenus({ settings, onSettingsChange }) {
     get settingsOpen() { return !el.settings.classList.contains('hidden'); },
     get endOpen() { return !el.end.classList.contains('hidden'); },
 
-    showEnd({ standings, winner, winnerIsMe, isHost }) {
+    /** Team info for CTF ({ team, name, css } or null for FFA): shown on the deploy screen and the Esc menu. */
+    setTeam(info) {
+      el.teamRow.classList.toggle('hidden', !info);
+      el.pauseTeam.classList.toggle('hidden', !info);
+      if (info) {
+        el.teamName.textContent = info.name;
+        el.teamName.className = info.team;
+      }
+    },
+
+    showEnd({ standings, winner, winnerIsMe, isHost, ctf, score, headline, teamNames }) {
       el.end.classList.remove('hidden');
-      el.endWinner.textContent = winnerIsMe ? 'Victory' : winner ? `${winner} wins` : 'Match over';
-      el.endBody.innerHTML = standings.map((s, i) => `<tr class="${s.me ? 'me' : ''}"><td>${ordinal(i + 1)}</td><td class="name"><span class="swatch" style="background:${s.color}"></span>${esc(s.name)}</td><td>${s.k}</td><td>${s.d}</td></tr>`).join('');
+      if (ctf) {
+        el.endWinner.innerHTML = `${esc(headline)} &middot; ${winner ? esc(winner) + ' win' : 'Draw'} <span style="font-family:var(--mono)">${score.red}-${score.blue}</span>`;
+        el.endHead.innerHTML = '<th>#</th><th class="name">Player</th><th>Team</th><th>Caps</th><th>Ret</th><th>Kills</th><th>Deaths</th>';
+        el.endBody.innerHTML = standings.map((s, i) => `<tr class="${s.me ? 'me' : ''}"><td>${ordinal(i + 1)}</td><td class="name"><span class="swatch" style="background:${s.color}"></span>${esc(s.name)}</td><td>${esc(teamNames?.[s.team] ?? '')}</td><td>${s.caps ?? 0}</td><td>${s.ret ?? 0}</td><td>${s.k}</td><td>${s.d}</td></tr>`).join('');
+      } else {
+        el.endWinner.textContent = winnerIsMe ? 'Victory' : winner ? `${winner} wins` : 'Match over';
+        el.endHead.innerHTML = '<th>#</th><th class="name">Player</th><th>Kills</th><th>Deaths</th>';
+        el.endBody.innerHTML = standings.map((s, i) => `<tr class="${s.me ? 'me' : ''}"><td>${ordinal(i + 1)}</td><td class="name"><span class="swatch" style="background:${s.color}"></span>${esc(s.name)}</td><td>${s.k}</td><td>${s.d}</td></tr>`).join('');
+      }
       el.restart.classList.toggle('hidden', !isHost);
       el.endWait.classList.toggle('hidden', isHost);
     },

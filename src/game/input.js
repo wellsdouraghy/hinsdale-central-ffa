@@ -22,12 +22,21 @@ export class Input {
       if (e.target instanceof HTMLInputElement) return;
       if (!this.enabled) return;
       if (['Tab', 'Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
+      // Ctrl can be the sprint key: swallow browser shortcuts (Ctrl+S/D/F/R...) while playing.
+      // (Ctrl+W/T/N can only be blocked with fullscreen keyboard lock, see main.js.)
+      if ((e.ctrlKey || e.metaKey) && this.active && e.code !== 'Escape') e.preventDefault();
       if (!this.down.has(e.code)) this.pressed.add(e.code);
       this.down.add(e.code);
     };
     this._onKeyUp = (e) => { this.down.delete(e.code); };
     this._onMouseDown = (e) => {
       if (!this.active) return;
+      // Ctrl+click (macOS secondary-click gesture; may arrive as button 0 or 2) toggles aim-down-sights.
+      if (e.ctrlKey && (e.button === 0 || e.button === 2)) {
+        e.preventDefault();
+        this.pressed.add('AimToggle');
+        return;
+      }
       const code = 'Mouse' + e.button;
       if (!this.down.has(code)) this.pressed.add(code);
       this.down.add(code);
@@ -89,6 +98,7 @@ export class Input {
     else this.down.delete(code);
   }
   simLook(dx, dy) { this.dx += dx; this.dy += dy; }
+  simAimToggle() { this.pressed.add('AimToggle'); }
 
   dispose() {
     removeEventListener('keydown', this._onKeyDown);

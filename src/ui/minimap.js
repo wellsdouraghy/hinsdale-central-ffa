@@ -51,6 +51,17 @@ export function createMinimap(canvas) {
       if (len > r) { px *= r / len; py *= r / len; }
       ctx.globalAlpha = b.alpha ?? 1;
       ctx.fillStyle = b.color;
+      if (b.shape === 'flag') {
+        const fx = W / 2 + px, fy = H / 2 + py;
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.fillRect(fx - 1, fy - 9, 2, 12);
+        ctx.beginPath();
+        ctx.moveTo(fx + 1, fy - 9); ctx.lineTo(fx + 10, fy - 6); ctx.lineTo(fx + 1, fy - 3); ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        continue;
+      }
       ctx.beginPath();
       ctx.arc(W / 2 + px, H / 2 + py, b.size || 4, 0, Math.PI * 2);
       ctx.fill();

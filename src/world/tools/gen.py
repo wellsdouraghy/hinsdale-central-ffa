@@ -60,8 +60,11 @@ def bheight(b):
     if b['id'] == SCHOOL_ID: return 10.0
     if t.get('building') == 'garage': return 3.0
     return 6.5
+# Only school-owned structures are built in 3D; the surrounding neighbourhood is repainted as wooded lawn.
+KEEP = {SCHOOL_ID, 587068096, 227528871, 227528875, 1443736359}
 bld = np.zeros((H, W), bool)
 for b in D['buildings']:
+    if b['id'] not in KEEP: continue
     h = bheight(b)
     bld |= raster([(b['outer'], b['inner'])])
     bld |= raster([(b['outer'], b['inner'])], dx=LEAN[0] * h, dz=LEAN[1] * h)
@@ -118,6 +121,20 @@ v = np.stack([votes(c, 2.2) for c in range(5)], 0)
 v[CONC] *= 1.15   # keep thin sidewalks alive
 cls = v.argmax(0).astype(np.uint8)
 cls[syn] = SYN
+# ---- outside the school grounds: keep only the street network (+ kerb-side sidewalks), everything else is lawn
+grounds = raster([(areas[8286233]['outer'], [])])
+campus = dilate(grounds, 16)
+street = np.zeros((H, W), bool); walk = np.zeros((H, W), bool)
+for r in D['roads']:
+    hw = r['tags'].get('highway')
+    if hw in ('secondary', 'tertiary', 'residential'): street |= raster(lines=[(r['line'], ROADW[hw] + 3.0)])
+    elif hw == 'footway': walk |= raster(lines=[(r['line'], 2.6)])
+walk &= dilate(street, 7)
+outside = ~campus
+was_paved = (cls == ASPH) | (cls == CONC)
+cls[outside & ~(was_paved & (street | walk))] = GRASS
+cls[outside & was_paved & walk & ~street] = CONC
+repaint = outside & ~street & ~walk          # former houses / driveways / yards
 # the water tower's leaning image smears over the lawn: force grass there
 a_ = P(-50, 104); b_ = P(-10, 142); cls[int(a_[1]):int(b_[1]), int(a_[0]):int(b_[0])] = np.where(cls[int(a_[1]):int(b_[1]), int(a_[0]):int(b_[0])] == SYN, SYN, GRASS)
 # grass under/around building footprints inside lots stays whatever was filled.
@@ -141,6 +158,9 @@ gm = (cls == GRASS) & ~shadow & ~bld_d & ~twr
 Lg, den = norm_blur(L, gm, 10)
 gmean = L[gm].mean()
 var = np.clip(np.where(den > 0.02, Lg / gmean, 1.0), 0.72, 1.3)
+var = np.where(ndi.gaussian_filter(repaint.astype(np.float32), 6) > 0.02, 0.9 + 0.12 * ndi.gaussian_filter(np.random.rand(H, W).astype(np.float32), 40) / 0.012 * 0.0 + 0.0, var)
+var = np.where(repaint, 0.86 + 0.5 * (ndi.gaussian_filter(np.random.rand(H, W).astype(np.float32), 30) - 0.5) * 12, var)
+var = np.clip(var, 0.72, 1.3)
 var = ndi.gaussian_filter(var, 4)
 # a little hue variation: drier (brighter) patches go slightly yellow
 t = np.clip((var - 0.85) / 0.4, 0, 1)[..., None]
@@ -276,6 +296,7 @@ print('school pieces', [(s['name'], s['h'], len(s['outer']['pts'])) for s in sch
 # ---------------------------------------------------------------- house roof colours
 houses = {}
 for b in D['buildings']:
+    if b['id'] not in KEEP: continue
     c = Polygon(b['outer'][0]).representative_point()
     h = bheight(b)
     px, pz = P(c.x + LEAN[0] * h, c.y + LEAN[1] * h)
@@ -338,16 +359,17 @@ for r in D['roads']:
             d += random.uniform(11, 19)
 # yard / woodland trees weighted by imagery darkness (bare canopies + their shadows)
 SH = (-3.5, -6.0)   # canopy shadow offset
-n_try = 26000
+n_try = 60000
 for _ in range(n_try):
     x = random.uniform(X0 + 3, X1 - 3); z = random.uniform(Z0 + 3, Z1 - 3)
     if not free(x, z): continue
     px, pz = P(x + SH[0], z + SH[1]); px = int(min(max(px, 0), W - 1)); pz = int(min(max(pz, 0), H - 1))
     inplay = PLAY['minX'] < x < PLAY['maxX'] and PLAY['minZ'] < z < PLAY['maxZ']
     pr = min(1.0, dark[pz, px] * 2.2) ** 1.5
-    if not inplay: pr = max(pr, 0.12)
+    if not inplay: pr = max(pr, 0.5)
+    elif repaint[min(max(int(P(x, z)[1]), 0), H - 1), min(max(int(P(x, z)[0]), 0), W - 1)]: pr = max(pr, 0.4)
     if random.random() > pr: continue
-    if not ok_spacing(x, z, 7.5 if inplay else 6.5): continue
+    if not ok_spacing(x, z, 7.5 if inplay else 7.0): continue
     add_tree(x, z, 1 if random.random() < 0.13 else 0, random.uniform(0.7, 1.3))
 print('trees', len(trees), 'in play', sum(1 for t in trees if PLAY['minX'] < t[0] < PLAY['maxX'] and PLAY['minZ'] < t[1] < PLAY['maxZ']))
 

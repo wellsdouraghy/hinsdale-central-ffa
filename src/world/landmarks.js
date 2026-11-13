@@ -373,11 +373,20 @@ export function buildLandmarks(ctx) {
     B.v('concrete').cyl(x, 0, z, r + 0.5, r + 0.5, 0.5, 40, 1 / 3, true);
     // handrail ring at the shoulder + ladder with cage on the north-east side
     const hr = B.v('galv');
-    for (let i = 0; i < 40; i++) { const a0 = (i / 40) * Math.PI * 2, a1 = ((i + 1) / 40) * Math.PI * 2; hr.tube([x + Math.cos(a0) * (r + 0.02), h + 1.0, z + Math.sin(a0) * (r + 0.02)], [x + Math.cos(a1) * (r + 0.02), h + 1.0, z + Math.sin(a1) * (r + 0.02)], 0.03, 4); if (i % 2 === 0) hr.tube([x + Math.cos(a0) * r, h - 0.1, z + Math.sin(a0) * r], [x + Math.cos(a0) * (r + 0.02), h + 1.0, z + Math.sin(a0) * (r + 0.02)], 0.02, 4); }
     const la = -0.9, lx = x + Math.cos(la) * (r + 0.25), lz = z + Math.sin(la) * (r + 0.25); const tx = -Math.sin(la) * 0.25, tz = Math.cos(la) * 0.25;
     hr.tube([lx - tx, 2.5, lz - tz], [lx - tx, h + 1, lz - tz], 0.025, 4); hr.tube([lx + tx, 2.5, lz + tz], [lx + tx, h + 1, lz + tz], 0.025, 4);
     for (let y = 2.8; y < h + 1; y += 0.6) hr.tube([lx - tx, y, lz - tz], [lx + tx, y, lz + tz], 0.014, 3);
-    B.c('metal').cyl(x, 0, z, r + 0.05, r + 0.05, h + 4, 20, 1, true);
+    B.c('metal').cyl(x, 0, z, r + 0.05, r + 0.05, h, 24, 1, false);
+    for (let i = 0; i < 6; i++) { const a0 = (i / 6) * Math.PI / 2, a1 = ((i + 1) / 6) * Math.PI / 2; B.c('metal').cyl(x, h + 4.3 * Math.sin(a0), z, r * Math.cos(a0), Math.max(0.0, r * Math.cos(a1)), 4.3 * (Math.sin(a1) - Math.sin(a0)), 24, 1, i === 5); }
+    // catwalk around the shoulder (grating + toe board + rail): reachable with the grapple, good overwatch
+    for (let i = 0; i < 28; i++) {
+      const a0 = (i / 28) * Math.PI * 2, a1 = ((i + 1) / 28) * Math.PI * 2, am = (a0 + a1) / 2; const rm = r + 0.62, seg = 2 * Math.PI * rm / 28 + 0.04;
+      const cx = x + Math.cos(am) * rm, cz = z + Math.sin(am) * rm;
+      B.v('galv').box(cx, h - 0.04, cz, 1.2, 0.07, seg, -am); B.c('metal').box(cx, h - 0.04, cz, 1.2, 0.08, seg, -am);
+      const ro = r + 1.2; hr.tube([x + Math.cos(a0) * ro, h + 1.05, z + Math.sin(a0) * ro], [x + Math.cos(a1) * ro, h + 1.05, z + Math.sin(a1) * ro], 0.028, 4).tube([x + Math.cos(a0) * ro, h + 0.55, z + Math.sin(a0) * ro], [x + Math.cos(a1) * ro, h + 0.55, z + Math.sin(a1) * ro], 0.02, 4).tube([x + Math.cos(a0) * ro, h, z + Math.sin(a0) * ro], [x + Math.cos(a0) * ro, h + 1.05, z + Math.sin(a0) * ro], 0.022, 4);
+      B.c('metal:mesh').box(x + Math.cos(am) * ro, h + 0.55, z + Math.sin(am) * ro, 0.06, 1.1, seg, -am);
+      if (i % 4 === 0) hr.tube([x + Math.cos(a0) * r, h - 0.9, z + Math.sin(a0) * r], [x + Math.cos(a0) * ro, h - 0.06, z + Math.sin(a0) * ro], 0.03, 4);
+    }
     fence(ctx, [[-64, 108], [-21, 108], [-21, 143], [-64, 143], [-64, 108]], { h: 2.1, gaps: [[58, 63], [128, 133]] });
   }
 
