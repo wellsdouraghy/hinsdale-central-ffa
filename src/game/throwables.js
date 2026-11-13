@@ -145,6 +145,7 @@ export class Throwables {
 
   _launch(pt, t) {
     const g = this.game, p = g.player;
+    g.markDirty();
     const eye = p.getEye(new THREE.Vector3());
     const dir = g._viewDir(new THREE.Vector3());
     const right = new THREE.Vector3(Math.cos(p.yaw), 0, -Math.sin(p.yaw));

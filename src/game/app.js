@@ -218,9 +218,8 @@ function updateVoice(dt) {
     voice.mesh.sync([...game.roster.values()].map((e) => ({ id: e.id, pid: e.pid, bot: e.bot })));
   }
   voice.va.update(dt);
-  const speakers = [];
-  for (const r of game.remotes.values()) if (r.speaking && r.character.object3D.visible) speakers.push({ id: r.id, pos: r.eye(new THREE.Vector3()).add(new THREE.Vector3(0, 0.75, 0)) });
-  hud.voice({ level: voice.va.level, speakers }, camera);
+  // Only our own mic meter: other players' talking is never shown (it would reveal their position).
+  hud.voice({ level: voice.va.level, speakers: [] }, camera);
 }
 
 function stopVoice() {
@@ -237,6 +236,7 @@ function gameUi(session) {
   return {
     showDeploy: (o) => menus.showDeploy({ ...o, roomCode: session.roomCode }),
     hideDeploy: () => { if (menus.deployMode !== 'loadout') menus.hideDeploy(); },
+    hideSwap: () => { if (menus.deployMode === 'swap') menus.hideDeploy(); },
     setLoadout: (id) => menus.setLoadout(id),
     setDeathCountdown: (s) => menus.setDeathCountdown(s),
     showEnd: (d) => { menus.hidePause(); menus.showEnd(d); input.enabled = false; },
@@ -277,6 +277,7 @@ menus.on('loadoutDone', () => {
   enterPlay();
 });
 menus.on('restart', () => game?.restartMatch());
+menus.on('swapClose', () => game?._closeSwap());
 menus.on('settingsClosed', () => saveSettings(settings));
 menus.on('copyInvite', async () => {
   const code = game?.session.roomCode;

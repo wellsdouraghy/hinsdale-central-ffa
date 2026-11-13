@@ -37,8 +37,10 @@ export function createHud() {
     pips: $('sp-pips'), items: $('sp-items'), armor: $('armor'), armorFill: $('armor-fill'), armorNum: $('armor-num'),
     equip: $('equip'), frags: $('eq-frags'), cook: root.querySelector('.eq-cook'), cookFill: $('eq-cook'),
     micLive: $('mic-live'), micLevel: $('mic-level'), speakers: $('speakers'),
+    ebars: $('enemy-bars'), swapHint: $('swap-hint'),
   };
   const spkEls = new Map();
+  const barEls = new Map();
   const _proj = { v: null };
   const kitGBar = el.kitG.querySelector('i'), kitDBar = el.kitD.querySelector('i');
   const markers = createMarkers($('markers'));
@@ -182,7 +184,7 @@ export function createHud() {
         ? '<th>#</th><th class="name">Player</th><th>Class</th><th>Caps</th><th>Returns</th><th>Kills</th><th>Deaths</th><th>Ping</th>'
         : '<th>#</th><th class="name">Player</th><th>Class</th><th>Kills</th><th>Deaths</th><th>Ping</th>';
       set('sbhead', head, (v) => { el.sbHead.innerHTML = v; });
-      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}${r.speaking ? ' <span class="spk">&#128266;</span>' : ''}</td><td class="cls">${esc(r.cls || '')}</td>${teams ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td>${r.ping}</td></tr>`;
+      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}</td><td class="cls">${esc(r.cls || '')}</td>${teams ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td>${r.ping}</td></tr>`;
       let html;
       if (teams) {
         html = ['red', 'blue'].map((tm) => {
@@ -281,6 +283,35 @@ export function createHud() {
       }
       for (const [id, e] of spkEls) if (!seen.has(id)) { e.remove(); spkEls.delete(id); }
     },
+
+    /** Compact HP (+armor) bars over damaged enemies; clamped to the screen edges. */
+    enemyBars(list, camera) {
+      const seen = new Set();
+      for (const b of list) {
+        const v = (_proj.v ||= b.pos.clone()).copy(b.pos).project(camera);
+        let x = (v.x + 1) / 2 * innerWidth, y = (1 - v.y) / 2 * innerHeight;
+        if (v.z > 1) { x = innerWidth - x; y = innerHeight - 40; } // behind: flip to the bottom edge
+        x = Math.min(innerWidth - 50, Math.max(50, x));
+        y = Math.min(innerHeight - 30, Math.max(40, y));
+        seen.add(b.id);
+        let e = barEls.get(b.id);
+        if (!e) {
+          e = document.createElement('div');
+          e.className = 'ehp';
+          e.innerHTML = '<div class="ehp-armor"><i></i></div><div class="ehp-hp"><i></i></div>';
+          el.ebars.appendChild(e);
+          barEls.set(b.id, e);
+        }
+        e.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        e.style.opacity = b.alpha.toFixed(2);
+        e.children[1].firstChild.style.width = Math.max(0, Math.min(100, b.hp)) + '%';
+        e.children[0].style.display = b.armor > 0 ? '' : 'none';
+        e.children[0].firstChild.style.width = Math.max(0, Math.min(100, b.armor)) + '%';
+      }
+      for (const [id, e] of barEls) if (!seen.has(id)) { e.remove(); barEls.delete(id); }
+    },
+
+    swapHint(v) { set('swap', v, (x) => el.swapHint.classList.toggle('hidden', !x)); },
 
     /** Kill cam overlay: { name, weapon, hp } or null. */
     killcam(info) {

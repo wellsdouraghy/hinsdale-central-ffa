@@ -2,8 +2,8 @@
 import * as THREE from 'three';
 
 export const HITBOX = {
-  stand: { head: 1.62, bodyTop: 1.25 },
-  crouch: { head: 1.04, bodyTop: 0.72 },
+  stand: { head: 1.62, bodyTop: 1.25, hip: 0.9 },
+  crouch: { head: 1.04, bodyTop: 0.72, hip: 0.55 },
   headR: 0.17,
   bodyR: 0.29,
   bodyBottom: 0.33,
@@ -54,6 +54,7 @@ export function hitboxHeights(crouch) {
   return {
     head: THREE.MathUtils.lerp(HITBOX.stand.head, HITBOX.crouch.head, c),
     bodyTop: THREE.MathUtils.lerp(HITBOX.stand.bodyTop, HITBOX.crouch.bodyTop, c),
+    hip: THREE.MathUtils.lerp(HITBOX.stand.hip, HITBOX.crouch.hip, c),
   };
 }
 
@@ -70,7 +71,10 @@ function hitTarget(origin, dir, maxDist, t) {
   if (headD !== null && (bodyD === null || headD < bodyD + 0.35)) { d = headD; headshot = true; }
   else if (bodyD !== null) d = bodyD;
   if (d === null || d > maxDist) return null;
-  return { id: t.id, distance: d, point: origin.clone().addScaledVector(dir, d), headshot };
+  const point = origin.clone().addScaledVector(dir, d);
+  // Zone: head / torso (above the hip) / legs.
+  const zone = headshot ? 'head' : point.y - t.feet.y >= hh.hip ? 'torso' : 'legs';
+  return { id: t.id, distance: d, point, headshot, zone };
 }
 
 function raySphere(o, d, c, r) {

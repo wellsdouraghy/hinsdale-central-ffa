@@ -48,6 +48,23 @@ export function createMinimap(canvas) {
       let px = (dx * c - dz * s) * scale, py = (dx * s + dz * c) * scale;
       const r = W / 2 - 6;
       const len = Math.hypot(px, py);
+      if (len > r && b.edge) {
+        // Edge wedge pointing toward an off-map shooter.
+        const ux = px / len, uy = py / len;
+        const ex = W / 2 + ux * (W / 2 - 3), ey = H / 2 + uy * (H / 2 - 3);
+        ctx.globalAlpha = b.alpha ?? 1;
+        ctx.fillStyle = b.color;
+        ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex - ux * 12 - uy * 7, ey - uy * 12 + ux * 7);
+        ctx.lineTo(ex - ux * 12 + uy * 7, ey - uy * 12 - ux * 7);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        continue;
+      }
       if (len > r) { px *= r / len; py *= r / len; }
       ctx.globalAlpha = b.alpha ?? 1;
       ctx.fillStyle = b.color;

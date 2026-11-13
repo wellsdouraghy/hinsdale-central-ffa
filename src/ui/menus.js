@@ -172,6 +172,7 @@ export function createMenus({ settings, onSettingsChange }) {
   el.deployBtn.addEventListener('click', () => {
     if (deployMode === 'deploy') handlers.deploy?.();
     else if (deployMode === 'loadout') handlers.loadoutDone?.();
+    else if (deployMode === 'swap') handlers.swapClose?.();
   });
   renderLoadout(el.cards, settings.cls, (id) => handlers.selectClass?.(id));
 
@@ -227,8 +228,9 @@ export function createMenus({ settings, onSettingsChange }) {
         el.deathKiller.title = weapon || '';
       }
       el.deployBtn.classList.toggle('hidden', mode === 'death');
-      el.deployBtn.textContent = mode === 'loadout' ? 'Done' : 'Deploy';
-      el.deployTitle.innerHTML = mode === 'death'
+      el.deployBtn.textContent = mode === 'loadout' ? 'Done' : mode === 'swap' ? 'Close (B)' : 'Deploy';
+      el.deployTitle.innerHTML = mode === 'swap' ? 'Change class now &middot; press <kbd>1</kbd>-<kbd>5</kbd> (only near your spawn, before you fire)'
+        : mode === 'death'
         ? `Next life class${headshot ? ' &middot; <span style="color:var(--gold)">headshot</span>' : ''}${weapon ? ' &middot; ' + esc(weapon) : ''}`
         : mode === 'loadout' ? 'Class applies on your next spawn'
           : roomCode ? `Room <b style="color:var(--gold);font-family:var(--mono);letter-spacing:.2em">${esc(roomCode)}</b> &middot; choose your class` : 'Choose your class';

@@ -27,7 +27,7 @@ export const WEAPON_STATS = {
   },
   sniper: {
     id: 'sniper', label: 'Bolt Sniper', short: 'SNP', slot: 'primary', mode: 'bolt', rpm: 52,
-    damage: [100, 92], range: [80, 200], headMult: 2.0, pellets: 1, maxRange: 800,
+    damage: [75, 65], range: [80, 200], headMult: 2.0, pellets: 1, maxRange: 800, // head or torso: instant kill (see _fire)
     mag: 5, reserve: 25, reload: 3.0, reloadEmpty: 3.4,
     spread: { hip: 7, ads: 0.0, move: 4, air: 10, crouch: 0.8, perShot: 0, maxBloom: 0 },
     recoil: { pitch: 4.5, yaw: 0.8, recover: 5, adsMult: 0.8, pattern: 'kick' },

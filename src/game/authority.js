@@ -155,6 +155,16 @@ export class Authority {
       case 'class':
         if (CLASSES[msg.cls]) { p.cls = msg.cls; this.out({ t: 'cls', id: p.id, cls: p.cls }); }
         break;
+      case 'swapClass': {
+        // In-spawn swap: alive, <= 10 s since spawn, <= 8 m from the spawn point, no shots / throws / damage yet.
+        const sp = p.spawnInfo;
+        if (!CLASSES[msg.cls] || !p.alive || !sp || sp.dirty || now() - sp.t > 10.5 || !p.pos) return;
+        if (Math.hypot(p.pos[0] - sp.p[0], p.pos[2] - sp.p[2]) > 9) return;
+        p.cls = msg.cls;
+        p.frags = classOf(p.cls).frags;
+        this.out({ t: 'swapped', id: p.id, cls: p.cls });
+        break;
+      }
       case 'st': {
         if (!p.alive || msg.l !== p.life || !Array.isArray(msg.p)) return;
         // Speed sanity: reject states that move implausibly fast (keeps flag pickups / hit checks honest).
@@ -178,6 +188,7 @@ export class Authority {
       case 'capture': this.streaks.capture(p, msg.cid); break;
       case 'shot':
         if (!p.alive) return;
+        if (p.spawnInfo) p.spawnInfo.dirty = true;
         p.protectUntil = 0; // firing ends spawn protection
         this.out({ ...msg, id: from }, null, from);
         break;
@@ -185,6 +196,7 @@ export class Authority {
         this.handleHit(p, msg);
         break;
       case 'melee':
+        if (p.spawnInfo) p.spawnInfo.dirty = true;
         if (p.alive) this.out({ t: 'melee', id: from, hit: !!msg.hit }, null, from);
         break;
       case 'team':
@@ -235,12 +247,17 @@ export class Authority {
       const maxR = w === 'melee' ? 6 : WEAPON_STATS[w].maxRange + 15;
       if (d > maxR) return;
     }
-    this.applyDamage(a, v, dmg, !!msg.hs, w);
+    // Sniper head/torso hits kill outright (armor included); the client marks them `ik`.
+    const lethal = w === 'sniper' && msg.ik ? v.hp + v.armor + 1 : dmg;
+    this.applyDamage(a, v, lethal, !!msg.hs, w);
+    // Tell the shooter what is left (HP bar over damaged enemies).
+    if (v.alive) this.out({ t: 'hitc', target: v.id, hp: Math.round(v.hp), armor: Math.round(v.armor) }, a.id);
   }
 
   applyDamage(a, v, amount, headshot, weapon) {
     const t = now();
     if (t < v.protectUntil || !v.alive) return;
+    if (v.spawnInfo) v.spawnInfo.dirty = true;
     if (v.armor > 0) {
       const take = Math.min(v.armor, amount);
       v.armor -= take;
@@ -277,6 +294,7 @@ export class Authority {
     p.armor = 0;
     p.frags = classOf(p.cls).frags;
     p.lastSt = null;
+    p.spawnInfo = { t: now(), p: [pos.x, pos.y, pos.z], dirty: false };
     p.life++;
     p.respawnAt = null;
     p.pos = [pos.x, pos.y, pos.z];
@@ -397,6 +415,7 @@ export class Authority {
   // ---------- grenades / markers ----------
   handleThrow(p, msg) {
     if (!p.alive || !Array.isArray(msg.o) || !Array.isArray(msg.v)) return;
+    if (p.spawnInfo) p.spawnInfo.dirty = true;
     const kind = msg.kind === 'marker' ? 'marker' : 'frag';
     if (kind === 'frag') {
       if (p.frags <= 0) return;
@@ -438,7 +457,10 @@ export class Authority {
       if (this.ctf && v !== a && v.team && v.team === a.team) continue;
       chest.set(v.pos[0], v.pos[1] + 1.0, v.pos[2]);
       const dmg = blastDamage(this.world, center, chest, radius, max);
-      if (dmg > 1) this.applyDamage(a, v, dmg, false, weapon);
+      if (dmg > 1) {
+        this.applyDamage(a, v, dmg, false, weapon);
+        if (v.alive && v !== a && this.players.has(ownerId)) this.out({ t: 'hitc', target: v.id, hp: Math.round(v.hp), armor: Math.round(v.armor) }, ownerId);
+      }
     }
   }
 

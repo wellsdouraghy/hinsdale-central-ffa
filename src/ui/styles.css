@@ -419,3 +419,11 @@ h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: .14em; text-transform: up
 #speakers { position: absolute; inset: 0; overflow: hidden; }
 .spk-icon { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: rgba(10,12,15,0.7); border: 1.5px solid #6fe3ff; color: #6fe3ff; display: flex; align-items: center; justify-content: center; }
 .spk-icon svg { width: 13px; height: 13px; fill: currentColor; }
+#enemy-bars { position: absolute; inset: 0; overflow: hidden; }
+.ehp { position: absolute; left: 0; top: 0; width: 84px; margin-left: -42px; display: flex; flex-direction: column; gap: 2px; transition: opacity .2s; }
+.ehp-hp, .ehp-armor { height: 7px; border-radius: 2px; background: rgba(0,0,0,0.55); overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,0.5); }
+.ehp-armor { height: 3px; }
+.ehp-hp i { display: block; height: 100%; background: linear-gradient(90deg, #ff3b3b, #ff7a5a); transition: width .12s; }
+.ehp-armor i { display: block; height: 100%; background: #6fb6ff; transition: width .12s; }
+#swap-hint { position: absolute; left: 50%; bottom: 112px; transform: translateX(-50%); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #ffd27a; background: rgba(10,12,15,0.6); padding: 4px 10px; border-radius: 4px; }
+#hud.is-dead #enemy-bars, #hud.is-dead #swap-hint { visibility: hidden; }

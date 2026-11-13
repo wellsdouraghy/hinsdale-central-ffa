@@ -73,6 +73,9 @@ export class Game {
     this.deathCam = 0;
     this.adsToggled = false;
     this.ctfView = null;
+    this.enemyBars = new Map();   // id -> { hp, armor, until } for enemies we are damaging
+    this.spawnInfo = null;
+    this.swapOpen = false;
     // Movement kit.
     this.grappleReadyAt = 0;
     this.grappleCd = KIT.grappleCooldown;
@@ -185,6 +188,20 @@ export class Game {
       case 'strike': this.streaks.onStrike(m); break;
       case 'crate': this.streaks.onCrate(m); break;
       case 'cls': { const e = this.roster.get(m.id); if (e) e.cls = m.cls; break; }
+      case 'swapped': {
+        const e = this.roster.get(m.id);
+        if (e) e.cls = m.cls;
+        if (m.id === this.localId && this.alive) {
+          this._applyClass(m.cls, clock());
+          this.audio.equip();
+          this._closeSwap();
+          this.ui.toast(`Class: ${classOf(m.cls).name}`);
+        }
+        break;
+      }
+      case 'hitc':
+        if (m.target !== this.localId) this.enemyBars.set(m.target, { hp: m.hp, armor: m.armor, until: clock() + 2.5 });
+        break;
       case 'dmg': {
         const e = this.roster.get(m.id);
         if (m.id === this.localId) this._takeDamage(m);
@@ -300,14 +317,10 @@ export class Game {
     if (e) e.alive = true;
     if (m.id === this.localId) {
       const t = clock();
-      this.spawnClass = CLASSES[m.cls] ? m.cls : this.selectedClass;
-      const cd = classOf(this.spawnClass);
-      this.arsenal.setLoadout(cd.primary, t);
-      for (const g of this.arsenal.guns) g.reloadMult = cd.reloadMult ?? 1;
-      this.player.maxAirJumps = cd.airJumps ?? 1;
-      this.player.sprintOutMult = cd.sprintOutMult ?? 1;
-      this.throwables.resetForSpawn(cd.frags);
+      this._applyClass(CLASSES[m.cls] ? m.cls : this.selectedClass, t);
       this.streaks.resetForSpawn();
+      this.spawnInfo = { pos: new THREE.Vector3().fromArray(m.p), t, dirty: false };
+      this._closeSwap();
       this._endDeathFlow();
       this.alive = true;
       this.everSpawned = true;
@@ -334,6 +347,38 @@ export class Game {
 
   get classDef() { return classOf(this.spawnClass); }
 
+  /** Equips a class: weapons (full ammo), frags, ability modifiers. Used on spawn and for in-spawn class swaps. */
+  _applyClass(id, t) {
+    this.spawnClass = id;
+    const cd = classOf(id);
+    this.arsenal.primaryId = null; // force fresh guns + viewmodels
+    this.arsenal.setLoadout(cd.primary, t);
+    for (const g of this.arsenal.guns) g.reloadMult = cd.reloadMult ?? 1;
+    this.player.maxAirJumps = cd.airJumps ?? 1;
+    this.player.airJumps = Math.min(this.player.airJumps, this.player.maxAirJumps);
+    this.player.sprintOutMult = cd.sprintOutMult ?? 1;
+    this.throwables.resetForSpawn(cd.frags);
+  }
+
+  // ----- in-spawn class swap (B): within 8 m / 10 s of spawning, before firing, throwing or taking damage -----
+  canSwap(t) {
+    const s = this.spawnInfo;
+    return !!(this.alive && s && !s.dirty && t - s.t <= 10 && this.player.position.distanceTo(s.pos) <= 8 && this.match.state === 'playing');
+  }
+
+  markDirty() { if (this.spawnInfo) this.spawnInfo.dirty = true; }
+
+  _openSwap() {
+    this.swapOpen = true;
+    this.ui.showDeploy({ mode: 'swap', selected: this.spawnClass });
+  }
+
+  _closeSwap() {
+    if (!this.swapOpen) return;
+    this.swapOpen = false;
+    this.ui.hideSwap?.();
+  }
+
   _onKill(m) {
     const killer = this.roster.get(m.killer), victim = this.roster.get(m.victim);
     if (killer) killer.k = m.kk;
@@ -349,6 +394,7 @@ export class Game {
       this.audio.kill(m.hs);
       this.hud.killBanner(victim?.name ?? '', m.hs);
     }
+    this.enemyBars.delete(m.victim);
     if (meV) this._die(m);
     else this.remotes.get(m.victim)?.kill();
   }
@@ -418,6 +464,7 @@ export class Game {
   }
 
   _takeDamage(m) {
+    this.markDirty();
     if (!this.alive) return;
     this.hp = m.hp;
     this.lastDamage = clock();
@@ -466,7 +513,10 @@ export class Game {
     this.selectedClass = id;
     this.settings.cls = id;
     this.ui.setLoadout(id);
-    if (this.deployed) this.session.send({ t: 'class', cls: id });
+    if (this.alive && this.swapOpen && this.canSwap(clock())) {
+      if (id !== this.spawnClass) this.session.send({ t: 'swapClass', cls: id });
+      else this._closeSwap();
+    } else if (this.deployed) this.session.send({ t: 'class', cls: id });
   }
 
   _rescue() {
@@ -571,6 +621,7 @@ export class Game {
   }
 
   _fire(t) {
+    this.markDirty();
     const ar = this.arsenal, gun = ar.gun, st = gun.stats;
     const eye = this.player.getEye(new THREE.Vector3());
     const aim = this._viewDir(new THREE.Vector3());
@@ -596,9 +647,11 @@ export class Game {
         const protectedNow = r && t < r.protectUntil;
         if (!protectedNow) {
           const dmg = damageAt(st, th.distance) * (th.headshot ? st.headMult : 1);
-          const acc = dmgBy.get(th.id) || { dmg: 0, hs: false };
+          const acc = dmgBy.get(th.id) || { dmg: 0, hs: false, ik: false };
           acc.dmg += dmg;
           acc.hs = acc.hs || th.headshot;
+          // Sniper: head or torso is an instant kill at any range (legs take normal damage).
+          if (st.id === 'sniper' && th.zone !== 'legs') acc.ik = true;
           dmgBy.set(th.id, acc);
           anyHit = true;
           anyHead = anyHead || th.headshot;
@@ -617,7 +670,7 @@ export class Game {
     }
 
     for (const [id, a] of dmgBy) {
-      this.session.send({ t: 'hit', target: id, dmg: Math.round(a.dmg * 10) / 10, hs: a.hs, w: gun.id });
+      this.session.send({ t: 'hit', target: id, dmg: Math.round(a.dmg * 10) / 10, hs: a.hs, w: gun.id, ...(a.ik ? { ik: 1 } : {}) });
     }
     if (anyHit) {
       this.hud.hitmarker(anyHead ? 'head' : 'hit');
@@ -638,6 +691,7 @@ export class Game {
   }
 
   _melee(t) {
+    this.markDirty();
     const cd = this.classDef;
     this.meleeUntil = t + MELEE.cooldown;
     this.audio.melee();
@@ -787,8 +841,17 @@ export class Game {
     }
     p.events.length = 0;
 
+    // In-spawn class swap.
+    const swapOk = this.canSwap(t);
+    if (active && swapOk && pressed.has('KeyB')) { if (this.swapOpen) this._closeSwap(); else this._openSwap(); }
+    if (this.swapOpen && !swapOk) this._closeSwap();
+    if (this.swapOpen && active) {
+      for (let i = 0; i < CLASS_IDS.length; i++) if (pressed.has('Digit' + (i + 1))) this.selectClass(CLASS_IDS[i]);
+    }
+    this.swapHint = swapOk && !this.swapOpen;
+
     // Weapon switching.
-    if (active) {
+    if (active && !this.swapOpen) {
       if (pressed.has('Digit1')) ar.switchTo(0, t);
       if (pressed.has('Digit2')) ar.switchTo(1, t);
       if (wheel) ar.switchTo(ar.slot === 0 ? 1 : 0, t);
@@ -803,7 +866,7 @@ export class Game {
     this._updateCamera(0);
     this.grappleTarget = p.grapple ? null : this._findGrappleTarget();
 
-    const canFire = active && !ar.switching(t) && !p.gunBlocked() && t >= this.meleeUntil - MELEE.cooldown * 0.4;
+    const canFire = active && !this.swapOpen && !ar.switching(t) && !p.gunBlocked() && t >= this.meleeUntil - MELEE.cooldown * 0.4;
     const trigger = gs.mode === 'auto' ? fireHeld : pressed.has('Mouse0');
     if (trigger && canFire) {
       if (g.canInterruptReload()) g.cancelReload();
@@ -923,6 +986,15 @@ export class Game {
       target: this.alive && !p.grapple && !!this.grappleTarget,
       visible: this.alive && this.match.state === 'playing',
     });
+    // HP bars over enemies we are damaging (host-confirmed values only), fading 2.5 s after our last hit.
+    const bars = [];
+    for (const [id, b] of this.enemyBars) {
+      const r = this.remotes.get(id);
+      if (!r || !r.alive || t > b.until) { if (t > b.until) this.enemyBars.delete(id); continue; }
+      bars.push({ id, pos: r.eye(new THREE.Vector3()).add(_v3.set(0, 0.55, 0)), hp: b.hp, armor: b.armor, alpha: Math.min(1, (b.until - t) / 0.6) });
+    }
+    hud.enemyBars(this.killcam ? [] : bars, this.camera);
+    hud.swapHint(this.alive && !!this.swapHint);
     hud.equipment({
       frags: this.throwables.frags, cook: this.throwables.cookFraction(t),
       armor: this.streaks.armor, visible: this.alive,
@@ -988,7 +1060,7 @@ export class Game {
       const rows = list.slice().sort((a, b) => (b.caps - a.caps) * (this.isCtf ? 1 : 0) || b.k - a.k || a.d - b.d).map((e) => ({
         name: e.name, k: e.k, d: e.d, caps: e.caps || 0, ret: e.ret || 0, team: e.team, cls: e.bot ? '' : classOf(e.cls).tag,
         ping: e.bot ? 'BOT' : e.id === 1 && this.session.mode !== 'practice' ? 'HOST' : (e.ping ?? '-'),
-        me: e.id === this.localId, alive: e.alive, color: colorCss(e.color), speaking: !!this.remotes.get(e.id)?.speaking,
+        me: e.id === this.localId, alive: e.alive, color: colorCss(e.color)
       }));
       const meta = this.session.roomCode ? `Room ${this.session.roomCode}` : 'Practice';
       const title = this.isCtf ? 'Capture the Flag' : this.match.practice ? 'Practice range' : 'Free-for-all';
@@ -1008,7 +1080,8 @@ export class Game {
       if (this.streaks.uavActive) { blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 0.9, size: 4.5 }); continue; }
       const last = this.blips.get(r.id);
       const age = last === undefined ? 99 : t - last;
-      if (age < 2) blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 1 - age / 2, size: 4.5 });
+      // Gunfire ping; off the map's radius it becomes an edge arrow pointing at the shooter.
+      if (age < 2) blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 1 - age / 2, size: 4.5, edge: true });
     }
     if (this.ctfView) {
       for (const team of TEAMS) {
