@@ -110,6 +110,10 @@ export class KillCam {
   /** Over-the-shoulder camera on the killer, pulled in if a wall is behind them. */
   _camera(dt) {
     const g = this.game, cam = g.camera;
+    if (this.info.w === 'airstrike') {
+      const run = g.strikeView?.runBy(this.info.killerId);
+      if (run) { this._strikeCamera(run, dt); return; }
+    }
     const k = g.remotes.get(this.info.killerId);
     if (!k || k.offset === null) return;
     const sm = k.sampleAt(this.rt - k.offset - INTERP_DELAY);
@@ -126,6 +130,23 @@ export class KillCam {
     else this.camPos.lerp(want, Math.min(1, dt * 12));
     cam.position.copy(this.camPos);
     cam.lookAt(eye.clone().addScaledVector(fwd, 30));
+    cam.fov += (g._baseVFov() - cam.fov) * Math.min(1, dt * 8);
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+  }
+
+  /** Airstrike kills: high above and behind the run, panning along the bomb line as the blasts walk down it. */
+  _strikeCamera(run, dt) {
+    const g = this.game, cam = g.camera;
+    const k = THREE.MathUtils.clamp((this.rt - (run.first - 0.8)) / (run.last - run.first + 1.6), 0, 1);
+    const focus = run.c.clone().addScaledVector(run.dir, -run.len / 2 + run.len * k);
+    const want = run.c.clone().addScaledVector(run.dir, -run.len / 2 - 50).addScaledVector(run.right, 14).add(new THREE.Vector3(0, 48, 0));
+    if (!this.camPos) this.camPos = want.clone();
+    else this.camPos.lerp(want, Math.min(1, dt * 4));
+    if (!this.look) this.look = focus.clone();
+    else this.look.lerp(focus, Math.min(1, dt * 5));
+    cam.position.copy(this.camPos);
+    cam.lookAt(this.look);
     cam.fov += (g._baseVFov() - cam.fov) * Math.min(1, dt * 8);
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();

@@ -502,3 +502,7 @@ h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: .14em; text-transform: up
 .lbc-num { font: 900 140px var(--font); color: #fff; text-shadow: 0 0 40px rgba(224,57,62,0.6); animation: lbcpop 1s ease-out infinite; }
 @keyframes lbcpop { 0% { transform: scale(1.35); opacity: 0.2; } 30% { transform: scale(1); opacity: 1; } 100% { opacity: 0.9; } }
 @media (max-width: 900px) { .lobby-main { grid-template-columns: 1fr; } .lp-lists.teams { grid-template-columns: 1fr; } }
+
+/* Airstrike targeting laptop: tactical map overlaid on the laptop's screen (positioned from screenRect each frame). */
+#strike-ui { position: fixed; z-index: 6; pointer-events: none; overflow: hidden; border-radius: 3px; box-shadow: 0 0 0 1px rgba(120, 255, 160, 0.25), 0 0 24px rgba(60, 255, 120, 0.12); }
+#strike-ui canvas { display: block; width: 100%; height: 100%; }

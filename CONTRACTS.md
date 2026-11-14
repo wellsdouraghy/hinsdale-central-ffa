@@ -259,3 +259,13 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
     It brings its own lights, which switch off when the overlay scene has lights.
   - `createStrikeJet()`: afterburner defaults ON; call `update(dt)` after moving it (wingtip vapour + exhaust haze are spaced by distance).
   - `createBomb()`: retard fins pop 0.25 s after the first `update(dt)`; create it at release time.
+- (Gameplay, round 9) Airstrike reworked: key 4 opens the targeting laptop (`src/game/strikeLaptop.js`, HTML map over
+  `screenRect(overlayCamera)`); confirm sends `{t:'strike', x, z, h}` (h = compass heading, 0 = north/-z). The host
+  (`streaks.js` `useStrike` / `callStrike`) plans 3 jets + 15 bombs and broadcasts `{t:'strike', owner, team, c, h, tc, alt, v,
+  fall, drift, len, jets, bombs:[[x,y,z,tImpact,jet]]}` (times relative to receipt); `src/game/strikeView.js` animates jets /
+  bombs / blasts from that (also replayed by the kill cam from above). Bots earn and call airstrikes (densest known cluster).
+  Minimap (and laptop map): teammates = green arrows with facing, revealed enemies = red dots, flags/heli green or red
+  relative to the viewer (`MAP_ALLY` / `MAP_ENEMY` in `src/ui/minimap.js`). Helicopter now also in TDM (no friendly fire
+  either way). AI bots can find the parked helicopter (~30 m + line of sight, Easy/Normal/Hard 25/50/80%) and fly it
+  (`src/game/bots/botPilot.js`, same flight model and host rules as a human pilot); on-foot bots hear / see an enemy
+  helicopter and shoot its hull (`BotManager.botShotHeli` -> `HeliRules.bulletHit`), frag it when low, and take cover.

@@ -4,7 +4,7 @@ const $ = (id) => document.getElementById(id);
 const TEAM_NAMES = { red: 'Red Devils', blue: 'Lions' };
 const MODE_DESC = {
   ffa: 'Every player for themselves. One attack helicopter is hidden somewhere on campus.',
-  tdm: 'Red Devils vs Lions. Kills score for your team.',
+  tdm: 'Red Devils vs Lions. Kills score for your team. One attack helicopter is hidden somewhere on campus.',
   ctf: 'Red Devils vs Lions. Steal the enemy flag and bring it to your base.',
 };
 const LIMIT_UNIT = { ffa: 'kills', tdm: 'team kills', ctf: 'captures' };

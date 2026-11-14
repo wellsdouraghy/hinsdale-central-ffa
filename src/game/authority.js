@@ -45,7 +45,7 @@ export function rulesFor(mode) {
 export class Authority {
   /**
    * out(msg, to, except): to = player id or null for everyone; except = player id to skip.
-   * opts: { world, mode: 'ffa'|'ctf', practice, practiceSpawn: {pos, yaw} }
+   * opts: { world, mode: 'ffa'|'tdm'|'ctf', practice, practiceSpawn: {pos, yaw} }
    */
   constructor({ world, mode = 'ffa', practice = false, practiceSpawn = null, out, scoreLimit = null }) {
     this.customScoreLimit = Number(scoreLimit) > 0 ? Math.round(Number(scoreLimit)) : null;
@@ -63,7 +63,7 @@ export class Authority {
     this.teamMode = mode === 'ctf' || mode === 'tdm';
     this.teamScore = { red: 0, blue: 0 };   // TDM kills per team
     this.bots = new BotManager(this);
-    this.heli = mode === 'ffa' ? new HeliRules(this) : null;
+    this.heli = mode !== 'ctf' ? new HeliRules(this) : null;   // FFA + TDM: one attack helicopter
     this.streaks = new StreakRules(this);
     this.projectiles = new Map(); // key `${owner}:${cid}` -> { owner, cid, pr: Projectile, item }
     this.pendingStates = new Map();
@@ -212,6 +212,7 @@ export class Authority {
       case 'item':
         if (p.alive && msg.item === 'uav') this.streaks.useInstant(p, 'uav');
         break;
+      case 'strike': this.streaks.useStrike(p, msg); break;
       case 'capBegin': this.streaks.capBegin(p, msg.cid); break;
       case 'capture': this.streaks.capture(p, msg.cid); break;
       case 'shot':
@@ -469,7 +470,7 @@ export class Authority {
     if (kind === 'frag') {
       if (p.frags <= 0) return;
       p.frags--;
-    } else if (!this.streaks.consumeForMarker(p, msg.item)) return;
+    } else if (msg.item !== 'care' || !this.streaks.consumeForMarker(p, msg.item)) return;
     const speed = Math.hypot(msg.v[0], msg.v[1], msg.v[2]);
     if (speed > 40) return;
     if (p.pos && Math.hypot(msg.o[0] - p.pos[0], msg.o[2] - p.pos[2]) > 6) return;
@@ -504,7 +505,8 @@ export class Authority {
     const chest = new THREE.Vector3();
     for (const v of [...this.players.values()]) {
       if (!v.alive || !v.pos) continue;
-      if (this.teamMode && v !== a && v.team && v.team === a.team) continue;
+      // Team modes: teammates are spared (and the caller of an airstrike too); FFA: self damage applies.
+      if (this.teamMode && v.team && v.team === a.team && (v !== a || weapon === 'airstrike')) continue;
       chest.set(v.pos[0], v.pos[1] + 1.0, v.pos[2]);
       const dmg = blastDamage(this.world, center, chest, radius, max);
       if (dmg > 1) {

@@ -40,3 +40,4 @@
 - Trees, cars, buses, bleachers, the water tower, field markings, signage and all other geometry/textures not listed above are procedural (original).
 - Round 4: frag grenade, combat knife, care-package crate + parachute, explosion / signal-smoke effects and scorch decals are original procedural work (`src/visuals/grenade.js`, `carePackage.js`, `weapons.js`, `effects.js`); no new third-party assets.
 - Round 6: attack helicopter, rocket and their smoke/fire/trail effects are original procedural work (`src/visuals/helicopter.js`); no third-party assets.
+- Round 9: targeting laptop, strike jet and bomb are original procedural work (`src/visuals/airstrike.js`); no third-party assets.

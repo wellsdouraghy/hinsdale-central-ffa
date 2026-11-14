@@ -115,6 +115,24 @@ export function createAudio({ mute = false } = {}) {
         d[i] = l * 3 * Math.sin(Math.PI * Math.min(1, t / 3.5));
       }
     });
+    // Strike-jet roar loop: low turbine rumble + broadband jet noise + a thin whine (seamless: ends cross-faded).
+    buffers.jetLoop = makeBuffer(sr, 2.0, (d, n) => {
+      const fade = Math.floor(sr * 0.25), m = n + fade;
+      const tmp = new Float32Array(m);
+      let l1 = 0, l2 = 0, h1 = 0, h2 = 0;
+      const aLow = onePole(160, sr), aMid = onePole(1400, sr), aHi = onePole(5200, sr);
+      for (let i = 0; i < m; i++) {
+        const w = Math.random() * 2 - 1;
+        l1 += aLow * (w - l1);
+        l2 += aMid * (w - l2);
+        h1 += aHi * (w - h1);
+        h2 += aHi * (h1 - h2);
+        const t = i / sr;
+        tmp[i] = l1 * 5 + l2 * 1.4 + (h1 - h2) * 1.2 + Math.sin(2 * Math.PI * 2350 * t) * 0.012;
+      }
+      for (let i = 0; i < n; i++) d[i] = tmp[i];
+      for (let i = 0; i < fade; i++) { const k = i / fade; d[i] = tmp[i] * k + tmp[n + i] * (1 - k); }
+    });
     buffers.thrust = makeBuffer(sr, 0.4, (d, n) => {
       let l = 0, l2 = 0;
       const a = onePole(1100, sr);
@@ -364,6 +382,7 @@ export function createAudio({ mute = false } = {}) {
       listenerPos.x = px; listenerPos.y = py; listenerPos.z = pz;
       const fx = -e[8], fy = -e[9], fz = -e[10];
       const ux = e[4], uy = e[5], uz = e[6];
+      if (!Number.isFinite(px + py + pz + fx + fy + fz + ux + uy + uz)) return;   // degenerate camera (0-size viewport)
       if (l.positionX) {
         l.positionX.value = px; l.positionY.value = py; l.positionZ.value = pz;
         l.forwardX.value = fx; l.forwardY.value = fy; l.forwardZ.value = fz;
@@ -436,6 +455,45 @@ export function createAudio({ mute = false } = {}) {
     },
     jet(pos, delay = 0) { play('jet', pos, { gain: 1.2, ref: 40, rolloff: 0.4, delay: Math.max(0, delay - 1.6) }); },
     plane(pos) { play('jet', pos, { gain: 0.9, ref: 60, rolloff: 0.3 }); },
+    /** Strike-jet flyby voice: call update(pos, vel) each frame; doppler from the radial speed vs the listener. */
+    jetFlyby(gain = 1) {
+      if (!ctx || ctx.state !== 'running' || !buffers.jetLoop) return null;
+      const src = ctx.createBufferSource();
+      src.buffer = buffers.jetLoop;
+      src.loop = true;
+      src.loopStart = 0; src.loopEnd = buffers.jetLoop.duration;
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 2000;
+      const g = ctx.createGain();
+      g.gain.value = 0;
+      const pan = ctx.createPanner();
+      pan.panningModel = 'HRTF'; pan.distanceModel = 'inverse'; pan.refDistance = 45; pan.rolloffFactor = 1.1; pan.maxDistance = 5000;
+      src.connect(lp).connect(g).connect(pan).connect(sfx);
+      src.start();
+      let stopped = false;
+      return {
+        update(pos, vel) {
+          if (stopped) return;
+          const dx = pos.x - listenerPos.x, dy = pos.y - listenerPos.y, dz = pos.z - listenerPos.z;
+          const dist = Math.max(1, Math.sqrt(dx * dx + dy * dy + dz * dz));
+          const radial = (vel.x * dx + vel.y * dy + vel.z * dz) / dist;   // > 0: moving away
+          const doppler = Math.max(0.55, Math.min(1.7, 343 / (343 + radial)));
+          const t = ctx.currentTime;
+          if (pan.positionX) { pan.positionX.setTargetAtTime(pos.x, t, 0.03); pan.positionY.setTargetAtTime(pos.y, t, 0.03); pan.positionZ.setTargetAtTime(pos.z, t, 0.03); }
+          else pan.setPosition(pos.x, pos.y, pos.z);
+          src.playbackRate.setTargetAtTime(doppler * 0.9, t, 0.05);
+          // Far away: only the rumble carries; overhead: the full tearing roar.
+          lp.frequency.setTargetAtTime(Math.max(500, 9000 / (1 + dist / 120)) * doppler, t, 0.05);
+          g.gain.setTargetAtTime(gain * 2.2, t, 0.15);
+        },
+        stop() {
+          if (stopped) return;
+          stopped = true;
+          try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.4); src.stop(ctx.currentTime + 2); } catch { /* ignore */ }
+        },
+      };
+    },
     crateLand(pos) { play('boom', pos, { gain: 0.35, rate: 2.2, ref: 6 }); play('clank', pos, { gain: 0.6, ref: 6 }); },
     /** Looping positional sound (helicopter rotor). Returns { set(pos, gain, rate, local), stop() } or null. */
     loop(name) {

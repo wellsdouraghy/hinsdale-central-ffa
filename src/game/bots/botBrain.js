@@ -7,6 +7,8 @@ import { Gun, damageAt } from '../weapons.js';
 import { classOf } from '../classes.js';
 import { NADE } from '../grenades.js';
 import { otherTeam } from '../ctf.js';
+import { BotPilot } from './botPilot.js';
+import { HELI } from '../heli.js';
 
 const DEG = Math.PI / 180;
 
@@ -43,6 +45,9 @@ export class BotBrain {
     this.stuckT = 0; this.lastPos = new THREE.Vector3(); this.jump = false;
     this.unstuckT = 0; this.unstuckDir = new THREE.Vector3(); this.stuckCount = 0;
     this.cid = 1;
+    this.pilot = null;                      // BotPilot while flying the helicopter
+    this.heliRolls = new Set();             // heli generations this bot already rolled for
+    this.heliGoal = false;                  // walking to a parked helicopter it found
   }
 
   get pos() { return this.ctrl.position; }
@@ -55,12 +60,14 @@ export class BotBrain {
     this.slot = 0;
     this.ctrl.maxAirJumps = cd.airJumps ?? 1;
     this.path = null; this.goal = null; this.target = null; this.memory.clear();
+    this.pilot = null; this.heliGoal = false;
     this.err.yaw = rand(-1, 1) * this.d.aimErr * DEG; this.err.pitch = rand(-1, 1) * this.d.aimErr * DEG;
     this.lastPos.copy(pos);
   }
 
   onDamaged(attacker) {
     if (!attacker?.pos || attacker === this.p) return;
+    if (attacker.inHeli) this.heliHurtT = this.auth.time();
     this.memory.set(attacker.id, { pos: new THREE.Vector3().fromArray(attacker.pos), t: this.auth.time() });
     if (!this.target) { this.goal = null; this.repathT = 0; }
   }
@@ -105,6 +112,9 @@ export class BotBrain {
       const score = d * (o === this.target ? 0.5 : 1) * (o.ai ? 1.15 : 1);
       if (score < bestD) { best = o; bestD = score; bestDist = d; }
     }
+    // An enemy helicopter: engage it when it is the closest threat we can see.
+    const ht = this._heliThreat(t, eye, fwdYaw);
+    if (ht && ht.visible && (!best || ht.dist < bestDist * 1.1)) { best = this.heliTgt; bestDist = ht.dist; }
     if (best && best !== this.target) this.reactAt = t + this.d.reaction * rand(0.75, 1.3);
     if (best) { this.target = best; this.visible = true; this.lastSeenT = t; }
     else {
@@ -117,26 +127,149 @@ export class BotBrain {
     this._chooseGoal(t);
 
     // Reload / weapon housekeeping.
+    const bd = bestDist;
     const g = this.gun;
     if (!this.visible && g.ammo < g.stats.mag * 0.4 && g.reserve > 0 && !g.reloading) g.startReload(t);
     if (!this.visible && this.slot === 1 && !this.guns[0].reloading) this.slot = 0;
     if (this.visible && this.slot === 0 && g.ammo === 0 && bd < 15) { g.cancelReload?.(); this.slot = 1; }
 
     // Frag at a visible enemy at mid range now and then.
-    const bd = bestDist;
-    if (this.visible && p.frags > 0 && bd > 8 && bd < 26 && Math.random() < this.d.nade) this._throw(best, bd);
+    const fragOk = !best?.heli || (ht && ht.alt < 6);   // frags only at a helicopter that is low / landed
+    if (this.visible && fragOk && p.frags > 0 && bd > 8 && bd < 26 && Math.random() < this.d.nade * (best?.heli ? 3 : 1)) this._throw(best, bd);
 
     // Crouch / strafe rhythm in fights.
     if (this.visible && t > this.strafeT) { this.strafe = Math.random() < 0.5 ? -1 : 1; this.strafeT = t + rand(0.5, 1.4); }
     if (this.visible && t > this.crouchT) { this.wantCrouch = Math.random() < 0.25 * this.d.strafe; this.crouchT = t + rand(1, 3); }
     if (!this.visible) this.wantCrouch = false;
+
+    this._noticeHeli(t, eye);
+
+    // Airstrike reward: after a short beat, bomb the densest cluster of enemies this bot knows about.
+    if (p.items.includes('airstrike')) {
+      if (this.strikeAt === undefined) this.strikeAt = t + rand(1.5, 4);
+      if (t >= this.strikeAt && this._callStrike(t)) this.strikeAt = undefined;
+    }
+  }
+
+  /**
+   * Enemy helicopter awareness (no wallhacks): heard within ~150 m (it is loud), seen with line of sight inside the view
+   * cone at long range. Keeps `this.heliTgt` (a pseudo target aimed at the hull center, led by its velocity) current and
+   * decides when to break line of sight (it is attacking us). Returns { dist, visible, alt } or null.
+   */
+  _heliThreat(t, eye, fwdYaw) {
+    const hr = this.auth.heli, h = hr?.h;
+    if (!h || h.state !== 'flying' || h.pilot === null || h.pilot === this.p.id) { if (this.heliTgt) this.heliTgt.alive = false; return null; }
+    const pilot = this.auth.players.get(h.pilot);
+    if (!pilot || (this.auth.teamMode && pilot.team === this.p.team)) { if (this.heliTgt) this.heliTgt.alive = false; return null; }
+    const c = new THREE.Vector3(h.pos[0], h.pos[1] + 1.6, h.pos[2]);
+    const dist = c.distanceTo(eye);
+    if (dist < 150) this.heliHeardT = t;
+    const heard = t - (this.heliHeardT ?? -99) < 2;
+    let da = Math.atan2(-(c.x - eye.x), -(c.z - eye.z)) - fwdYaw; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+    const inView = (Math.abs(da) < (this.d.fov / 2) * DEG || heard) && dist < this.d.sight * 1.6;
+    let visible = false;
+    if (inView) {
+      _v.subVectors(c, eye);
+      const len = _v.length();
+      const hit = this.mgr.hitscan.castWorld(eye, _v.normalize(), len);
+      visible = !hit || hit.distance > len - 3;
+    }
+    // Aim point: hull center, led by the helicopter's velocity (state latency + reaction).
+    const v = h.v || [0, 0, 0];
+    const lead = 0.12 + dist / 900;
+    const tg = this.heliTgt || (this.heliTgt = { id: 'heli', heli: true, pos: [0, 0, 0], crouch: false, alive: true, ai: false });
+    tg.alive = true;
+    tg.pos[0] = c.x + v[0] * lead; tg.pos[1] = c.y - 1.25 + v[1] * lead; tg.pos[2] = c.z + v[2] * lead;
+    const ground = this.auth.world.groundY ? this.auth.world.groundY(h.pos[0], h.pos[2]) : 0;
+    const alt = h.pos[1] - ground;
+    // Take cover when it is coming for us: recently hurt by it, or close with its nose on us.
+    if (visible) {
+      const toMe = Math.atan2(-(eye.x - c.x), -(eye.z - c.z));
+      let nose = toMe - h.yaw; while (nose > Math.PI) nose -= 2 * Math.PI; while (nose < -Math.PI) nose += 2 * Math.PI;
+      const attacking = t - (this.heliHurtT ?? -99) < 2.5 || (dist < 90 && Math.abs(nose) < 20 * DEG);
+      if (attacking && t > (this.coverUntil ?? 0) + 2.5 && Math.random() < 0.5 * this.d.strafe) this._seekCover(c, t);
+    }
+    return { dist, visible, alt };
+  }
+
+  /** Nearby spot (6-14 m) with no line of sight from `threat`; walk there and hide for a moment. */
+  _seekCover(threat, t) {
+    let best = null, bestD = Infinity;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2, r = rand(6, 14);
+      const q = new THREE.Vector3(this.pos.x + Math.cos(a) * r, this.pos.y + 1.2, this.pos.z + Math.sin(a) * r);
+      if (this.auth.world.groundY) q.y = this.auth.world.groundY(q.x, q.z) + 1.2;
+      _v.subVectors(q, threat);
+      const len = _v.length();
+      if (!this.mgr.hitscan.castWorld(threat, _v.normalize(), len - 0.5)) continue;   // still exposed
+      const d = q.distanceTo(this.pos);
+      if (d < bestD) { bestD = d; best = q; }
+    }
+    if (!best) return;
+    best.y -= 1.2;
+    this.coverGoal = best;
+    this.coverUntil = t + rand(2.5, 4.5);
+    this.goal = null; this.repathT = 0;
+  }
+
+  /** Chance (by difficulty) to go for the parked helicopter: only once per helicopter, only within ~30 m with line
+   *  of sight (bots never know where it is parked; they have to stumble on it). */
+  _noticeHeli(t, eye) {
+    const hr = this.auth.heli, h = hr?.h;
+    if (!h || h.state !== 'parked' || h.pilot !== null) { this.heliGoal = false; return; }
+    if (this.heliGoal || this.heliRolls.has(h.gen)) return;
+    if (this.auth.ctf && this.auth.ctf.carrying(this.p)) return;
+    const c = _tgt.set(h.pos[0], h.pos[1] + 1.6, h.pos[2]);
+    if (c.distanceTo(eye) > 30) return;
+    _v.subVectors(c, eye);
+    const len = _v.length();
+    const blocker = this.mgr.hitscan.castWorld(eye, _v.normalize(), len);
+    if (blocker && blocker.distance < len - 4) return;   // something other than the helicopter itself is in the way
+    this.heliRolls.add(h.gen);
+    const chance = { easy: 0.25, normal: 0.5, hard: 0.8 }[this.mgr.difficulty] ?? 0.5;
+    if (Math.random() < chance) { this.heliGoal = true; this.goal = null; this.repathT = 0; }
+  }
+
+  /** Walking to the parked helicopter: climb in once in range (same host rules as a human). */
+  _tryEnterHeli() {
+    const hr = this.auth.heli, h = hr?.h;
+    if (!h || h.state !== 'parked' || h.pilot !== null) { this.heliGoal = false; return false; }
+    const d = Math.hypot(h.pos[0] - this.pos.x, h.pos[1] - this.pos.y, h.pos[2] - this.pos.z);
+    if (d > HELI.enterRange) return false;
+    hr.handle(this.p, { t: 'heliEnter' });
+    this.heliGoal = false;
+    if (h.pilot === this.p.id) { this.pilot = new BotPilot(this); this.path = null; return true; }
+    return false;
+  }
+
+  /** Picks a target from what this bot has seen / heard recently (no wallhacks). Returns true if called. */
+  _callStrike(t) {
+    const me = this.pos;
+    const ffa = !this.auth.teamMode;
+    const pts = [...this.memory.values()].filter((m) => t - m.t < 8).map((m) => m.pos)
+      .filter((q) => !ffa || Math.hypot(q.x - me.x, q.z - me.z) > 22);   // FFA: keep clear of our own bombs
+    if (!pts.length) return false;
+    let best = null, bestN = 0;
+    for (const a of pts) {
+      const near = pts.filter((q) => Math.hypot(q.x - a.x, q.z - a.z) < 20);
+      if (near.length > bestN) { bestN = near.length; best = near; }
+    }
+    const x = best.reduce((s, q) => s + q.x, 0) / best.length;
+    const z = best.reduce((s, q) => s + q.z, 0) / best.length;
+    // Fly the run from the bot toward the target (so the carpet stretches away from it).
+    const dx = x - me.x, dz = z - me.z;
+    const h = Math.hypot(dx, dz) > 5 ? Math.atan2(dx, -dz) : Math.random() * Math.PI * 2;
+    return this.auth.streaks.useStrike(this.p, { x, z, h });
   }
 
   _chooseGoal(t) {
     const auth = this.auth, p = this.p;
     let goal = null;
     if (auth.ctf && p.team) goal = this._ctfGoal();
-    if (!goal && this.target && this.visible) {
+    if (this.coverGoal && t < this.coverUntil) goal = this.coverGoal;
+    else this.coverGoal = null;
+    if (!goal && this.heliGoal && !this.visible && this.auth.heli?.h) goal = new THREE.Vector3().fromArray(this.auth.heli.h.pos);
+    if (!goal && this.target && this.visible && !this.target.heli) {
       const pref = PREF_RANGE[this.gun.id] || 20;
       const tp = new THREE.Vector3().fromArray(this.target.pos);
       const d = tp.distanceTo(this.pos);
@@ -219,6 +352,11 @@ export class BotBrain {
   update(dt, t) {
     const p = this.p;
     if (!p.alive) return;
+    if (this.pilot) {
+      if (this.pilot.update(dt, t)) return;
+      this.pilot = null;
+    }
+    if (this.heliGoal && this._tryEnterHeli()) return;
     this.thinkT -= dt;
     if (this.thinkT <= 0) { this.thinkT = 0.15 + Math.random() * 0.05; this.think(t); }
 
@@ -232,7 +370,7 @@ export class BotBrain {
       else dir.copy(_v.normalize());
       sprint = !this.visible && this.pathI < this.path.length - 1;
     }
-    if (this.visible && this.target) {
+    if (this.visible && this.target && !this.target.heli) {
       // Fight: strafe around the preferred range instead of walking straight.
       const tp = _v.fromArray(this.target.pos);
       const to = tp.sub(this.pos).setY(0);
@@ -333,13 +471,14 @@ export class BotBrain {
     const wantYaw = Math.atan2(-_v.x, -_v.z), wantPitch = Math.atan2(_v.y, Math.hypot(_v.x, _v.z));
     let dy = wantYaw - this.ctrl.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI;
     if (Math.abs(dy) > 8 * DEG || Math.abs(wantPitch - this.ctrl.pitch) > 8 * DEG) return;
-    if (dist > Math.min(st.maxRange, ENGAGE_RANGE[g.id] || 60)) return;
+    if (dist > (this.target.heli ? st.maxRange : Math.min(st.maxRange, ENGAGE_RANGE[g.id] || 60))) return;
     if (this.burstLeft <= 0) this.burstLeft = Math.round(rand(...this.d.burst)) * (st.mode === 'auto' ? 1 : 0.4) + 1;
     g.consume(t);
     this.burstLeft--;
     if (this.burstLeft <= 0) this.pauseUntil = t + rand(...this.d.pause) + (st.mode === 'bolt' ? 0.6 : 0);
     this.err.pitch += st.recoil.pitch * DEG * this.d.recoil * 0.6;
     this.err.yaw += (Math.random() - 0.5) * st.recoil.yaw * DEG * this.d.recoil;
-    this.mgr.botShot(this, g, eye, t);
+    if (this.target.heli) this.mgr.botShotHeli(this, g, eye, t);
+    else this.mgr.botShot(this, g, eye, t);
   }
 }

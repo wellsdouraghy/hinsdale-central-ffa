@@ -88,7 +88,7 @@ export class BotManager {
     if (this.stTimer < 0.05) return;
     this.stTimer = 0;
     for (const b of this.brains.values()) {
-      if (!(b instanceof BotBrain) || !b.p.alive) continue;
+      if (!(b instanceof BotBrain) || !b.p.alive || b.p.inHeli) continue;
       const c = b.ctrl;
       this.auth.pendingStates.set(b.p.id, {
         t: 'st', id: b.p.id, l: b.p.life, ts: r3(t),
@@ -96,6 +96,45 @@ export class BotManager {
         yaw: r3(c.yaw), pitch: r3(c.pitch), c: c.crouching ? 1 : 0, s: c.sprinting ? 1 : 0, w: b.gun?.id || 'ar', g: c.grounded ? 1 : 0,
       });
     }
+  }
+
+  /**
+   * A bot shooting at an enemy helicopter: rays against a host-side hull volume (cabin + tail spheres, like the
+   * clients' hit volume); the damage goes through HeliRules.bulletHit (weapon cap, rate limit, 0.6x / sniper 2x).
+   */
+  botShotHeli(brain, gun, eye, t) {
+    const auth = this.auth, st = gun.stats, p = brain.p, hr = auth.heli, h = hr?.h;
+    if (!h || h.state !== 'flying') return;
+    p.protectUntil = 0;
+    const aim = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(brain.ctrl.pitch, brain.ctrl.yaw, 0, 'YXZ'));
+    const spread = (st.spread.hip * 0.5 + st.spread.ads * 0.5) * DEG * brain.d.spreadMult + gun.bloom * DEG;
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(h.pitch, h.yaw, h.roll, 'YXZ'));
+    const base = new THREE.Vector3().fromArray(h.pos);
+    const spheres = [
+      [new THREE.Vector3(0, 1.6, -1.2).applyQuaternion(q).add(base), 2.3],
+      [new THREE.Vector3(0, 2.0, 4.8).applyQuaternion(q).add(base), 1.2],
+    ];
+    let dmg = 0;
+    const ends = [];
+    for (let i = 0; i < st.pellets; i++) {
+      const dir = cone(aim, spread);
+      const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
+      let best = Infinity;
+      for (const [c, r] of spheres) {
+        const oc = new THREE.Vector3().subVectors(eye, c);
+        const b = oc.dot(dir), cc = oc.lengthSq() - r * r, disc = b * b - cc;
+        if (disc >= 0) { const d = -b - Math.sqrt(disc); if (d > 0 && d < best) best = d; }
+      }
+      if (best < (wh ? wh.distance : st.maxRange)) {
+        dmg += damageAt(st, best);
+        const e = eye.clone().addScaledVector(dir, best);
+        ends.push([r2(e.x), r2(e.y), r2(e.z), 1, 0, 1, 0, 'metal']);
+      } else if (wh) ends.push([r2(wh.point.x), r2(wh.point.y), r2(wh.point.z), 1, r3(wh.normal.x), r3(wh.normal.y), r3(wh.normal.z), wh.surface]);
+      else { const e = eye.clone().addScaledVector(dir, Math.min(st.maxRange, 300)); ends.push([r2(e.x), r2(e.y), r2(e.z), 0]); }
+    }
+    auth.out({ t: 'shot', id: p.id, w: gun.id, o: [r2(eye.x), r2(eye.y - 0.2), r2(eye.z)], e: ends });
+    this.onShot(p, p.pos);
+    if (dmg > 0) hr.bulletHit(p, { w: gun.id, dmg });
   }
 
   /** Host-side hitscan for a bot shot: world first, then enemy hitboxes; damage applied directly. */

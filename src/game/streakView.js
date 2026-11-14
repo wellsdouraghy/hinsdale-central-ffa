@@ -44,13 +44,6 @@ export class StreakView {
     if (m.id === this.game.localId) this.armor = m.armor;
   }
 
-  onStrike(m) {
-    const g = this.game;
-    const mine = m.owner === g.localId;
-    g.announce(mine ? 'Airstrike inbound' : 'Enemy airstrike inbound', mine ? '' : 'Get clear of the red smoke', mine ? '#f2b544' : '#ff4d55', mine ? 'neutral' : 'bad');
-    g.audio.jet?.(new THREE.Vector3().fromArray(m.pts[Math.floor(m.pts.length / 2)]), m.delay);
-  }
-
   onCrate(m) {
     const c = m.c, g = this.game;
     let e = this.crates.get(c.cid);
@@ -160,6 +153,7 @@ export class StreakView {
     const item = this.items[this.items.length - 1];
     if (!item) { g.audio.grappleDeny(); return; }
     if (item === 'uav') g.session.send({ t: 'item', item: 'uav' });
+    else if (item === 'airstrike') g.laptop.openAt(t);
     else if (g.throwables.throwMarker(t, item)) { /* consumed by the host when the marker is thrown */ }
   }
 

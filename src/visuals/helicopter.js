@@ -86,6 +86,9 @@ function getFx() {
   return fx;
 }
 
+/** Shared world-space smoke/fire cloud (also used by the airstrike jets and bombs). */
+export function getWorldFx() { return getFx(); }
+
 // ---- geometry helpers -----------------------------------------------------------------------------------------------
 const _m = new THREE.Matrix4(), _e = new THREE.Euler(), _q = new THREE.Quaternion(), _s1 = new THREE.Vector3(1, 1, 1), _p = new THREE.Vector3();
 function place(g, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1) {

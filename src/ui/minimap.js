@@ -1,5 +1,39 @@
 // Rotating minimap drawn from the satellite image (player-centered, heading up).
-const SAT = { url: './assets/satellite/campus_z19.jpg', minX: -394.85, maxX: 394.85, minZ: -305.44, maxZ: 305.44 };
+export const SAT = { url: './assets/satellite/campus_z19.jpg', minX: -394.85, maxX: 394.85, minZ: -305.44, maxZ: 305.44 };
+/** Map colors relative to the viewer (never team colors): teammates green arrows, enemies red dots. */
+export const MAP_ALLY = '#46e37a';
+export const MAP_ENEMY = '#ff3b3b';
+
+let satPromise = null;
+/** The campus satellite image (north up: image top = -z), loaded once and shared by the minimap and the strike laptop. */
+export function loadSatellite() {
+  if (!satPromise) {
+    satPromise = new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = SAT.url;
+    });
+  }
+  return satPromise;
+}
+
+/** Small arrow (teammate facing). ang: canvas angle of the pointing direction (radians, 0 = +x). */
+export function drawArrow(ctx, x, y, ang, size, fill) {
+  const c = Math.cos(ang), s = Math.sin(ang);
+  const pt = (f, r) => [x + c * f - s * r, y + s * f + c * r];
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.lineWidth = 1.25;
+  ctx.beginPath();
+  ctx.moveTo(...pt(size * 1.25, 0));
+  ctx.lineTo(...pt(-size * 0.85, size * 0.85));
+  ctx.lineTo(...pt(-size * 0.35, 0));
+  ctx.lineTo(...pt(-size * 0.85, -size * 0.85));
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
 const VIEW_METERS = 170;   // canvas width in meters
 const BAKE_PPM = 2.2;      // pixels per meter of the downscaled image cache
 
@@ -8,8 +42,8 @@ export function createMinimap(canvas) {
   const W = canvas.width, H = canvas.height;
   const scale = W / VIEW_METERS;
   let baked = null;
-  const img = new Image();
-  img.onload = () => {
+  loadSatellite().then((img) => {
+    if (!img) return;
     const c = document.createElement('canvas');
     c.width = Math.round((SAT.maxX - SAT.minX) * BAKE_PPM);
     c.height = Math.round((SAT.maxZ - SAT.minZ) * BAKE_PPM);
@@ -17,11 +51,10 @@ export function createMinimap(canvas) {
     g.filter = 'saturate(0.7) brightness(0.85)';
     g.drawImage(img, 0, 0, c.width, c.height);
     baked = c;
-  };
-  img.src = SAT.url;
+  });
 
   /**
-   * me: {x, z, yaw, alive}; blips: [{x, z, color, alpha, size}]; bounds: playBounds
+   * me: {x, z, yaw, alive}; blips: [{x, z, color, alpha, size, shape?: 'arrow'|'flag'|'heli', yaw?, edge?}]; bounds: playBounds
    */
   function draw(me, blips, bounds) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -76,6 +109,12 @@ export function createMinimap(canvas) {
         ctx.strokeStyle = b.color;
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(hx - 9, hy - 9); ctx.lineTo(hx + 9, hy + 9); ctx.moveTo(hx + 9, hy - 9); ctx.lineTo(hx - 9, hy + 9); ctx.stroke();
+        continue;
+      }
+      if (b.shape === 'arrow') {
+        // World facing (-sin yaw, -cos yaw) rotated into the heading-up minimap frame.
+        const fx = -Math.sin(b.yaw || 0), fz = -Math.cos(b.yaw || 0);
+        drawArrow(ctx, W / 2 + px, H / 2 + py, Math.atan2(fx * s + fz * c, fx * c - fz * s), b.size || 5, b.color);
         continue;
       }
       if (b.shape === 'flag') {

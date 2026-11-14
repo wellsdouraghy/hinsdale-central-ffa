@@ -14,6 +14,9 @@ import { CtfView } from './ctfView.js';
 import { CLASSES, CLASS_IDS, DEFAULT_CLASS, classOf } from './classes.js';
 import { Throwables } from './throwables.js';
 import { StreakView } from './streakView.js';
+import { StrikeView } from './strikeView.js';
+import { StrikeLaptop } from './strikeLaptop.js';
+import { MAP_ALLY, MAP_ENEMY } from '../ui/minimap.js';
 import { KillCamRecorder, KillCam } from './killcam.js';
 import { HeliView } from './heliView.js';
 
@@ -54,6 +57,8 @@ export class Game {
     this.spawnClass = this.selectedClass;
     this.throwables = new Throwables(this);
     this.streaks = new StreakView(this);
+    this.strikeView = new StrikeView(this);
+    this.laptop = new StrikeLaptop(this);
     this.killcamRec = new KillCamRecorder();
     this.killcam = null;
     this.deathFlow = null;     // { phase: 'pre'|'killcam'|'screen'|'waiting', t, until }
@@ -198,7 +203,7 @@ export class Game {
       case 'items': this.streaks.onItems(m); break;
       case 'uav': this.streaks.onUav(m); break;
       case 'armor': this.streaks.onArmor(m); break;
-      case 'strike': this.streaks.onStrike(m); break;
+      case 'strike': this.strikeView.onStrike(m); break;
       case 'crate': this.streaks.onCrate(m); break;
       case 'tscore': this.teamScore = { ...m.score }; break;
       case 'heli': this.heliView?.apply(m.h, m.spawned); break;
@@ -277,6 +282,8 @@ export class Game {
         for (const e of this.roster.values()) { e.k = 0; e.d = 0; e.caps = 0; e.ret = 0; }
         this.teamScore = { red: 0, blue: 0 };
         this.adsToggled = false;
+        this.strikeView.reset();
+        this.laptop.close();
         this._endDeathFlow();
         this.ui.hideEnd();
         this.hud.reset();
@@ -415,6 +422,7 @@ export class Game {
 
   _onKill(m) {
     const killer = this.roster.get(m.killer), victim = this.roster.get(m.victim);
+    if (m.victim === this.localId) this.laptop.close();
     if (killer) killer.k = m.kk;
     if (victim) { victim.d = m.vd; victim.alive = false; }
     const meK = m.killer === this.localId, meV = m.victim === this.localId;
@@ -457,7 +465,7 @@ export class Game {
     const t = clock();
     const canCam = r && m.killer !== this.localId && r.history.length > 4 && this.match.state === 'playing';
     if (canCam) {
-      this.deathFlow = { phase: 'pre', until: t + 1, cam: { killerId: m.killer, killTime: t, weapon: weaponName(m.w), killerHp: m.khp ?? null, killerName: this.nameOf(m.killer) } };
+      this.deathFlow = { phase: 'pre', until: t + 1, cam: { killerId: m.killer, killTime: t, w: m.w, weapon: weaponName(m.w), killerHp: m.khp ?? null, killerName: this.nameOf(m.killer) } };
     } else {
       this.deathFlow = { phase: 'screen', until: t + this.match.respawnDelay };
       this.ui.showDeploy(this.deathInfo);
@@ -803,6 +811,8 @@ export class Game {
       this._updateDeathFlow(dt, t, pressed);
     }
     this.throwables.update(dt, t);
+    this.strikeView.update(dt, this.killcam ? this.killcam.rt : t, !this.killcam);
+    this.laptop.update(dt, t);
     const holdX = this.alive && active && this.input.isDown('KeyX');
     const heliPrompt = this.heliView ? this.heliView.update(dt, t, holdX && !this.piloting) : null;
     this.streakPrompt = heliPrompt || this.streaks.update(dt, t, holdX && !heliPrompt && !this.piloting);
@@ -850,7 +860,11 @@ export class Game {
     const baseV = this._baseVFov();
     const zoomRatio = this.camera.fov / baseV;
     const sens = BASE_SENS * S.sensitivity * (1 + (zoomRatio * S.adsMultiplier - 1) * ar.ads);
-    const lx = active ? -dx * sens : 0, ly = active ? -dy * sens : 0;
+    // Strike laptop open: the mouse drives its reticle instead of the view.
+    const lap = this.laptop;
+    if (lap.active && !active) lap.close();
+    const lapOpen = lap.active;
+    const lx = active && !lapOpen ? -dx * sens : 0, ly = active && !lapOpen ? -dy * sens : 0;
     p.yaw += lx;
     p.pitch = THREE.MathUtils.clamp(p.pitch + ly, -89 * DEG, 89 * DEG);
     // Viewmodel convention: x = yaw to the right, y = pitch up (radians this frame).
@@ -858,23 +872,25 @@ export class Game {
     this.lookDelta.y = ly;
 
     const key = (c) => active && this.input.isDown(c);
-    const fireHeld = key('Mouse0');
-    const adsHeld = key('Mouse2');
+    if (lapOpen) lap.input(t, { dx, dy, wheel, pressed, key });
+    const busy = lapOpen || lap.shown;   // laptop up: weapon lowered, no shooting / abilities, walk speed
+    const fireHeld = !busy && key('Mouse0');
+    const adsHeld = !busy && key('Mouse2');
     // Toggle aim: Ctrl+click (macOS secondary click) or Q. Aim wins over the sprint key until toggled off.
-    if (active && (pressed.has('AimToggle') || pressed.has('KeyQ'))) this.adsToggled = !this.adsToggled;
+    if (active && !busy && (pressed.has('AimToggle') || pressed.has('KeyQ'))) this.adsToggled = !this.adsToggled;
     const aimWanted = adsHeld || this.adsToggled;
     const sprintHeld = this.settings.sprintKey === 'ctrl'
       ? key('ControlLeft') || key('ControlRight')
       : key('ShiftLeft') || key('ShiftRight');
     const move = {
       forward: (key('KeyW') ? 1 : 0) - (key('KeyS') ? 1 : 0),
-      strafe: (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0),
-      jump: active && pressed.has('Space'),
+      strafe: lapOpen ? 0 : (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0),   // A / D rotate the strike on the laptop
+      jump: active && !busy && pressed.has('Space'),
       crouchToggle: active && pressed.has('KeyC'),
-      sprint: sprintHeld,
+      sprint: sprintHeld && !busy,
     };
-    if (active && pressed.has('KeyF')) this._grappleKey(t);
-    if (active && pressed.has('KeyE') && t >= this.dashReadyAt && !p.mantle) {
+    if (active && !busy && pressed.has('KeyF')) this._grappleKey(t);
+    if (active && !busy && pressed.has('KeyE') && t >= this.dashReadyAt && !p.mantle) {
       const sy = Math.sin(p.yaw), cy = Math.cos(p.yaw);
       let dx = -sy * move.forward + cy * move.strafe, dz = -cy * move.forward - sy * move.strafe;
       if (Math.hypot(dx, dz) < 0.1) { dx = -sy; dz = -cy; }
@@ -884,11 +900,11 @@ export class Game {
       this.audio.dash();
     }
     // Grenade: hold G to cook, release to throw. 4: use killstreak item.
-    if (active && pressed.has('KeyG') && !p.sprinting) this.throwables.beginCook(t);
+    if (active && !busy && pressed.has('KeyG') && !p.sprinting) this.throwables.beginCook(t);
     if (this.throwables.cookStart !== null && !key('KeyG')) this.throwables.release(t);
-    if (active && pressed.has('Digit4')) this.streaks.useItem(t);
-    const speedMult = (this.classDef.speedMult ?? 1) * this.streaks.speedMult;
-    p.update(dt, move, { ads: ar.ads, moveMult: st.moveMult * speedMult, blockSprint: fireHeld || aimWanted || this.throwables.cookStart !== null });
+    if (active && !busy && pressed.has('Digit4')) this.streaks.useItem(t);
+    const speedMult = (this.classDef.speedMult ?? 1) * this.streaks.speedMult * (busy ? 0.42 : 1);
+    p.update(dt, move, { ads: ar.ads, moveMult: st.moveMult * speedMult, blockSprint: busy || fireHeld || aimWanted || this.throwables.cookStart !== null });
     for (const ev of p.events) {
       if (ev === 'doubleJump') this.audio.thruster();
       else if (ev === 'mantle' || ev === 'ladder') this.audio.mantle();
@@ -906,7 +922,7 @@ export class Game {
     this.swapHint = swapOk && !this.swapOpen;
 
     // Weapon switching.
-    if (active && !this.swapOpen) {
+    if (active && !this.swapOpen && !busy) {
       if (pressed.has('Digit1')) ar.switchTo(0, t);
       if (pressed.has('Digit2')) ar.switchTo(1, t);
       if (wheel) ar.switchTo(ar.slot === 0 ? 1 : 0, t);
@@ -921,7 +937,7 @@ export class Game {
     this._updateCamera(0);
     this.grappleTarget = p.grapple ? null : this._findGrappleTarget();
 
-    const canFire = active && !this.swapOpen && !ar.switching(t) && !p.gunBlocked() && t >= this.meleeUntil - MELEE.cooldown * 0.4;
+    const canFire = active && !busy && !this.swapOpen && !ar.switching(t) && !p.gunBlocked() && t >= this.meleeUntil - MELEE.cooldown * 0.4;
     const trigger = gs.mode === 'auto' ? fireHeld : pressed.has('Mouse0');
     if (trigger && canFire) {
       if (g.canInterruptReload()) g.cancelReload();
@@ -948,7 +964,10 @@ export class Game {
     const scoped = gs.scope && ar.ads > 0.85;
     const vm = ar.viewmodel;
     if (!vm) return;
-    vm.object3D.visible = !scoped;
+    // Laptop up: the gun is put away; it comes back with an equip when the laptop has folded.
+    if (lap.shown) this._lapWasShown = true;
+    else if (this._lapWasShown) { this._lapWasShown = false; vm.equip?.(); }
+    vm.object3D.visible = !scoped && !lap.shown;
     vm.update(dt, {
       moveSpeed: Math.min(1, p.horizontalSpeed() / 7.5), sprinting: p.sprinting, ads: ar.ads,
       grounded: p.grounded, lookDelta: this.lookDelta,
@@ -1082,7 +1101,7 @@ export class Game {
     const moving = Math.min(1, p.horizontalSpeed() / 5);
     const spread = g ? g.spread({ ads: ar.ads, moving, airborne: !p.grounded, crouching: p.crouching }) : 0;
     const px = (Math.tan(spread) / Math.tan((this.camera.fov * DEG) / 2)) * (innerHeight / 2);
-    hud.crosshair({ visible: this.alive && ar.ads < 0.5 && !p.sprinting && this.match.state === 'playing', spreadPx: px, enemy: !!aimName && !aimFriendly });
+    hud.crosshair({ visible: this.alive && !this.laptop.shown && ar.ads < 0.5 && !p.sprinting && this.match.state === 'playing', spreadPx: px, enemy: !!aimName && !aimFriendly });
     hud.targetName(aimName, aimFriendly ? TEAM_CSS[this.myTeam] : null);
 
     const me = this.roster.get(this.localId);
@@ -1129,30 +1148,43 @@ export class Game {
     }
     this._sbVisible = showSb;
 
-    // Minimap: teammates always; enemies briefly when they fire; the enemy carrying our flag always.
+    this.minimap.draw({ x: p.position.x, z: p.position.z, yaw: p.yaw, alive: this.alive }, this.mapBlips(t), this.world.playBounds);
+  }
+
+  /**
+   * Blips for the minimap and the strike laptop, relative to the viewer: teammates = green arrows (facing), always
+   * shown in team modes; enemies = red dots only while revealed (gunfire ping, UAV, carrying our flag). Flags: ours
+   * green, theirs red.
+   */
+  mapBlips(t) {
     const blips = [];
     const ourFlagCarrier = this.isCtf ? this.ctfView?.carrierOf(this.myTeam) : null;
     for (const r of this.remotes.values()) {
       if (!r.alive) continue;
-      const mate = this.isTeammate(r.id);
-      if (mate) { blips.push({ x: r.feet.x, z: r.feet.z, color: TEAM_CSS[this.myTeam], alpha: 1, size: 4 }); continue; }
-      if (r.id === ourFlagCarrier) { blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 0.6 + 0.4 * Math.abs(Math.sin(t * 5)), size: 6 }); continue; }
-      if (r.bot) { blips.push({ x: r.feet.x, z: r.feet.z, color: '#bbbbbb', alpha: 0.7, size: 3 }); continue; }
-      if (this.streaks.uavActive) { blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 0.9, size: 4.5 }); continue; }
+      const x = r.feet.x, z = r.feet.z;
+      if (this.isTeammate(r.id)) { blips.push({ x, z, color: MAP_ALLY, alpha: 1, size: 5, shape: 'arrow', yaw: r.yaw }); continue; }
+      if (r.id === ourFlagCarrier) { blips.push({ x, z, color: MAP_ENEMY, alpha: 0.6 + 0.4 * Math.abs(Math.sin(t * 5)), size: 6 }); continue; }
+      if (r.bot && !r.ai) { blips.push({ x, z, color: MAP_ENEMY, alpha: 0.7, size: 3 }); continue; }   // practice dummies
+      if (this.streaks.uavActive) { blips.push({ x, z, color: MAP_ENEMY, alpha: 0.9, size: 4.5 }); continue; }
       const last = this.blips.get(r.id);
       const age = last === undefined ? 99 : t - last;
       // Gunfire ping; off the map's radius it becomes an edge arrow pointing at the shooter.
-      if (age < 2) blips.push({ x: r.feet.x, z: r.feet.z, color: '#ff3b3b', alpha: 1 - age / 2, size: 4.5, edge: true });
+      if (age < 2) blips.push({ x, z, color: MAP_ENEMY, alpha: 1 - age / 2, size: 4.5, edge: true });
     }
     if (this.ctfView) {
       for (const team of TEAMS) {
         const fp = this.ctfView.flagPos(team, _v3);
-        blips.push({ x: fp.x, z: fp.z, color: TEAM_CSS[team], alpha: 1, size: 6, shape: 'flag' });
+        blips.push({ x: fp.x, z: fp.z, color: team === this.myTeam ? MAP_ALLY : MAP_ENEMY, alpha: 1, size: 6, shape: 'flag' });
       }
     }
     // The helicopter is on everyone's minimap while it flies.
-    if (this.heliView?.flying) blips.push({ x: this.heliView.pos.x, z: this.heliView.pos.z, color: this.heliView.mine ? '#ffd76a' : '#ff8a3b', alpha: 1, size: 7, shape: 'heli', edge: true });
-    this.minimap.draw({ x: p.position.x, z: p.position.z, yaw: p.yaw, alive: this.alive }, blips, this.world.playBounds);
+    // Green when we (or a teammate) fly it, red for the enemy.
+    if (this.heliView?.flying) {
+      const pid = this.heliView.s.pilot;
+      const ours = this.heliView.mine || (pid !== null && this.isTeammate(pid));
+      blips.push({ x: this.heliView.pos.x, z: this.heliView.pos.z, color: ours ? MAP_ALLY : MAP_ENEMY, alpha: 1, size: 7, shape: 'heli', edge: true });
+    }
+    return blips;
   }
 
   _updateCtfHud(t, timeLeft) {
@@ -1210,6 +1242,8 @@ export class Game {
     this.throwables.dispose();
     this.heliView?.dispose();
     this.streaks.dispose();
+    this.strikeView.dispose();
+    this.laptop.dispose();
     this.remotes.clear();
     this.ctfView?.dispose();
     this.cable.dispose();

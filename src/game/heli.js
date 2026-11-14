@@ -1,4 +1,4 @@
-// Host-authoritative attack helicopter (FFA only, one per match): parking spot, pilot, health, rockets, flight time,
+// Host-authoritative attack helicopter (FFA + TDM, one per match; team modes: no friendly fire either way): parking spot, pilot, health, rockets, flight time,
 // destruction and respawn. The pilot's client flies it and streams its pose; the host validates and relays.
 import * as THREE from 'three';
 import { WEAPON_STATS, maxShotDamage } from './weapons.js';
@@ -186,9 +186,15 @@ export class HeliRules {
     }
   }
 
+  /** Team modes: is `a` on the current pilot's team (no damage either way)? */
+  _friendly(a) {
+    if (!this.auth.teamMode || !a?.team || this.h?.pilot === null || this.h?.pilot === undefined) return false;
+    return this.auth.players.get(this.h.pilot)?.team === a.team;
+  }
+
   /** Bullets from players hitting the helicopter (any seat-side validation is light: weapon + damage cap + rate). */
   bulletHit(a, msg) {
-    if (!this.active || !a.alive || a.id === this.h.pilot) return;
+    if (!this.active || !a.alive || a.id === this.h.pilot || this._friendly(a)) return;
     const w = msg.w;
     if (!WEAPON_STATS[w]) return;
     const dmg = Math.min(Number(msg.dmg) || 0, maxShotDamage(w));
@@ -208,6 +214,7 @@ export class HeliRules {
     if (!h || h.pilot !== a.id || h.state !== 'flying') return;
     const v = this.auth.players.get(msg.target);
     if (!v || v === a || !v.alive) return;
+    if (this.auth.teamMode && a.team && v.team === a.team) return;   // friendly fire off
     const t = this.auth.time();
     this.claims = this.claims.filter((c) => t - c < 1);
     if (this.claims.length > HELI.cannonRps * 1.3 + 2) return;
@@ -219,7 +226,7 @@ export class HeliRules {
 
   /** Explosions near the helicopter (frags full damage; its own rockets don't hurt it). */
   blast(a, center, radius, max, weapon) {
-    if (!this.active || weapon === 'rocket' || weapon === 'heli') return;
+    if (!this.active || weapon === 'rocket' || weapon === 'heli' || this._friendly(a)) return;
     const h = this.h;
     const d = center.distanceTo(new THREE.Vector3(h.pos[0], h.pos[1] + 1.6, h.pos[2]));
     const r = radius + 2;
@@ -276,6 +283,7 @@ export class HeliRules {
     const lf = new THREE.Vector3(), lh = new THREE.Vector3();
     for (const v of [...this.auth.players.values()]) {
       if (!v.alive || !v.pos || v === pilot || v.inHeli) continue;
+      if (this.auth.teamMode && pilot.team && v.team === pilot.team) continue;   // teammates: rotor / ram ignored
       if (Math.hypot(v.pos[0] - h.pos[0], v.pos[2] - h.pos[2]) > 12) continue;
       lf.fromArray(v.pos).sub(origin).applyQuaternion(inv);                       // feet, heli-local
       lh.set(v.pos[0], v.pos[1] + 1.7, v.pos[2]).sub(origin).applyQuaternion(inv); // head, heli-local
@@ -353,8 +361,10 @@ export class HeliRules {
       if (wh) boom = wh.point;
       else {
         r.pos.addScaledVector(r.dir, step);
+        const shooter = this.auth.players.get(r.owner);
         for (const v of this.auth.players.values()) {
           if (!v.alive || !v.pos || v.id === r.owner) continue;
+          if (this.auth.teamMode && shooter?.team && v.team === shooter.team) continue;
           if (Math.hypot(v.pos[0] - r.pos.x, v.pos[1] + 1 - r.pos.y, v.pos[2] - r.pos.z) < 1.6) { boom = r.pos.clone(); break; }
         }
         if (r.age > 4) boom = r.pos.clone();

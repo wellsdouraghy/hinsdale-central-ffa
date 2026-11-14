@@ -1,4 +1,6 @@
 // Host-side killstreaks: care packages (marker -> parachute crate -> capture -> random reward), UAV, airstrikes, armor.
+// Airstrike: the caller picks a point + heading on the targeting laptop; the host validates, plans the run (3 jets, a
+// carpet of bombs along a ~70 m corridor) and broadcasts it so every client animates the same jets / bombs / blasts.
 import * as THREE from 'three';
 
 export const STREAK = {
@@ -6,8 +8,14 @@ export const STREAK = {
   capTime: 2.0, ownerCapTime: 0.5, capRange: 3.2,
   dropDelay: 5, dropHeight: 120, fallTime: 6,
   uavTime: 30, speedTime: 30, armor: 100,
-  strikeDelay: 3, strikeCount: 5, strikeSpacing: 6, strikeGap: 0.35, strikeRadius: 8, strikeDamage: 160,
   crateLinger: 4,
+};
+/** Airstrike run: jets cross the target `delay + approach / speed` s after the call; bombs fall `fall` s and travel
+ *  `drift` m forward while falling. Damage: linear falloff from `damage` at the center to 0 at `radius` (LOS-checked). */
+export const STRIKE = {
+  delay: 3, approach: 380, speed: 95, alt: 75, length: 70, bombs: 15, fall: 1.5, drift: 40,
+  radius: 7, damage: 260, lateral: 9, trail: 11,
+  jets: [[0, 0], [-9, 11], [9, 11]],   // [lateral offset m (right +), trail m] per jet
 };
 export const REWARDS = ['uav', 'armor', 'airstrike', 'resupply', 'speed'];
 export const REWARD_NAMES = { uav: 'UAV', armor: 'Body Armor', airstrike: 'Airstrike', resupply: 'Ammo + Frags', speed: 'Speed Boost', care: 'Care Package' };
@@ -28,7 +36,14 @@ export class StreakRules {
   }
 
   onKill(killer, victim) {
-    if (!killer || killer === victim || killer.bot) return;
+    if (!killer || killer === victim) return;
+    if (killer.bot) {
+      // AI bots only earn the airstrike (they call it in themselves); practice dummies earn nothing.
+      if (!killer.ai) return;
+      killer.streak = (killer.streak || 0) + 1;
+      if (killer.streak === STREAK.airstrike) killer.items.push('airstrike');
+      return;
+    }
     killer.streak = (killer.streak || 0) + 1;
     if (killer.streak === STREAK.care) this.grant(killer, 'care');
     else if (killer.streak === STREAK.uav) this.grant(killer, 'uav');
@@ -37,9 +52,55 @@ export class StreakRules {
   }
 
   onDeath(victim) {
-    if (victim.bot) return;
     victim.streak = 0;
-    this._items(victim);
+    if (!victim.bot) this._items(victim);
+  }
+
+  /** Laptop confirm from a client: { x, z, h } (target + compass heading, radians, 0 = north/-z, +pi/2 = east/+x). */
+  useStrike(p, msg) {
+    if (!p.alive || !Number.isFinite(msg.x) || !Number.isFinite(msg.z) || !Number.isFinite(msg.h)) return false;
+    const i = p.items.indexOf('airstrike');
+    if (i < 0) return false;
+    p.items.splice(i, 1);
+    if (!p.bot) this._items(p);
+    if (p.spawnInfo) p.spawnInfo.dirty = true;
+    this.callStrike(p.id, msg.x, msg.z, msg.h);
+    return true;
+  }
+
+  _groundAt(x, z) {
+    const hs = this.auth.bots.hitscan;
+    const hit = hs.castWorld(_o.set(x, 250, z), _down, 400);
+    if (hit) return hit.point.y;
+    return this.auth.world.groundY ? this.auth.world.groundY(x, z) : 0;
+  }
+
+  /** Plans the run and schedules the bombs (damage is applied on the host at each impact time). */
+  callStrike(ownerId, x, z, h) {
+    const owner = this.auth.players.get(ownerId);
+    const b = this.auth.world.playBounds;
+    if (b) { x = Math.max(b.minX, Math.min(b.maxX, x)); z = Math.max(b.minZ, Math.min(b.maxZ, z)); }
+    const S = STRIKE, now = this.auth.time();
+    const dx = Math.sin(h), dz = -Math.cos(h);      // flight direction
+    const rx = -dz, rz = dx;                         // right of the flight direction
+    const gy = this._groundAt(x, z);
+    const tc = S.delay + S.approach / S.speed;       // lead jet over the target, seconds from now
+    const bombs = [];
+    for (let i = 0; i < S.bombs; i++) {
+      const s = -S.length / 2 + (S.length * i) / (S.bombs - 1) + (Math.random() - 0.5) * 2;
+      const j = i % S.jets.length;
+      const [lat, back] = S.jets[j];
+      const l = lat * 0.3 + (Math.random() - 0.5) * 2;   // tight carpet: bombs land near the centre line
+      const bx = x + dx * s + rx * l, bz = z + dz * s + rz * l;
+      const by = this._groundAt(bx, bz);
+      const at = tc + (s - S.drift + back) / S.speed + S.fall;
+      bombs.push([r2(bx), r2(by), r2(bz), Math.round(at * 1000) / 1000, j]);
+      this.strikes.push({ owner: ownerId, at: now + at, p: new THREE.Vector3(bx, by, bz) });
+    }
+    this.auth.out({
+      t: 'strike', owner: ownerId, team: owner?.team ?? null, c: [r2(x), r2(gy), r2(z)], h: Math.round(h * 1000) / 1000,
+      tc, alt: S.alt, v: S.speed, fall: S.fall, drift: S.drift, len: S.length, jets: S.jets, bombs,
+    });
   }
 
   /** Player activated an item. UAV is instant; care/airstrike need a thrown marker (handled by the projectile). */
@@ -76,19 +137,6 @@ export class StreakRules {
       const c = { cid, owner: ownerId, team: owner?.team ?? null, p: ground.toArray(), t0: now, landAt: now + STREAK.dropDelay + STREAK.fallTime, state: 'incoming', caps: new Map() };
       this.crates.set(cid, c);
       this.auth.out({ t: 'crate', c: this._pub(c) });
-    } else if (item === 'airstrike') {
-      // Sweep across the marker along the thrower's facing (or east-west if unknown).
-      let dir = new THREE.Vector3(1, 0, 0);
-      if (owner?.pos) { dir.set(ground.x - owner.pos[0], 0, ground.z - owner.pos[2]); if (dir.lengthSq() < 1) dir.set(1, 0, 0); dir.normalize(); }
-      const pts = [];
-      for (let i = 0; i < STREAK.strikeCount; i++) {
-        const off = (i - (STREAK.strikeCount - 1) / 2) * STREAK.strikeSpacing;
-        const q = ground.clone().addScaledVector(dir, off);
-        if (this.auth.world.groundY) q.y = this.auth.world.groundY(q.x, q.z);
-        pts.push(q);
-        this.strikes.push({ owner: ownerId, team: owner?.team ?? null, at: now + STREAK.strikeDelay + i * STREAK.strikeGap, p: q });
-      }
-      this.auth.out({ t: 'strike', owner: ownerId, pts: pts.map((q) => q.toArray().map((v) => Math.round(v * 100) / 100)), delay: STREAK.strikeDelay, gap: STREAK.strikeGap });
     }
   }
 
@@ -133,10 +181,14 @@ export class StreakRules {
       const s = this.strikes[i];
       if (now < s.at) continue;
       this.strikes.splice(i, 1);
-      this.auth.explode(s.owner, s.p, STREAK.strikeRadius, STREAK.strikeDamage, 'airstrike');
+      this.auth.explode(s.owner, s.p, STRIKE.radius, STRIKE.damage, 'airstrike', true);
     }
   }
 
   reset() { this.crates.clear(); this.strikes.length = 0; }
 }
 
+
+const r2 = (v) => Math.round(v * 100) / 100;
+const _o = new THREE.Vector3();
+const _down = new THREE.Vector3(0, -1, 0);

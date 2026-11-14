@@ -79,7 +79,7 @@ export class Throwables {
     const p = new THREE.Vector3().fromArray(m.p);
     const color = m.item === 'airstrike' ? 0xff3322 : 0xffaa22;
     this.game.effects.smokeMarker?.(p, { color, durationSec: m.item === 'airstrike' ? 6 : 12 });
-    this.game.killcam?.recordEvent('smoke', p);
+    this.game.killcamRec?.recordEvent('smoke', p);
   }
 
   explosionAt(p, radius = 7) {
@@ -88,7 +88,7 @@ export class Throwables {
     g.effects.explosion?.(p, { radius, surface: wh?.surface || 'dirt' });
     if (!g.effects.explosion) g.effects.impact(p, new THREE.Vector3(0, 1, 0), 'dirt');
     g.audio.explosion?.(p.clone());
-    g.killcam?.recordEvent('boom', p);
+    g.killcamRec?.recordEvent('boom', p);
     const d = g.camera.position.distanceTo(p);
     if (d < 30) this.shake = Math.max(this.shake, Math.min(1, 1.4 - d / 22));
     if (d < 9) g.audio.ringing?.(Math.min(3, 4 - d / 3));
