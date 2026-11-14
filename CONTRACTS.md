@@ -243,3 +243,10 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   AI bots are host-side players (`p.ai`), visible to clients through the normal state stream.
 - (Visuals, round 7) Helicopter restyled (faceted gunmetal hull, fenestron tail, bigger wings with 2 pods + missile rail per side, lights, exhaust haze, rotor wash). Interface unchanged; new optional `setGroundEffect(heightAboveGround | null)` (null = ground at world y 0) and `setSearchlight(bool)`. Nose-to-fin length is now ~13.8 m; `gunMuzzle` and `rocketPods` anchors moved with the model. Cockpit glow and searchlight show only while `setOccupied(true)`.
 - (Gameplay, round 8) Pre-match lobby: `src/net/hostNet.js` / `clientNet.js` own the room across matches (lobby members, teams, ready, settings, countdown, back-to-lobby); a Game is created per match from a session object. Debug flag `?mute=1` forces master + voice volume to 0. No World/Visuals interface changes.
+
+### Round 9 additions (laptop-targeted airstrike)
+- **`src/visuals/airstrike.js`** (Fable visuals, placeholder exists): `createTargetingLaptop() -> { object3D, open(), close(),
+  isOpen(), screenRect(), update(dt), dispose() }` (first-person, lives in the overlay scene like the viewmodel; `screenRect()`
+  gives the open screen's NDC rect so gameplay can align its HTML targeting map over it), `createStrikeJet() -> { object3D,
+  setAfterburner(bool), update(dt), dispose() }` (world space, nose -z), `createBomb() -> { object3D, update(dt), dispose() }`
+  (nose -z; gameplay orients it to its velocity). Explosions stay in effects.explosion.
