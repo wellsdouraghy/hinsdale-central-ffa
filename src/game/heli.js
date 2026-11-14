@@ -5,12 +5,12 @@ import { WEAPON_STATS, maxShotDamage } from './weapons.js';
 
 export const HELI = {
   hp: 900,
-  flightTime: 75,
+  flightTime: 1e9,          // no fuel limit: the helicopter stays until it's destroyed
   warnTime: 10,
   respawnDelay: 60,
   enterRange: 4.5,
   exitHeight: 3.5,
-  cannonDmg: 16,
+  cannonDmg: 20,
   cannonRps: 10,
   rocketDmg: 55,
   rocketRadius: 4,

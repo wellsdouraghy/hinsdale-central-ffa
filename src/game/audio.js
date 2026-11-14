@@ -57,7 +57,7 @@ export function createAudio() {
     buffers.bolt = synthClick(sr, 1600, 0.06, 1.0, 0.02);
     buffers.dry = synthClick(sr, 3200, 0.008, 0.5);
     for (const [surf, cut] of Object.entries(FOOT_CUT)) {
-      buffers['foot_' + surf] = [0, 1, 2, 3].map(() => synthFoot(sr, cut));
+      buffers['foot_' + surf] = [0, 1, 2, 3, 4, 5].map(() => synthFoot(sr, surf));
     }
     buffers.tick = synthTone(sr, [[3100, 0.5], [5200, 0.25]], 0.022, 0.5);
     buffers.headTick = synthTone(sr, [[2450, 0.6], [3720, 0.45], [6100, 0.2]], 0.11, 0.6);
@@ -204,16 +204,59 @@ export function createAudio() {
     });
   }
 
-  function synthFoot(sr, cut) {
-    return makeBuffer(sr, 0.14, (d, n) => {
-      const a = onePole(cut * (0.85 + Math.random() * 0.3), sr);
-      let l = 0;
+  // Punchy, readable boot step (heel strike + toe roll) with a per-surface texture layer and a little gear rattle.
+  // Designed to be easy to locate in 3D: strong transients, a low thump, and bright crunch on top.
+  const FOOT_SURF = {
+    //          thump Hz, thump amt, click bandpass Hz, click amt, ring Hz, ring amt, grains (crunch), grain cut Hz, rustle
+    grass:    [85, 0.55, 1800, 0.35, 0, 0, 10, 2400, 0.55],
+    dirt:     [90, 0.6, 2200, 0.5, 0, 0, 22, 3200, 0.2],
+    rubber:   [95, 0.6, 1500, 0.4, 0, 0, 4, 1800, 0.05],
+    asphalt:  [100, 0.6, 2600, 0.75, 1900, 0.12, 14, 4200, 0.05],
+    concrete: [105, 0.6, 3000, 0.85, 2300, 0.18, 8, 5000, 0.0],
+    brick:    [100, 0.6, 2800, 0.8, 2100, 0.15, 10, 4600, 0.0],
+    wood:     [120, 0.75, 1400, 0.6, 340, 0.45, 3, 2400, 0.0],
+    metal:    [110, 0.5, 3400, 0.7, 1250, 0.55, 2, 6000, 0.0],
+    glass:    [110, 0.5, 3800, 0.7, 2900, 0.35, 6, 7000, 0.0],
+  };
+  function synthFoot(sr, surf) {
+    const [thF, thA, clF, clA, rgF, rgA, grains, grCut, rustle] = FOOT_SURF[surf] || FOOT_SURF.concrete;
+    const len = 0.22;
+    return makeBuffer(sr, len, (d, n) => {
+      const toe = 0.055 + Math.random() * 0.02;               // heel -> toe gap
+      const jit = 0.85 + Math.random() * 0.3;
+      // band-passed noise for the click: two one-pole stages (low-pass minus a slower low-pass)
+      const aHi = onePole(clF * 1.6 * jit, sr), aLo = onePole(clF * 0.45 * jit, sr), aGr = onePole(grCut, sr), aRu = onePole(5200, sr), aRuLo = onePole(1600, sr);
+      let h1 = 0, l1 = 0, g1 = 0, r1 = 0, r2 = 0;
+      const grainT = Array.from({ length: grains }, () => Math.random() * 0.07 + (Math.random() < 0.5 ? 0 : toe));
       for (let i = 0; i < n; i++) {
         const t = i / sr;
-        l += a * ((Math.random() * 2 - 1) - l);
-        const env = Math.min(1, t / 0.003) * Math.exp(-t / 0.035) + 0.4 * Math.exp(-Math.abs(t - 0.045) / 0.01);
-        d[i] = l * env;
+        const w = Math.random() * 2 - 1;
+        h1 += aHi * (w - h1); l1 += aLo * (w - l1);
+        const band = h1 - l1;
+        // transients: heel (strong) and toe (softer)
+        const eHeel = Math.min(1, t / 0.0015) * Math.exp(-t / 0.012);
+        const tt = t - toe, eToe = tt > 0 ? Math.min(1, tt / 0.002) * Math.exp(-tt / 0.016) * 0.55 : 0;
+        let v = band * clA * 2.2 * (eHeel + eToe);
+        // low thump (body weight), pitch drops slightly
+        v += Math.sin(2 * Math.PI * thF * jit * t * (1 - t * 1.5)) * thA * Math.exp(-t / 0.028) * Math.min(1, t / 0.002);
+        if (tt > 0) v += Math.sin(2 * Math.PI * thF * 1.2 * tt) * thA * 0.35 * Math.exp(-tt / 0.02);
+        // surface ring (hard floors, wood knock, metal clank)
+        if (rgA > 0) v += (Math.sin(2 * Math.PI * rgF * t) + 0.5 * Math.sin(2 * Math.PI * rgF * 2.13 * t)) * rgA * Math.exp(-t / 0.03) * Math.min(1, t / 0.001);
+        // crunch grains (gravel, dirt, grit under the sole)
+        g1 += aGr * (w - g1);
+        let gr = 0;
+        for (const gt of grainT) { const dt = t - gt; if (dt > 0 && dt < 0.012) gr += Math.exp(-dt / 0.0025); }
+        v += (w - g1) * gr * 0.5;
+        // grass/leaf rustle: high band noise smeared over the step
+        if (rustle > 0) { r1 += aRu * (w - r1); r2 += aRuLo * (w - r2); v += (r1 - r2) * rustle * Math.exp(-t / 0.06) * Math.min(1, t / 0.01) * 1.4; }
+        // gear jingle: faint bright ticks after the heel
+        if (t > 0.01 && t < 0.09 && Math.random() < 0.004) v += (Math.random() * 2 - 1) * 0.25;
+        d[i] = v * 0.8;
       }
+      // fade the tail
+      for (let i = Math.floor(n * 0.85); i < n; i++) d[i] *= (n - i) / (n * 0.15);
+      let pk = 1e-6; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(d[i]));
+      const k = 0.9 / pk; for (let i = 0; i < n; i++) d[i] *= k;   // consistent loudness across surfaces
     });
   }
 
@@ -352,7 +395,7 @@ export function createAudio() {
     },
     footstep(surface, pos = null, gain = 1) {
       const name = 'foot_' + (FOOT_CUT[surface] ? surface : 'concrete');
-      play(name, pos, { gain: (pos ? 0.9 : 0.35) * gain, rate: 0.9 + Math.random() * 0.2, ref: 3, rolloff: 1.6 });
+      play(name, pos, { gain: (pos ? 1.25 : 0.35) * gain, rate: 0.94 + Math.random() * 0.12, ref: 5, rolloff: 1.15 });
     },
     hitmarker(kind) {
       if (kind === 'head') play('headTick', null, { gain: 0.5 });

@@ -5,7 +5,7 @@ import { now as clock } from './authority.js';
 
 const DEG = Math.PI / 180;
 const MAX_SPEED = 28, BOOST_SPEED = 42, VERT_SPEED = 10, CEILING = 120;
-const CANNON_RPS = 10, CANNON_SPREAD = 1.2 * DEG, CANNON_DMG = 16, CANNON_RANGE = 600;
+const CANNON_RPS = 10, CANNON_SPREAD = 0.5 * DEG, CANNON_DMG = 20, CANNON_RANGE = 600;
 const HEAT_PER_SEC = 1 / 3, COOL_PER_SEC = 0.45, ROCKET_RELOAD = 4;
 const r2 = (x) => Math.round(x * 100) / 100;
 const r3 = (x) => Math.round(x * 1000) / 1000;
@@ -189,7 +189,7 @@ export class HeliPilot {
       g.hud.hitmarker('hit');
       g.audio.hitmarker('hit');
     } else if (wh) { end = wh.point; kind = 1; g.effects.impact(end, wh.normal, wh.surface); }
-    else { end = muzzle.clone().addScaledVector(dir, 300); kind = 0; }
+    else { end = muzzle.clone().addScaledVector(dir, CANNON_RANGE); kind = 0; }
     g.effects.tracer(muzzle, end);
     vis.fireGun();
     g.audio.cannon?.(null);

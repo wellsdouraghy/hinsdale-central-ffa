@@ -17,6 +17,8 @@ import { StreakView } from './streakView.js';
 import { KillCamRecorder, KillCam } from './killcam.js';
 import { HeliView } from './heliView.js';
 
+const LOCAL_FOOTSTEPS = false;   // the player never hears their own footsteps
+
 const DEG = Math.PI / 180;
 const BASE_SENS = 0.0021;   // radians per mouse pixel at sensitivity 1
 const STATE_INTERVAL = 1 / 20;
@@ -1005,6 +1007,8 @@ export class Game {
   }
 
   _footstep(gain) {
+    // Your own footsteps are silent (only other players' footsteps are heard, positionally).
+    if (!LOCAL_FOOTSTEPS) return;
     const p = this.player;
     const wh = this.hitscan.castWorld(_v1.set(p.position.x, p.position.y + 0.3, p.position.z), _v2.set(0, -1, 0), 1.5);
     this.audio.footstep(wh?.surface || 'concrete', null, gain);
@@ -1019,7 +1023,7 @@ export class Game {
     if (r.stepDist > stride) {
       r.stepDist = 0;
       const d = r.feet.distanceTo(this.camera.position);
-      if (d < 45) this.audio.footstep('concrete', r.feet.clone(), r.crouch > 0.5 ? 0.25 : r.sprinting ? 1.2 : 0.8);
+      if (d < 45) this.audio.footstep(this.world.surfaceAt?.(r.feet.x, r.feet.z) || 'concrete', r.feet.clone(), r.crouch > 0.5 ? 0.25 : r.sprinting ? 1.2 : 0.8);
     }
   }
 
