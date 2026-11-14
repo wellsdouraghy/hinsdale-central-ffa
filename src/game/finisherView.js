@@ -32,6 +32,7 @@ export class FinisherView {
     if (id === g.localId) {
       const e = g.roster.get(id);
       const ch = createCharacter({ color: e?.color ?? 0xcccccc, name: e?.name ?? '', look: lookForClass(e?.cls) });
+      ch.setRelation?.('ally');
       const p = g.player;
       ch.object3D.position.copy(p.position);
       ch.object3D.rotation.y = p.yaw;

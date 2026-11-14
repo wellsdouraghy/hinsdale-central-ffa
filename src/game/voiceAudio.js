@@ -78,19 +78,29 @@ export class VoiceAudio {
 
   update(dt) {
     const g = this.game, now = performance.now();
-    // Voice can't be zeroed by the master slider; it sits a little under game SFX.
-    this.bus.gain.value = this.audio.muted ? 0 : 0.85 * Math.max(0.5, this.audio.masterVolume);
+    // Voice slider (with a floor: chat is always on); the master slider can't zero it either.
+    this.bus.gain.value = this.audio.muted ? 0 : this.audio.voiceVolume * Math.max(0.5, this.audio.masterVolume);
     for (const [gid, v] of this.voices) {
       if (!g) continue; // lobby voice: no positions
       const r = g.remotes.get(gid);
       if (!r) continue;
       const head = r.eye(this._ray);
+      // Team modes: teammates are always heard at full volume (light panning toward them); enemies by proximity.
+      const team = !!(g.isTeams && g.isTeammate(gid));
+      if (team !== v.team) { v.team = team; v.panner.rolloffFactor = team ? 0 : 1; if (team) v.lp.frequency.setTargetAtTime(20000, this.ctx.currentTime, 0.05); }
+      if (team) {
+        const from = g.camera.position;
+        head.sub(from);
+        const d = head.length();
+        if (d > 0.01) head.multiplyScalar(2 / d); else head.set(0, 0, -2);
+        head.add(from);
+      }
       if (v.panner.positionX) { v.panner.positionX.value = head.x; v.panner.positionY.value = head.y; v.panner.positionZ.value = head.z; }
       else v.panner.setPosition(head.x, head.y, head.z);
-      v.gain.gain.value = r.alive ? 1 : 0.6; // the dead keep talking (a bit quieter) from where they fell
-      // Occlusion low-pass ~5 Hz.
+      v.gain.gain.value = r.alive || team ? 1 : 0.6; // the dead keep talking (a bit quieter) from where they fell
+      // Occlusion low-pass ~5 Hz (proximity voice only).
       v.occT -= dt;
-      if (v.occT <= 0) {
+      if (v.occT <= 0 && !team) {
         v.occT = 0.2;
         const from = g.camera.position;
         const dir = head.clone().sub(from);

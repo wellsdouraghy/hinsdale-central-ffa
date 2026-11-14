@@ -18,6 +18,7 @@ import { StrikeView } from './strikeView.js';
 import { StrikeLaptop } from './strikeLaptop.js';
 import { FinisherView } from './finisherView.js';
 import { MAP_ALLY, MAP_ENEMY } from '../ui/minimap.js';
+import { every } from '../net/ticker.js';
 import { KillCamRecorder, KillCam } from './killcam.js';
 import { HeliView } from './heliView.js';
 
@@ -104,6 +105,9 @@ export class Game {
     this.match = { mode: 'ffa', state: 'playing', practice: false, scoreLimit: MATCH.scoreLimit, respawnDelay: MATCH.respawnDelay, overtime: false, timeLeft: null, timeRef: clock() };
 
     session.onMessage = (m) => this.handle(m);
+    // Movement state goes out at 20 Hz from a worker timer, independent of the frame rate (a slow machine or a
+    // background tab must not freeze us for everyone else).
+    this._stopStateTicker = every(50, () => this._sendState());
     this._applyWelcome(session.welcome);
     this.hud.reset();
     this.hud.show(true);
@@ -224,6 +228,8 @@ export class Game {
           this.heliView?.pilot?.dispose();
           if (this.heliView) this.heliView.pilot = null;
           this.player.teleport(new THREE.Vector3().fromArray(m.p), this.player.yaw);
+          if (m.push) this.player.velocity.fromArray(m.push);   // bailed out mid-air (no fall damage)
+          if (m.bail) this.announce('Bailed out', 'The helicopter is coming down', '#f2b544', 'neutral');
           this.arsenal.viewmodel?.equip();
           this.stateTimer = STATE_INTERVAL;
         }
@@ -846,6 +852,7 @@ export class Game {
       for (const r of this.remotes.values()) {
         const lk = lookForClass(this.roster.get(r.id)?.cls);
         if (r._look !== lk || r._lookChar !== r.character) { r._look = lk; r._lookChar = r.character; r.character.setLook?.(lk); }
+        this._relation(r, t);
         r.update(dt, t);
         r.inHeliSeat = r.id === pilotId;
         if (r.inHeliSeat) r.character.object3D.visible = false; // the helicopter model shows its pilot
@@ -860,10 +867,14 @@ export class Game {
     this.ctfView?.update(dt);
     this.audio.setListener(this.camera);
 
-    // Network state at 20 Hz.
-    this.stateTimer += dt;
-    if (this.alive && this.stateTimer >= STATE_INTERVAL) {
-      this.stateTimer = 0;
+    this._updateHud(dt, t, inp);
+  }
+
+  /** 20 Hz movement state (worker timer; also forced right after teleports via stateTimer). */
+  _sendState() {
+    if (!this.alive || this.match.state !== 'playing' && !this.alive) return;
+    const t = clock();
+    {
       const p = this.player;
       this.session.sendState({
         t: 'st', l: this.life, ts: r3(t),
@@ -875,7 +886,6 @@ export class Game {
       });
     }
 
-    this._updateHud(dt, t, inp);
   }
 
   _updateAlive(dt, t, active, pressed, dx, dy, wheel) {
@@ -1142,6 +1152,10 @@ export class Game {
     if (this.alive) {
       this.throwables.dangers(p.position).forEach((pos, i) => markers.push({ id: 'nade' + i, pos: pos.clone(), label: 'Grenade', color: '#ff4b4b', icon: 'nade', pulse: true }));
     }
+    // Players whose updates stopped (> 2 s): a warning over their head (they are frozen for us, not AFK).
+    for (const r of this.remotes.values()) {
+      if (this._lagging(r.id, t) && !r.inHeliSeat) markers.push({ id: 'lag' + r.id, pos: r.eye(new THREE.Vector3()).add(_v1.set(0, 0.75, 0)), label: 'Connection problem', color: '#ffb020', icon: 'lag', pulse: true });
+    }
     hud.markers(this.everSpawned && this.match.state === 'playing' && !this.killcam ? markers : [], this.camera);
     if (!this.isTeams) {
       // FFA score / rank.
@@ -1166,7 +1180,7 @@ export class Game {
       const rows = list.slice().sort((a, b) => (b.caps - a.caps) * (this.isCtf ? 1 : 0) || b.k - a.k || a.d - b.d).map((e) => ({
         name: e.name, k: e.k, d: e.d, caps: e.caps || 0, ret: e.ret || 0, team: e.team, cls: e.bot && !e.ai ? '' : classOf(e.cls).tag,
         ping: e.bot ? 'BOT' : e.id === 1 && this.session.mode !== 'practice' ? 'HOST' : (e.ping ?? '-'),
-        me: e.id === this.localId, alive: e.alive, color: colorCss(e.color)
+        me: e.id === this.localId, alive: e.alive, color: colorCss(e.color), lag: this._lagging(e.id, t)
       }));
       const meta = this.session.roomCode ? `Room ${this.session.roomCode}` : 'Practice';
       const title = this.isCtf ? 'Capture the Flag' : this.isTdm ? 'Team Deathmatch' : this.match.practice ? 'Practice range' : 'Free-for-all';
@@ -1175,6 +1189,52 @@ export class Game {
     this._sbVisible = showSb;
 
     this.minimap.draw({ x: p.position.x, z: p.position.z, yaw: p.yaw, alive: this.alive }, this.mapBlips(t), this.world.playBounds);
+  }
+
+  /** Strike laptop: every living player's live position (enemies red dots, teammates green arrows) + flags / heli. */
+  laptopBlips(t) {
+    const blips = [];
+    for (const r of this.remotes.values()) {
+      if (!r.alive || r.inHeliSeat) continue;
+      if (this.isTeammate(r.id)) blips.push({ x: r.feet.x, z: r.feet.z, color: MAP_ALLY, alpha: 1, size: 5, shape: 'arrow', yaw: r.yaw });
+      else blips.push({ x: r.feet.x, z: r.feet.z, color: MAP_ENEMY, alpha: r.bot && !r.ai ? 0.7 : 1, size: 4.5 });
+    }
+    for (const b of this.mapBlips(t)) if (b.shape === 'flag' || b.shape === 'heli') blips.push(b);
+    return blips;
+  }
+
+  /**
+   * Viewer-relative look: teammates 'ally', practice dummies 'neutral', everyone else 'enemy' (re-applied whenever it
+   * changes: team switches, character swaps). Enemy name tags only with line of sight and near the crosshair or < 25 m.
+   */
+  _relation(r, t) {
+    const rel = r.bot && !r.ai ? 'neutral' : this.isTeammate(r.id) ? 'ally' : 'enemy';
+    if (r._rel !== rel || r._relChar !== r.character) { r._rel = rel; r._relChar = r.character; r.character.setRelation?.(rel); r._tag = null; }
+    let tag = true;
+    if (rel === 'enemy') {
+      if (t >= (r._tagT || 0)) {
+        r._tagT = t + 0.2;
+        const cam = this.camera.position, head = r.eye(_v2);
+        const to = head.sub(cam);
+        const d = to.length();
+        let vis = false;
+        if (r.alive && d < 300) {
+          const near = d < 25;
+          const fwd = _v3.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
+          const aimed = to.dot(fwd) / Math.max(d, 1e-3) > Math.cos(4 * DEG);
+          vis = (near || aimed) && !this.hitscan.castWorld(cam, to.normalize(), d - 0.4);
+        }
+        r._tagVis = vis;
+      }
+      tag = !!r._tagVis;
+    }
+    if (r._tag !== tag) { r._tag = tag; r.character.setTagVisible?.(tag); }
+  }
+
+  /** A remote human whose movement updates stopped arriving more than 2 s ago. */
+  _lagging(id, t) {
+    const r = this.remotes.get(id);
+    return !!(r && !r.bot && !r.ai && r.alive && !r.puppeted && !r.inHeliSeat && this.heliView?.s?.pilot !== id && r.lastRecv && t - r.lastRecv > 2);
   }
 
   /**
@@ -1261,6 +1321,7 @@ export class Game {
   }
 
   dispose() {
+    this._stopStateTicker?.();
     this.session.onMessage = null;
     this.session.close();
     for (const r of this.remotes.values()) { r.cable?.dispose(); r.dispose(); }

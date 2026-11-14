@@ -27,22 +27,30 @@ export class BotManager {
   get nav() { return this._nav || (this._nav = navFor(this.auth.world)); }
   get hitscan() { return this._hitscan || (this._hitscan = createHitscan(this.auth.world)); }
 
-  /** Adds `count` bots (respecting the 8-player cap) at the given difficulty. */
-  configure({ count = 0, difficulty = 'normal' } = {}) {
+  /**
+   * Adds bots (humans + bots <= the match cap) at the given difficulty. Team modes may give an explicit split
+   * ({ red, blue }); otherwise `count` bots fill the smaller team each time.
+   */
+  configure({ count = 0, difficulty = 'normal', red = null, blue = null } = {}) {
     this.difficulty = difficulty;
+    if (this.auth.teamMode && (red !== null || blue !== null)) {
+      for (let i = 0; i < (red || 0); i++) this.add('red');
+      for (let i = 0; i < (blue || 0); i++) this.add('blue');
+      return;
+    }
     for (let i = 0; i < count; i++) this.add();
   }
 
-  add() {
+  add(team = null) {
     const humansAndBots = [...this.auth.players.values()].filter((p) => !(p.bot && !p.ai)).length;
-    if (humansAndBots >= 8) return null;
+    if (humansAndBots >= this.auth.maxPlayers) return null;
     const id = this.nextId++;
     const name = 'Bot ' + this.names[(id - 200) % this.names.length];
     const cls = CLASS_IDS[Math.floor(Math.random() * CLASS_IDS.length)];
     // Brain first: addPlayer spawns immediately and calls onSpawn.
     const placeholder = { id };
     this.brains.set(id, placeholder);
-    const p = this.auth.addPlayer(id, name, { bot: true, ai: true, cls });
+    const p = this.auth.addPlayer(id, name, { bot: true, ai: true, cls, team });
     // CTF roles per team: attackers first, then alternate (so every team has someone going for the flag).
     let att = 0, def = 0;
     for (const b of this.brains.values()) if (b instanceof BotBrain && b.p.team === p.team) { if (b.role === 'attack') att++; else def++; }

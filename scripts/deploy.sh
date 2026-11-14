@@ -13,6 +13,12 @@ trap 'git -C "$ROOT" worktree remove --force "$REL" >/dev/null 2>&1 || true; rm 
 git worktree add -q --detach "$REL" HEAD
 ln -s "$ROOT/node_modules" "$REL/node_modules"
 [ -f "$ROOT/.env.local" ] && cp "$ROOT/.env.local" "$REL/.env.local"
+# Stamp a unique build id (commit hash) into the client and version.json so stale cached pages are told to reload
+# and mismatched host/client builds are detected at join time.
+BUILD_ID="$(git rev-parse --short HEAD)"
+sed -i '' "s/^export const BUILD = '.*';/export const BUILD = '$BUILD_ID';/" "$REL/src/net/version.js"
+PROTO="$(sed -n "s/^export const PROTOCOL = \([0-9]*\);/\1/p" "$REL/src/net/version.js")"
+printf '{ "build": "%s", "protocol": %s }\n' "$BUILD_ID" "$PROTO" > "$REL/public/assets/ui/version.json"
 (cd "$REL" && npx vite build)
 touch "$REL/dist/.nojekyll"
 

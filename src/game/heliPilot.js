@@ -8,6 +8,10 @@ const MAX_SPEED = 28, BOOST_SPEED = 42, VERT_SPEED = 10, CEILING = 120;
 const CANNON_RPS = 10, CANNON_SPREAD = 0.5 * DEG, CANNON_DMG = 20, CANNON_RANGE = 600;
 const HEAT_PER_SEC = 1 / 3, COOL_PER_SEC = 0.45, ROCKET_RELOAD = 4;
 const r2 = (x) => Math.round(x * 100) / 100;
+// Skid contact points (local x right, z back; nose toward -z): front-left, front-right, back-left, back-right.
+const SKID_W = 2.3, SKID_LEN = 4.2;
+const SKIDS = [[-SKID_W / 2, -SKID_LEN / 2], [SKID_W / 2, -SKID_LEN / 2], [-SKID_W / 2, SKID_LEN / 2], [SKID_W / 2, SKID_LEN / 2]];
+const _g = new THREE.Vector3(), DOWN = new THREE.Vector3(0, -1, 0);
 const r3 = (x) => Math.round(x * 1000) / 1000;
 
 export class HeliPilot {
@@ -62,13 +66,19 @@ export class HeliPilot {
     this.vel.z += (want.z - this.vel.z) * kh;
     this.vel.y += (upIn * VERT_SPEED - this.vel.y) * kv;
     if (this.grounded && upIn <= 0) { this.vel.x *= 0.9; this.vel.z *= 0.9; }
+    // Flare assist: descent slows near the ground so holding C lands softly (crash damage still applies to real drops).
+    if ((this.altitude ?? 99) < 4) this.vel.y = Math.max(this.vel.y, -2.5 - this.altitude * 1.2);
+    // Settle: just above the ground with no climb input and little speed, ease down onto the skids (no hovering gap).
+    if (!this.grounded && upIn <= 0 && (this.altitude ?? 99) < 1.5 && Math.hypot(this.vel.x, this.vel.z) < 6) this.vel.y = Math.min(this.vel.y, -2.5);
     // Move + collide.
     const step = this.vel.clone().multiplyScalar(dt);
     const len = step.length();
     if (len > 1e-4) {
       const c = this.center;
       const hit = hs.castWorld(c, step.clone().divideScalar(len), len + 2.4);
-      if (hit && hit.distance < len + 2.4) {
+      // Floor-like surfaces below are handled by the skid/ground settle (the 2.4 m body margin used to stop the
+      // descent ~0.85 m above the ground: the "hovering" landing).
+      if (hit && hit.distance < len + 2.4 && !(hit.normal.y > 0.6 && this.vel.y < 0)) {
         // Impact speed into the surface; nose-first = flying forward into it.
         const impact = Math.max(0, -this.vel.dot(hit.normal));
         const nose = fwd.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).dot(hit.normal) < -0.7;
@@ -80,9 +90,8 @@ export class HeliPilot {
       }
       this.pos.add(step);
     }
-    // Ground / landing.
-    const down = hs.castWorld(this.pos.clone().add(new THREE.Vector3(0, 2, 0)), new THREE.Vector3(0, -1, 0), 400);
-    const groundY = down ? down.point.y : 0;
+    // Ground / landing: sample under each skid end (ground or roof) and rest on the highest point.
+    const groundY = this._skidGround(hs);
     this.grounded = this.pos.y <= groundY + 0.05;
     if (this.pos.y < groundY) {
       // Touchdown: hard landings hurt, landing upside-down / heavily rolled is fatal.
@@ -103,8 +112,9 @@ export class HeliPilot {
     const fwdSpeed = this.vel.x * -Math.sin(this.yaw) + this.vel.z * -Math.cos(this.yaw);
     const sideSpeed = this.vel.x * Math.cos(this.yaw) - this.vel.z * Math.sin(this.yaw);
     const kt = 1 - Math.exp(-3 * dt);
-    this.tilt.pitch += ((this.grounded ? 0 : -fwdSpeed / BOOST_SPEED * 0.35) - this.tilt.pitch) * kt;
-    this.tilt.roll += ((this.grounded ? 0 : -sideSpeed / MAX_SPEED * 0.4 - (g._frameDx || 0) * sens * 4) - this.tilt.roll) * kt;
+    const gp = this.grounded ? this.groundTilt : null;   // landed: lie flat on the surface under the skids
+    this.tilt.pitch += ((gp ? gp.pitch : -fwdSpeed / BOOST_SPEED * 0.35) - this.tilt.pitch) * (gp ? 1 - Math.exp(-10 * dt) : kt);
+    this.tilt.roll += ((gp ? gp.roll : -sideSpeed / MAX_SPEED * 0.4 - (g._frameDx || 0) * sens * 4) - this.tilt.roll) * (gp ? 1 - Math.exp(-10 * dt) : kt);
     this.view._pose(this.pos, this.yaw, this.tilt.pitch, this.tilt.roll);
 
     // Keep the pilot's player body in the seat (host uses it for distance checks; others see the pilot).
@@ -116,10 +126,11 @@ export class HeliPilot {
     this._camera(dt);
     this._weapons(dt, t, active);
 
-    // Exit (X) near the ground.
-    if (active && g._framePressed?.has('KeyX')) {
-      if (this.altitude <= 3.5) g.session.send({ t: 'heliExit' });
-      else g.ui.toast('Too high to exit');
+    // Exit (X): near the ground it stays parked; higher up we bail out and the empty helicopter falls and crashes.
+    if (active && g._framePressed?.has('KeyX') && !this.exitSent) {
+      this.exitSent = true;
+      setTimeout(() => { this.exitSent = false; }, 600);
+      g.session.send({ t: this.altitude <= 3.5 ? 'heliExit' : 'heliBail' });
     }
     // Stream pose to the host.
     this.sendT += dt;
@@ -130,6 +141,24 @@ export class HeliPilot {
     g.hud.heli({ hp: this.hp / 900, heat: this.heat, overheated: this.overheated, rockets: Math.max(0, this.rocketsReadyAt - t), speed: hv, alt: this.altitude });
     // Low-hull warning beeps.
     if (this.hp / 900 < 0.3 && t > (this.beepT || 0)) { this.beepT = t + 0.9; g.audio.beep?.(); }
+  }
+
+  /** Highest ground / roof point under the four skid ends; also the surface tilt for resting on it. */
+  _skidGround(hs) {
+    const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
+    const h = [];
+    for (const [lx, lz] of SKIDS) {
+      const x = this.pos.x + lx * cy + lz * sy, z = this.pos.z - lx * sy + lz * cy;
+      const hit = hs.castWorld(_g.set(x, this.pos.y + 2, z), DOWN, 400);
+      h.push(hit ? hit.point.y : -1e3);
+    }
+    let top = Math.max(...h);
+    if (top < -999) { const d = hs.castWorld(_g.set(this.pos.x, this.pos.y + 2, this.pos.z), DOWN, 400); top = d ? d.point.y : 0; }
+    // SKIDS order: front-left, front-right, back-left, back-right (local -z = nose).
+    const fz = (h[0] + h[1]) / 2, bz = (h[2] + h[3]) / 2, lx = (h[0] + h[2]) / 2, rx = (h[1] + h[3]) / 2;
+    const ok = h.every((v) => v > -999 && Math.abs(v - top) < 1.2);
+    this.groundTilt = ok ? { pitch: Math.atan2(fz - bz, SKID_LEN), roll: Math.atan2(rx - lx, SKID_W) } : { pitch: 0, roll: 0 };
+    return top;
   }
 
   /** Reports an impact to the host (it decides the damage); local crunch, sparks and cockpit shake. */

@@ -20,6 +20,7 @@ import { createMinimap } from '../ui/minimap.js';
 import { createMenus } from '../ui/menus.js';
 import { playIntro, introDone } from '../ui/intro.js';
 import { createMenuTour } from './menuTour.js';
+import { checkForUpdate } from '../net/version.js';
 import { getMicStream, stopStream, VoiceMesh } from '../net/voice.js';
 import { VoiceAudio } from './voiceAudio.js';
 
@@ -40,6 +41,8 @@ const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 6
 
 const audio = createAudio({ mute: params.has('mute') });
 audio.setVolume(settings.volume);
+audio.setSfxVolume(settings.sfxVolume);
+audio.setVoiceVolume(settings.voiceVolume);
 const input = new Input(renderer.domElement);
 input.forceActive = debug;
 const hud = createHud();
@@ -50,6 +53,8 @@ const menus = createMenus({
   onSettingsChange: (key) => {
     saveSettings(settings);
     if (key === 'volume') audio.setVolume(settings.volume);
+    if (key === 'sfxVolume') audio.setSfxVolume(settings.sfxVolume);
+    if (key === 'voiceVolume') audio.setVoiceVolume(settings.voiceVolume);
   },
 });
 
@@ -57,6 +62,8 @@ const lobbyUi = createLobbyUi({
   onSettings: (patch) => net?.isHost && net.setSettings(patch),
   onMove: (id, team) => net?.isHost && net.moveTeam(id, team),
   onAutoBalance: () => net?.isHost && net.autoBalance(),
+  onBotTeam: (team, d) => net?.isHost && net.botTeam(team, d),
+  onMoveBot: (team) => net?.isHost && net.moveBot(team),
   onReady: (r) => net && !net.isHost && net.setReady(r),
   onTeam: (team) => net && !net.isHost && net.setTeam(team),
   onStart: () => net?.isHost && net.startCountdown(3),
@@ -144,10 +151,8 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
       enterMatch(session, wc);
       return;
     }
-    // Online rooms require proximity voice: get the mic before connecting.
-    menus.setProgress(0.02, 'Microphone');
-    mic = await acquireMic();
-    if (!mic) { menus.showTitle(); maybeTour(); return; }
+    // Online rooms require proximity voice. Connect first: a denied or slow microphone prompt must never drop the
+    // connection (the "microphone required" panel shows over the lobby / match until it works or the player leaves).
     if (mode === 'host') {
       net = await createHostNet({
         name: settings.name, onStatus: (s) => menus.setProgress(0.3, s),
@@ -157,8 +162,7 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
       net = await createClientNet({ code, name: settings.name, onStatus: (s) => menus.setProgress(0.3, s) });
     }
     wireNet(net);
-    voice = startVoice(net, mic);
-    mic = null;
+    ensureVoice(net);
     history.replaceState(null, '', `${location.pathname}?join=${net.roomCode}${debugSuffix()}`);
     menus.hideLoading();
     if (net.initialSession) {
@@ -297,6 +301,15 @@ function leave(reason = null) {
 // ---------- proximity voice (always on in online lobbies) ----------
 let voice = null;
 const micGate = document.getElementById('mic-gate');
+
+/** Gets the microphone for room `n` (without blocking the connection) and starts voice; Leave on the panel leaves. */
+async function ensureVoice(n) {
+  const mic = await acquireMic();
+  if (net !== n) { stopStream(mic); return; }
+  if (!mic) { leave('You left the room: a microphone is required for online play.'); return; }
+  voice = startVoice(n, mic);
+  if (voice && game) voice.va.setGame(game);
+}
 
 /** Mic stream, or null if the player chose Leave on the "microphone required" screen. */
 async function acquireMic() {
@@ -438,6 +451,28 @@ addEventListener('resize', () => {
 
 addEventListener('beforeunload', () => { try { game?.dispose(); net?.close(); } catch { /* ignore */ } });
 
+// ---------- connection diagnostics (Esc menu) ----------
+let diagTimer = 0;
+let fpsFrames = 0, fpsT = performance.now(), fps = 0;
+const diagEl = document.getElementById('conn-diag');
+function updateDiag() {
+  const t = performance.now();
+  fps = Math.round(fpsFrames * 1000 / Math.max(1, t - fpsT)); fpsFrames = 0; fpsT = t;
+  const show = !!net && menus.pauseOpen;
+  diagEl.classList.toggle('hidden', !show);
+  if (!show) return;
+  const d = net.diag?.() || {};
+  const parts = [`<b>Connection</b> ${d.role || '-'} · broker ${d.broker || '-'} · ${d.role === 'client' ? `host link ${d.link}, last heard ${(d.lastHeard ?? 0).toFixed(1)} s, states ${d.stateChannel}` : d.link} · ${fps} fps`];
+  if (d.clients?.length) parts.push(d.clients.map((c) => `${esc(c.name || '#' + c.id)}: ${c.ping ?? '-'} ms, heard ${c.heard.toFixed(1)} s ago (${c.channel})`).join(' · '));
+  if (game) {
+    const nowT = performance.now() / 1000;
+    const rows = [...game.remotes.values()].filter((r) => !r.bot && r.alive).map((r) => `${esc(r.name)} ${r.lastRecv ? (nowT - r.lastRecv).toFixed(1) + ' s' : '-'}`);
+    if (rows.length) parts.push('Last update: ' + rows.join(' · '));
+  }
+  diagEl.innerHTML = parts.join('<br>');
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
 // ---------- main loop ----------
 let lastFrame = performance.now();
 let attrTimer = 0;
@@ -445,12 +480,15 @@ function frame() {
   const nowMs = performance.now();
   const dt = Math.min(0.05, (nowMs - lastFrame) / 1000);
   lastFrame = nowMs;
+  fpsFrames++;
   attrTimer -= dt;
   if (attrTimer <= 0) {
     attrTimer = 1;
     menus.setAttribution(worldCache?.world.attributionHTML || 'Map data &copy; OpenStreetMap contributors &middot; Imagery &copy; Esri, Maxar, Earthstar Geographics');
   }
   if (voice && !game) updateVoice(dt);
+  diagTimer -= dt;
+  if (diagTimer <= 0) { diagTimer = 1; updateDiag(dt); }
   if (!game) { tour.update(dt); return; }
   if (!debug && !input.locked && game.alive && game.deployed && input.enabled && !menus.pauseOpen && !menus.endOpen
     && menus.deployMode === null && nowMs - input.lastLockRequest > 800) {
@@ -487,7 +525,10 @@ window.__game = {
 };
 
 const autoMode = ['ctf', 'tdm'].includes(params.get('mode')) ? params.get('mode') : 'ffa';
-const autoBots = { count: Math.min(7, Number(params.get('bots')) || 0), difficulty: params.get('diff') || 'normal' };
+const autoBots = { count: Math.min(11, Number(params.get('bots')) || 0), difficulty: params.get('diff') || 'normal' };
+// Stale cached page? Offer a reload when the deployed build is newer than this one.
+checkForUpdate().then((v) => { if (v) { menus.showTitleError(`A newer version (${v}) is available: reload the page (Cmd+Shift+R / Ctrl+Shift+R) before playing.`); menus.toast('New version available: please reload', 8); } });
+
 // Menu: start loading the campus once the intro card is done (unless we go straight into a match).
 if (!autostart) introDone().then(() => setTimeout(preloadWorld, 50));
 document.getElementById('cine').classList.remove('hidden');

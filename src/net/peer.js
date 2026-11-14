@@ -1,5 +1,24 @@
 // Thin PeerJS helpers (default public PeerJS cloud broker + default STUN config).
 import { Peer } from 'peerjs';
+import { PROTOCOL } from './version.js';
+
+/**
+ * Losing the signalling (broker) websocket is normal (idle timeouts, network blips): data and media connections that are
+ * already open keep working. Reconnect quietly with backoff so new players can still join and voice calls can be set up.
+ */
+export function keepBrokerAlive(peer) {
+  let delay = 1000;
+  peer.on('disconnected', () => {
+    const retry = () => {
+      if (peer.destroyed || !peer.disconnected) { delay = 1000; return; }
+      try { peer.reconnect(); } catch { /* ignore */ }
+      delay = Math.min(30000, delay * 2);
+      setTimeout(retry, delay);
+    };
+    setTimeout(retry, delay);
+  });
+  peer.on('open', () => { delay = 1000; });
+}
 
 export const PEER_PREFIX = 'hcffa-';
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1 to avoid confusion
@@ -54,10 +73,9 @@ export function openPeer(onStatus = () => {}) {
           else reject(new Error(describe(err)));
         }
       });
-      // Keep the broker connection alive so new players can still join.
-      peer.on('disconnected', () => {
-        if (opened && !peer.destroyed) setTimeout(() => { if (!peer.destroyed) peer.reconnect(); }, 1000);
-      });
+      // Keep the broker connection alive so new players can still join; later errors are logged, never fatal.
+      keepBrokerAlive(peer);
+      peer.on('error', (err) => { if (opened) console.info('[host peer]', err?.type || err); });
     };
     tryOpen();
   });
@@ -83,7 +101,8 @@ export function connectToHost(code, name, onStatus = () => {}, onData = () => {}
     };
     const timer = setTimeout(() => fail('Timed out connecting to the host.'), 20000);
     onStatus('Contacting matchmaking server');
-    peer.on('error', (err) => fail(describe(err)));
+    peer.on('error', (err) => { if (!done) fail(describe(err)); else console.info('[client peer]', err?.type || err); });
+    keepBrokerAlive(peer);
     peer.on('open', () => {
       onStatus('Connecting to host');
       const hostId = PEER_PREFIX + normalizeCode(code);
@@ -91,7 +110,7 @@ export function connectToHost(code, name, onStatus = () => {}, onData = () => {}
       let st = null;
       ev.on('open', () => {
         onStatus('Joining match');
-        ev.send({ t: 'hello', name });
+        ev.send({ t: 'hello', name, v: PROTOCOL });
         // Unordered/unreliable channel for movement state (opened after hello so the host knows us).
         setTimeout(() => {
           st = peer.connect(hostId, { reliable: false, serialization: 'json', label: 'st' });
@@ -117,7 +136,7 @@ export function connectToHost(code, name, onStatus = () => {}, onData = () => {}
           }
           return;
         }
-        if (msg.t !== 'ping') onData(msg);
+        onData(msg);   // pings too: they are the host's heartbeat (a quiet lobby sends nothing else)
       });
       ev.on('error', () => {});
       ev.on('close', () => fail('The host closed the connection.'));

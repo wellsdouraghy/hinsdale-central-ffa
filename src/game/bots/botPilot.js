@@ -245,7 +245,9 @@ export class BotPilot {
     if (len > 1e-4) {
       const c = this.center.clone();
       const hit = hs.castWorld(c, step.clone().divideScalar(len), len + 2.4);
-      if (hit && hit.distance < len + 2.4) {
+      // Floor-like surfaces below are handled by the skid/ground settle (the 2.4 m body margin used to stop the
+      // descent ~0.85 m above the ground: the "hovering" landing).
+      if (hit && hit.distance < len + 2.4 && !(hit.normal.y > 0.6 && this.vel.y < 0)) {
         const impact = Math.max(0, -this.vel.dot(hit.normal));
         const nose = fwd.dot(hit.normal) < -0.7;
         this._impact(t, impact, hit.point, nose);

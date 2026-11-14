@@ -34,6 +34,7 @@ export class RemotePlayer {
   /** s: state message. now: local seconds. */
   pushState(s, now) {
     if (s.l !== undefined && s.l !== this.life) return; // state from a previous life
+    this.lastRecv = now;
     const o = now - s.ts;
     if (this.offset === null || o < this.offset) this.offset = o;
     else this.offset += (o - this.offset) * 0.01;

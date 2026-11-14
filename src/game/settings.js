@@ -15,6 +15,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   adsMultiplier: 1.0,      // extra sensitivity multiplier while aiming down sights
   quality: 'medium',       // 'low' | 'medium' | 'high'
   volume: 0.8,             // master volume 0..1
+  sfxVolume: 0.6,          // effects (gunshots, explosions, vehicles, UI) 0..1
+  voiceVolume: 0.85,       // proximity / team voice 0.25..1 (never fully off)
   googleTilesKey: '',
   mapStyle: 'built',       // 'scan' = Google photorealistic 3D tiles (if a key is available), 'built' = built-in campus model
   primary: 'ar',           // (legacy) last chosen primary weapon
@@ -41,6 +43,8 @@ export function loadSettings() {
   s.fov = clampNum(s.fov, 60, 110, 90);
   s.adsMultiplier = clampNum(s.adsMultiplier, 0.2, 2, 1);
   s.volume = clampNum(s.volume, 0, 1, 0.8);
+  s.sfxVolume = clampNum(s.sfxVolume, 0, 1, 0.6);
+  s.voiceVolume = clampNum(s.voiceVolume, 0.25, 1, 0.85);
   if (!['low', 'medium', 'high'].includes(s.quality)) s.quality = 'medium';
   if (!['ar', 'smg', 'sniper', 'shotgun'].includes(s.primary)) s.primary = 'ar';
   if (!['rifleman', 'runner', 'brawler', 'recon', 'grappler'].includes(s.cls)) s.cls = 'rifleman';
@@ -51,7 +55,7 @@ export function loadSettings() {
   // rev 2: Shift is the default sprint key again for everyone (Ctrl stays available in Settings)
   if (stored && !(stored.controlsRev >= 2)) { s.sprintKey = 'shift'; s.controlsRev = 2; saveSettings(s); }
   if (!['ffa', 'ctf', 'tdm'].includes(s.mode)) s.mode = 'ffa';
-  s.botCount = Math.max(0, Math.min(7, Math.round(Number(s.botCount) || 0)));
+  s.botCount = Math.max(0, Math.min(11, Math.round(Number(s.botCount) || 0)));
   if (!['easy', 'normal', 'hard'].includes(s.botDiff)) s.botDiff = 'normal';
   return s;
 }

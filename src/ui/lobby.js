@@ -70,6 +70,10 @@ export function createLobbyUi(h) {
     if (id) h.onMove?.(id, col.dataset.team);
   });
   el.lists.addEventListener('click', (e) => {
+    const bt = e.target.closest('[data-botteam]');
+    if (bt && ctx.isHost) { h.onBotTeam?.(bt.dataset.botteam, Number(bt.dataset.d)); return; }
+    const bm = e.target.closest('[data-botmove]');
+    if (bm && ctx.isHost) { h.onMoveBot?.(bm.dataset.botmove); return; }
     const btn = e.target.closest('[data-move]');
     if (!btn) return;
     const id = Number(btn.dataset.move);
@@ -89,7 +93,11 @@ export function createLobbyUi(h) {
       <span><span class="lp-ready ${m.ready ? 'yes' : 'no'}">${m.host ? 'HOST' : m.ready ? 'READY' : 'NOT READY'}</span>${canMove ? `<button class="lp-move" data-move="${m.id}" data-to="${other}" title="Move to ${TEAM_NAMES[other]}">&#8644;</button>` : ''}</span>
     </div>`;
   }
-  const botRow = (diff) => `<div class="lp-row bot"><span class="lp-name">Bot (${diff[0].toUpperCase() + diff.slice(1)})</span><span></span><span class="lp-ping">bot</span><span></span></div>`;
+  const botRow = (diff, team = null) => {
+    const other = team === 'red' ? 'blue' : 'red';
+    const mv = team && ctx.isHost && state.phase === 'lobby' ? `<button class="lp-move" data-botmove="${team}" title="Move a bot to ${TEAM_NAMES[other]}">&#8644;</button>` : '';
+    return `<div class="lp-row bot"><span class="lp-name">Bot (${diff[0].toUpperCase() + diff.slice(1)})</span><span></span><span class="lp-ping">bot</span><span>${mv}</span></div>`;
+  };
 
   function render() {
     if (!state) return;
@@ -105,17 +113,23 @@ export function createLobbyUi(h) {
     el.hostOnly.textContent = ctx.isHost ? '' : 'Set by the host';
     el.balance.classList.toggle('hidden', !(ctx.isHost && s.mode !== 'ffa'));
     const humans = state.members.length;
-    el.count.textContent = `Players ${humans + state.botSlots} / 8`;
+    el.count.textContent = `Players ${humans + state.botSlots} / ${state.cap || 12}`;
+    $('lb-bots-row').classList.toggle('hidden', s.mode !== 'ffa');
+    $('lb-bots-team').classList.toggle('hidden', s.mode === 'ffa' || !ctx.isHost);
     if (s.mode === 'ffa') {
       el.lists.className = 'lp-lists';
       el.lists.innerHTML = `<div class="lp-col">${state.members.map(row).join('')}${Array.from({ length: state.botSlots }, () => botRow(s.difficulty)).join('')}</div>`;
     } else {
       el.lists.className = 'lp-lists teams';
-      // Predict where bots will land (they fill the smaller team).
-      const n = { red: state.members.filter((m) => m.team === 'red').length, blue: state.members.filter((m) => m.team === 'blue').length };
-      const bots = { red: 0, blue: 0 };
-      for (let i = 0; i < state.botSlots; i++) { const t = n.red + bots.red <= n.blue + bots.blue ? 'red' : 'blue'; bots[t]++; }
-      el.lists.innerHTML = ['red', 'blue'].map((t) => `<div><div class="lp-team-title ${t}">${TEAM_NAMES[t]}</div><div class="lp-col" data-team="${t}">${state.members.filter((m) => m.team === t).map(row).join('')}${Array.from({ length: bots[t] }, () => botRow(s.difficulty)).join('')}</div></div>`).join('');
+      // Bots per team as the host set them (trimmed to the 12-player cap).
+      const bots = state.botTeams || { red: 0, blue: 0 };
+      const full = humans + state.botSlots >= (state.cap || 12);
+      const ctl = (t) => (ctx.isHost && state.phase === 'lobby'
+        ? `<span class="lp-botctl"><span>Bots ${bots[t]}</span><button data-botteam="${t}" data-d="-1" ${bots[t] ? '' : 'disabled'} title="Remove a bot">&minus;</button><button data-botteam="${t}" data-d="1" ${full ? 'disabled' : ''} title="Add a bot">+</button></span>` : '');
+      el.lists.innerHTML = ['red', 'blue'].map((t) => {
+        const n = state.members.filter((m) => m.team === t).length + bots[t];
+        return `<div><div class="lp-team-title ${t}"><span>${TEAM_NAMES[t]} <small>${n}</small></span>${ctl(t)}</div><div class="lp-col" data-team="${t}">${state.members.filter((m) => m.team === t).map(row).join('')}${Array.from({ length: bots[t] }, () => botRow(s.difficulty, t)).join('')}</div></div>`;
+      }).join('');
     }
     el.tip.textContent = ctx.isHost
       ? (s.mode !== 'ffa' ? 'Drag players (or use the arrows) to move them between teams.' : 'Share the room code; friends can join any time.')

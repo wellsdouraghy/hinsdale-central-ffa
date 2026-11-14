@@ -297,3 +297,11 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
     previews): team-colour accents and the plain name tag as before. Changing relation re-applies the look (cheap, but do it on change, not per frame).
   - `setTagVisible(bool)`: shows/hides the ally marker or neutral tag; a harmless no-op for enemies. `relation` getter.
   - The rim costs nothing extra per frame (one uniform per character via onBeforeCompile; `applyLook(root, id, { teamColor, rim })` takes the shared Vector4).
+- (Gameplay, round 12) Networking: `src/net/version.js` (PROTOCOL + BUILD; hello carries `v`, mismatches are rejected with a
+  clear reason) and `public/assets/ui/version.json` (bump `build` with BUILD on every deploy: stale cached pages are told to
+  reload). `src/net/ticker.js` = Worker-driven intervals used for host heartbeats/authority ticks and the 20 Hz movement-state
+  send (keeps working in background tabs / low fps). Host pings now count as the client heartbeat. Cap: 12 players (humans +
+  bots), 8 humans; team modes take a per-team bot split (`botsRed` / `botsBlue`). Team voice: teammates unattenuated in
+  TDM/CTF. Audio: SFX bus x Effects slider -> Master -> glue compressor + limiter; Voice slider (floor 0.25).
+  Helicopter: X at altitude bails out (`heliBail`); the empty heli falls (state `'falling'`, host-simulated, poses relayed as
+  `hst`), crushes and explodes. Calls `character.setRelation?.()` / `setTagVisible?.()` per remote.

@@ -205,7 +205,7 @@ export class StrikeLaptop {
     c.restore();
 
     // Players / flags (the same things our minimap shows).
-    const blips = g.mapBlips(t);
+    const blips = g.laptopBlips(t);
     for (const bl of blips) {
       const [px, py] = this._toMap(bl.x, bl.z);
       c.globalAlpha = Math.max(0, fade) * (bl.alpha ?? 1);

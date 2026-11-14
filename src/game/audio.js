@@ -12,9 +12,14 @@ const SHOT_PARAMS = {
 const FOOT_CUT = { grass: 380, dirt: 450, rubber: 500, wood: 800, metal: 1400, concrete: 950, asphalt: 850, brick: 950, glass: 1200 };
 
 /** opts.mute (debug ?mute=1): everything is processed but nothing ever reaches the speakers. */
+// Mix: every effect goes SFX bus (SFX_TRIM x Effects slider) -> ear-ringing muffle -> Master slider -> limiter.
+// Voice has its own bus (VoiceAudio) and slider. Levels are set so a local gunshot peaks around -12 dBFS at defaults.
+const SFX_TRIM = 0.55;
+export const VOICE_FLOOR = 0.25;   // voice can't be turned fully off (proximity chat is always on)
+
 export function createAudio({ mute = false } = {}) {
   let ctx = null, master = null, sfx = null, muffle = null;
-  let volume = 0.8;
+  let volume = 0.8, sfxVolume = 0.6, voiceVolume = 0.85;
   const buffers = {};
   const listenerPos = { x: 0, y: 0, z: 0 };
 
@@ -23,18 +28,18 @@ export function createAudio({ mute = false } = {}) {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     ctx = new AC();
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -10;
-    comp.knee.value = 8;
-    comp.ratio.value = 6;
-    comp.attack.value = 0.002;
-    comp.release.value = 0.15;
-    comp.connect(ctx.destination);
+    // Glue compressor + brick-wall-ish limiter so stacked explosions / gunfire never clip.
+    const glue = ctx.createDynamicsCompressor();
+    glue.threshold.value = -18; glue.knee.value = 10; glue.ratio.value = 3; glue.attack.value = 0.004; glue.release.value = 0.2;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -3; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.12;
+    glue.connect(limiter);
+    limiter.connect(ctx.destination);
     master = ctx.createGain();
     master.gain.value = mute ? 0 : volume;
-    master.connect(comp);
+    master.connect(glue);
     sfx = ctx.createGain();
-    sfx.gain.value = 0.9;
+    sfx.gain.value = SFX_TRIM * sfxVolume;
     // Ear-ringing muffle after close explosions: low-pass between the SFX bus and master.
     muffle = ctx.createBiquadFilter();
     muffle.type = 'lowpass';
@@ -373,6 +378,9 @@ export function createAudio({ mute = false } = {}) {
     ensure,
     get ready() { return !!ctx && ctx.state === 'running'; },
     setVolume(v) { volume = v; if (master) master.gain.value = mute ? 0 : v; },
+    setSfxVolume(v) { sfxVolume = v; if (sfx) sfx.gain.value = SFX_TRIM * v; },
+    setVoiceVolume(v) { voiceVolume = Math.max(VOICE_FLOOR, v); },
+    get voiceVolume() { return voiceVolume; },
     get muted() { return mute; },
     setListener(camera) {
       if (!ctx) return;
@@ -432,9 +440,9 @@ export function createAudio({ mute = false } = {}) {
     melee(pos = null) { play('swoosh', pos, { gain: 0.6 }); },
     ui() { play('click', null, { gain: 0.3 }); },
     /** Front-end menu sounds (quiet; silent with ?mute=1 like everything else). */
-    uiHover() { play('tick', null, { gain: 0.1, rate: 1.9 }); },
-    uiSelect() { play('click', null, { gain: 0.32, rate: 1.1 }); play('tick', null, { gain: 0.12, rate: 0.8, delay: 0.03 }); },
-    uiBack() { play('click', null, { gain: 0.25, rate: 0.75 }); },
+    uiHover() { play('tick', null, { gain: 0.06, rate: 1.9 }); },
+    uiSelect() { play('click', null, { gain: 0.22, rate: 1.1 }); play('tick', null, { gain: 0.08, rate: 0.8, delay: 0.03 }); },
+    uiBack() { play('click', null, { gain: 0.18, rate: 0.75 }); },
     grappleLaunch(dist = 20) {
       play('swoosh', null, { gain: 0.5, rate: 1.7 });
       play('clank', null, { gain: 0.55, delay: Math.min(0.25, dist / 120) });
@@ -448,7 +456,7 @@ export function createAudio({ mute = false } = {}) {
     remoteGrapple(pos) { play('clank', pos, { gain: 0.8, ref: 5 }); },
     pin() { play('click', null, { gain: 0.5, rate: 0.7 }); play('click', null, { gain: 0.35, rate: 1.3, delay: 0.08 }); },
     throwWhoosh() { play('swoosh', null, { gain: 0.5, rate: 1.2 }); },
-    explosion(pos) { play('boom', pos, { gain: 1.4, distanceMuffle: true, ref: 14, rolloff: 0.8 }); },
+    explosion(pos) { play('boom', pos, { gain: 1.0, distanceMuffle: true, ref: 12, rolloff: 0.9 }); },
     ringing(sec = 2) {
       if (!ctx || !muffle) return;
       const t = ctx.currentTime;
@@ -457,8 +465,8 @@ export function createAudio({ mute = false } = {}) {
       muffle.frequency.exponentialRampToValueAtTime(20000, t + sec);
       play('ring', null, { gain: 0.18 });
     },
-    jet(pos, delay = 0) { play('jet', pos, { gain: 1.2, ref: 40, rolloff: 0.4, delay: Math.max(0, delay - 1.6) }); },
-    plane(pos) { play('jet', pos, { gain: 0.9, ref: 60, rolloff: 0.3 }); },
+    jet(pos, delay = 0) { play('jet', pos, { gain: 0.6, ref: 40, rolloff: 0.4, delay: Math.max(0, delay - 1.6) }); },
+    plane(pos) { play('jet', pos, { gain: 0.45, ref: 40, rolloff: 0.5 }); },
     /** Strike-jet flyby voice: call update(pos, vel) each frame; doppler from the radial speed vs the listener. */
     jetFlyby(gain = 1) {
       if (!ctx || ctx.state !== 'running' || !buffers.jetLoop) return null;
@@ -489,7 +497,7 @@ export function createAudio({ mute = false } = {}) {
           src.playbackRate.setTargetAtTime(doppler * 0.9, t, 0.05);
           // Far away: only the rumble carries; overhead: the full tearing roar.
           lp.frequency.setTargetAtTime(Math.max(500, 9000 / (1 + dist / 120)) * doppler, t, 0.05);
-          g.gain.setTargetAtTime(gain * 2.2, t, 0.15);
+          g.gain.setTargetAtTime(gain * 0.9, t, 0.15);
         },
         stop() {
           if (stopped) return;

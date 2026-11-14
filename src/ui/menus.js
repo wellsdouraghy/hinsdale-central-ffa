@@ -173,6 +173,8 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
     ['s-fov', 'o-fov', 'fov', (v) => `${v}°`],
     ['s-ads', 'o-ads', 'adsMultiplier', (v) => v.toFixed(2) + '×'],
     ['s-vol', 'o-vol', 'volume', (v) => Math.round(v * 100) + '%'],
+    ['s-sfx', 'o-sfx', 'sfxVolume', (v) => Math.round(v * 100) + '%'],
+    ['s-voice', 'o-voice', 'voiceVolume', (v) => Math.round(v * 100) + '%'],
   ];
   for (const [inputId, outId, key, fmt] of ranges) {
     const inp = $(inputId), out = $(outId);

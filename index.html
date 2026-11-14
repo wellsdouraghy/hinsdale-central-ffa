@@ -130,7 +130,8 @@
             <label>Mode
               <div class="seg" id="lb-mode"><button data-v="ffa">Free-for-all</button><button data-v="tdm">Team DM</button><button data-v="ctf">CTF</button></div>
             </label>
-            <label>Bots <output id="lb-bots-o">0</output><input id="lb-bots" type="range" min="0" max="7" step="1" /></label>
+            <label id="lb-bots-row">Bots <output id="lb-bots-o">0</output><input id="lb-bots" type="range" min="0" max="11" step="1" /></label>
+            <p class="lb-desc hidden" id="lb-bots-team">Bots per team: use the <b>+</b> / <b>&minus;</b> buttons on each team (any split, up to 12 players in total).</p>
             <label>Bot difficulty
               <div class="seg" id="lb-diff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div>
             </label>
@@ -299,6 +300,7 @@
         <button id="btn-pause-team" class="btn hidden">Switch team</button>
         <button id="btn-pause-settings" class="btn">Settings</button>
         <button id="btn-leave" class="btn danger">Leave match</button>
+        <div class="conn-diag hidden" id="conn-diag"></div>
         <div class="keys controls-list small"></div>
       </div>
     </section>
@@ -338,11 +340,11 @@
           </button>
         </div>
         <div class="bot-setup">
-          <label>Bots <output id="o-bots">0</output><input id="s-bots" type="range" min="0" max="7" step="1" /></label>
+          <label>Bots <output id="o-bots">0</output><input id="s-bots" type="range" min="0" max="11" step="1" /></label>
           <label>Difficulty
             <div class="seg" id="s-botdiff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div>
           </label>
-          <small id="bot-note">Bots fill empty slots (humans + bots &le; 8). FFA and Team Deathmatch have one attack helicopter hidden somewhere on campus.</small>
+          <small id="bot-note">Bots fill empty slots (up to 12 players in total; set the split per team in the lobby). FFA and Team Deathmatch have one attack helicopter hidden somewhere on campus.</small>
         </div>
         <div class="end-actions">
           <button id="btn-setup-back" class="btn">Back</button>
@@ -380,6 +382,8 @@
           <label>Field of view (horizontal) <output id="o-fov"></output><input id="s-fov" type="range" min="60" max="110" step="1" /></label>
           <label>ADS sensitivity multiplier <output id="o-ads"></output><input id="s-ads" type="range" min="0.2" max="2" step="0.05" /></label>
           <label>Master volume <output id="o-vol"></output><input id="s-vol" type="range" min="0" max="1" step="0.01" /></label>
+          <label>Effects volume <output id="o-sfx"></output><input id="s-sfx" type="range" min="0" max="1" step="0.01" /></label>
+          <label>Voice volume <output id="o-voice"></output><input id="s-voice" type="range" min="0.25" max="1" step="0.01" /></label>
           <label>Graphics quality
             <div class="seg" id="s-quality">
               <button data-v="low">Low</button><button data-v="medium">Medium</button><button data-v="high">High</button>

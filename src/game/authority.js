@@ -23,7 +23,8 @@ export const MATCH = {
   protect: 2,
   regenDelay: 4,
   regenRate: 40,
-  maxPlayers: 8,
+  maxPlayers: 12,      // humans + AI bots
+  maxHumans: 8,        // voice mesh / bandwidth
   stateHz: 20,
 };
 
@@ -64,6 +65,7 @@ export class Authority {
     this.state = 'playing';
     this.overtime = false;
     this.endTime = now() + rulesFor(mode).timeLimit;
+    this.matchStartT = now();
     this.ctf = mode === 'ctf' ? new CtfRules(this, world) : null;
     this.teamMode = mode === 'ctf' || mode === 'tdm';
     this.teamScore = { red: 0, blue: 0 };   // TDM kills per team
@@ -79,6 +81,7 @@ export class Authority {
   }
 
   time() { return now(); }
+  get maxPlayers() { return MATCH.maxPlayers; }
   get rules() {
     const r = rulesFor(this.mode);
     return this.customScoreLimit ? { ...r, scoreLimit: this.customScoreLimit } : r;
@@ -95,14 +98,15 @@ export class Authority {
   }
 
   isFull() {
-    return [...this.players.values()].filter((p) => !p.bot).length >= MATCH.maxPlayers;
+    return [...this.players.values()].filter((p) => !p.bot).length >= MATCH.maxHumans;
   }
 
-  /** Humans + AI bots stay <= maxPlayers: drop a bot when a human takes the slot. */
-  trimBots() {
+  /** Humans + AI bots stay <= maxPlayers: a human taking the last slot evicts a bot (preferably from their team). */
+  trimBots(team = null) {
     const all = [...this.players.values()].filter((p) => !isDummy(p));
     if (all.length <= MATCH.maxPlayers) return;
-    const bot = all.filter((p) => p.ai).pop();
+    const bots = all.filter((p) => p.ai);
+    const bot = bots.filter((p) => team && p.team === team).pop() || bots.pop();
     if (bot) this.bots.remove(bot.id);
   }
 
@@ -239,7 +243,7 @@ export class Authority {
       case 'team':
         this.switchTeam(p, msg.team);
         break;
-      case 'heliEnter': case 'heliExit': case 'hst': case 'rocket': case 'heliCrash': case 'heliRotor':
+      case 'heliEnter': case 'heliExit': case 'heliBail': case 'hst': case 'rocket': case 'heliCrash': case 'heliRotor':
         this.heli?.handle(p, msg);
         break;
       case 'pong':
@@ -338,6 +342,25 @@ export class Authority {
     if (this.endAfterKill) { this.endAfterKill = false; this.endMatch(); }
   }
 
+  /** A free standing spot 1.5-7 m from `a` on about the same ground (falls back to `a`). */
+  _nearSpot(a) {
+    const hs = this.bots.hitscan;
+    for (let i = 0; i < 14; i++) {
+      const ang = Math.random() * Math.PI * 2, r = 1.5 + Math.random() * 5.5;
+      const x = a.x + Math.cos(ang) * r, z = a.z + Math.sin(ang) * r;
+      const g = hs.castWorld(_fq.set(x, a.y + 3, z), _DOWN, 6);
+      if (!g || Math.abs(g.point.y - a.y) > 1) continue;
+      const y = g.point.y;
+      let free = true;
+      for (let k = 0; k < 4 && free; k++) {
+        _fd.set(Math.cos(k * Math.PI / 2), 0, Math.sin(k * Math.PI / 2));
+        if (hs.castWorld(_fq.set(x, y + 1, z), _fd, 0.7)) free = false;
+      }
+      if (free && !hs.castWorld(_fq.set(a.x, a.y + 1, a.z), _fd.set(x - a.x, 0, z - a.z).normalize(), r)) return new THREE.Vector3(x, y, z);
+    }
+    return a.clone ? a.clone() : new THREE.Vector3(a.x, a.y, a.z);
+  }
+
   // ---------- melee finishers ----------
   /**
    * Picks a scene that fits around the victim: flat ground (no ladders / roof edges), every FINISHERS `clearance`
@@ -416,18 +439,60 @@ export class Authority {
     if (p.ai) this.bots.onSpawn(p, pos, yaw);
   }
 
-  /** Spawn farthest from living enemies (random among the best few). CTF: only the team's own spawn area. */
+  /**
+   * Spawn farthest from living enemies (random among the best few). CTF: only the team's own spawn area.
+   * TDM: the opening spawn groups each team on its own side (the CTF base areas); later respawns prefer spots near
+   * living teammates, away from enemies and out of their line of sight.
+   */
   pickSpawn(p) {
-    const pts = this.ctf && p.team ? ctfSpawnList(this.world, p.team) : this.world.spawnPoints;
+    const tdm = this.mode === 'tdm' && p.team;
+    const sinceStart = now() - this.matchStartT;
+    const opening = tdm && (sinceStart < 8 || (p.life === 0 && sinceStart < 30));
+    const pts = (this.ctf || opening) && p.team ? ctfSpawnList(this.world, p.team) : this.world.spawnPoints;
     const enemies = [...this.players.values()].filter((o) => o !== p && o.alive && o.pos && (!this.teamMode || o.team !== p.team));
+    const mates = tdm ? [...this.players.values()].filter((o) => o !== p && o.alive && o.pos && o.team === p.team) : [];
     const scored = pts.map((s) => {
       let min = 1e9;
       for (const e of enemies) min = Math.min(min, Math.hypot(s.x - e.pos[0], s.z - e.pos[2]));
-      return { s, score: enemies.length ? min : Math.random() };
+      let score = enemies.length ? Math.min(min, 160) : Math.random() * 10;
+      if (tdm && !opening && mates.length) {
+        let mm = 1e9;
+        for (const m of mates) mm = Math.min(mm, Math.hypot(s.x - m.pos[0], s.z - m.pos[2]));
+        score -= Math.min(mm, 120) * 0.7;
+        if (min < 25) score -= 200;               // never right next to an enemy
+      }
+      return { s, score };
     }).sort((x, y) => y.score - x.score);
-    const pick = scored[Math.floor(Math.random() * Math.min(3, scored.length))].s;
+    let pool = scored.slice(0, 8);
+    if (opening) {
+      // Grouped: the whole team starts around one anchor on its side (the side spot nearest the middle), a few metres apart.
+      const b = this.world.playBounds, mx = (b.minX + b.maxX) / 2, mz = (b.minZ + b.maxZ) / 2;
+      this.teamAnchor ||= {};
+      if (!this.teamAnchor[p.team] || this.teamAnchor[p.team].t !== this.matchStartT) {
+        const anchor = pts.reduce((best, s) => (Math.hypot(s.x - mx, s.z - mz) < Math.hypot(best.x - mx, best.z - mz) ? s : best), pts[0]);
+        this.teamAnchor[p.team] = { s: anchor, t: this.matchStartT };
+      }
+      pool = [{ s: this._nearSpot(this.teamAnchor[p.team].s) }];
+    }
+    if (tdm && !opening && enemies.length) {
+      // Drop candidates an enemy can see (top few only: raycasts are not free).
+      const hs = this.bots.hitscan;
+      const seen = (s) => enemies.some((e) => {
+        _fq.set(e.pos[0], e.pos[1] + 1.6, e.pos[2]);
+        _fd.set(s.x, s.y + 1.6, s.z).sub(_fq);
+        const len = _fd.length();
+        return len < 140 && !hs.castWorld(_fq, _fd.normalize(), len - 0.5);
+      });
+      const hidden = pool.filter((c) => !seen(c.s));
+      if (hidden.length) pool = hidden;
+    }
+    const pick = pool[Math.floor(Math.random() * Math.min(opening ? pool.length : 3, pool.length))].s;
     let cx, cz;
-    if (this.ctf && p.team) {
+    if (opening) {
+      const eb = ctfBases(this.world)[otherTeam(p.team)];
+      const b = this.world.playBounds;
+      cx = ((b.minX + b.maxX) / 2 + eb.x) / 2; cz = ((b.minZ + b.maxZ) / 2 + eb.z) / 2;   // toward the middle
+    } else if (this.ctf && p.team) {
       // Face the enemy base.
       const eb = ctfBases(this.world)[otherTeam(p.team)];
       cx = eb.x; cz = eb.z;
@@ -461,6 +526,7 @@ export class Authority {
     this.state = 'playing';
     this.overtime = false;
     this.endTime = now() + this.rules.timeLimit;
+    this.matchStartT = now();
     this.ctf?.reset();
     this.teamScore = { red: 0, blue: 0 };
     this.heli?.reset();

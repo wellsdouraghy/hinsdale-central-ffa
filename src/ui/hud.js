@@ -186,7 +186,7 @@ export function createHud() {
         ? '<th>#</th><th class="name">Player</th><th>Class</th><th>Caps</th><th>Returns</th><th>Kills</th><th>Deaths</th><th>Ping</th>'
         : '<th>#</th><th class="name">Player</th><th>Class</th><th>Kills</th><th>Deaths</th><th>Ping</th>';
       set('sbhead', head, (v) => { el.sbHead.innerHTML = v; });
-      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}</td><td class="cls">${esc(r.cls || '')}</td>${caps ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td>${r.ping}</td></tr>`;
+      const row = (r, i) => `<tr class="${r.me ? 'me' : ''} ${r.alive ? '' : 'dead'}"><td>${i + 1}</td><td class="name"><span class="swatch" style="background:${r.color}"></span>${esc(r.name)}</td><td class="cls">${esc(r.cls || '')}</td>${caps ? `<td>${r.caps}</td><td>${r.ret}</td>` : ''}<td>${r.k}</td><td>${r.d}</td><td class="${r.lag ? 'lag' : ''}">${r.lag ? 'LAG' : r.ping}</td></tr>`;
       let html;
       if (teams) {
         html = ['red', 'blue'].map((tm) => {

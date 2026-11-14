@@ -698,3 +698,18 @@ details.fe-card[open] summary b { visibility: hidden; }
 
 @media (max-width: 1100px) { .fe { grid-template-columns: minmax(380px, 1fr) 0 minmax(280px, 38%); gap: 0 2vw; } }
 @media (max-height: 760px) { .fe-hint { display: none; } .news li:nth-child(n+4) { display: none; } }
+
+/* lobby: per-team bot controls */
+.lp-team-title { display: flex; align-items: center; justify-content: space-between; }
+.lp-team-title small { opacity: .7; font-size: 12px; margin-left: 6px; }
+.lp-botctl { display: inline-flex; align-items: center; gap: 4px; font: 600 11px var(--mono); letter-spacing: .04em; text-transform: none; }
+.lp-botctl span { margin-right: 4px; opacity: .85; }
+.lp-botctl button { width: 22px; height: 22px; border: 1px solid rgba(255,255,255,0.35); background: rgba(0,0,0,0.35); color: #fff; font: 800 14px var(--display); cursor: pointer; line-height: 1; padding: 0; }
+.lp-botctl button:hover:not(:disabled) { background: rgba(255,255,255,0.15); }
+.lp-botctl button:disabled { opacity: .3; cursor: default; }
+
+.conn-diag { margin: 10px 0 4px; padding: 8px 10px; font: 500 11px/1.5 var(--mono); color: rgba(255,255,255,0.7); background: rgba(0,0,0,0.35); border-left: 2px solid var(--gold); text-align: left; }
+.conn-diag b { color: #fff; font-family: var(--display); letter-spacing: .12em; text-transform: uppercase; margin-right: 6px; }
+.error-msg:not(:empty) { padding: 8px 12px; background: rgba(227,36,43,0.18); border-left: 3px solid var(--red); color: #ffd2d4; max-width: 520px; }
+
+#scoreboard td.lag { color: #ff4d55; font-weight: 800; }

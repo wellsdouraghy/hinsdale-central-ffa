@@ -63,6 +63,7 @@ export class KillCam {
     this.done = false;
     const me = game.roster.get(game.localId);
     this.ghost = createCharacter({ color: me?.color ?? 0xcccccc, name: me?.name ?? '', look: lookForClass(me?.cls) });
+    this.ghost.setRelation?.('ally');
     game.scene.add(this.ghost.object3D);
     this.ghostDead = false;
     this.camPos = null;

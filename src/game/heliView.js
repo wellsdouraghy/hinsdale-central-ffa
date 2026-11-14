@@ -28,7 +28,9 @@ export class HeliView {
   }
 
   get flying() { return this.s?.state === 'flying'; }
-  get active() { return this.s && (this.s.state === 'parked' || this.s.state === 'flying'); }
+  get active() { return this.s && (this.s.state === 'parked' || this.s.state === 'flying' || this.s.state === 'falling'); }
+  /** Pilot bailed out: unmanned, tumbling down (host simulates it). */
+  get falling() { return this.s?.state === 'falling'; }
   get mine() { return this.s?.pilot === this.game.localId; }
 
   apply(s, spawned = false) {
@@ -109,7 +111,7 @@ export class HeliView {
 
   /** Bullet ray vs helicopter hit volume (body + tail spheres). Returns distance or null. */
   rayHit(origin, dir, maxDist) {
-    if (!this.active || this.mine) return null;
+    if (!this.active || this.mine || this.falling) return null;
     const o = this.vis.object3D;
     let best = null;
     for (const [lx, ly, lz, r] of [[0, 1.6, -0.6, 1.9], [0, 1.9, 3.6, 0.9], [0, 2.0, 5.8, 0.7]]) {
@@ -126,14 +128,14 @@ export class HeliView {
   /** X prompt: near the parked helicopter and nobody flying it. */
   canEnter() {
     const g = this.game;
-    if (!this.active || this.s.pilot !== null || !g.alive || this.pilot) return false;
+    if (!this.active || this.falling || this.s.pilot !== null || !g.alive || this.pilot) return false;
     return g.player.position.distanceTo(this.pos) < 4.5;
   }
 
   update(dt, t, holdX) {
     const g = this.game;
     // Remote pose interpolation.
-    if (this.flying && !this.mine && this.buf.length) {
+    if ((this.flying || this.falling) && !this.mine && this.buf.length) {
       const rt = clock() - INTERP;
       let a = this.buf[0], b = this.buf[this.buf.length - 1];
       for (let i = 0; i < this.buf.length - 1; i++) if (this.buf[i].t <= rt && this.buf[i + 1].t >= rt) { a = this.buf[i]; b = this.buf[i + 1]; break; }
@@ -159,7 +161,7 @@ export class HeliView {
       if (!this.loop) this.loop = g.audio.loop?.('rotor');
       if (this.loop) {
         const rel = this.pilot ? 0 : this._approachSpeed();
-        this.loop.set(this.pos.clone().add(new THREE.Vector3(0, 2.5, 0)), this.rotor * (this.pilot ? 0.55 : 1), 0.6 + 0.4 * this.rotor + rel * 0.004, !!this.pilot);
+        this.loop.set(this.pos.clone().add(new THREE.Vector3(0, 2.5, 0)), this.rotor * (this.pilot ? 0.28 : 0.5), 0.6 + 0.4 * this.rotor + rel * 0.004, !!this.pilot);
       }
     } else if (this.loop) { this.loop.stop(); this.loop = null; }
     // Rockets (visual).
