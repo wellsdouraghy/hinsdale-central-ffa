@@ -28,7 +28,7 @@ export class HeliPilot {
     game.piloting = true;
     game.arsenal.hideAll();
     game.audio.equip();
-    game.announce('Helicopter', 'LMB cannon · RMB rockets · Space/C climb/descend · X exit near ground', '#f2b544', 'good');
+    game.announce('Helicopter', 'LMB cannon · R or RMB rockets · Space/C climb/descend · X exit near ground', '#f2b544', 'good');
   }
 
   syncHost(s) {
@@ -206,7 +206,8 @@ export class HeliPilot {
       this._cannon(aimPoint);
     }
     // Rockets: RMB, two per salvo, 4 s reload.
-    if (active && g._framePressed?.has('Mouse2') && t >= this.rocketsReadyAt) {
+    const fp = g._framePressed;
+    if (active && fp && (fp.has('Mouse2') || fp.has('KeyR') || fp.has('AimToggle')) && t >= this.rocketsReadyAt) {
       this.rocketsReadyAt = t + ROCKET_RELOAD;
       this._rocket(0, aimPoint);
       this.pendingRocket = { at: t + 0.15, aimPoint };
