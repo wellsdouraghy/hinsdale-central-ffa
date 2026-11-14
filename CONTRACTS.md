@@ -250,3 +250,12 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   gives the open screen's NDC rect so gameplay can align its HTML targeting map over it), `createStrikeJet() -> { object3D,
   setAfterburner(bool), update(dt), dispose() }` (world space, nose -z), `createBomb() -> { object3D, update(dt), dispose() }`
   (nose -z; gameplay orients it to its velocity). Explosions stay in effects.explosion.
+- (Visuals, round 9) `airstrike.js` implemented to the contract. Notes for Gameplay:
+  - Laptop: add `object3D` to the overlay scene at identity. It does not touch the weapon: hide/lower the viewmodel on `open()` and call
+    `viewmodel.equip()` after `close()`. `open()` 0.35 s, `close()` 0.25 s; `isOpen()` is true once fully open; `progress` getter 0..1.
+    `screenRect(overlayCamera?)` returns the NDC rect of the lit screen when open (about 60% of the width at 16:9, 67% of the height,
+    centred slightly low); pass the overlay camera so it follows aspect-ratio changes (re-query on resize). Optional
+    `setScreenTexture(texture | null)` shows a live texture (e.g. a CanvasTexture) on the screen under the scanline/glare layer.
+    It brings its own lights, which switch off when the overlay scene has lights.
+  - `createStrikeJet()`: afterburner defaults ON; call `update(dt)` after moving it (wingtip vapour + exhaust haze are spaced by distance).
+  - `createBomb()`: retard fins pop 0.25 s after the first `update(dt)`; create it at release time.

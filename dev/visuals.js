@@ -10,6 +10,7 @@ import { createEffects } from '../src/visuals/effects.js';
 import { skyEquirect } from '../src/visuals/textures.js';
 import { createGrenade } from '../src/visuals/grenade.js';
 import { createCarePackage } from '../src/visuals/carePackage.js';
+import { createTargetingLaptop, createStrikeJet, createBomb } from '../src/visuals/airstrike.js';
 import { createHelicopter, createRocket, setHeliFxClock } from '../src/visuals/helicopter.js';
 
 const Q = new URLSearchParams(location.search);
@@ -123,6 +124,25 @@ if (view === 'crate') {
   window.dbg.crates = [a, b];
   camera.position.set(0.3, 1.7, 0.6); camera.lookAt(0.6, 2.2, -6);
 }
+let laptop = null, strikeJets = null;
+if (view === 'airstrike') {
+  for (const m of targets) if (m !== ground) m.visible = false;
+  ground.material.color.set(0x55653f);
+  laptop = createTargetingLaptop(); overlayScene.add(laptop.object3D);
+  const mode = Q.get('lap') || 'open';
+  if (mode !== 'none' && mode !== 'closed') laptop.open();
+  window.dbg.laptop = laptop;
+  const rc = laptop.screenRect(overlayCamera), box = document.createElement('div');   // outline where gameplay puts its HTML map
+  Object.assign(box.style, { position: 'fixed', border: '1px dashed rgba(255,80,80,0.9)', pointerEvents: 'none', left: `${(rc.x0 * 0.5 + 0.5) * 100}%`, right: `${(1 - (rc.x1 * 0.5 + 0.5)) * 100}%`, top: `${(1 - (rc.y1 * 0.5 + 0.5)) * 100}%`, bottom: `${(rc.y0 * 0.5 + 0.5) * 100}%`, display: mode === 'open' && Q.get('rect') !== '0' ? 'block' : 'none' });
+  document.body.appendChild(box);
+  setInterval(() => { const q = laptop.screenRect(overlayCamera); Object.assign(box.style, { left: `${(q.x0 * 0.5 + 0.5) * 100}%`, right: `${(1 - (q.x1 * 0.5 + 0.5)) * 100}%`, top: `${(1 - (q.y1 * 0.5 + 0.5)) * 100}%`, bottom: `${(q.y0 * 0.5 + 0.5) * 100}%` }); }, 200);
+  strikeJets = [[0, 0, 0], [-9, 1.5, 11], [9, 1.5, 11]].map((o) => { const j = createStrikeJet(); j.off = o; scene.add(j.object3D); extras.push(j); return j; });
+  for (let i = 0; i < 5; i++) {
+    const b = createBomb(); b.object3D.position.set(-6 + i * 3, 17 - i * 2.6, -24 - i * 5); b.object3D.rotation.x = -0.35 - i * 0.12; scene.add(b.object3D);
+    b.age = (4 - i) * -0.12; extras.push({ update(dt) { b.age += dt; if (b.age > 0) b.update(dt); } });
+  }
+  camera.position.set(0, 1.7, 6); camera.lookAt(0, 16, -34);
+}
 let heliRocket = null;
 if (view === 'heli') {
   for (const m of targets) if (m !== ground) m.visible = false;
@@ -196,7 +216,7 @@ addEventListener('resize', () => {
   camera.aspect = overlayCamera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); overlayCamera.updateProjectionMatrix();
 });
 
-const OVERLAY = ['vm', 'fx', 'melee', 'grenade'].includes(view);
+const OVERLAY = ['vm', 'fx', 'melee', 'grenade', 'airstrike'].includes(view);
 const hud = document.getElementById('hud');
 if (Q.get('hud') === '0') { hud.style.display = 'none'; document.getElementById('x').style.display = 'none'; }
 const clock = new THREE.Clock();
@@ -213,6 +233,8 @@ function tick(dt) {
     if (view === 'crate' && Q.get('open') === '1') extras[0].open();
   }
   t += dt;
+  if (strikeJets) for (const j of strikeJets) { j.object3D.position.set(j.off[0], 26 + j.off[1], 160 - t * 130 + j.off[2]); }
+  if (laptop) { laptop.update(dt); vm.object3D.visible = false; }
   if (heliRocket) {   // loop a rocket from the hovering heli's right pod out across the field
     const u = (t % 2.6) / 1.3, o = heliRocket.object3D;
     o.visible = u < 1;
