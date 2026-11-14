@@ -103,7 +103,7 @@ export function connectToHost(code, name, onStatus = () => {}, onData = () => {}
         if (!msg || typeof msg.t !== 'string') return;
         if (msg.t === 'ping') { try { ev.send({ t: 'pong', ts: msg.ts }); } catch { /* ignore */ } }
         if (!done) {
-          if (msg.t === 'welcome') {
+          if (msg.t === 'welcome' || msg.t === 'lobbyWelcome') {
             done = true;
             clearTimeout(timer);
             // st may not exist yet: hand out a proxy that resolves lazily.

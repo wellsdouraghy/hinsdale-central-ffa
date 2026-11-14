@@ -6,9 +6,10 @@ Built from OpenStreetMap data and satellite imagery, with an optional Google Pho
 **Play:** https://wellsdouraghy.github.io/hinsdale-central-ffa/
 
 ## Playing with friends
-1. One person opens the link, enters a name and clicks **Host Game**. They get a 6-character room code.
-2. Everyone else clicks **Join Game** and types the code, or opens the host's invite link (**Copy invite link**).
-3. Up to 8 players. The host picks Free-for-all or Capture the Flag and can restart from the end screen.
+1. One person opens the link, enters a name and clicks **Host Game**. A lobby opens with a 6-character room code.
+2. Everyone else clicks **Join Game** and types the code, or opens the host's invite link (**Copy invite link**), and lands in the lobby (open voice chat there).
+3. Up to 8 players (bots fill the empty slots). In the lobby the host picks the mode (Free-for-all, Team Deathmatch, Capture the Flag), bot count/difficulty and score limit, and moves players between Red Devils and Lions (drag or arrows). Joiners can switch teams if it stays balanced and mark **Ready**.
+4. The host clicks **Start match** (3-second countdown). After the match the host can take everyone **Back to lobby** with the same code. Friends who join mid-match drop straight in.
 
 Matches are peer-to-peer (PeerJS): no game server. Phones and tablets get a "continue on desktop" screen. Keep the host's tab open; if the host leaves, the match ends.
 Some strict school/office/mobile networks block peer-to-peer connections.

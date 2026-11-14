@@ -12,6 +12,7 @@ export class VoiceAudio {
     this.ctx = audio.context;
     this.voices = new Map();   // gid -> { el, src, analyser, lp, gain, panner, buf, speakingUntil, occT }
     this.bus = this.ctx.createGain();
+    this.bus.gain.value = audio.muted ? 0 : 0.7;
     this.bus.connect(this.ctx.destination);
     // Local mic level meter (never routed to the speakers).
     this.localSrc = this.ctx.createMediaStreamSource(localStream);
@@ -45,8 +46,22 @@ export class VoiceAudio {
     panner.maxDistance = FAR;
     panner.rolloffFactor = 1;
     src.connect(analyser);
-    analyser.connect(lp).connect(gain).connect(panner).connect(this.bus);
+    analyser.connect(lp).connect(gain);
+    panner.connect(this.bus);
+    // Lobby (no game): plain "everyone hears everyone" voice; in a match: positional.
+    gain.connect(this.game ? panner : this.bus);
     this.voices.set(gid, { el, src, analyser, lp, gain, panner, buf: new Float32Array(analyser.fftSize), speakingUntil: 0, occT: 0 });
+  }
+
+  /** Switch between lobby voice (game null, non-spatial) and in-match proximity voice. */
+  setGame(game) {
+    this.game = game;
+    for (const v of this.voices.values()) {
+      try { v.gain.disconnect(); } catch { /* ignore */ }
+      v.gain.connect(game ? v.panner : this.bus);
+      v.lp.frequency.value = 20000;
+      v.gain.gain.value = 1;
+    }
   }
 
   remove(gid) {
@@ -55,7 +70,7 @@ export class VoiceAudio {
     try { v.src.disconnect(); v.panner.disconnect(); } catch { /* ignore */ }
     v.el.srcObject = null;
     this.voices.delete(gid);
-    const r = this.game.remotes.get(gid);
+    const r = this.game?.remotes.get(gid);
     if (r) r.speaking = false;
   }
 
@@ -64,8 +79,9 @@ export class VoiceAudio {
   update(dt) {
     const g = this.game, now = performance.now();
     // Voice can't be zeroed by the master slider; it sits a little under game SFX.
-    this.bus.gain.value = 0.85 * Math.max(0.5, this.audio.masterVolume);
+    this.bus.gain.value = this.audio.muted ? 0 : 0.85 * Math.max(0.5, this.audio.masterVolume);
     for (const [gid, v] of this.voices) {
+      if (!g) continue; // lobby voice: no positions
       const r = g.remotes.get(gid);
       if (!r) continue;
       const head = r.eye(this._ray);

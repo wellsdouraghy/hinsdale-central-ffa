@@ -11,7 +11,8 @@ const SHOT_PARAMS = {
 
 const FOOT_CUT = { grass: 380, dirt: 450, rubber: 500, wood: 800, metal: 1400, concrete: 950, asphalt: 850, brick: 950, glass: 1200 };
 
-export function createAudio() {
+/** opts.mute (debug ?mute=1): everything is processed but nothing ever reaches the speakers. */
+export function createAudio({ mute = false } = {}) {
   let ctx = null, master = null, sfx = null, muffle = null;
   let volume = 0.8;
   const buffers = {};
@@ -30,7 +31,7 @@ export function createAudio() {
     comp.release.value = 0.15;
     comp.connect(ctx.destination);
     master = ctx.createGain();
-    master.gain.value = volume;
+    master.gain.value = mute ? 0 : volume;
     master.connect(comp);
     sfx = ctx.createGain();
     sfx.gain.value = 0.9;
@@ -353,7 +354,8 @@ export function createAudio() {
   return {
     ensure,
     get ready() { return !!ctx && ctx.state === 'running'; },
-    setVolume(v) { volume = v; if (master) master.gain.value = v; },
+    setVolume(v) { volume = v; if (master) master.gain.value = mute ? 0 : v; },
+    get muted() { return mute; },
     setListener(camera) {
       if (!ctx) return;
       const l = ctx.listener;

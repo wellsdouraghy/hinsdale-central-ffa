@@ -185,6 +185,7 @@ export function createMenus({ settings, onSettingsChange }) {
 
   // ---------- end ----------
   el.restart.addEventListener('click', () => handlers.restart?.());
+  $('btn-tolobby').addEventListener('click', () => handlers.toLobby?.());
   $('btn-end-leave').addEventListener('click', () => handlers.leave?.());
 
   addEventListener('keydown', (e) => {
@@ -281,6 +282,7 @@ export function createMenus({ settings, onSettingsChange }) {
         el.endBody.innerHTML = standings.map((s, i) => `<tr class="${s.me ? 'me' : ''}"><td>${ordinal(i + 1)}</td><td class="name"><span class="swatch" style="background:${s.color}"></span>${esc(s.name)}</td><td>${s.k}</td><td>${s.d}</td></tr>`).join('');
       }
       el.restart.classList.toggle('hidden', !isHost);
+      $('btn-tolobby').classList.toggle('hidden', !(isHost && this.lobbyAvailable));
       el.endWait.classList.toggle('hidden', isHost);
     },
     hideEnd() { el.end.classList.add('hidden'); },

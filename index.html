@@ -64,6 +64,49 @@
       </div>
     </section>
 
+    <!-- ================= LOBBY ================= -->
+    <section id="lobby" class="screen hidden">
+      <div class="title-bg dim"></div>
+      <div class="lobby-wrap">
+        <header class="lobby-head">
+          <div>
+            <div class="brand-kicker">Pre-match lobby</div>
+            <div class="lobby-code-row"><span class="lobby-code-lbl">Room</span><span class="lobby-code" id="lb-code">------</span>
+              <button id="lb-copy" class="btn ghost small">Copy invite link</button></div>
+          </div>
+          <div class="lobby-status" id="lb-status">Loading campus&hellip;</div>
+        </header>
+        <div class="lobby-main">
+          <div class="panel lobby-settings">
+            <h3>Match settings <span id="lb-hostonly" class="lb-note">Host only</span></h3>
+            <label>Mode
+              <div class="seg" id="lb-mode"><button data-v="ffa">Free-for-all</button><button data-v="tdm">Team DM</button><button data-v="ctf">CTF</button></div>
+            </label>
+            <label>Bots <output id="lb-bots-o">0</output><input id="lb-bots" type="range" min="0" max="7" step="1" /></label>
+            <label>Bot difficulty
+              <div class="seg" id="lb-diff"><button data-v="easy">Easy</button><button data-v="normal">Normal</button><button data-v="hard">Hard</button></div>
+            </label>
+            <label>Score limit <span class="lb-unit" id="lb-limit-unit">kills</span><input id="lb-limit" type="number" min="1" max="200" step="1" /></label>
+            <p class="lb-desc" id="lb-desc"></p>
+          </div>
+          <div class="panel lobby-players">
+            <div class="lp-head"><h3 id="lb-count">Players</h3><button id="lb-balance" class="btn ghost small">Auto-balance</button></div>
+            <div id="lb-lists" class="lp-lists"></div>
+            <p class="lb-note" id="lb-tip"></p>
+          </div>
+        </div>
+        <footer class="lobby-foot">
+          <div class="lb-mic"><span class="mic-dot"></span>Lobby voice &middot; mic live<span class="mic-bar"><i id="lb-mic"></i></span></div>
+          <div class="lb-actions">
+            <button id="lb-leave" class="btn">Leave</button>
+            <button id="lb-ready" class="btn">Ready</button>
+            <button id="lb-start" class="btn primary">Start match</button>
+          </div>
+        </footer>
+      </div>
+      <div id="lb-countdown" class="lb-countdown hidden"><div class="lbc-kicker">Match starting</div><div class="lbc-num" id="lb-cd-num">3</div></div>
+    </section>
+
     <!-- ================= LOADING ================= -->
     <section id="loading" class="screen hidden">
       <div class="title-bg dim"></div>
@@ -211,6 +254,7 @@
         <table class="end-table"><thead><tr id="end-headrow"><th>#</th><th class="name">Player</th><th>Kills</th><th>Deaths</th></tr></thead><tbody id="end-body"></tbody></table>
         <div class="end-actions">
           <button id="btn-restart" class="btn primary">Restart match</button>
+          <button id="btn-tolobby" class="btn">Back to lobby</button>
           <span id="end-wait">Waiting for the host to restart&hellip;</span>
           <button id="btn-end-leave" class="btn">Leave</button>
         </div>

@@ -10,7 +10,10 @@ import { createHitscan } from './hitscan.js';
 import { planPractice, planCtfPractice } from './practice.js';
 import { TEAM_NAMES, TEAM_CSS } from './ctf.js';
 import { IS_MAC } from './settings.js';
-import { createPracticeSession, createHostSession, createClientSession } from '../net/session.js';
+import { createPracticeSession } from '../net/session.js';
+import { createHostNet } from '../net/hostNet.js';
+import { createClientNet } from '../net/clientNet.js';
+import { createLobbyUi } from '../ui/lobby.js';
 import { normalizeCode } from '../net/peer.js';
 import { createHud } from '../ui/hud.js';
 import { createMinimap } from '../ui/minimap.js';
@@ -34,7 +37,7 @@ renderer.domElement.className = 'game';
 document.getElementById('app').prepend(renderer.domElement);
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.05, 6000);
 
-const audio = createAudio();
+const audio = createAudio({ mute: params.has('mute') });
 audio.setVolume(settings.volume);
 const input = new Input(renderer.domElement);
 input.forceActive = debug;
@@ -46,6 +49,18 @@ const menus = createMenus({
     saveSettings(settings);
     if (key === 'volume') audio.setVolume(settings.volume);
   },
+});
+
+const lobbyUi = createLobbyUi({
+  onSettings: (patch) => net?.isHost && net.setSettings(patch),
+  onMove: (id, team) => net?.isHost && net.moveTeam(id, team),
+  onAutoBalance: () => net?.isHost && net.autoBalance(),
+  onReady: (r) => net && !net.isHost && net.setReady(r),
+  onTeam: (team) => net && !net.isHost && net.setTeam(team),
+  onStart: () => net?.isHost && net.startCountdown(3),
+  onLeave: () => leave(),
+  onWarn: (t) => menus.toast(t, 4),
+  onCopy: () => copyInvite(),
 });
 
 let worldCache = null;   // { key, world, scene, effects }
@@ -75,55 +90,72 @@ async function getWorld(onProgress) {
 }
 
 // ---------- game lifecycle ----------
+let net = null;            // online room (hostNet / clientNet) that outlives single matches
+let worldLoading = null;
+
+/** Loads (or reuses) the world; progress goes to the loading screen or the lobby status line. */
+function worldReady(onProgress) {
+  if (!worldLoading) worldLoading = getWorld(onProgress).finally(() => { worldLoading = null; });
+  return worldLoading;
+}
+
 async function start(mode, code = null, gameMode = 'ffa', bots = null) {
-  if (starting || game) return;
+  if (starting || game || net) return;
   starting = true;
   audio.ensure();
   settings.name = sanitizeName(menus.name || settings.name);
   saveSettings(settings);
   menus.showTitleError('');
-  const titles = { practice: ['Practice range', 'Hinsdale Central'], host: ['Hosting match', 'Hinsdale Central'], join: ['Joining match', `Room ${code}`] };
+  const titles = { practice: ['Practice range', 'Hinsdale Central'], host: ['Opening lobby', 'Hinsdale Central'], join: ['Joining room', `Room ${code}`] };
   menus.showLoading(...titles[mode]);
   if (mode !== 'practice' && !autostart) playIntro(); // plays over the loading screen
-  let session = null;
   let mic = null;
   try {
-    // Online lobbies require proximity voice: get the mic before connecting.
-    if (mode !== 'practice') {
-      menus.setProgress(0.02, 'Microphone');
-      mic = await acquireMic();
-      if (!mic) { menus.showTitle(); return; }
-    }
-    // Joining: connect first so a bad room code fails fast.
-    if (mode === 'join') {
-      session = await createClientSession({ code, name: settings.name, onStatus: (s) => menus.setProgress(0.05, s) });
-    }
-    const wc = await getWorld((f, label) => menus.setProgress(0.08 + f * 0.82, label));
     if (mode === 'practice') {
+      const wc = await worldReady((f, label) => menus.setProgress(0.05 + f * 0.85, label));
       menus.setProgress(0.95, 'Setting up targets');
       const plan = gameMode === 'ctf' ? planCtfPractice(wc.world) : planPractice(wc.world, createHitscan(wc.world));
-      session = createPracticeSession({ world: wc.world, name: settings.name, dummies: plan.dummies, spawn: plan.spawn, mode: gameMode, bots });
-    } else if (mode === 'host') {
-      session = await createHostSession({ world: wc.world, name: settings.name, mode: gameMode, bots, onStatus: (s) => menus.setProgress(0.93, s) });
+      const session = createPracticeSession({ world: wc.world, name: settings.name, dummies: plan.dummies, spawn: plan.spawn, mode: gameMode, bots });
+      menus.hideLoading();
+      enterMatch(session, wc);
+      return;
     }
-    menus.setProgress(1, 'Ready');
-    game = new Game({
-      world: wc.world, scene: wc.scene, camera, effects: wc.effects, settings, session,
-      hud, minimap, audio, input, ui: gameUi(session),
-    });
-    game.resize(camera.aspect);
-    game.ui.refreshTeam();
-    if (mic) { voice = startVoice(session, mic); mic = null; }
-    session.onDisconnect = (reason) => leave(reason);
-    if (session.roomCode) history.replaceState(null, '', `${location.pathname}?join=${session.roomCode}${debugSuffix()}`);
+    // Online rooms require proximity voice: get the mic before connecting.
+    menus.setProgress(0.02, 'Microphone');
+    mic = await acquireMic();
+    if (!mic) { menus.showTitle(); return; }
+    if (mode === 'host') {
+      net = await createHostNet({
+        name: settings.name, onStatus: (s) => menus.setProgress(0.3, s),
+        settings: { mode: gameMode, bots: bots?.count ?? 0, difficulty: bots?.difficulty ?? 'normal' },
+      });
+    } else {
+      net = await createClientNet({ code, name: settings.name, onStatus: (s) => menus.setProgress(0.3, s) });
+    }
+    wireNet(net);
+    voice = startVoice(net, mic);
+    mic = null;
+    history.replaceState(null, '', `${location.pathname}?join=${net.roomCode}${debugSuffix()}`);
     menus.hideLoading();
-    input.enabled = true;
-    if (mode === 'host') menus.toast(`Room ${session.roomCode} is live. Share the code or invite link (Esc menu).`, 5);
-    if (autostart) game.deploy();
+    if (net.initialSession) {
+      // Joined while a match is running: straight in.
+      menus.showLoading('Joining match', `Room ${net.roomCode}`);
+      const wc = await worldReady((f, label) => menus.setProgress(0.1 + f * 0.85, label));
+      menus.hideLoading();
+      enterMatch(net.initialSession, wc);
+    } else {
+      showLobby();
+      // Preload the campus while people gather.
+      worldReady((f, label) => lobbyUi.status(f >= 1 ? 'Campus loaded' : `Loading campus ${Math.round(f * 100)}% · ${label || ''}`))
+        .then(() => lobbyUi.status('Campus loaded · ready to play'))
+        .catch((err) => lobbyUi.status('World failed to load: ' + (err?.message || err)));
+    }
   } catch (err) {
     console.info('[start failed]', err);
-    try { session?.close(); } catch { /* ignore */ }
     stopStream(mic);
+    stopVoice();
+    try { net?.close(); } catch { /* ignore */ }
+    net = null;
     game = null;
     menus.showTitle();
     menus.showTitleError(err?.message || String(err));
@@ -132,8 +164,61 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
   }
 }
 
+function wireNet(n) {
+  n.onLobby = (st) => lobbyUi.update(st);
+  n.onCountdown = (s) => lobbyUi.countdown(s);
+  n.onMatchStart = async () => {
+    lobbyUi.status('Loading campus for the match');
+    const wc = await worldReady((f, label) => lobbyUi.status(`Loading campus ${Math.round(f * 100)}% · ${label || ''}`));
+    if (net !== n) return;
+    const session = n.isHost ? n.startMatch(wc.world) : await n.joinMatch();
+    if (net !== n) return;
+    enterMatch(session, wc);
+  };
+  n.onToLobby = () => backToLobby();
+  n.onDisconnect = (reason) => leave(reason);
+  n.onNotice = (t) => menus.toast(t);
+}
+
+function showLobby() {
+  lobbyUi.show(net.lobby, { isHost: net.isHost, localId: net.localId });
+}
+
+/** Creates the Game for a match session (practice, host or client). */
+function enterMatch(session, wc) {
+  lobbyUi.hide();
+  menus.lobbyAvailable = !!net; // "Back to lobby" on the end screen (host of an online room)
+  menus.hideTitle();
+  game = new Game({
+    world: wc.world, scene: wc.scene, camera, effects: wc.effects, settings, session,
+    hud, minimap, audio, input, ui: gameUi(session),
+  });
+  game.resize(camera.aspect);
+  game.ui.refreshTeam();
+  voice?.va.setGame(game);
+  input.enabled = true;
+  if (autostart || params.has('autodeploy')) game.deploy();
+}
+
+/** Match over: everyone (host + clients) returns to the lobby of the same room. */
+function backToLobby() {
+  if (game) {
+    exitPlay();
+    game.dispose();
+    game = null;
+  }
+  voice?.va.setGame(null);
+  input.enabled = false;
+  input.exitLock();
+  menus.hideEnd();
+  menus.hideDeploy();
+  menus.hidePause();
+  hud.voice(null);
+  if (net) showLobby();
+}
+
 function debugSuffix() {
-  const keep = ['gkey', 'fakemic'].filter((k) => params.has(k)).map((k) => `&${k}=${encodeURIComponent(params.get(k))}`);
+  const keep = ['gkey', 'fakemic', 'mute'].filter((k) => params.has(k)).map((k) => `&${k}=${encodeURIComponent(params.get(k))}`);
   if (debug) keep.push('&debug=1');
   return keep.join('');
 }
@@ -162,11 +247,14 @@ function exitPlay() {
 }
 
 function leave(reason = null) {
-  if (!game) return;
+  if (!game && !net) return;
   exitPlay();
   stopVoice();
-  game.dispose();
+  game?.dispose();
   game = null;
+  try { net?.close(); } catch { /* ignore */ }
+  net = null;
+  lobbyUi.hide();
   input.enabled = false;
   input.exitLock();
   menus.showTitle();
@@ -199,11 +287,11 @@ async function acquireMic() {
   }
 }
 
-function startVoice(session, stream) {
-  if (!session.peer || !audio.context) { stopStream(stream); return null; }
-  const va = new VoiceAudio(game, audio, stream);
+function startVoice(n, stream) {
+  if (!n.peer || !audio.context) { stopStream(stream); return null; }
+  const va = new VoiceAudio(null, audio, stream); // lobby voice until a match starts
   const mesh = new VoiceMesh({
-    peer: session.peer, localId: session.localId, stream,
+    peer: n.peer, localId: n.localId, stream,
     onStream: (gid, s) => va.add(gid, s),
     onClose: (gid) => va.remove(gid),
   });
@@ -211,15 +299,17 @@ function startVoice(session, stream) {
 }
 
 function updateVoice(dt) {
-  if (!voice || !game) { hud.voice(null); return; }
+  if (!voice) { hud.voice(null); return; }
   voice.syncT -= dt;
   if (voice.syncT <= 0) {
     voice.syncT = 1;
-    voice.mesh.sync([...game.roster.values()].map((e) => ({ id: e.id, pid: e.pid, bot: e.bot })));
+    // Calls follow the room's human members (lobby and match ids are the same).
+    voice.mesh.sync((net?.lobby?.members || []).map((m) => ({ id: m.id, pid: m.pid })));
   }
   voice.va.update(dt);
+  lobbyUi.micLevel(voice.va.level);
   // Only our own mic meter: other players' talking is never shown (it would reveal their position).
-  hud.voice({ level: voice.va.level, speakers: [] }, camera);
+  if (game) hud.voice({ level: voice.va.level, speakers: [] }, camera);
 }
 
 function stopVoice() {
@@ -279,13 +369,15 @@ menus.on('loadoutDone', () => {
 menus.on('restart', () => game?.restartMatch());
 menus.on('swapClose', () => game?._closeSwap());
 menus.on('settingsClosed', () => saveSettings(settings));
-menus.on('copyInvite', async () => {
-  const code = game?.session.roomCode;
+async function copyInvite() {
+  const code = net?.roomCode || game?.session.roomCode;
   if (!code) return;
   const url = `${location.origin}${location.pathname}?join=${code}`;
   try { await navigator.clipboard.writeText(url); menus.toast('Invite link copied'); }
   catch { menus.toast(url, 6); }
-});
+}
+menus.on('copyInvite', copyInvite);
+menus.on('toLobby', () => net?.isHost && net.backToLobby());
 
 input.onLockChange = (locked) => {
   if (!game) return;
@@ -312,7 +404,7 @@ addEventListener('resize', () => {
   game?.resize(camera.aspect);
 });
 
-addEventListener('beforeunload', () => { try { game?.dispose(); } catch { /* ignore */ } });
+addEventListener('beforeunload', () => { try { game?.dispose(); net?.close(); } catch { /* ignore */ } });
 
 // ---------- main loop ----------
 let lastFrame = performance.now();
@@ -326,6 +418,7 @@ function frame() {
     attrTimer = 1;
     menus.setAttribution(worldCache?.world.attributionHTML || 'Map data &copy; OpenStreetMap contributors &middot; Imagery &copy; Esri, Maxar, Earthstar Geographics');
   }
+  if (voice && !game) updateVoice(dt);
   if (!game) return;
   if (!debug && !input.locked && game.alive && game.deployed && input.enabled && !menus.pauseOpen && !menus.endOpen
     && menus.deployMode === null && nowMs - input.lastLockRequest > 800) {
@@ -352,6 +445,8 @@ window.__game = {
   get player() { return game?.player; },
   get world() { return worldCache?.world; },
   get voice() { return voice; },
+  get net() { return net; },
+  lobbyUi,
   input, settings, audio, menus, renderer, camera,
   start, leave,
   key: (code, down = true) => input.simKey(code, down),

@@ -47,7 +47,8 @@ export class Authority {
    * out(msg, to, except): to = player id or null for everyone; except = player id to skip.
    * opts: { world, mode: 'ffa'|'ctf', practice, practiceSpawn: {pos, yaw} }
    */
-  constructor({ world, mode = 'ffa', practice = false, practiceSpawn = null, out }) {
+  constructor({ world, mode = 'ffa', practice = false, practiceSpawn = null, out, scoreLimit = null }) {
+    this.customScoreLimit = Number(scoreLimit) > 0 ? Math.round(Number(scoreLimit)) : null;
     this.world = world;
     this.mode = mode;
     this.practice = practice;
@@ -72,7 +73,10 @@ export class Authority {
   }
 
   time() { return now(); }
-  get rules() { return rulesFor(this.mode); }
+  get rules() {
+    const r = rulesFor(this.mode);
+    return this.customScoreLimit ? { ...r, scoreLimit: this.customScoreLimit } : r;
+  }
 
   // ---------- roster ----------
   uniqueName(name) {
