@@ -38,7 +38,7 @@ export function createHud() {
     equip: $('equip'), frags: $('eq-frags'), cook: root.querySelector('.eq-cook'), cookFill: $('eq-cook'),
     micLive: $('mic-live'), micLevel: $('mic-level'), speakers: $('speakers'),
     ebars: $('enemy-bars'), swapHint: $('swap-hint'),
-    heli: $('heli-hud'), hhHp: $('hh-hp'), hhHeat: $('hh-heat'), hhRk: $('hh-rk'), hhLeft: $('hh-left'), hhMeta: $('hh-meta'),
+    heli: $('heli-hud'), hhHp: $('hh-hp'), hhHeat: $('hh-heat'), hhRk: $('hh-rk'), hhMeta: $('hh-meta'),
   };
   const spkEls = new Map();
   const barEls = new Map();
@@ -151,7 +151,7 @@ export function createHud() {
       d.className = 'kf' + (mine ? ' me' : '');
       const st = (c) => (c ? ` style="color:${c}"` : '');
       const k = killer ? `<span class="${killerIsMe ? 'you' : ''}"${st(killerColor)}>${esc(killer)}</span>` : '';
-      const icon = { FRAG: '<svg viewBox="0 0 24 20"><ellipse cx="11" cy="12" rx="6" ry="7"/><rect x="8" y="1" width="6" height="4" rx="1"/><path d="M14 2h6v2h-6z"/></svg> ', MELEE: '<svg viewBox="0 0 24 20"><path d="M2 16 16 2l3 3L5 19z"/><path d="M15 9l5 5-2 2-5-5z"/></svg> ', AIRSTRIKE: '<svg viewBox="0 0 24 20"><path d="M12 1 14 8 23 10 14 12 12 19 10 12 1 10 10 8z"/></svg> ' }[weapon] || '';
+      const icon = { HELI: '<svg viewBox="0 0 24 20"><path d="M2 3h20v2H13v2h3l4 4v3H8l-4-4V7h7V5H2z"/><path d="M8 15h10v2H8z"/></svg> ', ROTOR: '<svg viewBox="0 0 24 20"><path d="M11 9h2v2h-2z"/><path d="M1 9h9v2H1zM14 9h9v2h-9zM11 1h2v7h-2zM11 12h2v7h-2z"/></svg> ', CRASH: '<svg viewBox="0 0 24 20"><path d="M12 1l3 6 7-2-4 6 5 4-8-1-3 6-3-6-8 1 5-4-4-6 7 2z"/></svg> ', FRAG: '<svg viewBox="0 0 24 20"><ellipse cx="11" cy="12" rx="6" ry="7"/><rect x="8" y="1" width="6" height="4" rx="1"/><path d="M14 2h6v2h-6z"/></svg> ', MELEE: '<svg viewBox="0 0 24 20"><path d="M2 16 16 2l3 3L5 19z"/><path d="M15 9l5 5-2 2-5-5z"/></svg> ', AIRSTRIKE: '<svg viewBox="0 0 24 20"><path d="M12 1 14 8 23 10 14 12 12 19 10 12 1 10 10 8z"/></svg> ' }[weapon] || '';
       d.innerHTML = `${k}<span class="w">${icon}${esc(weapon)}</span>${headshot ? '<span class="hs">HEADSHOT</span>' : ''}<span class="${victimIsMe ? 'you' : ''}"${st(victimColor)}>${esc(victim)}</span>`;
       el.killfeed.prepend(d);
       while (el.killfeed.children.length > 6) el.killfeed.lastChild.remove();
@@ -325,8 +325,15 @@ export function createHud() {
       el.hhHeat.style.width = Math.round(info.heat * 100) + '%';
       el.hhHeat.parentElement.classList.toggle('over', info.overheated);
       set('hhRk', info.rockets > 0 ? info.rockets.toFixed(1) + 's' : 'Ready', (v) => { el.hhRk.textContent = v; });
-      set('hhLeft', Math.ceil(info.left), (v) => { el.hhLeft.textContent = v + 's'; el.hhLeft.classList.toggle('warn', info.warn); });
+      set('hhLow', info.hp < 0.3, (v) => el.heli.classList.toggle('low', v));
       set('hhMeta', `${Math.round(info.speed * 3.6)} km/h · ALT ${Math.round(info.alt)} m`, (v) => { el.hhMeta.textContent = v; });
+    },
+
+    /** Hull bar flash when the helicopter takes a hit. */
+    heliFlash() {
+      el.heli.classList.remove('hit');
+      void el.heli.offsetWidth;
+      el.heli.classList.add('hit');
     },
 
     swapHint(v) { set('swap', v, (x) => el.swapHint.classList.toggle('hidden', !x)); },

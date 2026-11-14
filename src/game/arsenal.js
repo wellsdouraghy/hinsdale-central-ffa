@@ -22,6 +22,8 @@ export function weaponName(id) {
   if (id === 'frag') return 'Frag Grenade';
   if (id === 'airstrike') return 'Airstrike';
   if (id === 'heli' || id === 'heligun') return 'Helicopter';
+  if (id === 'rotor') return 'Rotor blades';
+  if (id === 'crash') return 'Helicopter crash';
   if (id === 'rocket') return 'Heli Rocket';
   return WEAPONS?.[id]?.name || WEAPON_STATS[id]?.label || id;
 }

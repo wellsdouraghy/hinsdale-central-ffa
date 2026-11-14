@@ -457,6 +457,12 @@ export function createAudio() {
         stop() { try { g.gain.setTargetAtTime(0, ctx.currentTime, 0.2); src.stop(ctx.currentTime + 0.8); } catch { /* ignore */ } },
       };
     },
+    crunch(pos = null, big = false) {
+      play('boom', pos, { gain: big ? 0.9 : 0.5, rate: big ? 1.3 : 2.0, ref: 10 });
+      play('clank', pos, { gain: 0.9, rate: 0.7 + Math.random() * 0.2, ref: 8 });
+      play('magOut', pos, { gain: 0.7, rate: 0.5, ref: 8, delay: 0.04 });
+    },
+    beep() { play('tick', null, { gain: 0.5, rate: 0.55 }); play('tick', null, { gain: 0.5, rate: 0.55, delay: 0.12 }); },
     cannon(pos = null) { play('shot_smg', pos, { gain: pos ? 1.1 : 0.7, rate: 0.72 + Math.random() * 0.05, distanceMuffle: !!pos, ref: 14 }); },
     rocket(pos = null) { play('swoosh', pos, { gain: 0.9, rate: 0.6, ref: 10 }); play('thrust', pos, { gain: 0.8, rate: 0.7, ref: 10 }); },
     /** The AudioContext (for voice chat), created on the first user gesture. */

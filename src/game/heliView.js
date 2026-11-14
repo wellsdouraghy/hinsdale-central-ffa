@@ -57,7 +57,7 @@ export class HeliView {
     if (this.mine || m.gen !== this.s?.gen) return;
     this.buf.push({ t: clock(), p: m.p, yaw: m.yaw, pitch: m.pitch, roll: m.roll });
     if (this.buf.length > 30) this.buf.shift();
-    if (this.s) { this.s.hp = m.hp ?? this.s.hp; this.s.left = m.left ?? this.s.left; this.vis.setDamage?.(1 - this.s.hp / HELI_HP); }
+    if (this.s) { this.s.hp = m.hp ?? this.s.hp; this.vis.setDamage?.(1 - this.s.hp / HELI_HP); }
   }
 
   _pose(p, yaw, pitch, roll) {
@@ -89,9 +89,22 @@ export class HeliView {
   onBoom(m) {
     const p = new THREE.Vector3().fromArray(m.p);
     this.vis.destroy();
-    this.game.throwables.explosionAt(p, 10);
-    this.game.effects.explosion?.(p.clone().add(new THREE.Vector3(0, 1.5, 0)), { radius: 10 });
+    this.game.throwables.explosionAt(p, 14);
+    this.game.effects.explosion?.(p.clone().add(new THREE.Vector3(0, 1.5, 0)), { radius: 14 });
+    this.game.audio.explosion?.(p.clone());
     setTimeout(() => { if (!this.active) this.vis.object3D.visible = false; }, 6000);
+  }
+
+  /** Impact / rotor strike / running someone over: sparks (or blood) and a metal crunch where it happened. */
+  onSpark(m) {
+    const p = new THREE.Vector3().fromArray(m.p);
+    const g = this.game;
+    if (m.blood) g.effects.blood(p, new THREE.Vector3(0, 1, 0));
+    for (let i = 0; i < (m.big ? 6 : 3); i++) {
+      const n = new THREE.Vector3(Math.random() - 0.5, Math.random() * 0.8 + 0.2, Math.random() - 0.5).normalize();
+      g.effects.impact(p.clone().addScaledVector(n, 0.3), n, 'metal');
+    }
+    g.audio.crunch?.(p.clone(), m.big);
   }
 
   /** Bullet ray vs helicopter hit volume (body + tail spheres). Returns distance or null. */
@@ -131,6 +144,15 @@ export class HeliView {
     if (this.pilot) this.pilot.update(dt, t);
     this.rotor += ((this.flying ? 1 : 0) - this.rotor) * Math.min(1, dt * 0.6);
     this.vis.setRotorSpeed(this.rotor);
+    // Rotor-wash dust: height of the skids above the ground (one ray, only while the rotor turns).
+    if (this.vis.setGroundEffect && this.rotor > 0.05 && this.active) {
+      let h = this.pilot?.altitude;
+      if (h === undefined) {
+        const hit = g.hitscan.castWorld(this.pos.clone().add(new THREE.Vector3(0, 0.5, 0)), new THREE.Vector3(0, -1, 0), 60);
+        h = hit ? Math.max(0, this.pos.y - hit.point.y) : 60;
+      }
+      this.vis.setGroundEffect(h);
+    }
     this.vis.update(dt);
     // Rotor audio: loop positioned at the heli, pitch rises with rotor speed (and a doppler-ish nudge).
     if (this.rotor > 0.02 && this.active) {

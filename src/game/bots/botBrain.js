@@ -272,6 +272,14 @@ export class BotBrain {
       this.stuckT = 0;
     }
 
+    // Get out from under a low-flying helicopter (rotor wash = death).
+    const hh = this.auth.heli?.h;
+    if (hh && hh.state === 'flying') {
+      const ax = this.pos.x - hh.pos[0], az = this.pos.z - hh.pos[2];
+      const hd = Math.hypot(ax, az);
+      if (hd < 8 && hh.pos[1] - this.pos.y < 6) { dir.set(ax / (hd || 1), 0, az / (hd || 1)); sprint = true; }
+    }
+
     // Aim: desired view toward the target (with error), otherwise toward travel direction.
     let wantYaw = this.ctrl.yaw, wantPitch = 0;
     if (this.target && (this.visible || t - this.lastSeenT < 1.5)) {

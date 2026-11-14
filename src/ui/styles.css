@@ -444,3 +444,7 @@ h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: .14em; text-transform: up
 .bot-setup output { float: right; font: 700 12px var(--mono); color: var(--text); }
 .bot-setup input[type=range] { width: 100%; margin-top: 8px; accent-color: var(--accent); }
 .bot-setup small { grid-column: 1 / -1; font-size: 12px; color: rgba(255,255,255,0.5); }
+#heli-hud.hit { animation: hhhit .35s ease-out; }
+@keyframes hhhit { 0% { box-shadow: 0 0 0 3px #ff4b4b, 0 0 24px rgba(255,60,60,0.6); } 100% { box-shadow: none; } }
+#heli-hud.low { border-color: #ff4b4b; }
+#heli-hud.low .hh-bar i { background: #ff4b4b; animation: flagblink 0.6s steps(2) infinite; }

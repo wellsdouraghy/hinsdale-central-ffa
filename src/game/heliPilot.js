@@ -22,7 +22,6 @@ export class HeliPilot {
     this.heat = 0; this.overheated = false; this.nextShot = 0;
     this.rocketsReadyAt = 0; this.rid = 1; this.pendingRocket = null;
     this.sendT = 0;
-    this.left = s.left;
     this.hp = s.hp;
     this.camPos = null;
     this.grounded = true;
@@ -32,7 +31,10 @@ export class HeliPilot {
     game.announce('Helicopter', 'LMB cannon · RMB rockets · Space/C climb/descend · X exit near ground', '#f2b544', 'good');
   }
 
-  syncHost(s) { this.left = s.left; this.hp = s.hp; }
+  syncHost(s) {
+    if (s.hp < this.hp - 1) this.game.hud.heliFlash?.();
+    this.hp = s.hp;
+  }
 
   get center() { return this.pos.clone().add(new THREE.Vector3(0, 1.6, 0)); }
 
@@ -48,11 +50,8 @@ export class HeliPilot {
     }
     const fwdIn = (key('KeyW') ? 1 : 0) - (key('KeyS') ? 1 : 0);
     const strIn = (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0);
-    let upIn = (key('Space') ? 1 : 0) - (key('KeyC') || key('ControlLeft') || key('ControlRight') ? 1 : 0);
+    const upIn = (key('Space') ? 1 : 0) - (key('KeyC') || key('ControlLeft') || key('ControlRight') ? 1 : 0);
     const boost = key('ShiftLeft') || key('ShiftRight');
-    // Flight-time limit: gentle forced descent in the last seconds.
-    const autoLand = this.left < 6;
-    if (autoLand) upIn = -0.5;
     const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
     const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     const want = fwd.multiplyScalar(fwdIn).addScaledVector(right, strIn);
@@ -70,8 +69,10 @@ export class HeliPilot {
       const c = this.center;
       const hit = hs.castWorld(c, step.clone().divideScalar(len), len + 2.4);
       if (hit && hit.distance < len + 2.4) {
-        const impact = Math.abs(this.vel.dot(hit.normal));
-        if (impact > 10 && t > (this.crashT || 0)) { this.crashT = t + 0.5; g.session.send({ t: 'heliCrash', dmg: Math.round((impact - 8) * 9) }); g.throwables.shake = 0.8; g.audio.crateLand?.(c); }
+        // Impact speed into the surface; nose-first = flying forward into it.
+        const impact = Math.max(0, -this.vel.dot(hit.normal));
+        const nose = fwd.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)).dot(hit.normal) < -0.7;
+        this._impact(t, impact, hit.point, nose);
         // Slide along the surface.
         const vn = this.vel.dot(hit.normal);
         if (vn < 0) this.vel.addScaledVector(hit.normal, -vn * 1.3);
@@ -83,7 +84,14 @@ export class HeliPilot {
     const down = hs.castWorld(this.pos.clone().add(new THREE.Vector3(0, 2, 0)), new THREE.Vector3(0, -1, 0), 400);
     const groundY = down ? down.point.y : 0;
     this.grounded = this.pos.y <= groundY + 0.05;
-    if (this.pos.y < groundY) { this.pos.y = groundY; if (this.vel.y < 0) this.vel.y = 0; }
+    if (this.pos.y < groundY) {
+      // Touchdown: hard landings hurt, landing upside-down / heavily rolled is fatal.
+      const flip = Math.abs(this.tilt.roll) > 70 * DEG || Math.abs(this.tilt.pitch) > 70 * DEG;
+      if (this.vel.y < -1 || flip) this._impact(t, -this.vel.y, this.pos.clone(), false, flip);
+      this.pos.y = groundY;
+      if (this.vel.y < 0) this.vel.y = 0;
+    }
+    this._rotorStrike(t);
     this.altitude = this.pos.y - groundY;
     const terrain = g.world.groundY ? g.world.groundY(this.pos.x, this.pos.z) : 0;
     if (this.pos.y > terrain + CEILING) { this.pos.y = terrain + CEILING; this.vel.y = Math.min(0, this.vel.y); }
@@ -119,7 +127,42 @@ export class HeliPilot {
       this.sendT = 0;
       g.session.send({ t: 'hst', ts: r3(clock()), p: [r2(this.pos.x), r2(this.pos.y), r2(this.pos.z)], yaw: r3(this.yaw), pitch: r3(this.tilt.pitch), roll: r3(this.tilt.roll), v: [r2(this.vel.x), r2(this.vel.y), r2(this.vel.z)] });
     }
-    g.hud.heli({ hp: this.hp / 900, heat: this.heat, overheated: this.overheated, rockets: Math.max(0, this.rocketsReadyAt - t), left: this.left, speed: hv, alt: this.altitude, warn: this.left < 10 });
+    g.hud.heli({ hp: this.hp / 900, heat: this.heat, overheated: this.overheated, rockets: Math.max(0, this.rocketsReadyAt - t), speed: hv, alt: this.altitude });
+    // Low-hull warning beeps.
+    if (this.hp / 900 < 0.3 && t > (this.beepT || 0)) { this.beepT = t + 0.9; g.audio.beep?.(); }
+  }
+
+  /** Reports an impact to the host (it decides the damage); local crunch, sparks and cockpit shake. */
+  _impact(t, speed, point, nose = false, flip = false) {
+    const g = this.game;
+    if (speed < 6 && !flip) { if (speed > 2.5 && t > (this.thudT || 0)) { this.thudT = t + 0.4; g.audio.footstep?.('metal', null, 1.2); } return; }
+    if (t < (this.crashT || 0)) return;
+    this.crashT = t + 0.35;
+    g.session.send({ t: 'heliCrash', speed: Math.round(speed * 10) / 10, nose, flip, p: [r2(point.x), r2(point.y), r2(point.z)] });
+    g.throwables.shake = Math.min(1, 0.4 + speed / 20);
+    g.hud.heliFlash?.();
+  }
+
+  /** Main rotor tips against walls (8 radial probes at rotor height). */
+  _rotorStrike(t) {
+    if (t < (this.rotorT || 0)) return;
+    this.rotorT = t + 0.1;
+    const o = this.view.vis.object3D;
+    const hub = new THREE.Vector3(0, 3.25, 0).applyQuaternion(o.quaternion).add(o.position);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).applyQuaternion(o.quaternion);
+      const hit = this.game.hitscan.castWorld(hub, dir, 5.5);
+      if (hit) {
+        this.rotorT = t + 0.6;
+        this.game.session.send({ t: 'heliRotor', p: [r2(hit.point.x), r2(hit.point.y), r2(hit.point.z)] });
+        this.game.throwables.shake = Math.max(this.game.throwables.shake, 0.6);
+        this.game.hud.heliFlash?.();
+        // Bounce away from what the blades hit.
+        this.vel.addScaledVector(dir, -6);
+        return;
+      }
+    }
   }
 
   aimRay() {

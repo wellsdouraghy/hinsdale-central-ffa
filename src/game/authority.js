@@ -227,7 +227,7 @@ export class Authority {
       case 'team':
         this.switchTeam(p, msg.team);
         break;
-      case 'heliEnter': case 'heliExit': case 'hst': case 'rocket': case 'heliCrash':
+      case 'heliEnter': case 'heliExit': case 'hst': case 'rocket': case 'heliCrash': case 'heliRotor':
         this.heli?.handle(p, msg);
         break;
       case 'pong':

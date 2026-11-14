@@ -205,8 +205,11 @@ export class Game {
       case 'hst': this.heliView?.onPose(m); break;
       case 'rocket': this.heliView?.onRocket(m); break;
       case 'rboom': this.heliView?.onRocketBoom(m); break;
-      case 'heliBoom': this.heliView?.onBoom(m); this.announce('Helicopter destroyed', m.by != null ? this.nameOf(m.by) : '', '#ff4d55', 'neutral'); break;
-      case 'heliGone': this.ui.toast('The helicopter ran out of fuel'); break;
+      case 'heliBoom':
+        this.heliView?.onBoom(m);
+        this.announce(m.cause === 'crash' ? 'Helicopter crashed' : 'Helicopter destroyed', m.by != null ? this.nameOf(m.by) : '', '#ff4d55', 'neutral');
+        break;
+      case 'heliSpark': this.heliView?.onSpark(m); break;
       case 'heliExit':
         if (m.id === this.localId) {
           this.heliView?.pilot?.dispose();
@@ -1223,6 +1226,8 @@ function shortName(w) {
   if (w === 'frag') return 'FRAG';
   if (w === 'airstrike') return 'AIRSTRIKE';
   if (w === 'heli' || w === 'heligun') return 'HELI';
+  if (w === 'rotor') return 'ROTOR';
+  if (w === 'crash') return 'CRASH';
   if (w === 'rocket') return 'ROCKET';
   return WEAPON_STATS[w]?.short || String(w).toUpperCase();
 }
