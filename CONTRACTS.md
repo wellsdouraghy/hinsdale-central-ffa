@@ -241,3 +241,4 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   (`setRotorSpeed`, `setDamage`, `setOccupied?`, `aimGun?`, `fireGun`, `fireRocket(side)`, `destroy`, `reset`; gameplay drives
   object3D position + YXZ rotation) and `createRocket()` (`update(dt)` after each move). Modes: 'ffa' | 'tdm' | 'ctf'.
   AI bots are host-side players (`p.ai`), visible to clients through the normal state stream.
+- (Visuals, round 7) Helicopter restyled (faceted gunmetal hull, fenestron tail, bigger wings with 2 pods + missile rail per side, lights, exhaust haze, rotor wash). Interface unchanged; new optional `setGroundEffect(heightAboveGround | null)` (null = ground at world y 0) and `setSearchlight(bool)`. Nose-to-fin length is now ~13.8 m; `gunMuzzle` and `rocketPods` anchors moved with the model. Cockpit glow and searchlight show only while `setOccupied(true)`.

@@ -127,7 +127,7 @@ let heliRocket = null;
 if (view === 'heli') {
   for (const m of targets) if (m !== ground) m.visible = false;
   ground.material.color.set(0x55653f);
-  const defs = [[-15, 0, -16, 0.6, 0, 0, false], [0, 4.5, -18, 0.35, 1, 0, true], [15, 0, -16, -0.7, 0.45, 0.5, true], [30, 6, -30, -0.5, 1, 0.9, true], [-32, 0, -24, 0.9, 0, 1, false]];
+  const defs = [[-15, 0, -16, 0.6, 0, 0, false], [0, num('alt', 4.5), -18, 0.35, 1, 0, true], [15, 0, -16, -0.7, 0.45, 0.5, true], [30, 6, -30, -0.5, 1, 0.9, true], [-32, 0, -24, 0.9, 0, 1, false]];
   const helis = defs.map(([x, y, z, yaw, rpm, dmg, occ], i) => {
     const h = createHelicopter(); h.object3D.position.set(x, y, z); h.object3D.rotation.y = yaw; scene.add(h.object3D);
     h.setRotorSpeed(rpm); h.setOccupied(occ);

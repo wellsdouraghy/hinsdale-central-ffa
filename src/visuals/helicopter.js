@@ -1,5 +1,5 @@
 // One-seat light attack helicopter + rocket projectile (original procedural design, no real-world markings).
-// Heli: origin at the skid bottoms, nose toward -z, ~11.8 m long, 11 m main rotor. Rocket: points along -z.
+// Heli: origin at the skid bottoms, nose toward -z, ~13.8 m long nose to fin, 11 m main rotor. Rocket: points along -z.
 // Smoke / fire / rocket trails live in one shared, stateless GPU particle cloud (positions are a function of time in the
 // vertex shader), so a trail keeps drifting and fading after the rocket that laid it has been removed.
 import * as THREE from 'three';
@@ -100,8 +100,10 @@ const sph = (r, ...t) => place(new THREE.SphereGeometry(r, 16, 12), ...t);
 // elliptical "airfoil" slab along x (span), chord along z
 const wing = (span, chord, thick, ...t) => { const g = new THREE.CylinderGeometry(0.5, 0.5, span, 14); g.rotateZ(Math.PI / 2); g.scale(1, thick, chord); return place(g, ...t); };
 function tube(pts, r, segs = 20) { return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p))), segs, r, 8, false); }
-function plate(pts, thick) {   // side profile [[z, y], ...] extruded across x, centred
-  const g = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y))), { depth: thick, bevelEnabled: false });
+function plate(pts, thick, hole) {   // side profile [[z, y], ...] extruded across x, centred; hole = [z, y, radius]
+  const sh = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y)));
+  if (hole) { const h = new THREE.Path(); h.absarc(hole[0], hole[1], hole[2], 0, Math.PI * 2, true); sh.holes.push(h); }
+  const g = new THREE.ExtrudeGeometry(sh, { depth: thick, bevelEnabled: false, curveSegments: 20 });
   g.rotateY(-Math.PI / 2); g.translate(thick / 2, 0, 0);
   return g;
 }
@@ -109,93 +111,116 @@ function merge(list) {
   return mergeGeometries(list.map((g) => { const n = g.index ? g.toNonIndexed() : g; for (const k of Object.keys(n.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') n.deleteAttribute(k); return n; }), false);
 }
 
-// Fuselage: superellipse cross-sections lofted along z. uv = (along length, around: 0 belly, .25 right, .5 top, .75 left).
-const Z0 = -4.6, ZL = 11.8;
+// Fuselage: faceted (chamfered-box) cross-sections lofted along z, flat shaded for an armoured, low-observable look.
+// uv = (along length, around: 0 belly, .25 right, .5 top, .75 left).
+const Z0 = -5.2, ZL = 12.7;
 const STATIONS = [ // z, half width, y bottom, y top
-  [-4.6, 0.1, 1.22, 1.46], [-4.45, 0.2, 1.1, 1.58], [-4.1, 0.36, 0.98, 1.72], [-3.5, 0.5, 0.86, 1.8], [-2.6, 0.57, 0.8, 1.84], [-1.75, 0.6, 0.8, 1.88],
-  [-1.45, 0.61, 0.8, 2.42], [-1.0, 0.62, 0.8, 2.56], [0.0, 0.63, 0.84, 2.62], [1.0, 0.58, 0.92, 2.56], [1.9, 0.45, 1.15, 2.36], [2.7, 0.3, 1.42, 2.2],
-  [3.4, 0.22, 1.6, 2.12], [5.2, 0.17, 1.82, 2.18], [6.7, 0.13, 1.98, 2.26], [7.2, 0.05, 2.08, 2.2],
+  [-5.2, 0.05, 1.2, 1.3], [-4.6, 0.27, 1.02, 1.56], [-3.9, 0.47, 0.9, 1.74], [-3.3, 0.57, 0.84, 1.82], [-1.75, 0.65, 0.8, 1.9],
+  [-1.45, 0.67, 0.8, 2.46], [-1.0, 0.69, 0.8, 2.6], [0.0, 0.7, 0.84, 2.66], [1.0, 0.64, 0.92, 2.58], [1.9, 0.48, 1.15, 2.38], [2.7, 0.32, 1.42, 2.22],
+  [3.4, 0.24, 1.6, 2.14], [5.2, 0.19, 1.82, 2.2], [6.9, 0.15, 1.98, 2.3], [7.4, 0.1, 2.06, 2.28],
 ];
+const RING = [[0, -1, 0], [0.55, -1, 0.06], [1, -0.42, 0.16], [1, 0.38, 0.34], [0.5, 1, 0.44], [-0.5, 1, 0.56], [-1, 0.38, 0.66], [-1, -0.42, 0.84], [-0.55, -1, 0.94], [0, -1, 1]];
 function fuselage() {
-  const SEG = 28, pos = [], uv = [], idx = [], n = 3.0;
+  const pos = [], uv = [], idx = [], R = RING.length;
   STATIONS.forEach(([z, hw, yb, yt]) => {
     const cy = (yb + yt) / 2, hh = (yt - yb) / 2;
-    for (let j = 0; j <= SEG; j++) {
-      const th = (j / SEG) * Math.PI * 2 - Math.PI / 2, c = Math.cos(th), s = Math.sin(th);
-      pos.push(hw * Math.sign(c) * Math.pow(Math.abs(c), 2 / n), cy + hh * Math.sign(s) * Math.pow(Math.abs(s), 2 / n), z);
-      uv.push((z - Z0) / ZL, j / SEG);
-    }
+    for (const [x, y, u] of RING) { pos.push(hw * x, cy + hh * y, z); uv.push((z - Z0) / ZL, u); }
   });
-  for (let i = 0; i < STATIONS.length - 1; i++) for (let j = 0; j < SEG; j++) {
-    const a = i * (SEG + 1) + j, b = a + 1, c = a + SEG + 1, d = c + 1;
+  for (let i = 0; i < STATIONS.length - 1; i++) for (let j = 0; j < R - 1; j++) {
+    const a = i * R + j, b = a + 1, c = a + R, d = c + 1;
     idx.push(a, b, c, b, d, c);
   }
-  const g = new THREE.BufferGeometry();
+  let g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
-  g.computeVertexNormals();
+  g = g.toNonIndexed(); g.computeVertexNormals();                       // hard facets
   return g;
 }
 
-// Hull paint: worn olive drab, panel lines, rivets, hatches, stencils, unit number. level 0 pristine, 1 scorched, 2 burnt out.
+// Hull paint: gunmetal digital camouflage, panel lines, rivets, chipped facet edges, red unit markings and nose art.
+// level 0 pristine, 1 scorched, 2 burnt out.
 function hullTexture(level) {
   const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'), r = T.rng(4242);
   const vx = (z) => ((z - Z0) / ZL) * W;
-  g.fillStyle = '#4a5040'; g.fillRect(0, 0, W, H);
-  // broad two-tone disruptive bands + mottling
-  g.fillStyle = 'rgba(52,58,50,0.55)';
-  for (let i = 0; i < 7; i++) { g.beginPath(); const x = r() * W, y = r() * H; g.ellipse(x, y, 60 + r() * 120, 30 + r() * 60, r() * 3, 0, 6.3); g.fill(); }
-  for (let i = 0; i < 2600; i++) { const v = r(); g.fillStyle = v > 0.5 ? `rgba(120,126,100,${r() * 0.07})` : `rgba(20,22,16,${r() * 0.09})`; g.fillRect(r() * W, r() * H, 2 + r() * 10, 1 + r() * 4); }
-  // lighter belly
-  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, 'rgba(150,156,140,0.22)'); bg.addColorStop(0.1, 'rgba(150,156,140,0)'); bg.addColorStop(0.9, 'rgba(150,156,140,0)'); bg.addColorStop(1, 'rgba(150,156,140,0.22)');
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const RED = 'rgba(178,30,24,0.95)';
+  g.fillStyle = '#4b4f55'; g.fillRect(0, 0, W, H);
+  // digital camouflage: clusters of square pixels in two neighbouring tones
+  const tones = ['#33363b', '#62676e', '#3d4146', '#565b61', '#2b2e32'];
+  for (let i = 0; i < 380; i++) {
+    g.fillStyle = tones[(r() * tones.length) | 0];
+    let x = Math.floor(r() * W / 9) * 9, y = Math.floor(r() * H / 9) * 9;
+    for (let k = 0, n = 4 + r() * 14; k < n; k++) { g.fillRect(x, y, 9, 9); if (r() < 0.5) x += r() < 0.5 ? 9 : -9; else y += r() < 0.5 ? 9 : -9; }
+  }
+  for (let i = 0; i < 2200; i++) { const v = r(); g.fillStyle = v > 0.5 ? `rgba(150,155,160,${r() * 0.05})` : `rgba(8,9,10,${r() * 0.1})`; g.fillRect(r() * W, r() * H, 2 + r() * 10, 1 + r() * 4); }
   // panel lines + rivets
   const lines = [];
-  for (const z of [-4.0, -3.5, -2.9, -2.2, -1.5, -0.8, -0.1, 0.6, 1.3, 2.0, 2.7, 3.4, 4.2, 5.0, 5.8, 6.5]) lines.push([vx(z), 0, vx(z), H]);
-  for (const u of [0.07, 0.16, 0.25, 0.34, 0.43, 0.57, 0.66, 0.75, 0.84, 0.93]) lines.push([0, u * H, W, u * H]);
+  for (const z of [-4.5, -3.9, -3.3, -2.5, -1.75, -1.0, -0.2, 0.6, 1.3, 2.0, 2.7, 3.4, 4.2, 5.0, 5.8, 6.6]) lines.push([vx(z), 0, vx(z), H]);
+  for (const u of [0.11, 0.25, 0.39, 0.5, 0.61, 0.75, 0.89]) lines.push([0, u * H, W, u * H]);
   for (const [x1, y1, x2, y2] of lines) {
-    g.strokeStyle = 'rgba(14,16,12,0.75)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
-    g.strokeStyle = 'rgba(150,156,130,0.16)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x1 + 1.3, y1 + 1.3); g.lineTo(x2 + 1.3, y2 + 1.3); g.stroke();
+    g.strokeStyle = 'rgba(6,7,8,0.8)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke();
+    g.strokeStyle = 'rgba(150,156,160,0.14)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x1 + 1.3, y1 + 1.3); g.lineTo(x2 + 1.3, y2 + 1.3); g.stroke();
     const len = Math.hypot(x2 - x1, y2 - y1), dx = (x2 - x1) / len, dy = (y2 - y1) / len;
-    for (let d = 4; d < len; d += 7) for (const o of [-4, 4]) { g.fillStyle = 'rgba(20,22,18,0.55)'; g.fillRect(x1 + dx * d - dy * o - 0.8, y1 + dy * d + dx * o - 0.8, 1.6, 1.6); g.fillStyle = 'rgba(170,176,150,0.25)'; g.fillRect(x1 + dx * d - dy * o - 0.2, y1 + dy * d + dx * o - 0.2, 0.9, 0.9); }
+    for (let d = 4; d < len; d += 7) for (const o of [-4, 4]) { g.fillStyle = 'rgba(8,9,10,0.6)'; g.fillRect(x1 + dx * d - dy * o - 0.8, y1 + dy * d + dx * o - 0.8, 1.6, 1.6); g.fillStyle = 'rgba(170,176,180,0.22)'; g.fillRect(x1 + dx * d - dy * o - 0.2, y1 + dy * d + dx * o - 0.2, 0.9, 0.9); }
   }
   // access hatches both sides
-  for (const side of [0.25, 0.75]) for (const [z, du, w, h] of [[-0.5, -0.02, 46, 30], [0.75, 0.04, 40, 26], [2.25, 0.0, 30, 18], [-3.2, -0.05, 34, 20]]) {
+  for (const side of [0.25, 0.75]) for (const [z, du, w, h] of [[-0.5, -0.02, 46, 30], [0.75, 0.04, 40, 26], [2.25, 0.0, 30, 18], [-3.0, -0.05, 34, 20]]) {
     const x = vx(z), y = (side + du) * H;
-    g.strokeStyle = 'rgba(12,14,10,0.8)'; g.lineWidth = 1.4; g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, 5); g.stroke();
-    g.fillStyle = 'rgba(20,22,18,0.7)'; for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) g.fillRect(x + ax * (w / 2 - 5) - 1.2, y + ay * (h / 2 - 5) - 1.2, 2.4, 2.4);
+    g.strokeStyle = 'rgba(6,7,8,0.85)'; g.lineWidth = 1.4; g.beginPath(); g.roundRect(x - w / 2, y - h / 2, w, h, 5); g.stroke();
+    g.fillStyle = 'rgba(10,11,12,0.7)'; for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) g.fillRect(x + ax * (w / 2 - 5) - 1.2, y + ay * (h / 2 - 5) - 1.2, 2.4, 2.4);
   }
-  // grime streaks running aft, exhaust soot along the upper sides behind the engines
-  for (let i = 0; i < 90; i++) { const x = r() * W, y = r() * H, l = 20 + r() * 90; const sg = g.createLinearGradient(x, 0, x + l, 0); sg.addColorStop(0, `rgba(18,18,14,${0.1 + r() * 0.16})`); sg.addColorStop(1, 'rgba(18,18,14,0)'); g.fillStyle = sg; g.fillRect(x, y, l, 1 + r() * 3); }
-  for (const u of [0.4, 0.6]) { const sg = g.createLinearGradient(vx(1.6), 0, vx(5.5), 0); sg.addColorStop(0, 'rgba(10,10,9,0.75)'); sg.addColorStop(1, 'rgba(10,10,9,0)'); g.fillStyle = sg; g.beginPath(); g.ellipse(vx(3.4), u * H, vx(5.6) - vx(3.4), 26, 0, 0, 6.3); g.fill(); }
+  // chipped paint along the hard facet edges (bare metal showing through)
+  for (const [, , u] of RING.slice(1, -1)) {
+    for (let x = 0; x < W;) {
+      const l = 3 + r() * 26; x += r() * 34;
+      g.strokeStyle = `rgba(${150 + r() * 50 | 0},${155 + r() * 50 | 0},${160 + r() * 50 | 0},${0.2 + r() * 0.45})`; g.lineWidth = 0.8 + r() * 2.2;
+      g.beginPath(); g.moveTo(x, u * H + (r() - 0.5) * 2); g.lineTo(x + l, u * H + (r() - 0.5) * 2); g.stroke(); x += l;
+    }
+  }
+  // grime streaks running aft, heavy exhaust soot along the upper sides behind the engines
+  for (let i = 0; i < 120; i++) { const x = r() * W, y = r() * H, l = 20 + r() * 110; const sg = g.createLinearGradient(x, 0, x + l, 0); sg.addColorStop(0, `rgba(6,6,5,${0.12 + r() * 0.2})`); sg.addColorStop(1, 'rgba(6,6,5,0)'); g.fillStyle = sg; g.fillRect(x, y, l, 1 + r() * 3); }
+  for (const u of [0.4, 0.6]) { const sg = g.createLinearGradient(vx(1.8), 0, vx(6.2), 0); sg.addColorStop(0, 'rgba(4,4,4,0.85)'); sg.addColorStop(1, 'rgba(4,4,4,0)'); g.fillStyle = sg; g.beginPath(); g.ellipse(vx(3.8), u * H, vx(6.2) - vx(3.8), 30, 0, 0, 6.3); g.fill(); }
+  // red tail band + thin warning stripe behind the cockpit
+  g.fillStyle = RED; g.fillRect(vx(5.95), 0, vx(6.25) - vx(5.95), H);
+  g.fillStyle = 'rgba(178,30,24,0.8)'; g.fillRect(vx(-1.2), 0, 3, H);
   // stencils: text reads correctly on the left side as drawn; the right side is drawn rotated 180 degrees
   const stencil = (side, z, du, text, size, color, outline) => {
     g.save(); g.translate(vx(z), (side + du) * H); if (side < 0.5) g.rotate(Math.PI);
-    g.font = `700 ${size}px "Arial Narrow", "Helvetica Neue", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `800 ${size}px "Arial Narrow", "Helvetica Neue", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
     if (outline) { g.lineWidth = size * 0.14; g.strokeStyle = outline; g.strokeText(text, 0, 0); }
     g.fillStyle = color; g.fillText(text, 0, 0); g.restore();
   };
   for (const side of [0.25, 0.75]) {
-    stencil(side, 4.3, 0, '13', 30, 'rgba(176,34,28,0.95)', 'rgba(225,220,200,0.85)');
-    stencil(side, 1.55, 0.085, 'RED DEVILS', 13, 'rgba(176,34,28,0.85)');
-    stencil(side, -2.6, 0.075, 'RESCUE', 9, 'rgba(214,190,60,0.8)');
-    stencil(side, -0.5, 0.05, 'NO STEP', 8, 'rgba(20,20,16,0.8)');
-    stencil(side, 6.1, 0, 'DANGER', 9, 'rgba(176,34,28,0.85)');
-    // small pitchfork emblem ahead of the unit number
+    stencil(side, 4.55, 0, '13', 40, RED, 'rgba(228,224,214,0.9)');
+    stencil(side, 1.55, 0.09, 'RED DEVILS', 14, 'rgba(200,36,28,0.9)');
+    stencil(side, -2.6, 0.085, 'RESCUE', 9, 'rgba(214,190,60,0.8)');
+    stencil(side, -0.5, 0.05, 'NO STEP', 8, 'rgba(180,184,188,0.6)');
+    stencil(side, 6.75, 0, 'DANGER', 9, 'rgba(214,190,60,0.85)');
+    // nose art (original): a snarling devil - slit eye, horn, fanged red grin - mirrored so it faces forward on both sides
+    g.save(); g.translate(vx(-4.05), (side + (side < 0.5 ? 0.02 : -0.02)) * H); if (side < 0.5) g.scale(1, -1);
+    g.fillStyle = RED; g.beginPath(); g.moveTo(-58, 8); g.quadraticCurveTo(-10, -6, 46, -10); g.lineTo(52, 2); g.quadraticCurveTo(-6, 30, -58, 8); g.fill();          // mouth
+    g.fillStyle = 'rgba(10,10,10,0.9)'; g.beginPath(); g.moveTo(-50, 8); g.quadraticCurveTo(-8, 2, 40, -3); g.quadraticCurveTo(-6, 18, -50, 8); g.fill();
+    g.fillStyle = 'rgba(236,232,220,0.95)';
+    for (let i = 0; i < 7; i++) { const x = -44 + i * 12, top = 7 - i * 1.6; g.beginPath(); g.moveTo(x, top - 1); g.lineTo(x + 5, top + 9); g.lineTo(x + 10, top - 2.4); g.fill(); }
+    g.fillStyle = 'rgba(236,206,60,0.95)'; g.beginPath(); g.moveTo(-34, -20); g.lineTo(-8, -26); g.lineTo(-16, -15); g.fill();                                           // eye
+    g.fillStyle = 'rgba(10,10,10,0.95)'; g.beginPath(); g.ellipse(-19, -20.5, 2.2, 4.2, 0.3, 0, 6.3); g.fill();
+    g.strokeStyle = RED; g.lineWidth = 3; g.beginPath(); g.moveTo(-38, -24); g.lineTo(-4, -32); g.stroke();                                                          // brow
+    g.fillStyle = RED; g.beginPath(); g.moveTo(2, -30); g.quadraticCurveTo(26, -34, 34, -52); g.quadraticCurveTo(14, -46, -2, -38); g.fill();                         // horn
+    g.restore();
+    // pitchfork emblem ahead of the unit number
     g.save(); g.translate(vx(3.55), side * H); if (side < 0.5) g.rotate(Math.PI);
-    g.strokeStyle = 'rgba(176,34,28,0.95)'; g.lineWidth = 2.2; g.lineCap = 'round';
-    g.beginPath(); g.moveTo(0, 12); g.lineTo(0, -6); g.moveTo(-7, -12); g.lineTo(-7, -5); g.quadraticCurveTo(0, 0, 7, -5); g.lineTo(7, -12); g.moveTo(0, -6); g.lineTo(0, -13); g.stroke(); g.restore();
+    g.strokeStyle = RED; g.lineWidth = 2.6; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(0, 14); g.lineTo(0, -6); g.moveTo(-8, -14); g.lineTo(-8, -5); g.quadraticCurveTo(0, 0, 8, -5); g.lineTo(8, -14); g.moveTo(0, -6); g.lineTo(0, -15); g.stroke(); g.restore();
   }
   // damage: soot blotches, burnt-through paint, bare scorched metal
   if (level > 0) {
     const n = level === 1 ? 55 : 190;
     for (let i = 0; i < n; i++) {
       const x = level === 1 ? vx(rand2(r, -1.5, 3.5)) : r() * W, y = level === 1 ? (0.25 + r() * 0.5) * H : r() * H, rad = 14 + r() * (level === 1 ? 40 : 70);
-      const rg = g.createRadialGradient(x, y, 0, x, y, rad); rg.addColorStop(0, `rgba(6,6,5,${level === 1 ? 0.75 : 0.9})`); rg.addColorStop(0.6, 'rgba(10,9,8,0.45)'); rg.addColorStop(1, 'rgba(10,9,8,0)');
+      const rg = g.createRadialGradient(x, y, 0, x, y, rad); rg.addColorStop(0, `rgba(3,3,3,${level === 1 ? 0.8 : 0.92})`); rg.addColorStop(0.6, 'rgba(6,5,5,0.45)'); rg.addColorStop(1, 'rgba(6,5,5,0)');
       g.fillStyle = rg; g.beginPath(); g.arc(x, y, rad, 0, 6.3); g.fill();
     }
     if (level === 2) {
-      g.fillStyle = 'rgba(8,8,7,0.55)'; g.fillRect(0, 0, W, H);
+      g.fillStyle = 'rgba(5,5,5,0.6)'; g.fillRect(0, 0, W, H);
       for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(${90 + r() * 50 | 0},${60 + r() * 30 | 0},${40 + r() * 20 | 0},${0.15 + r() * 0.25})`; g.beginPath(); g.ellipse(r() * W, r() * H, 6 + r() * 26, 3 + r() * 12, r() * 3, 0, 6.3); g.fill(); }
     }
   }
@@ -204,14 +229,36 @@ function hullTexture(level) {
 }
 const rand2 = (r, a, b) => a + r() * (b - a);
 
+// Tail-fin emblem (original): red disc, black pitchfork between two horns.
+function emblemTexture() {
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+  const g = c.getContext('2d'); g.translate(64, 64);
+  g.fillStyle = 'rgba(184,30,24,1)'; g.beginPath(); g.arc(0, 0, 58, 0, 6.3); g.fill();
+  g.strokeStyle = 'rgba(230,226,216,0.95)'; g.lineWidth = 4; g.beginPath(); g.arc(0, 0, 56, 0, 6.3); g.stroke();
+  g.strokeStyle = '#0a0a0a'; g.lineWidth = 7; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); g.moveTo(0, 42); g.lineTo(0, -8); g.moveTo(-20, -40); g.lineTo(-20, -14); g.quadraticCurveTo(0, 0, 20, -14); g.lineTo(20, -40); g.moveTo(0, -8); g.lineTo(0, -44); g.stroke();
+  g.fillStyle = '#0a0a0a';
+  for (const s of [-1, 1]) { g.beginPath(); g.moveTo(s * 30, 6); g.quadraticCurveTo(s * 52, -4, s * 44, -34); g.quadraticCurveTo(s * 40, -10, s * 26, -2); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
+function beamTexture() {   // searchlight cone: bright at the lamp (v = 1), gone by the far end
+  const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+  const g = c.getContext('2d'), gr = g.createLinearGradient(0, 0, 0, 128);
+  gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.25, 'rgba(255,255,255,0.3)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function discTexture(tail) {
   const S = 256, c = document.createElement('canvas'); c.width = c.height = S;
   const g = c.getContext('2d'); g.translate(S / 2, S / 2);
   const ring = g.createRadialGradient(0, 0, 0, 0, 0, S / 2);
-  ring.addColorStop(0, 'rgba(20,20,20,0)'); ring.addColorStop(0.12, 'rgba(20,20,20,0.34)'); ring.addColorStop(0.9, 'rgba(22,22,22,0.2)'); ring.addColorStop(0.955, 'rgba(190,160,40,0.3)'); ring.addColorStop(0.985, 'rgba(20,20,20,0.16)'); ring.addColorStop(1, 'rgba(20,20,20,0)');
+  ring.addColorStop(0, 'rgba(20,20,20,0)'); ring.addColorStop(0.12, 'rgba(20,20,20,0.34)'); ring.addColorStop(0.9, 'rgba(22,22,22,0.2)'); ring.addColorStop(0.95, 'rgba(200,36,28,0.42)'); ring.addColorStop(0.985, 'rgba(20,20,20,0.16)'); ring.addColorStop(1, 'rgba(20,20,20,0)');
   g.fillStyle = ring; g.beginPath(); g.arc(0, 0, S / 2, 0, 6.3); g.fill();
-  // soft strobing blade ghosts
-  const nb = tail ? 2 : 4;
+  const nb = tail ? 8 : 4;
   for (let i = 0; i < nb * 2; i++) {
     g.save(); g.rotate((i / (nb * 2)) * Math.PI * 2);
     const w = g.createLinearGradient(0, -22, 0, 22); w.addColorStop(0, 'rgba(15,15,15,0)'); w.addColorStop(0.5, `rgba(15,15,15,${i % 2 ? 0.1 : 0.26})`); w.addColorStop(1, 'rgba(15,15,15,0)');
@@ -226,70 +273,88 @@ let res = null;
 function resources() {
   if (res) return res;
   const rep = (t, x, y) => { const c = t.clone(); c.repeat.set(x, y); c.needsUpdate = true; return c; };
-  const paint = [], dark = [], metal = [], glass = [], frame = [], yellow = [];
-  // --- engine cowls, intakes, exhausts
+  const paint = [], dark = [], metal = [], glass = [], frame = [], red = [];
+  const HX = Math.PI / 6;
+  // --- angular engine nacelles, intakes, upturned exhaust shrouds
   for (const s of [-1, 1]) {
-    paint.push(cylZ(0.27, 0.24, 2.3, 14, s * 0.55, 2.2, 0.65));
-    dark.push(cylZ(0.2, 0.2, 0.06, 14, s * 0.55, 2.2, -0.52));                               // intake mouth
-    metal.push(cylZ(0.17, 0.15, 0.75, 14, s * 0.66, 2.24, 1.95, 0.12, -s * 0.38, 0));       // exhaust pipe, kicked outward
-    dark.push(cylZ(0.14, 0.14, 0.05, 12, s * 0.8, 2.29, 2.3, 0.12, -s * 0.38, 0));
+    paint.push(cylZ(0.36, 0.31, 2.6, 6, s * 0.66, 2.22, 0.7, 0, 0, HX, 1, 0.82, 1));
+    dark.push(cylZ(0.25, 0.25, 0.06, 6, s * 0.66, 2.22, -0.62, 0, 0, HX, 1, 0.82, 1));
+    paint.push(box(0.46, 0.38, 0.95, s * 0.78, 2.36, 2.3, -0.24, s * 0.3, 0));
+    dark.push(box(0.37, 0.29, 0.06, s * 0.915, 2.47, 2.75, -0.24, s * 0.3, 0));
+    red.push(box(0.02, 0.2, 0.5, s * 0.985, 2.22, 0.2));                                     // nacelle flash
   }
   // --- rotor mast, swashplate, hub
-  metal.push(cylY(0.09, 0.08, 0.62, 12, 0, 2.9, 0), cylY(0.2, 0.2, 0.05, 16, 0, 2.86, 0), cylY(0.16, 0.13, 0.14, 12, 0, 3.2, 0));
-  paint.push(cylY(0.42, 0.3, 0.22, 16, 0, 2.7, 0));
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * 6.283 + 0.4; metal.push(cylY(0.012, 0.012, 0.36, 6, Math.cos(a) * 0.16, 3.02, Math.sin(a) * 0.16, 0.12, 0, 0)); }
-  // --- stub wings, pylons, rocket pods
+  metal.push(cylY(0.09, 0.08, 0.62, 12, 0, 2.93, 0), cylY(0.2, 0.2, 0.05, 16, 0, 2.89, 0), cylY(0.16, 0.13, 0.14, 12, 0, 3.2, 0));
+  paint.push(cylY(0.46, 0.32, 0.24, 6, 0, 2.74, 0));
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * 6.283 + 0.4; metal.push(cylY(0.012, 0.012, 0.36, 6, Math.cos(a) * 0.16, 3.04, Math.sin(a) * 0.16, 0.12, 0, 0)); }
+  // --- big stub wings: two rocket pods and a wingtip missile rail per side
+  const pod = (x, y, z) => {
+    paint.push(box(0.07, 0.26, 0.62, x, y + 0.26, z + 0.05));
+    paint.push(cylZ(0.21, 0.21, 1.3, 14, x, y, z), cylZ(0.07, 0.21, 0.34, 14, x, y, z + 0.82));
+    metal.push(cylZ(0.215, 0.215, 0.05, 14, x, y, z - 0.63));
+    for (let i = 0; i < 7; i++) { const a = (i / 6) * 6.283, rr = i === 6 ? 0 : 0.125; dark.push(cylZ(0.048, 0.048, 0.02, 8, x + Math.cos(a) * rr, y + Math.sin(a) * rr, z - 0.662)); }
+  };
   for (const s of [-1, 1]) {
-    paint.push(wing(1.35, 0.95, 0.13, s * 1.2, 1.42, 0.15, 0, 0, s * -0.05));
-    paint.push(box(0.07, 0.24, 0.6, s * 1.5, 1.27, 0.1));
-    paint.push(cylZ(0.21, 0.21, 1.25, 16, s * 1.5, 1.03, 0.05), cylZ(0.06, 0.21, 0.32, 16, s * 1.5, 1.03, 0.83));
-    metal.push(cylZ(0.215, 0.215, 0.05, 16, s * 1.5, 1.03, -0.56));
-    for (let i = 0; i < 7; i++) { const a = (i / 6) * 6.283, rr = i === 6 ? 0 : 0.125; dark.push(cylZ(0.048, 0.048, 0.02, 10, s * 1.5 + Math.cos(a) * rr, 1.03 + Math.sin(a) * rr, -0.592)); }
-    paint.push(box(0.05, 0.05, 0.5, s * 1.84, 1.4, 0.15));                                   // wingtip rail
+    paint.push(wing(1.95, 1.3, 0.12, s * 1.58, 1.42, 0.2, 0, 0, s * -0.07));
+    pod(s * 1.25, 1.03, 0.05); pod(s * 1.88, 0.99, 0.12);
+    paint.push(box(0.07, 0.1, 1.35, s * 2.55, 1.33, 0.2));
+    metal.push(cylZ(0.062, 0.062, 1.5, 10, s * 2.55, 1.21, 0.15), cylZ(0.05, 0.062, 0.1, 10, s * 2.55, 1.21, 0.95));
+    dark.push(cylZ(0.062, 0.012, 0.24, 10, s * 2.55, 1.21, -0.72));
+    for (let i = 0; i < 4; i++) { const a = (i / 4) * 6.283 + 0.785; metal.push(place(box(0.16, 0.008, 0.2, 0.1, 0, 0), s * 2.55, 1.21, 0.72, 0, 0, a), place(box(0.1, 0.008, 0.12, 0.08, 0, 0), s * 2.55, 1.21, -0.35, 0, 0, a)); }
   }
-  paint.push(sph(0.14, 0, 1.34, -4.56, 0, 0, 0, 0.8, 0.95, 1));                               // nose cap
-  // --- chin turret base, nose sensor, pitot, antennae
-  dark.push(cylY(0.2, 0.24, 0.16, 16, 0, 0.84, -3.3), box(0.2, 0.2, 0.42, 0, 0.7, -3.3));
-  dark.push(sph(0.17, 0, 1.0, -4.22)); glass.push(cylZ(0.07, 0.07, 0.02, 12, 0, 1.0, -4.39));
-  metal.push(cylZ(0.012, 0.008, 0.5, 6, 0.3, 1.5, -4.55), cylY(0.008, 0.004, 0.9, 5, 0, 2.7, 4.6, -0.5, 0, 0), cylY(0.008, 0.004, 0.7, 5, 0.1, 3.05, 0.9, -0.25, 0, 0));
+  // --- chin turret base, ammunition bay with a flexible feed chute, sensor ball, searchlight housing, probes
+  dark.push(cylY(0.22, 0.27, 0.18, 16, 0, 0.86, -3.3), box(0.22, 0.22, 0.46, 0, 0.7, -3.28));
+  paint.push(box(0.54, 0.22, 0.95, 0, 0.74, -2.2));
+  metal.push(place(tube([[0.22, 0.7, -2.62], [0.3, 0.58, -2.95], [0.2, 0.56, -3.2], [0.1, 0.64, -3.3]], 0.055, 16), 0, 0, 0, 0, 0, 0, 1.5, 0.75, 1));
+  dark.push(sph(0.21, 0, 0.96, -4.3), cylY(0.12, 0.14, 0.16, 12, 0, 1.12, -4.3)); glass.push(cylZ(0.085, 0.085, 0.02, 12, 0, 0.98, -4.515), cylZ(0.04, 0.04, 0.02, 10, 0.11, 0.9, -4.47));
+  metal.push(cylZ(0.1, 0.085, 0.2, 12, -0.3, 0.86, -3.75, 0.42, 0, 0));
+  metal.push(cylZ(0.012, 0.008, 0.5, 6, 0.32, 1.42, -4.9), cylY(0.008, 0.004, 0.9, 5, 0, 2.7, 4.6, -0.5, 0, 0), cylY(0.008, 0.004, 0.7, 5, 0.1, 3.05, 0.9, -0.25, 0, 0));
   dark.push(plate([[3.9, 1.6], [4.2, 1.6], [4.12, 1.38], [3.98, 1.38]], 0.02), plate([[-0.4, 0.82], [0.1, 0.82], [0.0, 0.62], [-0.3, 0.62]], 0.02));
-  // --- tail: fin, ventral fin, stabiliser, tail rotor gearbox, tail skid
-  paint.push(plate([[5.95, 2.15], [6.85, 3.55], [7.32, 3.55], [7.22, 2.1]], 0.09), plate([[6.3, 2.0], [6.95, 1.42], [7.22, 1.42], [7.15, 2.02]], 0.07));
-  paint.push(wing(2.5, 0.55, 0.09, 0, 2.12, 5.75));
-  for (const s of [-1, 1]) paint.push(plate([[5.5, 1.9], [5.95, 1.9], [6.0, 2.4], [5.6, 2.4]], 0.04).translate(s * 1.25, 0, 0));
-  metal.push(cylX(0.09, 0.3, 12, -0.14, 3.05, 7.0), cylY(0.012, 0.012, 0.5, 6, 0, 1.25, 7.0, 0.5, 0, 0));
+  // --- tail: shrouded fan in a fairing, tall swept fin with a red cap, ventral fin, stabiliser with end plates
+  paint.push(plate([[6.3, 2.26], [6.95, 3.0], [8.12, 3.0], [8.18, 1.72], [6.9, 1.72]], 0.24, [7.5, 2.36, 0.56]));
+  { const lip = new THREE.TorusGeometry(0.575, 0.075, 8, 26); lip.rotateY(Math.PI / 2); paint.push(place(lip, 0, 2.36, 7.5)); }
+  metal.push(cylX(0.11, 0.26, 10, 0, 2.36, 7.5));
+  for (let i = 0; i < 3; i++) dark.push(place(box(0.03, 1.12, 0.05, 0, 0, 0), 0.08, 2.36, 7.5, (i / 3) * Math.PI + 0.3, 0, 0));
+  paint.push(plate([[6.95, 2.95], [8.02, 4.5], [8.6, 4.5], [8.12, 2.95]], 0.13), plate([[7.0, 1.75], [7.55, 1.18], [7.9, 1.18], [8.05, 1.75]], 0.09));
+  red.push(plate([[7.88, 4.3], [8.02, 4.5], [8.6, 4.5], [8.54, 4.3]], 0.135));
+  paint.push(wing(2.8, 0.62, 0.09, 0, 2.15, 5.9));
+  for (const s of [-1, 1]) paint.push(place(plate([[5.55, 1.85], [6.05, 1.85], [6.2, 2.55], [5.75, 2.55]], 0.04), s * 1.4, 0, 0, 0, 0, s * -0.18));
+  metal.push(cylY(0.012, 0.012, 0.5, 6, 0, 1.0, 7.75, 0.5, 0, 0));
   // --- skids and struts
   for (const s of [-1, 1]) {
     metal.push(tube([[s * 0.98, 0.36, -2.75], [s * 0.98, 0.12, -2.45], [s * 0.98, 0.05, -2.0], [s * 0.98, 0.05, 1.5], [s * 0.98, 0.07, 1.75]], 0.045, 24));
     for (const z of [-1.7, 0.85]) metal.push(tube([[s * 0.3, 0.98, z], [s * 0.66, 0.82, z], [s * 0.9, 0.42, z], [s * 0.98, 0.07, z]], 0.035, 12));
-    dark.push(box(0.12, 0.03, 0.3, s * 0.98, 0.1, -1.0));                                    // step
+    dark.push(box(0.12, 0.03, 0.3, s * 0.98, 0.1, -1.0));
   }
-  // --- canopy: flat armoured panes in a dark frame (stepped behind the single seat)
-  const P = { sf: [0.47, 1.8, -3.55], tf: [0.3, 2.5, -2.7], tr: [0.34, 2.58, -1.5], sr: [0.56, 1.86, -1.45] };
-  const quad = (a, b, c2, d) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c2, ...a, ...c2, ...d], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2)); g.computeVertexNormals(); return g; };
+  // --- canopy: flat armoured panes in a dark frame, faceted and steeply raked
+  const P = { sf: [0.5, 1.5, -3.85], tf: [0.3, 2.52, -2.8], tr: [0.36, 2.64, -1.5], sr: [0.66, 1.58, -1.45], sm: [0.6, 1.54, -2.6] };
+  const tri = (a, b, c2) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c2], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1], 2)); g.computeVertexNormals(); return g; };
   const mir = (p) => [-p[0], p[1], p[2]];
-  glass.push(quad(P.sf, mir(P.sf), mir(P.tf), P.tf), quad(P.tf, mir(P.tf), mir(P.tr), P.tr));                       // windscreen, roof
-  glass.push(quad(P.sr, P.sf, P.tf, P.tr), quad(mir(P.sf), mir(P.sr), mir(P.tr), mir(P.tf)));                        // sides
-  const bar = (a, b, r = 0.028) => { const g = tube([a, b], r, 1); return g; };
-  for (const f of [(p) => p, mir]) frame.push(bar(f(P.sf), f(P.tf)), bar(f(P.tf), f(P.tr)), bar(f(P.sf), f(P.sr)), bar(f(P.tr), f(P.sr), 0.04), bar(f([0.4, 2.14, -3.12]), f([0.32, 2.54, -2.1]), 0.018));
-  frame.push(bar(P.sf, mir(P.sf)), bar(P.tf, mir(P.tf)), bar(P.tr, mir(P.tr), 0.04));
+  for (const [a, b, c2] of [[P.sf, mir(P.sf), mir(P.tf)], [P.sf, mir(P.tf), P.tf], [P.tf, mir(P.tf), mir(P.tr)], [P.tf, mir(P.tr), P.tr]]) glass.push(tri(a, b, c2));
+  for (const f of [(p) => p, mir]) glass.push(tri(f(P.sf), f(P.tf), f(P.sm)), tri(f(P.sm), f(P.tf), f(P.tr)), tri(f(P.sm), f(P.tr), f(P.sr)));
+  const bar = (a, b, r = 0.03) => tube([a, b], r, 1);
+  for (const f of [(p) => p, mir]) frame.push(bar(f(P.sf), f(P.tf), 0.035), bar(f(P.tf), f(P.tr)), bar(f(P.sf), f(P.sm)), bar(f(P.sm), f(P.sr)), bar(f(P.tr), f(P.sr), 0.045), bar(f(P.sm), f(P.tf), 0.022), bar(f(P.sm), f(P.tr), 0.022));
+  frame.push(bar(P.sf, mir(P.sf), 0.035), bar(P.tf, mir(P.tf)), bar(P.tr, mir(P.tr), 0.045), bar([0, 2.52, -2.8], [0, 2.64, -1.5], 0.02));
   // cockpit tub: seat, panel, glare shield (seen through the glass)
-  dark.push(box(0.5, 0.75, 0.12, 0, 1.75, -1.72, -0.12), box(0.46, 0.1, 0.5, 0, 1.42, -2.0), box(0.7, 0.3, 0.3, 0, 1.72, -3.15, 0.5), box(0.86, 0.04, 1.9, 0, 1.3, -2.5));
+  dark.push(box(0.5, 0.75, 0.12, 0, 1.75, -1.72, -0.12), box(0.46, 0.1, 0.5, 0, 1.42, -2.0), box(0.7, 0.3, 0.3, 0, 1.72, -3.15, 0.5));
   // --- blades
-  const blade = merge([box(4.95, 0.035, 0.3, 3.0, 0, 0), box(0.5, 0.06, 0.16, 0.3, 0, 0)]);
-  const tip = box(0.3, 0.037, 0.302, 5.33, 0, 0);
-  const tblade = merge([box(0.035, 1.55, 0.17, 0, 0, 0), box(0.037, 0.12, 0.172, 0, 0.72, 0).translate(0, 0, 0)]);
-  // rotary cannon: three barrels, clamps
+  const blade = merge([box(4.95, 0.035, 0.34, 3.0, 0, 0), box(0.5, 0.06, 0.18, 0.3, 0, 0)]);
+  const tip = box(0.36, 0.037, 0.342, 5.3, 0, 0);
+  const tblade = merge([0, 1, 2, 3].map((i) => place(box(0.03, 1.08, 0.13, 0, 0, 0), 0, 0, 0, (i / 4) * Math.PI, 0, 0)));
+  // rotary cannon: three long barrels, clamps, flash hider
   const gunParts = [];
-  for (let i = 0; i < 3; i++) { const a = (i / 3) * 6.283; gunParts.push(cylZ(0.019, 0.019, 1.15, 8, Math.cos(a) * 0.042, Math.sin(a) * 0.042, -0.62)); }
-  gunParts.push(cylZ(0.075, 0.075, 0.05, 12, 0, 0, -0.3), cylZ(0.07, 0.07, 0.04, 12, 0, 0, -0.85), cylZ(0.072, 0.066, 0.05, 12, 0, 0, -1.17), cylZ(0.09, 0.09, 0.3, 12, 0, 0, 0.05));
+  for (let i = 0; i < 3; i++) { const a = (i / 3) * 6.283; gunParts.push(cylZ(0.022, 0.022, 1.65, 8, Math.cos(a) * 0.046, Math.sin(a) * 0.046, -0.86)); }
+  gunParts.push(cylZ(0.08, 0.08, 0.05, 12, 0, 0, -0.3), cylZ(0.075, 0.075, 0.04, 12, 0, 0, -0.95), cylZ(0.075, 0.075, 0.04, 12, 0, 0, -1.45), cylZ(0.085, 0.075, 0.1, 12, 0, 0, -1.68), cylZ(0.1, 0.1, 0.42, 12, 0, 0, 0.03));
   // rocket
   const rk = [cylZ(0.045, 0.045, 1.1, 10, 0, 0, 0), cylZ(0.045, 0.004, 0.22, 10, 0, 0, -0.66), cylZ(0.03, 0.04, 0.06, 10, 0, 0, 0.57)];
   for (let i = 0; i < 4; i++) rk.push(place(box(0.16, 0.006, 0.16, 0.09, 0, 0.45), 0, 0, 0, 0, 0, (i / 4) * 6.283 + 0.785));
   const flame = new THREE.PlaneGeometry(1.6, 0.42); flame.rotateX(Math.PI / 2); flame.rotateY(-Math.PI / 2); flame.translate(0, 0, 0.6 + 0.8 - 0.14);   // hot end at the nozzle
   res = {
-    hull: fuselage(), paint: merge(paint), dark: merge([...dark, ...frame]), metal: merge(metal), glass: merge(glass), blade, tip, tblade, gun: merge(gunParts),
-    disc: new THREE.CircleGeometry(5.5, 48).rotateX(-Math.PI / 2), tdisc: new THREE.CircleGeometry(0.82, 32).rotateY(Math.PI / 2),
+    hull: fuselage(), paint: merge(paint), dark: merge([...dark, ...frame]), metal: merge(metal), glass: merge(glass), red: merge(red), blade, tip, tblade, gun: merge(gunParts),
+    emblem: merge([place(new THREE.PlaneGeometry(0.72, 0.72), 0.07, 3.75, 7.9, 0, Math.PI / 2, 0), place(new THREE.PlaneGeometry(0.72, 0.72), -0.07, 3.75, 7.9, 0, -Math.PI / 2, 0)]),
+    beam: (() => { const g = new THREE.ConeGeometry(1.5, 11, 20, 1, true); g.translate(0, -5.5, 0); return g; })(),
+    emblemTex: emblemTexture(), beamTex: beamTexture(),
+    disc: new THREE.CircleGeometry(5.5, 48).rotateX(-Math.PI / 2), tdisc: new THREE.CircleGeometry(0.56, 28).rotateY(Math.PI / 2),
     pilot: merge([sph(0.15, 0, 2.2, -2.05), box(0.46, 0.42, 0.26, 0, 1.82, -1.98), cylZ(0.1, 0.1, 0.12, 10, 0, 2.17, -2.2)]),
     visor: sph(0.118, 0, 2.2, -2.13),
     rocket: merge(rk), flame, flash: new THREE.PlaneGeometry(1, 1),
@@ -306,19 +371,37 @@ export function createHelicopter() {
   const root = new THREE.Group(); root.name = 'helicopter';
   const body = new THREE.Group(); root.add(body);                    // wreck pose tilts this, never the root (gameplay owns root)
   const tex = [hullTexture(0), hullTexture(1), hullTexture(2)];
-  const mHull = new THREE.MeshStandardMaterial({ map: tex[0], roughness: 0.62, metalness: 0.25, roughnessMap: r.wearR });
-  const mPaint = new THREE.MeshStandardMaterial({ color: 0x4a5040, map: r.wearA, roughness: 0.62, metalness: 0.25, roughnessMap: r.wearR });
+  const mHull = new THREE.MeshStandardMaterial({ map: tex[0], roughness: 0.55, metalness: 0.45, roughnessMap: r.wearR });
+  const mPaint = new THREE.MeshStandardMaterial({ color: 0x4b4f55, map: r.wearA, roughness: 0.62, metalness: 0.25, roughnessMap: r.wearR });
   const mDark = new THREE.MeshStandardMaterial({ color: 0x121311, roughness: 0.7, metalness: 0.3 });
   const mMetal = new THREE.MeshStandardMaterial({ color: 0x5c5f5e, roughness: 0.42, metalness: 0.9, roughnessMap: r.wearR });
   const mGlass = new THREE.MeshPhysicalMaterial({ color: 0x0c1418, roughness: 0.04, metalness: 0.85, transparent: true, opacity: 0.62, side: THREE.DoubleSide, envMapIntensity: 1.6 });
   const mBlade = new THREE.MeshStandardMaterial({ color: 0x1a1b1a, roughness: 0.7, metalness: 0.2, transparent: true });
-  const mTip = new THREE.MeshStandardMaterial({ color: 0xc9a420, roughness: 0.7, transparent: true });
+  const mTip = new THREE.MeshStandardMaterial({ color: 0xb0221c, roughness: 0.7, transparent: true });
   const mDisc = new THREE.MeshBasicMaterial({ map: r.discTex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: true });
   const mTDisc = new THREE.MeshBasicMaterial({ map: r.tdiscTex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
   const mPilot = new THREE.MeshStandardMaterial({ color: 0x3a4032, roughness: 0.8 });
   const mVisor = new THREE.MeshStandardMaterial({ color: 0x050607, roughness: 0.08, metalness: 0.9 });
   const mk = (g, m, parent = body, shadow = true) => { const o = new THREE.Mesh(g, m); o.castShadow = shadow; o.receiveShadow = shadow; parent.add(o); return o; };
-  const hull = mk(r.hull, mHull); mk(r.paint, mPaint); mk(r.dark, mDark); mk(r.metal, mMetal);
+  const mRed = new THREE.MeshStandardMaterial({ color: 0xa81f1a, roughness: 0.6, metalness: 0.2 });
+  const mEmblem = new THREE.MeshStandardMaterial({ map: r.emblemTex, transparent: true, roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2 });
+  const hull = mk(r.hull, mHull); mk(r.paint, mPaint); mk(r.dark, mDark); mk(r.metal, mMetal); mk(r.red, mRed);
+  const emblem = mk(r.emblem, mEmblem, body, false);
+  // lights: red (port) / green (starboard) nav lights, white anti-collision strobes, cockpit glow, searchlight
+  const glowSprite = (hex, k, x, y, z, size) => {
+    const m = new THREE.SpriteMaterial({ map: T.puffTex(), color: new THREE.Color(hex).multiplyScalar(k), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
+    const sp = new THREE.Sprite(m); sp.position.set(x, y, z); sp.scale.setScalar(size); body.add(sp); return sp;
+  };
+  const navL = glowSprite(0xff1408, 5, -2.6, 1.36, 0.2, 0.55), navR = glowSprite(0x10ff38, 4, 2.6, 1.36, 0.2, 0.55);
+  const strobeT = glowSprite(0xffffff, 8, 0, 4.58, 8.35, 1.5), strobeB = glowSprite(0xffffff, 8, 0, 0.6, 0.4, 1.3);
+  const lamp = glowSprite(0xcfe4ff, 6, -0.3, 0.8, -3.9, 0.7);
+  const mBeam = new THREE.MeshBasicMaterial({ map: r.beamTex, color: 0xcfe4ff, transparent: true, opacity: 0.05, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
+  const beam = new THREE.Mesh(r.beam, mBeam); beam.position.set(-0.3, 0.8, -3.9); beam.rotation.x = 1.12; beam.renderOrder = 5; body.add(beam);
+  const mPanel = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.25, 1.2, 0.9), toneMapped: false });
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.16), mPanel); panel.position.set(0, 1.8, -2.99); panel.rotation.x = -0.5; body.add(panel);
+  const cabinGlow = glowSprite(0x38ffc0, 0.9, 0, 2.05, -2.6, 1.3);
+  const exhausts = [-1, 1].map((s) => { const o = new THREE.Object3D(); o.position.set(s * 0.93, 2.5, 2.85); body.add(o); return o; });
+  let searchlight = true, groundH = null, washAcc = 0, hazeAcc = 0;
   const glass = mk(r.glass, mGlass, body, false); glass.renderOrder = 3;
   const pilot = new THREE.Group(); pilot.visible = false; body.add(pilot);
   mk(r.pilot, mPilot, pilot, false); mk(r.visor, mVisor, pilot, false);
@@ -333,18 +416,18 @@ export function createHelicopter() {
     blades.push(b);
   }
   const disc = new THREE.Mesh(r.disc, mDisc); disc.position.set(0, 3.27, 0); disc.renderOrder = 6; body.add(disc);
-  const trotor = new THREE.Group(); trotor.position.set(-0.3, 3.05, 7.0); body.add(trotor);
-  const tb = [mk(r.tblade, mBlade, trotor), mk(r.tblade, mBlade, trotor)]; tb[1].rotation.x = Math.PI / 2;
+  const trotor = new THREE.Group(); trotor.position.set(0, 2.36, 7.5); body.add(trotor);
+  const tb = [mk(r.tblade, mBlade, trotor)];
   const tdisc = new THREE.Mesh(r.tdisc, mTDisc); tdisc.position.copy(trotor.position); tdisc.renderOrder = 6; body.add(tdisc);
 
   // chin turret + cannon
   const turret = new THREE.Group(); turret.position.set(0, 0.66, -3.3); body.add(turret);
   const barrels = mk(r.gun, mMetal, turret);
-  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, -1.25); turret.add(muzzle);
+  const muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, -1.76); turret.add(muzzle);
   const mFlash = new THREE.MeshBasicMaterial({ map: T.flashFront(0), color: new THREE.Color(3, 2.5, 1.7), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false });
   const gFlash = new THREE.Group(); gFlash.position.copy(muzzle.position); gFlash.visible = false; turret.add(gFlash);
   for (const ry of [0, Math.PI / 2]) { const f = new THREE.Mesh(r.flash, mFlash); f.rotation.y = ry; if (ry) { f.scale.set(1.8, 0.7, 1); f.position.z = -0.4; } gFlash.add(f); }
-  const pods = [-1, 1].map((s) => { const o = new THREE.Object3D(); o.position.set(s * 1.5, 1.03, -0.62); body.add(o); return o; });
+  const pods = [-1, 1].map((s) => { const o = new THREE.Object3D(); o.position.set(s * 1.56, 1.01, -0.6); body.add(o); return o; });
   const mPodFlash = mFlash.clone();
   const podFlash = pods.map((p) => { const f = new THREE.Mesh(r.flash, mPodFlash); f.scale.setScalar(1.1); f.visible = false; p.add(f); return f; });
   const engine = new THREE.Object3D(); engine.position.set(0, 2.55, 1.5); body.add(engine);
@@ -357,12 +440,16 @@ export function createHelicopter() {
     const lvl = destroyed ? 2 : damage > 0.4 ? 1 : 0;
     if (lvl !== texLevel) { texLevel = lvl; mHull.map = tex[lvl]; mHull.needsUpdate = true; }
     const k = destroyed ? 0.2 : 1 - seg(damage, 0.4, 1) * 0.45;
-    mPaint.color.setHex(0x4a5040).multiplyScalar(k); mHull.color.setScalar(destroyed ? 0.42 : 1 - seg(damage, 0.75, 1) * 0.3);
+    mPaint.color.setHex(0x4b4f55).multiplyScalar(k); mRed.color.setHex(0xa81f1a).multiplyScalar(destroyed ? 0.15 : 1); emblem.visible = !destroyed;
+    const lit = !destroyed; navL.visible = navR.visible = lit; strobeT.visible = strobeB.visible = lit;
+    panel.visible = cabinGlow.visible = lit && occupied; lamp.visible = beam.visible = lit && occupied && searchlight; mHull.color.setScalar(destroyed ? 0.42 : 1 - seg(damage, 0.75, 1) * 0.3);
     mHull.metalness = mPaint.metalness = destroyed ? 0.05 : 0.25; mHull.roughness = mPaint.roughness = destroyed ? 0.9 : 0.62;
     mMetal.color.setHex(0x5c5f5e).multiplyScalar(destroyed ? 0.35 : 1);
     mGlass.opacity = destroyed ? 0.92 : 0.62; mGlass.color.setHex(destroyed ? 0x050505 : 0x0c1418); mGlass.roughness = destroyed ? 0.6 : 0.04;
     pilot.visible = occupied && !destroyed;
   }
+
+  applyLook();
 
   const api = {
     object3D: root,
@@ -395,15 +482,17 @@ export function createHelicopter() {
       gFlash.visible = false; podFlash.forEach((f) => { f.visible = false; });
       // rotor wrecked: blades stopped, two snapped short, all drooping
       blades.forEach((b, i) => { b.rotation.z = -rand(0.12, 0.3); b.scale.x = i % 2 ? rand(0.3, 0.55) : 1; b.rotation.y = rand(-0.15, 0.15); });
-      tb[1].visible = false;
       body.rotation.set(rand(-0.06, 0.02), 0, wreckRoll); body.position.set(wreckRoll * -1.2, -0.42, 0);
     },
     reset() {
       destroyed = false; damage = 0; rpm = rpmTarget = 0; wreckT = 0; applyLook();
-      blades.forEach((b) => { b.rotation.set(0, 0, 0); b.scale.x = 1; }); tb[1].visible = true;
+      blades.forEach((b) => { b.rotation.set(0, 0, 0); b.scale.x = 1; });
       body.rotation.set(0, 0, 0); body.position.set(0, 0, 0);
     },
     get destroyed() { return destroyed; },
+    // Optional. Height of the skids above the ground (m) for rotor wash; null = assume the ground is at world y = 0.
+    setGroundEffect(height) { groundH = height == null ? null : Math.max(0, height); },
+    setSearchlight(on) { searchlight = !!on; applyLook(); },
     update(dt) {
       dt = Math.min(dt, 0.1); time += dt;
       F.attach(root);
@@ -423,6 +512,32 @@ export function createHelicopter() {
       gunSpin = Math.max(0, gunSpin - dt * 45); barrels.rotation.z += gunSpin * dt;
       if (gunFlash > 0) { gunFlash -= dt; mFlash.opacity = sat(gunFlash / 0.05); if (gunFlash <= 0) gFlash.visible = false; }
       for (let i = 0; i < 2; i++) if (podT[i] > 0) { podT[i] -= dt; mPodFlash.opacity = sat(podT[i] / 0.09); if (podT[i] <= 0) podFlash[i].visible = false; }
+      // anti-collision strobes: double flash every 1.3 s
+      const ph = time % 1.3, st = ph < 0.06 || (ph > 0.17 && ph < 0.23) ? 1 : 0;
+      strobeT.material.opacity = st; strobeB.material.opacity = ph > 0.65 && ph < 0.71 ? 1 : 0;
+      mBeam.opacity = 0.05 + Math.sin(time * 31) * 0.004;
+      if (!destroyed && rpm > 0.3) {
+        // exhaust haze streaming aft from the shrouds
+        hazeAcc += rpm * 16 * dt;
+        while (hazeAcc >= 1) {
+          hazeAcc -= 1;
+          const ex = exhausts[(Math.random() * 2) | 0]; ex.getWorldPosition(_w);
+          _v.set(rand(-0.25, 0.25) + ex.position.x * 0.5, rand(0.3, 0.8), 1).transformDirection(root.matrixWorld).multiplyScalar(rand(3, 6));
+          F.emit(0, _w.x, _w.y, _w.z, _v.x, _v.y, _v.z, rand(0.35, 0.7), 0.35, rand(0.9, 1.5), 0.1, 0.095, 0.09, rand(0.1, 0.18), 2.2);
+        }
+        // rotor wash: dust thrown outward in a ring on the ground when hovering low
+        root.getWorldPosition(_w);
+        const h = groundH ?? _w.y;
+        if (rpm > 0.45 && h < 14) {
+          washAcc += rpm * (1 - h / 14) * 55 * dt;
+          const gy = _w.y - h + 0.2;
+          while (washAcc >= 1) {
+            washAcc -= 1;
+            const a = rand(0, 6.283), rr = rand(3.2, 6.8), sp = rand(5, 11), k = rand(0.85, 1.15);
+            F.emit(0, _w.x + Math.cos(a) * rr, gy, _w.z + Math.sin(a) * rr, Math.cos(a) * sp, rand(0.2, 1.5), Math.sin(a) * sp, rand(0.9, 1.7), rand(0.7, 1.2), rand(1.8, 2.8), 0.46 * k, 0.43 * k, 0.34 * k, rand(0.1, 0.2), 2.6);
+          }
+        }
+      }
       // damage smoke / fire from the engine deck; a wreck smoulders and dies down over ~40 s
       let smoke = 0, fire = 0;
       if (destroyed) { wreckT += dt; smoke = 16 * Math.max(0.12, 1 - wreckT / 40) * (wreckT < 90 ? 1 : 0); fire = wreckT < 14 ? 9 * (1 - wreckT / 14) : 0; }
@@ -445,7 +560,7 @@ export function createHelicopter() {
     dispose() {
       root.removeFromParent();
       for (const t of tex) t.dispose();
-      for (const m of [mHull, mPaint, mDark, mMetal, mGlass, mBlade, mTip, mDisc, mTDisc, mPilot, mVisor, mFlash, mPodFlash]) m.dispose();
+      for (const m of [mHull, mPaint, mDark, mMetal, mGlass, mBlade, mTip, mDisc, mTDisc, mPilot, mVisor, mFlash, mPodFlash, mRed, mEmblem, mBeam, mPanel, navL.material, navR.material, strobeT.material, strobeB.material, lamp.material, cabinGlow.material]) m.dispose();
     },
   };
   return api;
