@@ -352,6 +352,7 @@ export class BotBrain {
   update(dt, t) {
     const p = this.p;
     if (!p.alive) return;
+    if (this.auth.finishers?.has(p.id)) return;   // playing a melee finisher: frozen (the host places us after it)
     if (this.pilot) {
       if (this.pilot.update(dt, t)) return;
       this.pilot = null;
@@ -452,9 +453,20 @@ export class BotBrain {
 
     // Weapons (bots never run dry on reserve ammo).
     for (const g of this.guns) { g.update(t, dt, false); if (g.reserve < g.stats.mag) g.reserve = g.stats.mag * 3; }
+    this._melee(t);
     this._fire(t);
     p.pos = [this.pos.x, this.pos.y, this.pos.z];
     p.crouch = this.ctrl.crouching;
+  }
+
+  /** Point-blank: knife them (always a one-hit kill, plays a finisher). */
+  _melee(t) {
+    const tg = this.target;
+    if (!this.visible || !tg || tg.heli || t < this.reactAt || t < (this.meleeAt || 0)) return;
+    const d = Math.hypot(tg.pos[0] - this.pos.x, tg.pos[2] - this.pos.z);
+    if (d > 1.9 || Math.abs(tg.pos[1] - this.pos.y) > 1.2) return;
+    this.meleeAt = t + 1.1;
+    if (Math.random() < 0.55 + 0.35 * this.d.strafe) this.mgr.botMelee(this, tg);
   }
 
   _fire(t) {

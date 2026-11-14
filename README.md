@@ -20,7 +20,7 @@ Left click fire · Right click hold to aim · Ctrl+click or Q toggle aim · R re
 **Classes:** Rifleman, Runner, Brawler, Recon, Grappler (keys 1-5 on the deploy/death screen). **Proximity voice chat is always on in online lobbies** (microphone required; not in Practice).
 **Modes:** Free-for-all (30 kills / 10 min) and Team Deathmatch (Red Devils vs Lions, 50 kills / 10 min), each with one attack helicopter hidden somewhere on campus, or Capture the Flag (3 captures / 12 min), chosen by the host along with 0-7 AI bots (Easy/Normal/Hard). Practice has all three.
 **Helicopter (FFA + TDM):** first to find it takes it (bots too, if they stumble on it) · hold X near it to fly · mouse steers/aims · W/S/A/D move · Space climb · C descend · Shift boost · LMB chin cannon (overheats) · R or RMB rockets · X to exit near the ground · no fuel limit: it stays until destroyed (crashes, rams and rotor strikes count; in TDM it never hurts teammates and teammates can't damage it).
-**Melee (V) is always a one-hit kill.** **Minimap:** teammates are green arrows (facing), enemies red dots when revealed (gunfire, UAV, flag carrier); the helicopter is green when your side flies it, red otherwise.
+**Melee (V) is always a one-hit kill** and plays a short third-person finisher scene (you can still be shot while it plays). **Minimap:** teammates are green arrows (facing), enemies red dots when revealed (gunfire, UAV, flag carrier); the helicopter is green when your side flies it, red otherwise.
 **Settings:** sensitivity, FOV, graphics quality (use Low on weaker laptops), map style (Built campus / Real 3D scan).
 
 ## Development

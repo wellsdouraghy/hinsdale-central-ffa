@@ -282,3 +282,11 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
     (bone = victim Mixamo bone name without prefix; `bonePosition(bone)` gives its world position). `finish()` returns the attacker to normal
     animation standing at `attackerEnd { position, yaw }` (move the player there) and leaves the victim lying, frozen, until `victim.reset()`.
   - Guns are hidden and the attacker shows a combat knife during the scene; name tags are hidden until finish()/reset().
+- (Gameplay, round 10) Melee finishers wired: on a melee kill the host (`Authority._startFinisher`) checks flat ground (no
+  ladders / roof edges; else a normal kill), tests each FINISHERS `clearance` (8 directions, knee + chest) and `heightClear`,
+  picks one at random (fallback backstab), orients it so the attacker comes in from where they stand, and broadcasts
+  `{t:'finisher', id, attacker, victim, origin, yaw, dur}` just before the `kill` (weapon `'finisher'`). Clients
+  (`src/game/finisherView.js`) play it on the two characters (local player gets a stand-in `createCharacter`), pause remote
+  interpolation for them, fire the events (positional audio + blood), and the attacker / victim cameras follow
+  `finisher.camera()` raycast-clamped to world geometry. The attacker is locked but vulnerable (killed = scene cancelled);
+  bots melee at point-blank range and freeze while playing their finisher.

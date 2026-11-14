@@ -16,6 +16,7 @@ import { Throwables } from './throwables.js';
 import { StreakView } from './streakView.js';
 import { StrikeView } from './strikeView.js';
 import { StrikeLaptop } from './strikeLaptop.js';
+import { FinisherView } from './finisherView.js';
 import { MAP_ALLY, MAP_ENEMY } from '../ui/minimap.js';
 import { KillCamRecorder, KillCam } from './killcam.js';
 import { HeliView } from './heliView.js';
@@ -59,6 +60,7 @@ export class Game {
     this.streaks = new StreakView(this);
     this.strikeView = new StrikeView(this);
     this.laptop = new StrikeLaptop(this);
+    this.fin = new FinisherView(this);
     this.killcamRec = new KillCamRecorder();
     this.killcam = null;
     this.deathFlow = null;     // { phase: 'pre'|'killcam'|'screen'|'waiting', t, until }
@@ -180,6 +182,7 @@ export class Game {
         break;
       case 'leave': {
         const name = this.nameOf(m.id);
+        this.fin.cancelFor(m.id);
         this._removePlayer(m.id);
         this.ui.toast(`${name} left`);
         break;
@@ -204,6 +207,7 @@ export class Game {
       case 'uav': this.streaks.onUav(m); break;
       case 'armor': this.streaks.onArmor(m); break;
       case 'strike': this.strikeView.onStrike(m); break;
+      case 'finisher': this.fin.onFinisher(m); break;
       case 'crate': this.streaks.onCrate(m); break;
       case 'tscore': this.teamScore = { ...m.score }; break;
       case 'heli': this.heliView?.apply(m.h, m.spawned); break;
@@ -269,6 +273,7 @@ export class Game {
         if (m.match.teamScore) this.teamScore = { ...m.match.teamScore };
         break;
       case 'end':
+        this.fin.cancelAll();
         this.match.state = 'ended';
         this._lastEnd = m;
         this.arsenal.ads = 0;
@@ -284,6 +289,7 @@ export class Game {
         this.adsToggled = false;
         this.strikeView.reset();
         this.laptop.close();
+        this.fin.cancelAll();
         this._endDeathFlow();
         this.ui.hideEnd();
         this.hud.reset();
@@ -354,12 +360,14 @@ export class Game {
   }
 
   _onSpawn(m) {
+    if (this.fin.involves(m.id)) this.fin.cancelFor(m.id);   // respawned before the scene ended (practice dummies)
     const e = this.roster.get(m.id);
     if (e) e.alive = true;
     if (m.id === this.localId) {
       const t = clock();
       this._applyClass(CLASSES[m.cls] ? m.cls : this.selectedClass, t);
       this.streaks.resetForSpawn();
+      this.fin.clearLocalBody();
       this.spawnInfo = { pos: new THREE.Vector3().fromArray(m.p), t, dirty: false };
       this._closeSwap();
       this._endDeathFlow();
@@ -423,6 +431,8 @@ export class Game {
   _onKill(m) {
     const killer = this.roster.get(m.killer), victim = this.roster.get(m.victim);
     if (m.victim === this.localId) this.laptop.close();
+    // Killed while playing a finisher as the attacker: the scene stops (its victim stays down).
+    if (this.fin.scenes.some((s) => s.attacker === m.victim)) this.fin.cancelFor(m.victim);
     if (killer) killer.k = m.kk;
     if (victim) { victim.d = m.vd; victim.alive = false; }
     const meK = m.killer === this.localId, meV = m.victim === this.localId;
@@ -464,7 +474,10 @@ export class Game {
     // Kill cam when another (recorded) player killed us; otherwise straight to the death screen.
     const t = clock();
     const canCam = r && m.killer !== this.localId && r.history.length > 4 && this.match.state === 'playing';
-    if (canCam) {
+    if (this.fin.localScene?.victim === this.localId) {
+      // Finished off: watch the scene from its camera instead of the kill cam, then the death screen.
+      this.deathFlow = { phase: 'finisher' };
+    } else if (canCam) {
       this.deathFlow = { phase: 'pre', until: t + 1, cam: { killerId: m.killer, killTime: t, w: m.w, weapon: weaponName(m.w), killerHp: m.khp ?? null, killerName: this.nameOf(m.killer) } };
     } else {
       this.deathFlow = { phase: 'screen', until: t + this.match.respawnDelay };
@@ -498,6 +511,15 @@ export class Game {
         this.session.send({ t: 'ready', cls: this.selectedClass });
       }
     }
+  }
+
+  /** Our finisher scene (as the victim) has played out: on to the death screen. */
+  finisherDone() {
+    const f = this.deathFlow;
+    if (!f || f.phase !== 'finisher') return;
+    f.phase = 'screen';
+    f.until = Math.max(clock() + 1.5, this.deathTime + this.match.respawnDelay);
+    this.ui.showDeploy(this.deathInfo);
   }
 
   _endDeathFlow() {
@@ -801,8 +823,8 @@ export class Game {
     const pdt = this.hitStop > 0 ? dt * 0.15 : dt;
     this.hitStop = Math.max(0, this.hitStop - dt);
     this._frameDx = dx; this._frameDy = dy; this._framePressed = pressed;
-    if (this.alive && this.piloting) {
-      this.killcamRec.recordSelf(t, this.player);
+    if (this.alive && (this.piloting || this.fin.localAttacking)) {
+      this.killcamRec.recordSelf(t, this.player);   // flying / playing a finisher: no on-foot control
     } else if (this.alive) {
       this._updateAlive(pdt, t, active, pressed, dx, dy, wheel);
       this.killcamRec.recordSelf(t, this.player);
@@ -813,6 +835,7 @@ export class Game {
     this.throwables.update(dt, t);
     this.strikeView.update(dt, this.killcam ? this.killcam.rt : t, !this.killcam);
     this.laptop.update(dt, t);
+    this.fin.update(dt);
     const holdX = this.alive && active && this.input.isDown('KeyX');
     const heliPrompt = this.heliView ? this.heliView.update(dt, t, holdX && !this.piloting) : null;
     this.streakPrompt = heliPrompt || this.streaks.update(dt, t, holdX && !heliPrompt && !this.piloting);
@@ -826,6 +849,7 @@ export class Game {
         if (r.inHeliSeat) r.character.object3D.visible = false; // the helicopter model shows its pilot
       }
     }
+    this.fin.applyCamera(dt);
     this._updateCable();
     for (const r of this.remotes.values()) {
       this._remoteFootsteps(r, dt);
@@ -1101,7 +1125,7 @@ export class Game {
     const moving = Math.min(1, p.horizontalSpeed() / 5);
     const spread = g ? g.spread({ ads: ar.ads, moving, airborne: !p.grounded, crouching: p.crouching }) : 0;
     const px = (Math.tan(spread) / Math.tan((this.camera.fov * DEG) / 2)) * (innerHeight / 2);
-    hud.crosshair({ visible: this.alive && !this.laptop.shown && ar.ads < 0.5 && !p.sprinting && this.match.state === 'playing', spreadPx: px, enemy: !!aimName && !aimFriendly });
+    hud.crosshair({ visible: this.alive && !this.laptop.shown && !this.fin.localAttacking && ar.ads < 0.5 && !p.sprinting && this.match.state === 'playing', spreadPx: px, enemy: !!aimName && !aimFriendly });
     hud.targetName(aimName, aimFriendly ? TEAM_CSS[this.myTeam] : null);
 
     const me = this.roster.get(this.localId);
@@ -1244,6 +1268,7 @@ export class Game {
     this.streaks.dispose();
     this.strikeView.dispose();
     this.laptop.dispose();
+    this.fin.dispose();
     this.remotes.clear();
     this.ctfView?.dispose();
     this.cable.dispose();
@@ -1257,6 +1282,7 @@ function smooth(x) { return x * x * (3 - 2 * x); }
 
 function shortName(w) {
   if (w === 'melee') return 'MELEE';
+  if (w === 'finisher') return 'FINISHER';
   if (w === 'frag') return 'FRAG';
   if (w === 'airstrike') return 'AIRSTRIKE';
   if (w === 'heli' || w === 'heligun') return 'HELI';

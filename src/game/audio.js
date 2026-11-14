@@ -494,6 +494,10 @@ export function createAudio({ mute = false } = {}) {
         },
       };
     },
+    /** Melee finisher hits (positional). */
+    impact(pos = null) { play('boom', pos, { gain: 0.5, rate: 2.7, ref: 5 }); play('foot_concrete', pos, { gain: 1.3, rate: 0.55, ref: 5 }); },
+    thud(pos = null) { play('boom', pos, { gain: 0.55, rate: 1.6, ref: 6 }); play('foot_dirt', pos, { gain: 1.4, rate: 0.5, ref: 6 }); },
+    stab(pos = null) { play('swoosh', pos, { gain: 0.5, rate: 2.3, ref: 4 }); play('click', pos, { gain: 0.6, rate: 0.45, ref: 4, delay: 0.03 }); },
     crateLand(pos) { play('boom', pos, { gain: 0.35, rate: 2.2, ref: 6 }); play('clank', pos, { gain: 0.6, ref: 6 }); },
     /** Looping positional sound (helicopter rotor). Returns { set(pos, gain, rate, local), stop() } or null. */
     loop(name) {

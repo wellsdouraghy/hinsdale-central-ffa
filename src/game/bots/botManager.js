@@ -137,6 +137,15 @@ export class BotManager {
     if (dmg > 0) hr.bulletHit(p, { w: gun.id, dmg });
   }
 
+  /** Bot knife attack on a target within reach (validated like a human melee claim: one hit kills). */
+  botMelee(brain, v) {
+    const auth = this.auth, p = brain.p;
+    if (!v.alive || !v.pos || v.inHeli) return;
+    p.protectUntil = 0;
+    auth.out({ t: 'melee', id: p.id, hit: true }, null, p.id);
+    auth.applyDamage(p, v, v.hp + v.armor + 1, false, 'melee');
+  }
+
   /** Host-side hitscan for a bot shot: world first, then enemy hitboxes; damage applied directly. */
   botShot(brain, gun, eye, t) {
     const auth = this.auth, st = gun.stats, p = brain.p;

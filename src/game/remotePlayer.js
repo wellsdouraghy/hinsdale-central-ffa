@@ -96,6 +96,8 @@ export class RemotePlayer {
   }
 
   update(dt, now) {
+    // A melee finisher is moving this character (FinisherView keeps `feet` on it): no interpolation meanwhile.
+    if (this.puppeted) { this.character.update(dt); return; }
     if (this.alive && this.buffer.length && this.offset !== null) this._interpolate(now - this.offset - INTERP_DELAY);
     this._applyTransform();
     this.character.setState({

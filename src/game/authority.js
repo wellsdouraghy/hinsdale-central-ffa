@@ -8,7 +8,12 @@ import { StreakRules } from './streaks.js';
 import { BotManager } from './bots/botManager.js';
 import { HeliRules } from './heli.js';
 import * as THREE from 'three';
+import { FINISHERS, createFinisher } from '../visuals/finishers.js';
 
+const _fq = new THREE.Vector3(), _fd = new THREE.Vector3();
+const _DOWN = new THREE.Vector3(0, -1, 0), _UP = new THREE.Vector3(0, 1, 0);
+const _NO_CHAR = { _puppet: {} };
+const r2 = (x) => Math.round(x * 100) / 100;
 const MAX_SPEED = 48; // m/s sanity cap for client movement (grapple + dash + fling stay well below)
 
 export const MATCH = {
@@ -65,6 +70,7 @@ export class Authority {
     this.bots = new BotManager(this);
     this.heli = mode !== 'ctf' ? new HeliRules(this) : null;   // FFA + TDM: one attack helicopter
     this.streaks = new StreakRules(this);
+    this.finishers = new Map();   // attackerId -> { attacker, victim, until, end: Vector3, endYaw } (melee finisher scenes)
     this.projectiles = new Map(); // key `${owner}:${cid}` -> { owner, cid, pr: Projectile, item }
     this.pendingStates = new Map();
     this.stateTimer = 0;
@@ -128,6 +134,7 @@ export class Authority {
   }
 
   removePlayer(id) {
+    this.finishers.delete(id);
     const p = this.players.get(id);
     if (!p) return;
     this.ctf?.dropFrom(p);
@@ -315,6 +322,9 @@ export class Authority {
     v.deaths++;
     v.respawnAt = t + this.rules.respawnDelay;
     if (a !== v) a.kills++;
+    this.finishers.delete(v.id);   // an attacker killed mid-finisher: the scene is cancelled (its victim stays dead)
+    // Melee kills play a cinematic finisher when the spot allows it (credited now; the scene replaces the ragdoll).
+    if (weapon === 'melee' && a !== v && this.players.has(a.id) && this._startFinisher(a, v)) weapon = 'finisher';
     if (this.mode === 'tdm' && a !== v && a.team && v.team && a.team !== v.team && this.state === 'playing') {
       this.teamScore[a.team]++;
       this.out({ t: 'tscore', score: { ...this.teamScore } });
@@ -326,6 +336,60 @@ export class Authority {
     this.streaks.onDeath(v);
     if (this.mode === 'ffa' && !this.practice && a.kills >= this.rules.scoreLimit) this.endMatch();
     if (this.endAfterKill) { this.endAfterKill = false; this.endMatch(); }
+  }
+
+  // ---------- melee finishers ----------
+  /**
+   * Picks a scene that fits around the victim: flat ground (no ladders / roof edges), every FINISHERS `clearance`
+   * radius free at knee + chest height in 8 directions and `heightClear` free above; falls back to the compact
+   * backstab. The scene is oriented so the attacker comes in from where they actually are. Returns the scene or null.
+   */
+  _startFinisher(a, v) {
+    if (!a.alive || !a.pos || !v.pos || a.inHeli || v.inHeli || this.state !== 'playing') return null;
+    if (this.finishers.has(a.id)) return null;
+    const hs = this.bots.hitscan;
+    const o = new THREE.Vector3().fromArray(v.pos);
+    const ground = (x, z) => { const h = hs.castWorld(_fq.set(x, o.y + 1.2, z), _DOWN, 3); return h ? h.point.y : null; };
+    const g0 = ground(o.x, o.z);
+    if (g0 === null || Math.abs(o.y - g0) > 0.45) return null;               // airborne / on a ladder
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const gy = ground(o.x + Math.cos(ang) * 1.2, o.z + Math.sin(ang) * 1.2);
+      if (gy === null || Math.abs(gy - g0) > 0.4) return null;                // edge / steps / slope
+    }
+    o.y = g0;
+    const free = (r, hgt) => {
+      if (hs.castWorld(_fq.set(o.x, o.y + 0.2, o.z), _UP, hgt)) return false;
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2;
+        _fd.set(Math.cos(ang), 0, Math.sin(ang));
+        for (const y of [0.5, 1.3]) if (hs.castWorld(_fq.set(o.x, o.y + y, o.z), _fd, r)) return false;
+      }
+      return true;
+    };
+    const fits = FINISHERS.filter((f) => free(f.clearance, f.heightClear));
+    const pick = fits.length ? fits[Math.floor(Math.random() * fits.length)] : FINISHERS.find((f) => f.id === 'backstab') || FINISHERS[0];
+    const dx = o.x - a.pos[0], dz = o.z - a.pos[2];
+    const yaw = Math.hypot(dx, dz) > 0.05 ? Math.atan2(-dx, -dz) : 0;
+    const fin = createFinisher({ id: pick.id, attacker: _NO_CHAR, victim: _NO_CHAR });   // only for attackerEnd
+    fin.setOrigin(o, yaw);
+    this.finishers.set(a.id, { attacker: a.id, victim: v.id, until: now() + pick.duration, end: fin.attackerEnd.position.clone(), endYaw: fin.attackerEnd.yaw });
+    a.protectUntil = 0;
+    this.out({ t: 'finisher', id: pick.id, attacker: a.id, victim: v.id, origin: [r2(o.x), r2(o.y), r2(o.z)], yaw: Math.round(yaw * 1000) / 1000, dur: pick.duration });
+    return pick;
+  }
+
+  /** Active finisher with `id` as the attacker (bots freeze for it). */
+  finisherBy(id) { return this.finishers.get(id) || null; }
+
+  _updateFinishers() {
+    const t = now();
+    for (const [id, f] of this.finishers) {
+      if (t < f.until) continue;
+      this.finishers.delete(id);
+      const p = this.players.get(id);
+      if (p?.ai && p.alive) this.bots.brains.get(id)?.ctrl?.teleport(f.end, f.endYaw);   // humans place themselves
+    }
   }
 
   // ---------- spawning ----------
@@ -377,6 +441,7 @@ export class Authority {
 
   // ---------- match flow ----------
   endMatch() {
+    this.finishers.clear();
     if (this.state !== 'playing') return;
     this.state = 'ended';
     const standings = this.standings();
@@ -400,6 +465,7 @@ export class Authority {
     this.teamScore = { red: 0, blue: 0 };
     this.heli?.reset();
     this.streaks.reset();
+    this.finishers.clear();
     this.projectiles.clear();
     for (const p of this.players.values()) {
       p.kills = 0; p.deaths = 0; p.caps = 0; p.returns = 0; p.alive = false; p.respawnAt = null; p.hp = 100;
@@ -422,6 +488,7 @@ export class Authority {
     this.heli?.update(dt);
     this.updateProjectiles(dt);
     this.streaks.update();
+    if (this.finishers.size) this._updateFinishers();
     if (this.ctf) {
       const capTeam = this.ctf.update();
       if (capTeam && this.state === 'playing') {

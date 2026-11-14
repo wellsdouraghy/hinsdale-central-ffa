@@ -19,6 +19,7 @@ function safeViewmodel(id) {
 
 export function weaponName(id) {
   if (id === 'melee') return 'Melee';
+  if (id === 'finisher') return 'Finisher';
   if (id === 'frag') return 'Frag Grenade';
   if (id === 'airstrike') return 'Airstrike';
   if (id === 'heli' || id === 'heligun') return 'Helicopter';
