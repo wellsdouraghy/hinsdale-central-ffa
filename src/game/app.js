@@ -1,6 +1,6 @@
 // Desktop app: renderer, menus, world loading, session creation and the main loop (loaded by src/main.js).
 import * as THREE from 'three';
-import { createWorld } from '../world/index.js';
+import { createWorld, PLAY_BOUNDS } from '../world/index.js';
 import { createEffects } from '../visuals/effects.js';
 import { loadSettings, saveSettings, resolveGoogleKey, sanitizeName } from './settings.js';
 import { createAudio } from './audio.js';
@@ -18,7 +18,8 @@ import { normalizeCode } from '../net/peer.js';
 import { createHud } from '../ui/hud.js';
 import { createMinimap } from '../ui/minimap.js';
 import { createMenus } from '../ui/menus.js';
-import { playIntro } from '../ui/intro.js';
+import { playIntro, introDone } from '../ui/intro.js';
+import { createMenuTour } from './menuTour.js';
 import { getMicStream, stopStream, VoiceMesh } from '../net/voice.js';
 import { VoiceAudio } from './voiceAudio.js';
 
@@ -45,6 +46,7 @@ const hud = createHud();
 const minimap = createMinimap(document.getElementById('minimap'));
 const menus = createMenus({
   settings,
+  sound: (kind) => (kind === 'hover' ? audio.uiHover() : kind === 'back' ? audio.uiBack() : audio.uiSelect()),
   onSettingsChange: (key) => {
     saveSettings(settings);
     if (key === 'volume') audio.setVolume(settings.volume);
@@ -64,6 +66,13 @@ const lobbyUi = createLobbyUi({
 });
 
 let worldCache = null;   // { key, world, scene, effects }
+const tour = createMenuTour({ camera });
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+/** Menu cinematic over the loaded campus (title + lobby); low quality / reduced motion keep the aerial still. */
+function maybeTour() {
+  if (game || !worldCache || settings.quality === 'low' || reducedMotion || autostart) return;
+  tour.start(worldCache.world);
+}
 let game = null;
 let starting = false;
 
@@ -93,21 +102,36 @@ async function getWorld(onProgress) {
 let net = null;            // online room (hostNet / clientNet) that outlives single matches
 let worldLoading = null;
 
-/** Loads (or reuses) the world; progress goes to the loading screen or the lobby status line. */
+/** Loads (or reuses) the world; every caller's onProgress hears the shared load (menu preload, loading screen, lobby). */
+const progressFns = new Set();
+let lastProgress = null;
 function worldReady(onProgress) {
-  if (!worldLoading) worldLoading = getWorld(onProgress).finally(() => { worldLoading = null; });
+  if (onProgress) progressFns.add(onProgress);
+  if (!worldLoading) {
+    lastProgress = null;
+    worldLoading = getWorld((f, label) => { lastProgress = [f, label]; for (const fn of progressFns) fn(f, label); })
+      .finally(() => { worldLoading = null; progressFns.clear(); });
+  } else if (onProgress && lastProgress) onProgress(...lastProgress);
   return worldLoading;
+}
+
+/** Title screen: load the campus in the background right after the intro card (faster match entry + menu tour). */
+function preloadWorld() {
+  worldReady((f, label) => menus.setWorldStatus(f, label))
+    .then(() => { menus.setWorldStatus(1); maybeTour(); })
+    .catch(() => menus.setWorldStatus(0, 'will load when you play'));
 }
 
 async function start(mode, code = null, gameMode = 'ffa', bots = null) {
   if (starting || game || net) return;
   starting = true;
   audio.ensure();
+  tour.stop();
   settings.name = sanitizeName(menus.name || settings.name);
   saveSettings(settings);
   menus.showTitleError('');
   const titles = { practice: ['Practice range', 'Hinsdale Central'], host: ['Opening lobby', 'Hinsdale Central'], join: ['Joining room', `Room ${code}`] };
-  menus.showLoading(...titles[mode]);
+  menus.showLoading(...titles[mode], { mode: gameMode, practice: mode === 'practice', bounds: PLAY_BOUNDS });
   if (mode !== 'practice' && !autostart) playIntro(); // plays over the loading screen
   let mic = null;
   try {
@@ -123,7 +147,7 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
     // Online rooms require proximity voice: get the mic before connecting.
     menus.setProgress(0.02, 'Microphone');
     mic = await acquireMic();
-    if (!mic) { menus.showTitle(); return; }
+    if (!mic) { menus.showTitle(); maybeTour(); return; }
     if (mode === 'host') {
       net = await createHostNet({
         name: settings.name, onStatus: (s) => menus.setProgress(0.3, s),
@@ -139,15 +163,16 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
     menus.hideLoading();
     if (net.initialSession) {
       // Joined while a match is running: straight in.
-      menus.showLoading('Joining match', `Room ${net.roomCode}`);
+      menus.showLoading('Joining match', `Room ${net.roomCode}`, { mode: net.lobby?.settings?.mode || 'ffa', bounds: PLAY_BOUNDS });
       const wc = await worldReady((f, label) => menus.setProgress(0.1 + f * 0.85, label));
       menus.hideLoading();
       enterMatch(net.initialSession, wc);
     } else {
       showLobby();
+      maybeTour();
       // Preload the campus while people gather.
       worldReady((f, label) => lobbyUi.status(f >= 1 ? 'Campus loaded' : `Loading campus ${Math.round(f * 100)}% · ${label || ''}`))
-        .then(() => lobbyUi.status('Campus loaded · ready to play'))
+        .then(() => { lobbyUi.status('Campus loaded · ready to play'); maybeTour(); })
         .catch((err) => lobbyUi.status('World failed to load: ' + (err?.message || err)));
     }
   } catch (err) {
@@ -159,6 +184,7 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
     game = null;
     menus.showTitle();
     menus.showTitleError(err?.message || String(err));
+    maybeTour();
   } finally {
     starting = false;
   }
@@ -186,6 +212,8 @@ function showLobby() {
 
 /** Creates the Game for a match session (practice, host or client). */
 function enterMatch(session, wc) {
+  tour.stop();
+  document.body.classList.add('in-match');
   lobbyUi.hide();
   menus.lobbyAvailable = !!net; // "Back to lobby" on the end screen (host of an online room)
   menus.hideTitle();
@@ -214,7 +242,9 @@ function backToLobby() {
   menus.hideDeploy();
   menus.hidePause();
   hud.voice(null);
+  document.body.classList.remove('in-match');
   if (net) showLobby();
+  maybeTour();
 }
 
 function debugSuffix() {
@@ -257,8 +287,10 @@ function leave(reason = null) {
   lobbyUi.hide();
   input.enabled = false;
   input.exitLock();
+  document.body.classList.remove('in-match');
   menus.showTitle();
   if (reason) menus.showTitleError(reason);
+  maybeTour();
   history.replaceState(null, '', location.pathname + (debugSuffix() ? '?' + debugSuffix().slice(1) : ''));
 }
 
@@ -419,7 +451,7 @@ function frame() {
     menus.setAttribution(worldCache?.world.attributionHTML || 'Map data &copy; OpenStreetMap contributors &middot; Imagery &copy; Esri, Maxar, Earthstar Geographics');
   }
   if (voice && !game) updateVoice(dt);
-  if (!game) return;
+  if (!game) { tour.update(dt); return; }
   if (!debug && !input.locked && game.alive && game.deployed && input.enabled && !menus.pauseOpen && !menus.endOpen
     && menus.deployMode === null && nowMs - input.lastLockRequest > 800) {
     menus.showPause(game.session.roomCode);
@@ -446,7 +478,7 @@ window.__game = {
   get world() { return worldCache?.world; },
   get voice() { return voice; },
   get net() { return net; },
-  lobbyUi,
+  lobbyUi, tour,
   input, settings, audio, menus, renderer, camera,
   start, leave,
   key: (code, down = true) => input.simKey(code, down),
@@ -456,6 +488,10 @@ window.__game = {
 
 const autoMode = ['ctf', 'tdm'].includes(params.get('mode')) ? params.get('mode') : 'ffa';
 const autoBots = { count: Math.min(7, Number(params.get('bots')) || 0), difficulty: params.get('diff') || 'normal' };
+// Menu: start loading the campus once the intro card is done (unless we go straight into a match).
+if (!autostart) introDone().then(() => setTimeout(preloadWorld, 50));
+document.getElementById('cine').classList.remove('hidden');
+
 if (autostart === 'practice') start('practice', null, autoMode, autoBots);
 else if (autostart === 'host') start('host', null, autoMode, autoBots);
 else if (autostart === 'join' && joinParam.length === 6) start('join', joinParam);

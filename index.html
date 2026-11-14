@@ -6,67 +6,115 @@
   <title>Hinsdale Central FFA</title>
   <meta name="description" content="Browser free-for-all shooter on the Hinsdale Central High School campus. Play with friends via room codes." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%23e0393e' stroke-width='3'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8' stroke='%23e0393e' stroke-width='3'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,700;1,800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 </head>
 <body>
   <div id="app">
     <!-- 3D canvas is inserted here by main.js -->
 
-    <!-- ================= TITLE ================= -->
-    <section id="title" class="screen">
-      <div class="title-bg"></div>
-      <div class="title-grid"></div>
-      <div class="title-wrap">
-        <header class="brand">
-          <div class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="21" /><path d="M32 4v16M32 44v16M4 32h16M44 32h16" /><circle cx="32" cy="32" r="3" class="dot" /></svg>
-          </div>
-          <div>
-            <div class="brand-kicker">Campus Operations</div>
-            <h1>Hinsdale Central <span>FFA</span></h1>
-            <div class="brand-sub">Free-for-all &middot; 5500 S Grant St &middot; Outdoor combat</div>
-          </div>
-        </header>
+    <!-- ================= CINEMATIC LAYER (title + lobby + loading) ================= -->
+    <div id="cine" class="cine hidden" aria-hidden="true">
+      <div class="cine-fade" id="cine-fade"></div>
+      <div class="cine-vig"></div>
+      <div class="cine-grain"></div>
+      <div class="cine-bar top"></div><div class="cine-bar bot"></div>
+      <div class="cine-shot" id="cine-shot"></div>
+    </div>
 
-        <div class="title-main">
-          <div class="panel menu-panel">
-            <label class="field">
-              <span>Callsign</span>
-              <input id="name-input" type="text" maxlength="16" placeholder="Enter your name" autocomplete="off" spellcheck="false" />
-            </label>
-            <button id="btn-host" class="btn primary big"><span class="btn-k">01</span>Host Game<small>Create a room and invite friends</small></button>
-            <div class="join-row">
-              <button id="btn-join" class="btn big"><span class="btn-k">02</span>Join Game<small>Enter a 6-character room code</small></button>
-              <div id="join-box" class="join-box">
-                <input id="code-input" type="text" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false" />
-                <button id="btn-join-go" class="btn primary">Join</button>
+    <!-- ================= TITLE ================= -->
+    <section id="title" class="screen fe-screen">
+      <div class="title-bg kb"></div>
+      <div class="fe">
+        <div class="fe-left">
+          <header class="logo">
+            <svg class="logo-mark" viewBox="0 0 100 112" aria-hidden="true">
+              <path class="lm-horn" d="M22 34C12 24 9 12 14 0c4 12 12 19 24 23z" />
+              <path class="lm-horn" d="M78 34C88 24 91 12 86 0c-4 12-12 19-24 23z" />
+              <path class="lm-shield" d="M50 16 86 30 82 66c-4 20-17 34-32 44C35 100 22 86 18 66L14 30z" />
+              <path class="lm-inner" d="M50 24 78 35 75 64c-3 16-13 28-25 36-12-8-22-20-25-36L22 35z" />
+              <path class="lm-fork" d="M48 46h4v44h-4zM34 40l5 4v10c0 6 5 9 11 9s11-3 11-9V44l5-4v14c0 10-7 15-16 15s-16-5-16-15zM50 30l5 12h-10z" />
+            </svg>
+            <div class="logo-type">
+              <div class="logo-kicker"><span>Red Devils</span><i></i><span>Campus Combat</span></div>
+              <h1 class="logo-word"><span class="lw-top">Hinsdale</span><span class="lw-main">Central</span></h1>
+              <div class="logo-tags"><span>FFA</span><span>Team DM</span><span>CTF</span><span class="hot">Bots</span></div>
+            </div>
+          </header>
+          <nav class="fe-menu" id="fe-menu" aria-label="Main menu">
+            <div class="fe-group" id="fe-play-group">
+              <button class="fe-item" id="fe-play"><span class="fe-idx">01</span><span class="fe-lbl">Play</span><span class="fe-hint">Host &middot; Join &middot; Practice</span></button>
+              <div class="fe-sub" id="fe-play-sub">
+                <button id="btn-host" class="fe-subitem"><b>Host game</b><small>Open a lobby and invite friends</small></button>
+                <button id="btn-join" class="fe-subitem"><b>Join game</b><small>Enter a 6-character room code</small></button>
+                <div id="join-box" class="join-box">
+                  <input id="code-input" type="text" maxlength="6" placeholder="CODE" autocomplete="off" spellcheck="false" />
+                  <button id="btn-join-go" class="btn primary">Join</button>
+                </div>
+                <button id="btn-practice" class="fe-subitem"><b>Practice</b><small>Solo range, targets and optional bots</small></button>
               </div>
             </div>
-            <button id="btn-practice" class="btn big"><span class="btn-k">03</span>Practice<small>Solo free roam or CTF run with target dummies</small></button>
-            <button id="btn-settings" class="btn ghost">Settings</button>
-            <div id="title-error" class="error-msg" role="alert"></div>
-          </div>
-
-          <div class="panel info-panel">
-            <h3>Rules of engagement</h3>
-            <ul class="rules">
-              <li><b>Free-for-all:</b> 30 kills or 10:00 wins</li>
-              <li><b>Capture the Flag:</b> Red Devils vs Lions, 3 captures or 12:00</li>
-              <li>Up to <b>8</b> players &middot; health regenerates after <b>4 s</b></li>
-              <li>Shots reveal you on the enemy minimap</li>
-            </ul>
-            <h3>Controls</h3>
-            <div class="keys controls-list"></div>
-          </div>
+            <button class="fe-item" id="btn-classes"><span class="fe-idx">02</span><span class="fe-lbl">Classes</span><span class="fe-hint">Loadouts &amp; outfits</span></button>
+            <button class="fe-item" id="btn-settings"><span class="fe-idx">03</span><span class="fe-lbl">Settings</span><span class="fe-hint">Controls, video, audio</span></button>
+            <button class="fe-item" id="btn-credits"><span class="fe-idx">04</span><span class="fe-lbl">Credits</span><span class="fe-hint">Who &amp; what made this</span></button>
+          </nav>
+          <div id="title-error" class="error-msg" role="alert"></div>
         </div>
-        <footer class="title-foot">
-          <span>Fan-made campus game. Not affiliated with Hinsdale Central High School or District 86.</span>
+
+        <div class="fe-right">
+          <div class="pcard">
+            <div class="pc-badge" id="pc-badge">RIF</div>
+            <div class="pc-body">
+              <label class="pc-name-lbl" for="name-input">Callsign</label>
+              <input id="name-input" class="pc-name" type="text" maxlength="16" placeholder="Enter your name" autocomplete="off" spellcheck="false" />
+              <div class="pc-class"><span id="pc-class">Rifleman</span><span class="pc-dot"></span><span id="pc-look">Infantry kit</span></div>
+              <div class="pc-swatches" id="pc-swatches"></div>
+            </div>
+          </div>
+          <div class="fe-card fe-news">
+            <div class="fe-card-h"><span>What&rsquo;s new</span><b id="fe-build">Build 11</b></div>
+            <ul class="news">
+              <li><b>Airstrike laptop</b>Flip it open with 4, mark the run on the campus map, three jets carpet the line.</li>
+              <li><b>Finishers</b>Every melee kill plays one of five third-person finisher scenes.</li>
+              <li><b>Class outfits</b>Infantry, spec ops, heavy, desert and varsity kits per class.</li>
+              <li><b>Attack helicopter</b>Hidden on campus in FFA and TDM. Bots fly it if they find it.</li>
+              <li><b>Pre-match lobby</b>Teams, bots and settings before you drop in.</li>
+            </ul>
+          </div>
+          <details class="fe-card fe-controls">
+            <summary class="fe-card-h"><span>Controls</span><b>show</b></summary>
+            <div class="keys controls-list"></div>
+          </details>
+        </div>
+
+        <footer class="fe-foot">
+          <span class="fe-ver"><b>HC</b> Build 11 &middot; Season 1</span>
+          <span class="fe-world" id="fe-world"><i></i><span id="fe-world-txt">Loading campus</span></span>
+          <span class="fe-legal">Fan-made campus game. Not affiliated with Hinsdale Central High School or District 86.</span>
         </footer>
+      </div>
+    </section>
+
+    <!-- ================= CREDITS ================= -->
+    <section id="credits" class="overlay hidden">
+      <div class="panel credits-panel">
+        <div class="end-kicker">Credits</div>
+        <h2>Hinsdale Central</h2>
+        <div class="credits-grid">
+          <div><h4>Made by</h4><p>A small crew of friends and a few tireless AI builders: gameplay, world and visuals were built for the group chat, from scratch.</p></div>
+          <div><h4>Campus</h4><p>Map data &copy; OpenStreetMap contributors (ODbL). Aerial imagery &copy; Esri, Maxar, Earthstar Geographics. Optional 3D scan &copy; Google.</p></div>
+          <div><h4>Art &amp; audio</h4><p>Weapons, effects, outfits, jets and helicopter are procedural and original. All sound is synthesized live with Web Audio. Soldier base model: Mixamo via three.js examples. Sky: Poly Haven (CC0). Textures: ambientCG &amp; Poly Haven (CC0).</p></div>
+          <div><h4>Tech</h4><p>three.js, three-mesh-bvh, postprocessing, n8ao, 3d-tiles-renderer, PeerJS. Fonts: Barlow Condensed &amp; Inter (OFL).</p></div>
+        </div>
+        <p class="credits-legal">Fan-made. Not affiliated with Hinsdale Central High School or District 86. Full list in CREDITS.md.</p>
+        <div class="set-actions"><button id="btn-credits-close" class="btn primary">Close</button></div>
       </div>
     </section>
 
     <!-- ================= LOBBY ================= -->
     <section id="lobby" class="screen hidden">
-      <div class="title-bg dim"></div>
+      <div class="title-bg dim kb"></div>
       <div class="lobby-wrap">
         <header class="lobby-head">
           <div>
@@ -109,13 +157,21 @@
 
     <!-- ================= LOADING ================= -->
     <section id="loading" class="screen hidden">
-      <div class="title-bg dim"></div>
-      <div class="loading-box">
-        <div class="loading-kicker" id="loading-kicker">Deploying</div>
-        <div class="loading-title" id="loading-title">Hinsdale Central</div>
-        <div class="bar"><div id="loading-bar"></div></div>
-        <div class="loading-row"><span id="loading-label">Starting</span><span id="loading-pct">0%</span></div>
-        <div class="loading-tip" id="loading-tip"></div>
+      <div class="ld-map"><div class="ld-map-inner" id="ld-map"><div class="ld-area" id="ld-area"><span id="ld-area-lbl">Play area</span></div></div></div>
+      <div class="ld-shade"></div>
+      <div class="ld-content">
+        <div class="ld-top">
+          <div class="loading-kicker" id="loading-kicker">Deploying</div>
+          <div class="loading-title" id="loading-title">Hinsdale Central</div>
+          <div class="ld-mode"><span class="ld-mode-tag" id="ld-mode">Free-for-all</span><span id="ld-mode-sub"></span></div>
+          <ul class="ld-rules" id="ld-rules"></ul>
+        </div>
+        <div class="ld-bottom">
+          <div class="ld-tip"><span class="ld-tip-k">Field note</span><span id="loading-tip"></span></div>
+          <div class="ld-stage"><span class="ld-stage-txt" id="loading-label">Starting</span><span id="loading-pct">0%</span></div>
+          <div class="bar ld-bar"><div id="loading-bar"></div><div class="ld-ticks"><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+          <div class="ld-sub" id="loading-sub"></div>
+        </div>
       </div>
     </section>
 

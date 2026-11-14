@@ -2,6 +2,8 @@
 import { renderLoadout, highlightLoadout } from './loadout.js';
 import { ordinal } from './hud.js';
 import { IS_MAC } from '../game/settings.js';
+import { CLASSES, CLASS_LOOKS, classOf } from '../game/classes.js';
+import { SAT } from './minimap.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -18,13 +20,37 @@ const TIPS = [
   'Grapple (F) onto roofs, then press Space mid-reel to fling yourself.',
   'Double jump and jump into ledges to climb onto dugouts, bleachers and low roofs.',
   'Dash (E) works in the air too: chain it with a grapple fling.',
+  'Airstrike: press 4, aim the run on the laptop map, wheel or A / D to rotate, click to call it in.',
+  'Every melee kill (V) plays a finisher. You can still be shot while it plays.',
+  'Recon snipers kill outright with a scoped torso or head shot.',
+  'Brawlers lunge on melee: twice the reach, faster recovery.',
+  'Grapplers get a longer grapple and half the cooldown.',
+  'Helicopter: hold X next to it. Space / C climb and descend, LMB cannon, R rockets.',
+  'The helicopter cannon overheats: fire in bursts.',
+  'Care packages drop at 3 kills. Hold X on the crate to open it.',
+  'A UAV (5 kills) shows every enemy on your minimap for 30 seconds.',
+  'Teammates are green arrows on the minimap; enemies show as red dots only when revealed.',
 ];
+
+// Witty but short loading stages, by overall progress.
+const STAGES = [
+  [0, 'Unlocking the doors'], [0.12, 'Laying turf'], [0.26, 'Raising the water tower'], [0.4, 'Painting the end zones'],
+  [0.54, 'Planting the oaks'], [0.68, 'Parking the buses'], [0.8, 'Stocking the lockers'], [0.92, 'Waking up the bots'],
+];
+const MODE_INFO = {
+  ffa: { name: 'Free-for-all', sub: 'Every player for themselves', rules: ['First to the kill limit or 10:00', 'One attack helicopter is hidden on campus', 'Shots reveal you on the enemy minimap'] },
+  tdm: { name: 'Team Deathmatch', sub: 'Red Devils vs Lions', rules: ['Team kills score; first to the limit wins', 'One attack helicopter is hidden on campus', 'No friendly fire'] },
+  ctf: { name: 'Capture the Flag', sub: 'Red Devils vs Lions', rules: ['Steal their flag, bring it to your base', 'Your flag must be home to score', 'Touch your dropped flag to return it'] },
+  practice: { name: 'Practice', sub: 'Solo range', rules: ['Target dummies, optional bots', 'No time limit', 'Try the grapple, dash and the helicopter'] },
+};
+const LOOK_SWATCH = { infantry: ['#4d5a3a', '#6b7350', '#2a2f22'], specops: ['#20242a', '#3b424b', '#111317'], heavy: ['#3e4247', '#6d7178', '#c23a3a'], desert: ['#b59a6a', '#8c7550', '#e1d2a8'], varsity: ['#c8262d', '#f1f1f1', '#1b1b1b'] };
+const LOOK_NAME = { infantry: 'Infantry kit', specops: 'Spec ops kit', heavy: 'Heavy armor', desert: 'Desert kit', varsity: 'Varsity kit' };
 
 function esc(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-export function createMenus({ settings, onSettingsChange }) {
+export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
   const el = {
     title: $('title'), loading: $('loading'), deploy: $('deploy'), pause: $('pause'), end: $('end'), settings: $('settings'),
     name: $('name-input'), code: $('code-input'), joinBox: $('join-box'), titleError: $('title-error'),
@@ -41,11 +67,60 @@ export function createMenus({ settings, onSettingsChange }) {
   };
   const handlers = {};
   let toastTimer = 0;
+  let tipTimer = 0;
   let deployMode = 'deploy';
   let settingsReturn = null;
 
   // Background imagery for title / loading.
   document.querySelectorAll('.title-bg').forEach((b) => { b.style.backgroundImage = 'url(./assets/satellite/campus_z19.jpg)'; });
+  $('ld-map').style.backgroundImage = 'url(./assets/satellite/campus_z19.jpg)';
+
+  // ---------- front end: main menu (vertical, keyboard + mouse), player card, credits ----------
+  const playGroup = $('fe-play-group');
+  const setPlayOpen = (open) => { playGroup.classList.toggle('open', open); if (!open) el.joinBox.classList.remove('open'); };
+  $('fe-play').addEventListener('click', () => { setPlayOpen(!playGroup.classList.contains('open')); sound('select'); });
+  const menuItems = () => [...document.querySelectorAll('#fe-menu .fe-item, #fe-menu .fe-group.open .fe-subitem')];
+  document.querySelectorAll('#fe-menu button').forEach((b) => {
+    b.addEventListener('pointerenter', () => { sound('hover'); });
+    b.addEventListener('focus', () => b.classList.add('kb'));
+    b.addEventListener('blur', () => b.classList.remove('kb'));
+  });
+  ['btn-host', 'btn-practice', 'btn-join', 'btn-classes', 'btn-settings', 'btn-credits'].forEach((id) => $(id).addEventListener('click', () => sound('select')));
+  addEventListener('keydown', (e) => {
+    if (el.title.classList.contains('hidden') || !overlaysClosed()) return;
+    if (document.activeElement === el.name || document.activeElement === el.code) { if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const items = menuItems();
+      let i = items.indexOf(document.activeElement);
+      i = i < 0 ? 0 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      items[i].focus();
+      sound('hover');
+    } else if (e.key === 'ArrowRight' && document.activeElement?.id === 'fe-play') { setPlayOpen(true); menuItems()[1]?.focus(); }
+    else if ((e.key === 'ArrowLeft' || e.key === 'Escape') && playGroup.classList.contains('open')) { setPlayOpen(false); $('fe-play').focus(); }
+  });
+  function overlaysClosed() { return ['settings', 'setup', 'credits', 'deploy'].every((k) => $(k).classList.contains('hidden')); }
+  $('btn-credits').addEventListener('click', () => $('credits').classList.remove('hidden'));
+  $('btn-credits-close').addEventListener('click', () => { $('credits').classList.add('hidden'); sound('back'); });
+  $('btn-classes').addEventListener('click', () => {
+    deployMode = 'browse';
+    el.deploy.classList.remove('hidden');
+    highlightLoadout(el.cards, settings.cls);
+    el.deathInfo.classList.add('hidden');
+    el.teamRow.classList.add('hidden');
+    el.deployBtn.classList.remove('hidden');
+    el.deployBtn.textContent = 'Done';
+    el.deployTitle.textContent = 'Classes · your pick is used when you deploy';
+  });
+  function renderPlayerCard() {
+    const c = classOf(settings.cls);
+    const look = CLASS_LOOKS[c.id] || 'specops';
+    $('pc-badge').textContent = c.tag;
+    $('pc-class').textContent = c.name;
+    $('pc-look').textContent = LOOK_NAME[look] || look;
+    $('pc-swatches').innerHTML = (LOOK_SWATCH[look] || []).map((col) => `<i style="background:${col}"></i>`).join('') + `<span>${esc(c.ability || '')}</span>`;
+  }
+  renderPlayerCard();
 
   // ---------- title ----------
   el.name.value = settings.name || '';
@@ -180,8 +255,9 @@ export function createMenus({ settings, onSettingsChange }) {
     if (deployMode === 'deploy') handlers.deploy?.();
     else if (deployMode === 'loadout') handlers.loadoutDone?.();
     else if (deployMode === 'swap') handlers.swapClose?.();
+    else if (deployMode === 'browse') { el.deploy.classList.add('hidden'); renderPlayerCard(); sound('back'); }
   });
-  renderLoadout(el.cards, settings.cls, (id) => handlers.selectClass?.(id));
+  renderLoadout(el.cards, settings.cls, (id) => { handlers.selectClass?.(id); renderPlayerCard(); sound('select'); });
 
   // ---------- end ----------
   el.restart.addEventListener('click', () => handlers.restart?.());
@@ -189,7 +265,9 @@ export function createMenus({ settings, onSettingsChange }) {
   $('btn-end-leave').addEventListener('click', () => handlers.leave?.());
 
   addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !el.settings.classList.contains('hidden')) closeSettings();
+    if (e.key === 'Escape' && !$('credits').classList.contains('hidden')) $('credits').classList.add('hidden');
+    else if (e.key === 'Escape' && deployMode === 'browse' && !el.deploy.classList.contains('hidden')) el.deploy.classList.add('hidden');
+    else if (e.key === 'Escape' && !el.settings.classList.contains('hidden')) closeSettings();
     else if (e.key === 'Escape' && !el.setup.classList.contains('hidden')) el.setup.classList.add('hidden');
   });
 
@@ -199,6 +277,7 @@ export function createMenus({ settings, onSettingsChange }) {
     get name() { return el.name.value; },
     prefillJoin(code) {
       el.code.value = code;
+      $('fe-play-group').classList.add('open');
       el.joinBox.classList.add('open');
       (el.name.value ? el.code : el.name).focus();
     },
@@ -206,24 +285,66 @@ export function createMenus({ settings, onSettingsChange }) {
     showTitle() {
       el.title.classList.remove('hidden');
       for (const k of ['loading', 'deploy', 'pause', 'end', 'settings', 'setup']) el[k].classList.add('hidden');
+      el.loading.classList.remove('fading');
+      clearInterval(tipTimer);
+      renderPlayerCard();
+    },
+    /** Background world preload status in the menu footer. */
+    setWorldStatus(f, label) {
+      const box = $('fe-world');
+      box.classList.toggle('ready', f >= 1);
+      $('fe-world-txt').textContent = f >= 1 ? 'Campus ready' : `Loading campus ${Math.round(f * 100)}%${label ? ' · ' + label : ''}`;
     },
     hideTitle() { el.title.classList.add('hidden'); },
 
-    showLoading(kicker, title) {
+    /** opts: { mode: 'ffa'|'tdm'|'ctf', practice, bounds: {minX,maxX,minZ,maxZ} } */
+    showLoading(kicker, title, opts = {}) {
       el.title.classList.add('hidden');
-      el.loading.classList.remove('hidden');
+      el.loading.classList.remove('hidden', 'fading');
       el.loadingKicker.textContent = kicker;
       el.loadingTitle.textContent = title;
-      el.loadingTip.textContent = 'Tip: ' + TIPS[Math.floor(Math.random() * TIPS.length)];
+      const info = MODE_INFO[opts.mode] || MODE_INFO.ffa;
+      $('ld-mode').textContent = (opts.practice ? 'Practice · ' : '') + info.name;
+      $('ld-mode-sub').textContent = opts.practice ? MODE_INFO.practice.sub : info.sub;
+      $('ld-rules').innerHTML = (opts.practice ? MODE_INFO.practice.rules : info.rules).map((r) => `<li>${esc(r)}</li>`).join('');
+      // Highlight the play area on the aerial (image space: x right, z down, same bounds as the minimap image).
+      const b = opts.bounds || { minX: -222, maxX: 292, minZ: -212, maxZ: 214 };
+      const W = SAT.maxX - SAT.minX, H = SAT.maxZ - SAT.minZ;
+      const a = $('ld-area').style;
+      a.left = ((b.minX - SAT.minX) / W * 100) + '%'; a.top = ((b.minZ - SAT.minZ) / H * 100) + '%';
+      a.width = ((b.maxX - b.minX) / W * 100) + '%'; a.height = ((b.maxZ - b.minZ) / H * 100) + '%';
+      $('ld-area-lbl').textContent = opts.practice ? 'Practice range' : info.name;
+      // Rotating tips.
+      let ti = Math.floor(Math.random() * TIPS.length);
+      const showTip = () => {
+        el.loadingTip.classList.remove('in');
+        void el.loadingTip.offsetWidth;
+        el.loadingTip.textContent = TIPS[ti++ % TIPS.length];
+        el.loadingTip.classList.add('in');
+      };
+      showTip();
+      clearInterval(tipTimer);
+      tipTimer = setInterval(showTip, 4500);
       this.setProgress(0, 'Starting');
     },
     setProgress(f, label) {
-      const pct = Math.round(Math.max(0, Math.min(1, f)) * 100);
+      f = Math.max(0, Math.min(1, f));
+      const pct = Math.round(f * 100);
       el.loadingBar.style.width = pct + '%';
       el.loadingPct.textContent = pct + '%';
-      if (label) el.loadingLabel.textContent = label;
+      let stage = STAGES[0][1];
+      for (const [at, txt] of STAGES) if (f >= at) stage = txt;
+      if (f >= 1) stage = 'Ready';
+      if (el.loadingLabel.textContent !== stage) el.loadingLabel.textContent = stage;
+      if (label) $('loading-sub').textContent = label;
     },
-    hideLoading() { el.loading.classList.add('hidden'); },
+    /** Fades the loading screen out over the first frames of the match. */
+    hideLoading() {
+      clearInterval(tipTimer);
+      if (el.loading.classList.contains('hidden')) return;
+      el.loading.classList.add('fading');
+      setTimeout(() => { if (el.loading.classList.contains('fading')) { el.loading.classList.add('hidden'); el.loading.classList.remove('fading'); } }, 650);
+    },
 
     /** mode: 'deploy' (first spawn), 'death' (respawn timer), 'loadout' (change from pause menu). */
     showDeploy({ mode, selected, killer, weapon, headshot, roomCode }) {

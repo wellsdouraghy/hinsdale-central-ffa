@@ -431,6 +431,10 @@ export function createAudio({ mute = false } = {}) {
     equip() { play('equip', null, { gain: 0.45 }); },
     melee(pos = null) { play('swoosh', pos, { gain: 0.6 }); },
     ui() { play('click', null, { gain: 0.3 }); },
+    /** Front-end menu sounds (quiet; silent with ?mute=1 like everything else). */
+    uiHover() { play('tick', null, { gain: 0.1, rate: 1.9 }); },
+    uiSelect() { play('click', null, { gain: 0.32, rate: 1.1 }); play('tick', null, { gain: 0.12, rate: 0.8, delay: 0.03 }); },
+    uiBack() { play('click', null, { gain: 0.25, rate: 0.75 }); },
     grappleLaunch(dist = 20) {
       play('swoosh', null, { gain: 0.5, rate: 1.7 });
       play('clank', null, { gain: 0.55, delay: Math.min(0.25, dist / 120) });

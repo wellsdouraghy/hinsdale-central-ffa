@@ -4,6 +4,9 @@ const TEXT = 'Prepared for the Bigger Penis group chat only';
 const TOTAL_MS = 2600;
 let current = null;
 
+/** Resolves when the intro card (if any) has finished. */
+export function introDone() { return current ? current.promise : Promise.resolve(); }
+
 export function playIntro() {
   if (current) return current.promise;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
