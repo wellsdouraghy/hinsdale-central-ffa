@@ -1,5 +1,6 @@
 // Kill cam: every client records ~8 s of everyone's movement (remote state history + our own positions) and shot /
 // explosion events. When we die to another player, we replay the last ~4 s from over the killer's shoulder.
+import { lookForClass } from './classes.js';
 import * as THREE from 'three';
 import { createCharacter } from '../visuals/character.js';
 import { INTERP_DELAY } from './remotePlayer.js';
@@ -61,7 +62,7 @@ export class KillCam {
     this.rt = this.t0;
     this.done = false;
     const me = game.roster.get(game.localId);
-    this.ghost = createCharacter({ color: me?.color ?? 0xcccccc, name: me?.name ?? '' });
+    this.ghost = createCharacter({ color: me?.color ?? 0xcccccc, name: me?.name ?? '', look: lookForClass(me?.cls) });
     game.scene.add(this.ghost.object3D);
     this.ghostDead = false;
     this.camPos = null;

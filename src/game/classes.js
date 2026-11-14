@@ -36,3 +36,8 @@ export function classOf(id) { return CLASSES[id] || CLASSES[DEFAULT_CLASS]; }
 
 /** Melee damage the host accepts from a player of class `id`. */
 export function meleeDamageFor(id) { return classOf(id).meleeDamage ?? BASE_MELEE_DAMAGE; }
+
+/** Character outfit per class (ids from src/visuals/characterLooks.js LOOKS). */
+export const CLASS_LOOKS = { rifleman: 'infantry', runner: 'specops', brawler: 'heavy', recon: 'desert', grappler: 'varsity' };
+export const DEFAULT_LOOK = 'specops';
+export function lookForClass(cls) { return CLASS_LOOKS[cls] || DEFAULT_LOOK; }

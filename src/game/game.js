@@ -11,7 +11,7 @@ import { now as clock, MATCH } from './authority.js';
 import { colorCss } from '../ui/hud.js';
 import { TEAM_COLORS, TEAM_CSS, TEAM_NAMES, TEAMS, otherTeam } from './ctf.js';
 import { CtfView } from './ctfView.js';
-import { CLASSES, CLASS_IDS, DEFAULT_CLASS, classOf } from './classes.js';
+import { CLASSES, CLASS_IDS, DEFAULT_CLASS, classOf, lookForClass } from './classes.js';
 import { Throwables } from './throwables.js';
 import { StreakView } from './streakView.js';
 import { StrikeView } from './strikeView.js';
@@ -844,6 +844,8 @@ export class Game {
       if (!this.piloting) this._updateCamera(dt);
       const pilotId = this.heliView?.flying ? this.heliView.s.pilot : null;
       for (const r of this.remotes.values()) {
+        const lk = lookForClass(this.roster.get(r.id)?.cls);
+        if (r._look !== lk || r._lookChar !== r.character) { r._look = lk; r._lookChar = r.character; r.character.setLook?.(lk); }
         r.update(dt, t);
         r.inHeliSeat = r.id === pilotId;
         if (r.inHeliSeat) r.character.object3D.visible = false; // the helicopter model shows its pilot

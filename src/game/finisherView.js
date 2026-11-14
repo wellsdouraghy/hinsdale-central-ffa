@@ -2,6 +2,7 @@
 // yaw, dur }. Every client plays it on the two characters (remote interpolation paused for them; the local player gets a
 // stand-in character), fires the scene's sound / blood events, and - when we are in it - drives the camera along the
 // scene's path (raycast-clamped so it never goes inside walls), blending out of / back into first person.
+import { lookForClass } from './classes.js';
 import * as THREE from 'three';
 import { createFinisher } from '../visuals/finishers.js';
 import { createCharacter } from '../visuals/character.js';
@@ -30,7 +31,7 @@ export class FinisherView {
     const g = this.game;
     if (id === g.localId) {
       const e = g.roster.get(id);
-      const ch = createCharacter({ color: e?.color ?? 0xcccccc, name: e?.name ?? '' });
+      const ch = createCharacter({ color: e?.color ?? 0xcccccc, name: e?.name ?? '', look: lookForClass(e?.cls) });
       const p = g.player;
       ch.object3D.position.copy(p.position);
       ch.object3D.rotation.y = p.yaw;

@@ -7,6 +7,7 @@ import { buildGun } from './guns.js';
 import { buildGrenadeModel } from './grenade.js';
 import { ASSET_BASE } from './hands.js';
 import * as T from './textures.js';
+import { applyLook } from './characterLooks.js';
 
 const B = (n) => 'mixamorig:' + n;
 const sat = (x) => Math.min(1, Math.max(0, x));
@@ -120,7 +121,8 @@ const HOLD = {
 
 let flashGeo = null, bandGeo = null;
 
-export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
+export function createCharacter({ color = 0xcc3333, name = '', look = null } = {}) {
+  let lookId = look;
   const root = new THREE.Group(); root.name = 'character';
   const pivot = new THREE.Group(); root.add(pivot);                 // death fall rotates this about the feet
   const weaponPivot = new THREE.Group(); pivot.add(weaponPivot);
@@ -183,6 +185,7 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
     model.rotation.y = template.yawFix;
     model.scale.setScalar(template.scale);
     pivot.add(model);
+    if (lookId) applyLook(model, lookId, { teamColor: color });
     const g = (n) => model.getObjectByName(B(n)) || model.getObjectByName('mixamorig' + n);
     rig = { model, hips: g('Hips'), spine: [g('Spine'), g('Spine1'), g('Spine2')], neck: g('Neck'), head: g('Head') };
     for (const s of ['Left', 'Right']) {
@@ -346,6 +349,8 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
     object3D: root,
     _puppet: puppet,
     setState(s) { Object.assign(st, s); if (s.weaponId) setGun(s.weaponId); },
+    /** Outfit (see characterLooks.js LOOKS ids); applied now if the model is loaded, else when it loads. */
+    setLook(id) { if (id === lookId) return; lookId = id; if (rig?.model) applyLook(rig.model, id, { teamColor: color }); },
     // Third-person melee (rifle butt-stroke, ~0.45 s) and overhand frag throw (~0.7 s, grenade leaves the hand at 55 %).
     melee(durationSec = 0.45) { if (!dead) { act = 'melee'; actT = 0; actDur = Math.max(0.2, durationSec); if (nade) nade.group.visible = false; } },
     throwGrenade(durationSec = 0.7) { if (!dead) { act = 'nade'; actT = 0; actDur = Math.max(0.3, durationSec); } },
