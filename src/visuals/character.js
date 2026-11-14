@@ -78,19 +78,19 @@ const _p = new THREE.Vector3(), _v1 = new THREE.Vector3(), _v2 = new THREE.Vecto
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _pq = new THREE.Quaternion(), _wq = new THREE.Quaternion();
 const _m = new THREE.Matrix4();
 
-function worldQuat(obj, out) { obj.matrixWorld.decompose(_s, out, _v2); return out; }
+export function worldQuat(obj, out) { obj.matrixWorld.decompose(_s, out, _v2); return out; }
 // Apply a world-space rotation to a bone (its matrixWorld and its parent's must be current).
-function rotateWorld(bone, q) {
+export function rotateWorld(bone, q) {
   worldQuat(bone.parent, _pq); worldQuat(bone, _wq);
   bone.quaternion.copy(_pq.invert()).multiply(q).multiply(_wq);
   bone.updateWorldMatrix(false, true);
 }
-function setWorldQuat(bone, q) {
+export function setWorldQuat(bone, q) {
   worldQuat(bone.parent, _pq);
   bone.quaternion.copy(_pq.invert()).multiply(q);
   bone.updateWorldMatrix(false, true);
 }
-function solveTwoBone(a, b, c, target, pole) {
+export function solveTwoBone(a, b, c, target, pole) {
   _a.setFromMatrixPosition(a.matrixWorld); _b.setFromMatrixPosition(b.matrixWorld); _c.setFromMatrixPosition(c.matrixWorld);
   const lab = _a.distanceTo(_b), lbc = _b.distanceTo(_c);
   _d.subVectors(target, _a);
@@ -169,6 +169,7 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
 
   // rig (filled in when the model has loaded)
   let rig = null, mixer = null, actions = null;
+  let controlled = false;                                           // true while finishers.js puppets this character
   let crouchT = 0, lowT = 0, pitch = 0, dead = false, deathT = 0, deathRoll = 0, airT = 0;
   const wIdle = { v: 1 }, wWalk = { v: 0 }, wRun = { v: 0 };
   let act = null, actT = 0, actDur = 0.5, nade = null;        // 'melee' | 'nade' third-person actions
@@ -213,6 +214,8 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
     // animated pose is saved after each mixer update and restored before the next one (no accumulation).
     rig.mod = [rig.hips, ...rig.spine, rig.neck, rig.head];
     for (const s of ['Left', 'Right']) rig.mod.push(rig[s].arm, rig[s].fore, rig[s].hand, rig[s].up, rig[s].leg, rig[s].foot);
+    rig.rest = rig.mod.map((b) => b.quaternion.clone());            // bind (T) pose, used by finishers.js as the IK base
+    rig.hipsRest = rig.hips.position.clone();
     rig.saved = rig.mod.map((b) => b.quaternion.clone());
     rig.hipsPos = rig.hips.position.clone();
     mixer = new THREE.AnimationMixer(model);
@@ -331,8 +334,17 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
     setWorldQuat(rig.Left.hand, handFrame('Left', fDir, pDir, _q));
   }
 
+  // Internal hook for finishers.js (cinematic melee kills): direct access to the rig while `controlled` is on.
+  const puppet = {
+    get rig() { return rig; }, get template() { return template; }, root, pivot, gunSlot, tag,
+    setControlled(on) {
+      controlled = !!on;
+      if (!controlled) { pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); gunSlot.visible = true; tag.visible = !dead; act = null; }
+    },
+  };
   return {
     object3D: root,
+    _puppet: puppet,
     setState(s) { Object.assign(st, s); if (s.weaponId) setGun(s.weaponId); },
     // Third-person melee (rifle butt-stroke, ~0.45 s) and overhand frag throw (~0.7 s, grenade leaves the hand at 55 %).
     melee(durationSec = 0.45) { if (!dead) { act = 'melee'; actT = 0; actDur = Math.max(0.2, durationSec); if (nade) nade.group.visible = false; } },
@@ -349,6 +361,7 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
       dead = true; deathT = 0; deathRoll = (Math.random() - 0.5) * 0.7; tag.visible = false; flash.visible = false;
     },
     reset() {
+      controlled = false; gunSlot.visible = true; gunSlot.position.set(0, 0, 0);
       dead = false; deathT = 0; tag.visible = true;
       pivot.rotation.set(0, 0, 0); pivot.position.set(0, 0, 0);
       gunSlot.rotation.set(0, 0, 0);
@@ -361,7 +374,7 @@ export function createCharacter({ color = 0xcc3333, name = '' } = {}) {
       pitch = damp(pitch, THREE.MathUtils.clamp(st.aimPitch || 0, -1.4, 1.4), 14, dt);
       airT = damp(airT, st.grounded === false ? 1 : 0, 8, dt);
       if (act) { actT += dt; if (actT >= actDur || dead) { act = null; if (nade) nade.group.visible = false; } }
-      if (!rig) return;
+      if (!rig || controlled) return;
 
       // locomotion blend
       const sp = dead ? 0 : Math.abs(st.speed || 0);

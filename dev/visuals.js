@@ -1,4 +1,5 @@
 // Visuals test page. URL params:
+//   view=finisher&id=<0-4|name>&ft=<sec> (fixed time; omit to loop)  orbit=1 (free camera, shows the camera path)
 //   view=vm|chars|fx|gun|melee|grenade|boom|crate   act=melee|nade|cook   dur=<s>   open=1 chute=0
 //   view=vm|chars|fx|gun   w=ar|smg|sniper|shotgun|pistol   ads=0..1   move=0..1  sprint=1  fire=1 (auto fire)
 //   reload=<sec>  pause=<sec> (freeze animation time after N seconds)  hud=0  cam=x,y,z,tx,ty,tz  look=<rad/s>
@@ -10,6 +11,7 @@ import { createEffects } from '../src/visuals/effects.js';
 import { skyEquirect } from '../src/visuals/textures.js';
 import { createGrenade } from '../src/visuals/grenade.js';
 import { createCarePackage } from '../src/visuals/carePackage.js';
+import { FINISHERS, createFinisher } from '../src/visuals/finishers.js';
 import { createTargetingLaptop, createStrikeJet, createBomb } from '../src/visuals/airstrike.js';
 import { createHelicopter, createRocket, setHeliFxClock } from '../src/visuals/helicopter.js';
 
@@ -124,6 +126,23 @@ if (view === 'crate') {
   window.dbg.crates = [a, b];
   camera.position.set(0.3, 1.7, 0.6); camera.lookAt(0.6, 2.2, -6);
 }
+let fin = null; const camOut = { pos: new THREE.Vector3(), target: new THREE.Vector3(), fov: 50 };
+if (view === 'finisher') {
+  for (const m of targets) if (m !== ground) m.visible = false;
+  ground.material.color.set(0x55653f);
+  const att = createCharacter({ color: 0x2f7fd4, name: 'Attacker' }), vic = createCharacter({ color: 0xd43a2f, name: 'Victim' });
+  att.object3D.position.set(0.3, 0, 1.7); scene.add(att.object3D, vic.object3D);
+  for (const c of [att, vic]) { const state = { speed: 0, crouching: false, aimPitch: 0, weaponId: 'ar', grounded: true, sprinting: false }; c.setState(state); chars.push({ c, state, name: 'fin' }); }
+  charactersReady.then(() => {
+    const raw = Q.get('id') ?? '0';
+    fin = createFinisher({ id: isNaN(+raw) ? raw : +raw, attacker: att, victim: vic });
+    fin.setOrigin(new THREE.Vector3(0, 0, 0), num('oyaw', 0));
+    const pts = []; for (let x = 0; x <= fin.duration; x += 0.05) pts.push(fin.camera(x).pos.clone());
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffd040 })));
+    window.dbg.fin = fin; window.dbg.FINISHERS = FINISHERS; window.dbg.finChars = [att, vic];
+  });
+  camera.position.set(4, 2.2, 3); camera.lookAt(0, 1, 0);
+}
 let laptop = null, strikeJets = null;
 if (view === 'airstrike') {
   for (const m of targets) if (m !== ground) m.visible = false;
@@ -233,6 +252,11 @@ function tick(dt) {
     if (view === 'crate' && Q.get('open') === '1') extras[0].open();
   }
   t += dt;
+  if (fin) {
+    const ft = Q.has('ft') ? num('ft', 0) : t % (fin.duration + 0.8);
+    fin.update(Math.min(ft, fin.duration));
+    if (Q.get('orbit') !== '1' && !Q.has('cam')) { const c = fin.camera(ft, camOut); camera.position.copy(c.pos); camera.lookAt(c.target); camera.fov = c.fov; camera.updateProjectionMatrix(); }
+  }
   if (strikeJets) for (const j of strikeJets) { j.object3D.position.set(j.off[0], 26 + j.off[1], 160 - t * 130 + j.off[2]); }
   if (laptop) { laptop.update(dt); vm.object3D.visible = false; }
   if (heliRocket) {   // loop a rocket from the hovering heli's right pod out across the field

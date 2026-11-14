@@ -269,3 +269,16 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   either way). AI bots can find the parked helicopter (~30 m + line of sight, Easy/Normal/Hard 25/50/80%) and fly it
   (`src/game/bots/botPilot.js`, same flight model and host rules as a human pilot); on-foot bots hear / see an enemy
   helicopter and shoot its hull (`BotManager.botShotHeli` -> `HeliRules.bulletHit`), frag it when low, and take cover.
+- (Visuals, round 10) **`src/visuals/finishers.js`**: cinematic melee finishers.
+  - `FINISHERS = [{ id, name, duration, clearance, heightClear }]` (5 scenes: backstab, flipkick, throw, backhand, knee). `clearance` = free radius (m)
+    around the victim the scene needs (attacker approach + landing included), `heightClear` = free height (m). None needs a wall or prop; there is no
+    wall-based variant. Most compact: `backstab` (2.2 m / 2.2 m).
+  - `createFinisher({ id /* id string or index */, attacker, victim }) -> { id, name, duration, events, cameraRadius, clearance, heightClear, attackerEnd,
+    setOrigin(position, yaw), update(t), camera(t, out?), bonePosition(bone, out?, who = 'victim'), finish(), finished }`.
+    `setOrigin`: position = victim's feet, yaw = victim's facing (`object3D.rotation.y` convention); the attacker starts 1.3-2.5 m behind the victim.
+    `update(t)` poses both (t in seconds, blends in over 0.12 s) and moves both characters' `object3D` itself: do not move them meanwhile
+    (`character.update(dt)` may still be called; it idles while puppeteered). `camera(t)` returns world-space `{ pos, target, fov }`; the path stays
+    within `cameraRadius` (horizontal, m) of the origin, so raycast-clamp from `target` toward `pos`. `events` = `[{ t, type: 'whoosh'|'impact'|'blood'|'thud', bone }]`
+    (bone = victim Mixamo bone name without prefix; `bonePosition(bone)` gives its world position). `finish()` returns the attacker to normal
+    animation standing at `attackerEnd { position, yaw }` (move the player there) and leaves the victim lying, frozen, until `victim.reset()`.
+  - Guns are hidden and the attacker shows a combat knife during the scene; name tags are hidden until finish()/reset().

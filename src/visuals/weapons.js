@@ -99,7 +99,7 @@ function evalKeys(keys, p, pos, rot) {
 
 // Combat knife in the off-hand frame: handle across the palm (x axis), blade out of the thumb side.
 let knifeRes = null;
-function buildKnife() {
+export function buildKnife() {
   if (!knifeRes) {
     const blade = new THREE.Shape([[0.062, -0.015], [0.165, -0.017], [0.2, -0.008], [0.222, 0.006], [0.19, 0.0125], [0.062, 0.0125]].map(([x, y]) => new THREE.Vector2(x, y)));
     const bg = new THREE.ExtrudeGeometry(blade, { depth: 0.0012, bevelEnabled: true, bevelThickness: 0.0011, bevelSize: 0.004, bevelOffset: -0.004, bevelSegments: 1 });
