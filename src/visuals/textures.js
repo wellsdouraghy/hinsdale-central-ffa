@@ -341,3 +341,20 @@ export function nameTagTexture(name, colorHex) {
   const t = tex(c, { srgb: true, repeat: false });
   return t;
 }
+
+// Ally marker: green chevron above a green-edged name plate (viewer-relative "friend" tag).
+export function allyTagTexture(name) {
+  const c = canvas(512, 224), ctx = c.getContext('2d');
+  const G = '#35f07a';
+  ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 8;
+  ctx.fillStyle = G; ctx.beginPath(); ctx.moveTo(256, 92); ctx.lineTo(214, 34); ctx.lineTo(256, 50); ctx.lineTo(298, 34); ctx.closePath(); ctx.fill();     // chevron
+  ctx.shadowBlur = 0;
+  ctx.font = '700 56px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  const text = (name || 'Ally').slice(0, 16), tw = Math.min(430, ctx.measureText(text).width), pw = tw + 56, x0 = (512 - pw) / 2;
+  ctx.fillStyle = 'rgba(6,22,12,0.66)'; ctx.beginPath(); ctx.roundRect(x0, 116, pw, 84, 14); ctx.fill();
+  ctx.strokeStyle = G; ctx.lineWidth = 4; ctx.beginPath(); ctx.roundRect(x0, 116, pw, 84, 14); ctx.stroke();
+  ctx.fillStyle = '#d9ffe6'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 6;
+  ctx.fillText(text, 256, 160, 430);
+  return tex(c, { srgb: true, repeat: false });
+}

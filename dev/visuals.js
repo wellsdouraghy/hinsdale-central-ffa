@@ -95,6 +95,8 @@ if (view === 'chars') {
     const state = { speed: 0, crouching: false, aimPitch: 0, weaponId: 'ar', grounded: true, sprinting: false, ...s };
     c.setState(state);
     if (name === 'Dead') charactersReady.then(() => c.die());
+    if (Q.has('look')) c.setLook?.(Q.get('look'));
+    if (Q.get('rel') === '1') c.setRelation?.(i < 3 ? 'ally' : i < 6 ? 'enemy' : 'neutral');   // viewer-relative highlight test
     chars.push({ c, state, name });
   });
   camera.position.set(0, 1.5, 1.2); camera.lookAt(0, 0.95, -4);

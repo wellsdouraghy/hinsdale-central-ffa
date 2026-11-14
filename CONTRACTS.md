@@ -290,3 +290,10 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   interpolation for them, fire the events (positional audio + blood), and the attacker / victim cameras follow
   `finisher.camera()` raycast-clamped to world geometry. The attacker is locked but vulnerable (killed = scene cancelled);
   bots melee at point-blank range and freeze while playing their finisher.
+- (Visuals, round 12) Viewer-relative friend highlight on `createCharacter`:
+  - `setRelation('ally' | 'enemy' | 'neutral' | null)`. **ally**: green fresnel rim on the body and outfit gear, green chevron + name tag above the head
+    that stays a constant-ish screen size to ~70 m and also shows dimmed through walls, outfit accent parts (bands, patches, stripes) turn green.
+    **enemy**: no rim, no marker, no name tag at all; accent parts go neutral grey (nothing glows). **neutral** / `null` (default, also lobby/menu
+    previews): team-colour accents and the plain name tag as before. Changing relation re-applies the look (cheap, but do it on change, not per frame).
+  - `setTagVisible(bool)`: shows/hides the ally marker or neutral tag; a harmless no-op for enemies. `relation` getter.
+  - The rim costs nothing extra per frame (one uniform per character via onBeforeCompile; `applyLook(root, id, { teamColor, rim })` takes the shared Vector4).

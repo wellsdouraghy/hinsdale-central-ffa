@@ -251,6 +251,8 @@ const FRAG_BUMP = /* glsl */`
   normal = normalize(abs(det) * normal - 0.0012 * lkBump * grad);
 }
 `;
+// Fresnel rim (viewer-relative ally highlight, see character.setRelation): uLkRim = rgb colour, a = strength (0 = off).
+export const RIM_GLSL = 'totalEmissiveRadiance += uLkRim.rgb * uLkRim.a * pow(1.0 - clamp(abs(dot(normalize(normal), normalize(vViewPosition))), 0.0, 1.0), 2.8);';
 function patch(mat, uniforms, gear) {
   mat.defines = { ...(mat.defines || {}) };
   if (gear) mat.defines.LK_GEAR = 1;
@@ -258,15 +260,15 @@ function patch(mat, uniforms, gear) {
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + VERT_DECL).replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_MAIN);
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\n' + FRAG_DECL)
+      .replace('#include <common>', '#include <common>\nuniform vec4 uLkRim;\n' + FRAG_DECL)
       .replace('#include <map_fragment>', gear ? '#include <map_fragment>\n' + FRAG_MAP : FRAG_MAP)
       .replace('#include <color_fragment>', gear ? FRAG_MAP_GEAR_ORDER : '#include <color_fragment>')
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = lkRough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nmetalnessFactor = lkMetal;')
       .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n' + FRAG_BUMP)
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * lkGlow;');
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * lkGlow;\n' + RIM_GLSL);
   };
-  mat.customProgramCacheKey = () => (gear ? 'lookGear2' : 'lookBody2');
+  mat.customProgramCacheKey = () => (gear ? 'lookGear3' : 'lookBody3');
   return mat;
 }
 // gear: vertex colour first (color_fragment), then camo/weave on top of it
@@ -364,7 +366,7 @@ export function __registerLook(id, def) { LOOK_BUILDERS[id] = def; }
 
 // ---- public API ----------------------------------------------------------------------------------------------------------------
 const gearGeoCache = new Map();
-export function applyLook(root, lookId, { teamColor = 0xe0242c, debug = 0 } = {}) {
+export function applyLook(root, lookId, { teamColor = 0xe0242c, debug = 0, rim = null } = {}) {
   const def = LOOK_BUILDERS[lookId];
   let body = null, visor = null;
   root.traverse((o) => { if (o.isSkinnedMesh && !o.userData.lookGear) { if (/visor/i.test(o.name)) visor = o; else if (!body || o.geometry.attributes.position.count > body.geometry.attributes.position.count) body = o; } });
@@ -379,7 +381,7 @@ export function applyLook(root, lookId, { teamColor = 0xe0242c, debug = 0 } = {}
   if (!def) { body.material = body.userData.lookOrigMaterial; if (visor) { visor.material = visor.userData.lookOrigMaterial; visor.visible = true; } return null; }
   const src = body.userData.lookOrigMaterial;
   const camo = CAMO[def.camo || 'plain']();
-  const common = { uLkToA: { value: an.toA }, uLkCamo: { value: camo }, uLkWeave: { value: weaveTex() }, uLkCamoScale: { value: def.camoScale || 1.7 }, uLkCamoTint: { value: new THREE.Color().setScalar(def.camoGain || 1) } };
+  const common = { uLkToA: { value: an.toA }, uLkCamo: { value: camo }, uLkWeave: { value: weaveTex() }, uLkCamoScale: { value: def.camoScale || 1.7 }, uLkCamoTint: { value: new THREE.Color().setScalar(def.camoGain || 1) }, uLkRim: { value: rim || new THREE.Vector4(0, 0, 0, 0) } };
   const [palA, palB] = buildPalette(def.palette, team);
   const mat = patch(new THREE.MeshStandardMaterial({ map: src.map, normalMap: src.normalMap, normalScale: new THREE.Vector2(def.normalScale ?? 1, def.normalScale ?? 1), roughness: 1, metalness: 1, envMapIntensity: src.envMapIntensity }),
     { ...common, uLkPalA: { value: palA }, uLkPalB: { value: palB }, uLkHide: { value: def.hide ?? -1 }, uLkCut: { value: def.collarCut ?? 99 }, uLkDebug: { value: debug } }, false);

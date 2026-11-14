@@ -7,7 +7,7 @@ import { buildGun } from './guns.js';
 import { buildGrenadeModel } from './grenade.js';
 import { ASSET_BASE } from './hands.js';
 import * as T from './textures.js';
-import { applyLook } from './characterLooks.js';
+import { applyLook, RIM_GLSL } from './characterLooks.js';
 
 const B = (n) => 'mixamorig:' + n;
 const sat = (x) => Math.min(1, Math.max(0, x));
@@ -131,14 +131,38 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
   // name tag
   const tagTex = T.nameTagTexture(name, color);
   const tagMat = new THREE.SpriteMaterial({ map: tagTex, transparent: true, depthWrite: false, toneMapped: false, fog: false });
-  const tag = new THREE.Sprite(tagMat);
-  tag.position.y = 2.08; tag.scale.set(0.84, 0.21, 1); tag.renderOrder = 20;
-  tag.onBeforeRender = (r, s, cam) => {
-    const d = _v1.setFromMatrixPosition(tag.matrixWorld).distanceTo(_v2.setFromMatrixPosition(cam.matrixWorld));
+  const tagSprite = new THREE.Sprite(tagMat);
+  tagSprite.scale.set(0.84, 0.21, 1); tagSprite.renderOrder = 20;
+  tagSprite.onBeforeRender = (r, s, cam) => {
+    const d = _v1.setFromMatrixPosition(tagSprite.matrixWorld).distanceTo(_v2.setFromMatrixPosition(cam.matrixWorld));
     tagMat.opacity = 1 - seg(d, 45, 80);
     const k = THREE.MathUtils.clamp(d / 9, 1, 4.5);                 // keep it legible at range
-    tag.scale.set(0.84 * k, 0.21 * k, 1);
+    tagSprite.scale.set(0.84 * k, 0.21 * k, 1);
   };
+  const tag = new THREE.Group(); tag.position.y = 2.08; tag.add(tagSprite);       // die()/reset()/finishers toggle this group
+  // Viewer-relative relation (setRelation): allies get a green chevron + name that also shows, dimmed, through walls
+  // (one depth-tested sprite at full strength + one without depth test at low opacity), and a green fresnel rim.
+  const rim = new THREE.Vector4(0.12, 1.0, 0.38, 0);                 // rgb + strength, shared by this character's materials
+  let relation = null, tagShown = true, allyTex = null, allyFront = null, allyGhost = null;
+  const ALLY = 0x22e05a, ENEMY_ACCENT = 0x56595c;
+  const accentColor = () => (relation === 'ally' ? ALLY : relation === 'enemy' ? ENEMY_ACCENT : color);
+  function refreshRelation() {
+    const ally = relation === 'ally';
+    rim.w = ally ? 1.25 : 0;
+    tagSprite.visible = relation !== 'ally' && relation !== 'enemy' && tagShown;     // enemies: no tag at all
+    if (ally && !allyFront) {
+      allyTex = T.allyTagTexture(name);
+      const mk = (depthTest, opacity, order) => { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: allyTex, transparent: true, opacity, depthTest, depthWrite: false, toneMapped: false, fog: false })); sp.center.set(0.5, 0.28); sp.renderOrder = order; tag.add(sp); return sp; };
+      allyGhost = mk(false, 0.42, 998); allyFront = mk(true, 1, 999);
+      allyFront.onBeforeRender = (r, s, cam) => {
+        const d = _v1.setFromMatrixPosition(allyFront.matrixWorld).distanceTo(_v2.setFromMatrixPosition(cam.matrixWorld));
+        const k = THREE.MathUtils.clamp(d / 8, 1, 9);                // constant-ish screen size out to ~70 m
+        allyFront.scale.set(0.9 * k, 0.394 * k, 1); allyGhost.scale.copy(allyFront.scale);
+      };
+      allyFront.scale.set(0.9, 0.394, 1); allyGhost.scale.copy(allyFront.scale);
+    }
+    if (allyFront) allyFront.visible = allyGhost.visible = ally && tagShown;
+  }
   root.add(tag);
 
   const accent = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0, emissive: color, emissiveIntensity: 0.22, side: THREE.DoubleSide });
@@ -185,7 +209,14 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
     model.rotation.y = template.yawFix;
     model.scale.setScalar(template.scale);
     pivot.add(model);
-    if (lookId) applyLook(model, lookId, { teamColor: color });
+    // per-character copies of the base materials so the ally rim can be switched without touching other players
+    model.traverse((o) => {
+      if (!o.isSkinnedMesh) return;
+      o.material = o.material.clone();
+      o.material.onBeforeCompile = (sh) => { sh.uniforms.uLkRim = { value: rim }; sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec4 uLkRim;').replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + RIM_GLSL); };
+      o.material.customProgramCacheKey = () => 'charRim1';
+    });
+    if (lookId) applyLook(model, lookId, { teamColor: accentColor(), rim });
     const g = (n) => model.getObjectByName(B(n)) || model.getObjectByName('mixamorig' + n);
     rig = { model, hips: g('Hips'), spine: [g('Spine'), g('Spine1'), g('Spine2')], neck: g('Neck'), head: g('Head') };
     for (const s of ['Left', 'Right']) {
@@ -350,7 +381,20 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
     _puppet: puppet,
     setState(s) { Object.assign(st, s); if (s.weaponId) setGun(s.weaponId); },
     /** Outfit (see characterLooks.js LOOKS ids); applied now if the model is loaded, else when it loads. */
-    setLook(id) { if (id === lookId) return; lookId = id; if (rig?.model) applyLook(rig.model, id, { teamColor: color }); },
+    setLook(id) { if (id === lookId) return; lookId = id; if (rig?.model) applyLook(rig.model, id, { teamColor: accentColor(), rim }); },
+    // Viewer-relative relation: 'ally' (green rim, green chevron + name visible through walls, green outfit accents),
+    // 'enemy' (no highlight, no tag or marker at all, neutral grey accents) or 'neutral' / null (team colours + plain tag).
+    setRelation(rel) {
+      rel = rel === 'ally' || rel === 'enemy' ? rel : rel === 'neutral' ? 'neutral' : null;
+      if (rel === relation) return;
+      relation = rel; refreshRelation();
+      const c = accentColor();
+      accent.color.set(c); accent.emissive.set(c); accent.emissiveIntensity = relation === 'enemy' ? 0 : relation === 'ally' ? 0.5 : 0.22;
+      if (rig?.model && lookId) applyLook(rig.model, lookId, { teamColor: c, rim });
+    },
+    get relation() { return relation; },
+    // Show/hide the name tag (ally marker or neutral tag). Enemies never show one, so this is a no-op for them.
+    setTagVisible(on) { tagShown = !!on; refreshRelation(); },
     // Third-person melee (rifle butt-stroke, ~0.45 s) and overhand frag throw (~0.7 s, grenade leaves the hand at 55 %).
     melee(durationSec = 0.45) { if (!dead) { act = 'melee'; actT = 0; actDur = Math.max(0.2, durationSec); if (nade) nade.group.visible = false; } },
     throwGrenade(durationSec = 0.7) { if (!dead) { act = 'nade'; actT = 0; actDur = Math.max(0.3, durationSec); } },
@@ -416,6 +460,7 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       root.removeFromParent();
       mixer?.stopAllAction();
       tagTex.dispose(); tagMat.dispose(); accent.dispose(); flashMat.dispose();
+      allyTex?.dispose(); allyFront?.material.dispose(); allyGhost?.material.dispose();
       rig?.model.traverse((o) => { if (o.isSkinnedMesh) o.skeleton.dispose(); });
     },
   };
