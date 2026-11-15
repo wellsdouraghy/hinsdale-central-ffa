@@ -200,7 +200,7 @@ export class Game {
       case 'shot': this._remoteShot(m); break;
       case 'melee': {
         const r = this.remotes.get(m.id);
-        if (r) { this.audio.melee(r.eye(_v1)); r.character.melee?.(); }
+        if (r) { this.audio.melee(r.eye(_v1)); if (m.hit) this.audio.meleeHit?.(r.eye(_v1)); r.character.melee?.(); }
         break;
       }
       case 'nade': this.throwables.onRemoteThrow(m); break;
@@ -852,6 +852,7 @@ export class Game {
       this.effects.blood(best.point, best.dir);
       this.hud.hitmarker('hit');
       this.audio.hitmarker('hit');
+      this.audio.meleeHit?.(null);
       this.hitStop = 0.08;
       this.meleeShake = 1.6;
     }

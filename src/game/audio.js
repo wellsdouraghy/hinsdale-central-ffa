@@ -35,6 +35,8 @@ const MIX = {
   jingle: 0.35,
   kit: 0.75,            // dash / double jump / mantle / melee swing
   grapple: 0.8,
+  finisher: 1.0,       // melee finishers (x FIN per type): quiet, below hitmarkers / kill confirm
+  melee: 1.0,          // regular melee swing + hit
   foot: 1.85,           // other players' footsteps (positional)
   footLocal: 0.35,     // 2D steps (heli cockpit thuds, mantle)
 };
@@ -48,6 +50,24 @@ const DIST = {
   foot:    { ref: 3, roll: 1.0, max: 44, air: 9 },
   near:    { ref: 4, roll: 1.15, max: 70, air: 14 },
   vehicle: { ref: 40, roll: 0.9, max: 2000, air: 120 },
+};
+
+// Melee finisher layers: level per type (x MIX.finisher, scaled by intensity). Kept deliberately quiet: every type
+// sits at or below the hitmarker / kill-confirm level (~-30 LUFS); the low hits (heavy, slam, sting) are felt more
+// than heard. `deep`: higher intensity also plays it a little slower (bigger, lower).
+const FIN = {
+  whoosh: { gain: 0.37 },
+  grab:   { gain: 0.3 },
+  impact: { gain: 0.48, deep: true },
+  heavy:  { gain: 0.42, deep: true },
+  crack:  { gain: 0.55 },
+  stab:   { gain: 0.44 },
+  slash:  { gain: 0.33 },
+  slam:   { gain: 0.42, deep: true },
+  land:   { gain: 0.35, deep: true },
+  gear:   { gain: 0.3 },
+  sting:  { gain: 0.24 },
+  exhale: { gain: 0.07 },
 };
 
 /** opts.mute (debug ?mute=1): everything is processed but nothing ever reaches the speakers. */
@@ -129,6 +149,7 @@ export function createAudio({ mute = false } = {}) {
     // Props / crashes (crate landing, heli crunch).
     buffers.clank = synthTone(sr, [[880, 0.5], [1390, 0.35], [2310, 0.2], [3650, 0.06]], 0.06, 0.8);
     buildGrapple(sr);
+    buildFinisher();
     buffers.boom = makeBuffer(sr, 2.6, (d, n) => {
       let l1 = 0, l2 = 0, ph = 0, c1 = 0, c2 = 0;
       const a = onePole(900, sr), a2 = onePole(260, sr), ac = onePole(5000, sr);
@@ -362,6 +383,178 @@ export function createAudio({ mute = false } = {}) {
           if (dt >= 0) v += g * Math.min(1, dt / 0.0006) * (a2 * 4 * Math.exp(-dt / 0.006) + Math.sin(2 * Math.PI * 210 * dt) * 0.3 * Math.exp(-dt / 0.012));
         }
         d[i] = v;
+      }
+    });
+  }
+
+  // ---------- melee finishers ----------
+  // All noise-based (filtered bursts, pitch-dropping lows): bodies thud, bones crackle, blades scrape. No sustained
+  // tones, little energy above ~5 kHz, short tails. Levels are kept low in MIX.finisher / FIN (quiet, controlled).
+  const N = () => Math.random() * 2 - 1;
+  /** Chamberlin state-variable filter (per-sample cutoff). run() updates .lp/.bp/.hp; bp peak gain ~= q. */
+  function SVF(sr) {
+    const o = { lp: 0, bp: 0, hp: 0, run(x, fc, q) {
+      const f = 2 * Math.sin((Math.PI * Math.min(fc, sr / 6)) / sr);
+      o.lp += f * o.bp; o.hp = x - o.lp - o.bp / q; o.bp += f * o.hp;
+      return o;
+    } };
+    return o;
+  }
+  const envAD = (t, a, d) => (t < 0 ? 0 : t < a ? t / a : Math.exp(-(t - a) / d));
+  /** Adds a band-passed noise burst into d (grains: crackle, cloth, gravel, gear clacks). */
+  function burst(d, sr, t0, decay, fc, q, amp, attack = 0.0003) {
+    const s = SVF(sr);
+    const i0 = Math.max(0, Math.floor(t0 * sr)), i1 = Math.min(d.length, i0 + Math.floor((attack + decay * 7) * sr));
+    for (let i = i0; i < i1; i++) d[i] += (s.run(N() * envAD((i - i0) / sr, attack, decay), fc, q).bp / q) * amp;
+  }
+  /** Low body: pitch-dropping sine (f0 -> f1) blended with low-passed noise so it reads as a thump, not a tone. */
+  function lowBody(d, sr, t0, f0, f1, fall, decay, amp, noiseFc = 260, noiseAmt = 0.6) {
+    const s = SVF(sr);
+    let ph = 0;
+    const i0 = Math.floor(t0 * sr), i1 = Math.min(d.length, i0 + Math.floor(decay * 7 * sr));
+    for (let i = i0; i < i1; i++) {
+      const t = (i - i0) / sr;
+      ph += (2 * Math.PI * (f1 + (f0 - f1) * Math.exp(-t / fall))) / sr;
+      const e = envAD(t, 0.0015, decay);
+      d[i] += (Math.sin(ph) * (1 - noiseAmt) + s.run(N(), noiseFc, 0.7).lp * 3.2 * noiseAmt) * e * amp;
+    }
+  }
+  function slapLayer(d, sr, t0, decay, amp) {   // skin slap: the short mid/high transient of a hit
+    const s = SVF(sr);
+    const i0 = Math.floor(t0 * sr), i1 = Math.min(d.length, i0 + Math.floor(decay * 8 * sr));
+    for (let i = i0; i < i1; i++) d[i] += s.run(N(), 2200, 0.6).bp * envAD((i - i0) / sr, 0.0003, decay) * amp;
+  }
+  function lowpass(d, sr, fc) { const a = onePole(fc, sr); let y1 = 0, y2 = 0; for (let i = 0; i < d.length; i++) { y1 += a * (d[i] - y1); y2 += a * (y1 - y2); d[i] = y2; } }
+  function soften(d, drive) { const k = Math.tanh(drive); for (let i = 0; i < d.length; i++) d[i] = Math.tanh(d[i] * drive) / k; }
+  /** Roughness for scrapes: a random value stepping every 1.5-4 ms, smoothed. */
+  function rough(sr) { let v = 0.6, tgt = 0.6, cnt = 0; return () => { if (--cnt <= 0) { tgt = 0.25 + Math.random() * 0.75; cnt = Math.floor(sr * (0.0015 + Math.random() * 0.0025)); } v += 0.02 * (tgt - v); return v; }; }
+  function fade(d, frac = 0.2) { const n = d.length, s = Math.floor(n * (1 - frac)); for (let i = s; i < n; i++) d[i] *= (n - i) / (n - s); }
+  const variants = (k, len, fn) => Array.from({ length: k }, () => makeBuffer(ctx.sampleRate, len, (d, n, sr) => { fn(d, n, sr); fade(d); }));
+
+  function buildFinisher() {
+    const R = Math.random;
+    // swing: band noise whose centre rises then falls with the limb's speed (cascaded, low Q: air, not whistle)
+    buffers.fin_whoosh = variants(4, 0.26, (d, n, sr) => {
+      const a = SVF(sr), b = SVF(sr), pk = 0.065 + R() * 0.03, f0 = 320 + R() * 120, f1 = 1300 + R() * 500;
+      for (let i = 0; i < n; i++) {
+        const t = i / sr, u = t < pk ? t / pk : Math.exp(-(t - pk) / 0.055);
+        const e = t < pk ? u * u : u;
+        const fc = f0 + (f1 - f0) * u;
+        d[i] = b.run(a.run(N(), fc, 0.8).bp, fc, 0.7).bp * e;
+      }
+    });
+    // grab: a cluster of cloth/strap rustle grains + a soft hand-on-body bump
+    buffers.fin_grab = variants(4, 0.24, (d, n, sr) => {
+      lowBody(d, sr, 0, 120, 80, 0.01, 0.018, 0.35, 400, 0.8);
+      const k = 9 + Math.floor(R() * 8);
+      for (let j = 0; j < k; j++) burst(d, sr, Math.pow(R(), 1.6) * 0.14, 0.004 + R() * 0.01, 900 + R() * 2200, 1.2, 0.5 + R() * 0.5, 0.002);
+      lowpass(d, sr, 5000);
+    });
+    // body hit: skin slap transient + low-passed-noise body + pitch-dropping knock + a damped "meat" band
+    buffers.fin_impact = variants(4, 0.3, (d, n, sr) => {
+      slapLayer(d, sr, 0, 0.0035, 1.3);
+      lowBody(d, sr, 0, 150 + R() * 25, 70, 0.018, 0.04, 0.6, 450, 0.65);
+      burst(d, sr, 0.001, 0.026, 430 + R() * 90, 1.6, 1.5, 0.001);
+      burst(d, sr, 0.001, 0.012, 950 + R() * 200, 1.2, 0.6, 0.0008);
+      soften(d, 1.6);
+    });
+    // big hit: deeper, longer knock with sub weight, smaller slap
+    buffers.fin_heavy = variants(4, 0.5, (d, n, sr) => {
+      slapLayer(d, sr, 0, 0.004, 0.7);
+      lowBody(d, sr, 0, 95 + R() * 15, 40, 0.035, 0.12, 0.8, 220, 0.55);
+      burst(d, sr, 0.001, 0.045, 320 + R() * 60, 1.4, 1.3, 0.0015);
+      burst(d, sr, 0.001, 0.015, 800 + R() * 200, 1.2, 0.4, 0.001);
+      soften(d, 1.8);
+    });
+    // bone snap: a few broadband micro-crackles inside ~25 ms (band-limited 0.7-4.5 kHz) over a dry low knock
+    buffers.fin_crack = variants(4, 0.16, (d, n, sr) => {
+      let t = 0;
+      const k = 4 + Math.floor(R() * 4);
+      for (let j = 0; j < k; j++) {
+        burst(d, sr, t, 0.0006 + R() * 0.0012, 1000 + R() * 1600, 0.9, j === 0 ? 1 : 0.35 + R() * 0.45, 0.0001);
+        t += 0.002 + R() * 0.006;
+      }
+      burst(d, sr, 0.0005, 0.014, 260 + R() * 60, 1.3, 0.55, 0.0008);
+      for (let j = 0; j < 5; j++) burst(d, sr, 0.02 + R() * 0.05, 0.002, 900 + R() * 1500, 1, 0.12);   // splinter crunch
+      lowpass(d, sr, 5200);   // dry, not fizzy
+      soften(d, 1.3);
+    });
+    // blade in: a short rough metallic scrape (wandering band, not a ring) then a thick wet thud
+    buffers.fin_stab = variants(4, 0.36, (d, n, sr) => {
+      const s = SVF(sr), w = SVF(sr), rg = rough(sr), rw = rough(sr), fs = 2300 + R() * 700;
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        const scrape = s.run(N(), fs * (1 - t * 2.5), 2.2).bp / 2.2 * rg() * envAD(t, 0.003, 0.026) * 1.9;
+        const tw = t - 0.032;
+        const wet = tw > 0 ? (w.run(N(), 650 + 250 * rw(), 2.5).bp / 2.5) * rw() * envAD(tw, 0.01, 0.06) * 2.2 : 0;
+        d[i] += scrape + wet;
+      }
+      lowBody(d, sr, 0.03, 120, 60, 0.02, 0.055, 0.55, 320, 0.6);
+      soften(d, 1.4);
+    });
+    // blade drag / pull-out: a longer falling scrape over a wet slide and a little air
+    buffers.fin_slash = variants(4, 0.36, (d, n, sr) => {
+      const s = SVF(sr), w = SVF(sr), a = SVF(sr), rg = rough(sr), rw = rough(sr), f0 = 2900 + R() * 500;
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        const e = envAD(t, 0.012, 0.075);
+        const scrape = (s.run(N(), f0 - 1300 * Math.min(1, t / 0.15), 2).bp / 2) * rg() * e;
+        const wet = (w.run(N(), 600 + 200 * rw(), 2.2).bp / 2.2) * rw() * envAD(t, 0.02, 0.08) * 1.2;
+        const air = (a.run(N(), 900, 1).bp) * envAD(t, 0.03, 0.05) * 0.5;
+        d[i] = scrape + wet + air;
+      }
+    });
+    // body slam: big low thump with sub, a mid thud and slap, then gear/dust scatter (surface-agnostic)
+    buffers.fin_slam = variants(4, 0.75, (d, n, sr) => {
+      slapLayer(d, sr, 0, 0.004, 0.5);
+      lowBody(d, sr, 0, 78 + R() * 10, 34, 0.05, 0.16, 0.85, 180, 0.5);
+      burst(d, sr, 0.002, 0.05, 320 + R() * 60, 1.2, 1.2, 0.002);
+      const k = 8 + Math.floor(R() * 7);
+      for (let j = 0; j < k; j++) burst(d, sr, 0.03 + Math.pow(R(), 1.5) * 0.28, 0.003 + R() * 0.005, 1000 + R() * 2000, 2, 0.12 + R() * 0.15);
+      const s = SVF(sr);
+      for (let i = 0; i < n; i++) d[i] += s.run(N(), 1800, 0.7).lp * envAD(i / sr, 0.02, 0.22) * 0.06;   // dust
+      soften(d, 1.5);
+    });
+    // stomp / landing: short sub knock + low body + a dull sole contact and a little grit
+    buffers.fin_land = variants(4, 0.3, (d, n, sr) => {
+      lowBody(d, sr, 0, 88 + R() * 10, 45, 0.02, 0.06, 1.0, 330, 0.55);
+      const s = SVF(sr);
+      for (let i = 0; i < n; i++) d[i] += s.run(N(), 1500, 0.7).lp * envAD(i / sr, 0.0005, 0.008) * 0.8;
+      for (let j = 0; j < 4; j++) burst(d, sr, R() * 0.04, 0.002, 1200 + R() * 1500, 1.5, 0.1);
+      soften(d, 1.3);
+    });
+    // gear rattle: plastic clacks (wide band, very short) and a few buckle taps (narrower, still < 15 ms)
+    buffers.fin_gear = variants(4, 0.45, (d, n, sr) => {
+      const k = 8 + Math.floor(R() * 7);
+      for (let j = 0; j < k; j++) {
+        const t0 = Math.pow(R(), 1.4) * 0.34, metal = R() < 0.3;
+        if (metal) burst(d, sr, t0, 0.004 + R() * 0.004, 2200 + R() * 1300, 6, 0.35 + R() * 0.25, 0.0002);
+        else burst(d, sr, t0, 0.0015 + R() * 0.003, 900 + R() * 1600, 1.5, 0.5 + R() * 0.5, 0.0002);
+      }
+      lowpass(d, sr, 5500);
+    });
+    // kill-blow sting: a slow sub drop + soft low thump + a muffled noise swell (felt more than heard)
+    buffers.fin_sting = variants(2, 1.5, (d, n, sr) => {
+      let ph = 0;
+      const s = SVF(sr), b = SVF(sr);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr;
+        ph += (2 * Math.PI * (30 + 34 * Math.exp(-t / 0.35))) / sr;
+        const sub = Math.sin(ph) * envAD(t, 0.012, 0.55);
+        const thump = b.run(N(), 120, 0.7).lp * 3 * envAD(t, 0.002, 0.09);
+        const sw = Math.sin(Math.PI * Math.min(1, t / 1.0));
+        const swell = s.run(N(), 220 + 700 * Math.sin(Math.PI * Math.min(1, t / 0.8)), 0.9).lp * sw * sw * Math.exp(-t / 0.7) * 0.5;
+        d[i] = sub + thump + swell;
+      }
+      soften(d, 1.2);
+    });
+    // exhale: a very quiet breath puff (two soft formant bands of noise, slow rise, slow fall)
+    buffers.fin_exhale = variants(2, 0.7, (d, n, sr) => {
+      const a = SVF(sr), b = SVF(sr);
+      for (let i = 0; i < n; i++) {
+        const t = i / sr, w = N();
+        const e = envAD(t, 0.09, 0.2) * (0.85 + 0.15 * Math.sin(t * 60));
+        d[i] = (a.run(w, 520, 1.4).bp / 1.4 + (b.run(w, 1350, 1.8).bp / 1.8) * 0.7) * e;
       }
     });
   }
@@ -672,7 +865,19 @@ export function createAudio({ mute = false } = {}) {
     hurt() { play('hurt', null, { gain: MIX.hurt, rate: jitter(0.9, 1.1) }); },
     dryFire() { play('dry', null, { gain: 0.65 }); },
     equip() { play('equip', null, { gain: 0.4 }); },
-    melee(pos = null) { play('swoosh', pos, { gain: MIX.kit * 0.65 }); },
+    /** Melee swing (yours: 2D; others: at their eye). */
+    melee(pos = null) { play('fin_whoosh', pos, { gain: MIX.melee * 0.4, rate: jitter(1.0, 1.1), dist: 'near' }); },
+    /** A melee hit landing (yours: 2D; others: positional). */
+    meleeHit(pos = null) { play('fin_impact', pos, { gain: MIX.melee * 0.3, rate: jitter(0.95, 1.05), dist: 'near' }); },
+    /** Finisher layer: type in FIN ('whoosh' | 'grab' | 'impact' | 'heavy' | 'crack' | 'stab' | 'slash' | 'slam' |
+     *  'land' | 'gear' | 'sting' | 'exhale'), pos: world position (null = 2D), intensity 0..1. */
+    finisher(type, pos = null, intensity = 1) {
+      const F = FIN[type];
+      if (!F) return;
+      const k = Math.max(0, Math.min(1, Number.isFinite(intensity) ? intensity : 1));
+      const rate = jitter(0.96, 1.04) * (F.deep ? 1.04 - 0.08 * k : 1);
+      play('fin_' + type, pos, { gain: MIX.finisher * F.gain * (0.55 + 0.45 * k) * jitter(0.92, 1.05), rate, dist: 'impact' });
+    },
     ui() { play('click', null, { gain: MIX.ui * 0.3 }); },
     /** Front-end menu sounds (quiet; silent with ?mute=1 like everything else). */
     uiHover() { play('tick', null, { gain: MIX.ui * 0.037, rate: 1.25 }); },
@@ -743,9 +948,9 @@ export function createAudio({ mute = false } = {}) {
       };
     },
     /** Melee finisher hits (positional). */
-    impact(pos = null) { play('boom', pos, { gain: 0.35, rate: 2.7, dist: 'impact' }); play('land_concrete', pos, { gain: 1.0, rate: 0.7, dist: 'impact' }); },
-    thud(pos = null) { play('boom', pos, { gain: 0.4, rate: 1.6, dist: 'impact' }); play('land_dirt', pos, { gain: 1.1, rate: 0.65, dist: 'impact' }); },
-    stab(pos = null) { play('swoosh', pos, { gain: 0.35, rate: 2.0, dist: 'near' }); play('click', pos, { gain: 0.45, rate: 0.45, dist: 'near', delay: 0.03 }); },
+    impact(pos = null) { this.finisher('impact', pos, 0.8); },
+    thud(pos = null) { this.finisher('slam', pos, 0.7); },
+    stab(pos = null) { this.finisher('stab', pos, 0.8); },
     crateLand(pos) { play('boom', pos, { gain: MIX.crate * 0.6, rate: 2.2, dist: 'impact' }); play('clank', pos, { gain: MIX.crate, dist: 'impact' }); },
     /** Looping positional sound (helicopter rotor). Returns { set(pos, gain, rate, local), stop() } or null. */
     loop(name) {
