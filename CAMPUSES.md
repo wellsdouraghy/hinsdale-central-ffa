@@ -47,7 +47,7 @@ export default {
   spawnCenter: [x, z],                       // optional: spawn sampling starts here (default: play-area centre)
   navSeed: [x, z],                           // optional: bot nav-grid seed (default: ctf.red)
   short, blurb, emblem, letters { red, blue }, thumb   // title badge, campus card line, logo SVG, varsity letters, card image
-  tour: [ { pos: [[x,y,z] x4], tgt: [[x,y,z] x4], label }, ... ],   // menu camera tour (see src/game/menuTour.js)
+  tour: [ { name, fov, pos: [[x,y,z] x4], tgt: [[x,y,z] x4] }, ... ],   // menu camera tour; name = caption
   loadWorld: () => import('./world.js'),
 };
 ```
