@@ -21,7 +21,7 @@ export function createLobbyUi(h) {
     diff: [...document.querySelectorAll('#lb-diff button')], limit: $('lb-limit'), unit: $('lb-limit-unit'), desc: $('lb-desc'),
     count: $('lb-count'), lists: $('lb-lists'), balance: $('lb-balance'), tip: $('lb-tip'),
     ready: $('lb-ready'), start: $('lb-start'), leave: $('lb-leave'), copy: $('lb-copy'), mic: $('lb-mic'),
-    cd: $('lb-countdown'), cdNum: $('lb-cd-num'),
+    cd: $('lb-countdown'), cdNum: $('lb-cd-num'), cdStatus: $('lb-cd-status'),
   };
   let ctx = { isHost: false, localId: 0 };
   let state = null;
@@ -169,11 +169,16 @@ export function createLobbyUi(h) {
     countdown(secs) {
       let s = secs;
       el.cd.classList.remove('hidden');
+      el.cdStatus.textContent = '';
       el.cdNum.textContent = s;
       clearInterval(cdTimer);
       cdTimer = setInterval(() => { s--; if (s <= 0) { clearInterval(cdTimer); el.cdNum.textContent = 'GO'; } else el.cdNum.textContent = s; }, 1000);
     },
     status(text) { el.status.textContent = text; },
+    /** Line under the countdown number (what the match start is waiting on after GO). */
+    countdownStatus(text) { el.cdStatus.textContent = text || ''; },
+    /** The start was cancelled or failed: close the countdown overlay. */
+    cancelCountdown() { clearInterval(cdTimer); el.cd.classList.add('hidden'); el.cdStatus.textContent = ''; },
     micLevel(v) { el.mic.style.width = Math.round(Math.min(1, v) * 100) + '%'; },
   };
 }

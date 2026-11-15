@@ -45,6 +45,7 @@ export async function createClientNet({ code, name, onStatus }) {
       case 'kicked': lost(msg.reason || 'Removed by the host.'); return;
       case 'lobby': net.lobby = msg.lobby; net.onLobby?.(msg.lobby); return;
       case 'countdown': net.onCountdown?.(msg.s); return;
+      case 'countdownCancel': net.onCountdownCancel?.(msg.reason); return;
       case 'matchStart': net.onMatchStart?.(msg); return;
       case 'toLobby': queue = null; net.onToLobby?.(); return;
       case 'notice': net.onNotice?.(msg.text); if (queue) queue.push(msg); return;
@@ -109,13 +110,16 @@ export async function createClientNet({ code, name, onStatus }) {
     campus: welcome.campus || welcome.lobby?.settings?.campus || null,   // the host's campus (fixed for the room)
     /** Mid-match join: the first message was already a match welcome (session created below, before queued data). */
     initialSession: null,
-    onLobby: null, onCountdown: null, onMatchStart: null, onToLobby: null, onDisconnect: null, onNotice: null,
+    onLobby: null, onCountdown: null, onCountdownCancel: null, onMatchStart: null, onToLobby: null, onDisconnect: null, onNotice: null,
     setReady(ready) { sendRaw({ t: 'lobbyReady', ready }); },
     setTeam(team) { sendRaw({ t: 'lobbyTeam', team }); },
     /** Ask the host for the running match's welcome and get a Game session. */
     joinMatch() {
       return new Promise((resolve) => {
-        pendingWelcome = (w) => resolve(makeSession(w));
+        // Re-ask every 3 s until the host answers (a lost message used to leave the client on "GO" forever).
+        let asks = 0;
+        const timer = setInterval(() => { if (pendingWelcome && ++asks <= 20) sendRaw({ t: 'joinMatch' }); else clearInterval(timer); }, 3000);
+        pendingWelcome = (w) => { clearInterval(timer); resolve(makeSession(w)); };
         sendRaw({ t: 'joinMatch' });
       });
     },

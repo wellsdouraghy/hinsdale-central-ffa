@@ -301,7 +301,20 @@ export async function createHostNet({ name, onStatus, settings }) {
     broadcast({ t: 'countdown', s: secs });
     net.onCountdown?.(secs);
     pushLobby();
-    setTimeout(() => { if (!closed && lobby.phase === 'countdown') net.onMatchStart?.(); }, secs * 1000);
+    // Worker-driven (a background tab's setTimeout can be delayed by up to a minute).
+    const fireAt = performance.now() + secs * 1000;
+    const stop = every(100, () => {
+      if (closed || lobby.phase !== 'countdown') { stop(); return; }
+      if (performance.now() >= fireAt) { stop(); net.onMatchStart?.(); }
+    });
+  };
+
+  /** The match failed to start: back to the lobby so Start works again (clients close their countdown). */
+  net.cancelCountdown = (reason = '') => {
+    if (lobby.phase !== 'countdown') return;
+    lobby.phase = 'lobby';
+    broadcast({ t: 'countdownCancel', reason });
+    pushLobby();
   };
 
   /** Creates the match authority with every lobby member; returns the host's Game session. */

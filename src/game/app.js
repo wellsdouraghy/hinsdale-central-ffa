@@ -53,7 +53,8 @@ let pad = null;
 const hud = createHud();
 const minimap = createMinimap(document.getElementById('minimap'));
 // Campus: ?campus= (testing / links) > last choice. Joiners switch to the host's campus when they connect.
-setActiveCampus(getCampus(params.get('campus') || settings.campus).id);
+// (?terrainTest=1: the terrain test campus, src/campuses/terraintest.js)
+setActiveCampus(getCampus(params.has('terrainTest') ? 'terraintest' : params.get('campus') || settings.campus).id);
 initBranding();
 
 const menus = createMenus({
@@ -233,14 +234,34 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
 function wireNet(n) {
   n.onLobby = (st) => lobbyUi.update(st);
   n.onCountdown = (s) => lobbyUi.countdown(s);
+  let matchStarting = false;
   n.onMatchStart = async () => {
-    lobbyUi.status('Loading campus for the match');
-    const wc = await worldReady((f, label) => lobbyUi.status(`Loading campus ${Math.round(f * 100)}% · ${label || ''}`));
-    if (net !== n) return;
-    const session = n.isHost ? n.startMatch(wc.world) : await n.joinMatch();
-    if (net !== n) return;
-    enterMatch(session, wc);
+    if (matchStarting) return;
+    matchStarting = true;
+    const say = (text) => { lobbyUi.status(text); lobbyUi.countdownStatus(text); };
+    try {
+      say('Loading campus');
+      const wc = await worldReady((f, label) => say(f >= 1 ? 'Starting match' : `Loading campus ${Math.round(f * 100)}%${label ? ' · ' + label : ''}`));
+      if (net !== n) return;
+      say(n.isHost ? 'Starting match' : 'Joining match');
+      const session = n.isHost ? n.startMatch(wc.world) : await n.joinMatch();
+      if (net !== n) return;
+      enterMatch(session, wc);
+    } catch (err) {
+      // Never leave everyone staring at "GO": report it, back to the lobby, Start works again.
+      console.error('[match start]', err);
+      lobbyUi.cancelCountdown();
+      const msg = 'Match failed to start: ' + (err?.message || err);
+      lobbyUi.status(msg + ' · press Start to try again');
+      menus.toast(msg, 6);
+      if (n.isHost) {
+        if (n.phase === 'match') n.backToLobby?.(); else n.cancelCountdown?.(String(err?.message || err));
+      }
+    } finally {
+      matchStarting = false;
+    }
   };
+  n.onCountdownCancel = (reason) => { lobbyUi.cancelCountdown(); lobbyUi.status('The host\'s match failed to start' + (reason ? ': ' + reason : '') + '. Waiting for the host.'); };
   n.onToLobby = () => backToLobby();
   n.onDisconnect = (reason) => leave(reason);
   n.onNotice = (t) => menus.toast(t);

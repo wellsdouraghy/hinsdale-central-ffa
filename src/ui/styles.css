@@ -489,6 +489,7 @@ h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: .14em; text-transform: up
 #lb-start { min-width: 200px; font-size: 17px; }
 .lb-countdown { position: fixed; inset: 0; z-index: 25; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(5,7,9,0.6); }
 .lbc-kicker { font-size: 13px; letter-spacing: .3em; text-transform: uppercase; color: var(--accent-2); }
+.lbc-status { margin-top: 10px; min-height: 18px; font-size: 14px; letter-spacing: .08em; color: var(--muted); }
 .lbc-num { font: 900 140px var(--font); color: #fff; text-shadow: 0 0 40px rgba(var(--accent-rgb),0.6); animation: lbcpop 1s ease-out infinite; }
 @keyframes lbcpop { 0% { transform: scale(1.35); opacity: 0.2; } 30% { transform: scale(1); opacity: 1; } 100% { opacity: 0.9; } }
 @media (max-width: 900px) { .lobby-main { grid-template-columns: 1fr; } .lp-lists.teams { grid-template-columns: 1fr; } }
