@@ -1,6 +1,28 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "game", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 5173 }
+    {
+      "name": "game",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "release",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "preview",
+        "--outDir",
+        "/private/tmp/claude-501/-Users-wellsdouraghy-Desktop-Hinsdale-Central/60f23a10-417e-4062-9e1c-7c0d766fdd1d/scratchpad/reldist",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
+      "port": 5180
+    }
   ]
 }
