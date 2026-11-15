@@ -48,7 +48,7 @@ function fosterHall(ctx) {
   const wing = rect(-14.9, -66.6, 13.2, 23.4);
   hipBuilding(ctx, wing, 6.2, 'maFoster', { rise: 2.0, overhang: 0.6, tint: CLAY_DARK, roofs: [boxFromRect(-14.9, -66.6, 13.2, 23.4)] });
   // dormers on the south and west roof slopes
-  { const p = gp(-18.0, -45.3, 0, 7.6); B.v('stucco', true).setColor(0.95, 0.83, 0.5).box(p[0], eave + 0.95, p[1], 3.0, 1.5, 3.4, ROT, 0.45); hipRoof(ctx, boxFromRect(p[0], p[1], 3.4, 3.8), eave + 1.7, 0.9, { overhang: 0.2, noCollision: true, caps: false, tint: CLAY_DARK }); const q = gp(-18.0, -45.3, 0, 9.32); B.v('glassInt').box(q[0], eave + 1.0, q[1], 2.2, 1.0, 0.04, ROT); }   // central dormer over the entrance
+  { const p = gp(-18.0, -45.3, 0, 7.6); B.v('stucco', true).setColor(0.95, 0.83, 0.5).box(p[0], eave + 0.95, p[1], 3.0, 1.5, 3.4, ROT, 0.45); hipRoof(ctx, boxFromRect(p[0], p[1], 3.4, 3.8), eave + 1.7, 0.9, { overhang: 0.2, noCollision: true, caps: false, tint: CLAY_DARK }); const q = gp(-18.0, -45.3, 0, 9.32); B.v('glassInt').box(q[0], eave + 1.0, q[1], 2.2, 1.0, 0.04, ROT); B.c('concrete').box(p[0], eave + 1.3, p[1], 3.2, 2.4, 3.6, ROT); }   // central dormer over the entrance
   B.v('stucco', true).setColor(1, 1, 1);
   // chimneys
   for (const [a, b] of [[-8.4, -4], [8.4, -4]]) { const p = gp(-18.0, -45.3, a, b); B.solidBox('brickRed', 'brick', p[0], eave + 2.2, p[1], 0.9, 3.4, 0.9, ROT, 0.5); B.v('concrete').box(p[0], eave + 3.95, p[1], 1.1, 0.12, 1.1, ROT); }
@@ -249,7 +249,7 @@ function performingArts(ctx, rings) {
   // Founders Hall: long two-storey white bar with a clay-tile mansard edge
   const f = flatBuilding(ctx, rings.founders, 8.6, 'maWhite', { units: 2 });
   const fr = f.ring; const sh = B.v('shingles', true); sh.setColor(...CLAY);
-  for (let i = 0; i < fr.length; i++) { const a = fr[i], b = fr[(i + 1) % fr.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.L < 1) continue; quadFacing(sh, F.P(-0.5, 7.5, 0.62), F.P(F.L + 0.5, 7.5, 0.62), F.P(F.L, 8.7, 0.1), F.P(0, 8.7, 0.1), [F.nx, 1, F.nz], [[0, 0], [F.L / 3, 0], [F.L / 3, 0.45], [0, 0.45]]); quadFacing(B.v('whitePanel'), F.P(-0.5, 7.5, 0.0), F.P(F.L + 0.5, 7.5, 0.0), F.P(F.L + 0.5, 7.5, 0.62), F.P(-0.5, 7.5, 0.62), [0, -1, 0]); }
+  for (let i = 0; i < fr.length; i++) { const a = fr[i], b = fr[(i + 1) % fr.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.L < 1) continue; quadFacing(sh, F.P(-0.5, 7.5, 0.62), F.P(F.L + 0.5, 7.5, 0.62), F.P(F.L, 8.7, 0.1), F.P(0, 8.7, 0.1), [F.nx, 1, F.nz], [[0, 0], [F.L / 3, 0], [F.L / 3, 0.45], [0, 0.45]]); quadFacing(B.v('whitePanel'), F.P(-0.5, 7.5, 0.0), F.P(F.L + 0.5, 7.5, 0.0), F.P(F.L + 0.5, 7.5, 0.62), F.P(-0.5, 7.5, 0.62), [0, -1, 0]); const mc = F.P(F.L / 2, 8.1, 0.31); B.c('concrete').box(mc[0], mc[1], mc[2], F.L + 1.0, 1.2, 0.62, F.rotY); }
   sh.setColor(1, 1, 1);
 }
 

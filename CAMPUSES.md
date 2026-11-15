@@ -44,6 +44,7 @@ export default {
   practiceHeli: { x, z, yaw },               // helicopter parking in practice
   heliPark: [[x, y, z], ...],                // hidden-heli candidates: y = 0 ground, y = deck height on flat roofs
   walkSeeds: [[x, z], ...],                  // optional: walkable flood-fill seeds (default: ctf bases, practiceHeli, ground heliPark)
+  spawnBounds: { minX, maxX, minZ, maxZ },  // optional: FFA spawn candidates limited to this box (default: whole play area)
   spawnCenter: [x, z],                       // optional: spawn sampling starts here (default: play-area centre)
   navSeed: [x, z],                           // optional: bot nav-grid seed (default: ctf.red)
   short, blurb, emblem, letters { red, blue }, thumb   // title badge, campus card line, logo SVG, varsity letters, card image

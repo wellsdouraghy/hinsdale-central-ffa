@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { BotBrain } from './botBrain.js';
 import { navFor } from './nav.js';
+import { perchesFor } from './perches.js';
 import { createHitscan } from '../hitscan.js';
 import { damageAt } from '../weapons.js';
 import { CLASS_IDS } from '../classes.js';
@@ -26,6 +27,8 @@ export class BotManager {
 
   get nav() { return this._nav || (this._nav = navFor(this.auth.world)); }
   get hitscan() { return this._hitscan || (this._hitscan = createHitscan(this.auth.world)); }
+  /** Roof / elevated perch map (built a slice per frame while bots are in the match). */
+  get perches() { return this._perches || (this._perches = perchesFor(this.auth.world, this.hitscan)); }
 
   /**
    * Adds bots (humans + bots <= the match cap) at the given difficulty. Team modes may give an explicit split
@@ -90,6 +93,7 @@ export class BotManager {
     if (!this.brains.size) return;
     const t = this.auth.time();
     const playing = this.auth.state === 'playing';
+    if (!this.perches.ready) this.perches.step(700);
     for (const b of this.brains.values()) if (b instanceof BotBrain && playing) b.update(Math.min(dt, 0.05), t);
     // 20 Hz movement state, same format as human clients send.
     this.stTimer += dt;
@@ -102,6 +106,8 @@ export class BotManager {
         t: 'st', id: b.p.id, l: b.p.life, ts: r3(t),
         p: [r2(c.position.x), r2(c.position.y), r2(c.position.z)], v: [r2(c.velocity.x), r2(c.velocity.y), r2(c.velocity.z)],
         yaw: r3(c.yaw), pitch: r3(c.pitch), c: c.crouching ? 1 : 0, s: c.sprinting ? 1 : 0, w: b.gun?.id || 'ar', g: c.grounded ? 1 : 0,
+        // Grapple anchor (same field humans send): every client draws the cable and plays the remote grapple sound.
+        ...(c.grapple ? { ga: [r2(c.grapple.anchor.x), r2(c.grapple.anchor.y), r2(c.grapple.anchor.z)] } : {}),
       });
     }
   }
@@ -159,7 +165,8 @@ export class BotManager {
     const auth = this.auth, st = gun.stats, p = brain.p;
     p.protectUntil = 0;
     const aim = new THREE.Vector3(0, 0, -1).applyEuler(new THREE.Euler(brain.ctrl.pitch, brain.ctrl.yaw, 0, 'YXZ'));
-    const spread = (st.spread.hip * 0.5 + st.spread.ads * 0.5) * DEG * brain.d.spreadMult + gun.bloom * DEG;
+    // Shooting while riding the grapple costs accuracy, as it does for humans (+1.5 deg).
+    const spread = (st.spread.hip * 0.5 + st.spread.ads * 0.5) * DEG * brain.d.spreadMult + gun.bloom * DEG + (brain.ctrl.grapple ? 1.5 * DEG : 0);
     const targets = [];
     for (const o of auth.players.values()) {
       if (!o.alive || !o.pos || o === p || o.inHeli) continue;

@@ -28,6 +28,8 @@ export default {
   ctf: { red: [104, -27], blue: [-141, 131] },
   practiceHeli: { x: 62, z: -22, yaw: -1.45 },
   spawnCenter: [-10, 20],
+  // free-for-all spawns stay on and around campus (needs computeSpawns to honour it; ignored otherwise)
+  spawnBounds: { minX: -150, maxX: 150, minZ: -150, maxZ: 170 },
   // Water features (visual only, see src/world/water.js). Aquatic centre: 25 yd x ~34 m competition pool on the street
   // grid (rotated 7.2 deg), fourteen 25 yd lanes running east-west, deep end to the south.
   water: [

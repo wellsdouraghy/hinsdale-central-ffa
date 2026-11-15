@@ -76,12 +76,12 @@ class Nav {
     return out.set(x, this.world.groundY ? this.world.groundY(x, z) : 0, z);
   }
 
-  /** Nearest walkable cell index to (x, z) (spiral search), or -1. */
-  nearest(x, z) {
+  /** Nearest walkable cell index to (x, z) (spiral search out to `maxR` cells), or -1. */
+  nearest(x, z, maxR = 12) {
     let i = this.idx(x, z);
     if (i >= 0 && this.walk[i]) return i;
     const ix0 = Math.floor((x - this.x0) / this.cell), iz0 = Math.floor((z - this.z0) / this.cell);
-    for (let r = 1; r < 12; r++) {
+    for (let r = 1; r < maxR; r++) {
       for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
         if (Math.abs(dx) !== r && Math.abs(dz) !== r) continue;
         const ix = ix0 + dx, iz = iz0 + dz;
@@ -100,7 +100,8 @@ class Nav {
 
   /** A* (8-connected, no corner cutting). Returns world-space waypoints (smoothed) or null. */
   findPath(from, to, maxExpand = 80000) {
-    const s = this.nearest(from.x, from.z), g = this.nearest(to.x, to.z);
+    // From a roof / an enclosed spot the nearest ground cell can be far: search wider for the start.
+    const s = this.nearest(from.x, from.z, 40), g = this.nearest(to.x, to.z);
     if (s < 0 || g < 0) return null;
     if (s === g) return [to.clone()];
     const nx = this.nx;

@@ -14,7 +14,8 @@ async function sha256(text) {
 
 /** Resolves once the visitor has entered the password (immediately if they already have on this browser). */
 export function passGate() {
-  if (remembered()) return Promise.resolve();
+  // Local dev server (npm run dev) only: no gate, so testing isn't blocked. Production builds always ask.
+  if (import.meta.env.DEV || remembered()) return Promise.resolve();
   return new Promise((resolve) => {
     const app = document.getElementById('app');
     app?.classList.add('hidden');

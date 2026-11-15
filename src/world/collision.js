@@ -107,12 +107,15 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
     }
   }
   ctx.walkGrid = { x0, z0, nx, nz, cell, state };
+  // optional campus spawn region (keeps FFA spawns near the action without shrinking the play area)
+  const sb = ctx.campus?.spawnBounds;
+  const inSpawnArea = (x, z) => !sb || (x >= sb.minX && x <= sb.maxX && z >= sb.minZ && z <= sb.maxZ);
   // candidates: reachable cells whose 5x5 neighbourhood is reachable too (some elbow room)
   const cands = [];
   for (let j = 2; j < nz - 2; j += 1) for (let i = 2; i < nx - 2; i += 1) {
     let ok = true;
     for (let b = -2; b <= 2 && ok; b++) for (let a = -2; a <= 2; a++) if (state[(j + b) * nx + i + a] !== 1) { ok = false; break; }
-    if (ok) { const c = P(i, j); if (clutterFree(ctx, c[0], c[1])) cands.push(c); }
+    if (ok) { const c = P(i, j); if (inSpawnArea(c[0], c[1]) && clutterFree(ctx, c[0], c[1])) cands.push(c); }
   }
   const spawns = [];
   if (cands.length) {

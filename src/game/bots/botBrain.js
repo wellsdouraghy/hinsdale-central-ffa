@@ -8,6 +8,7 @@ import { classOf } from '../classes.js';
 import { NADE } from '../grenades.js';
 import { otherTeam } from '../ctf.js';
 import { BotPilot } from './botPilot.js';
+import { BotMobility } from './botMobility.js';
 import { HELI } from '../heli.js';
 
 const DEG = Math.PI / 180;
@@ -48,6 +49,8 @@ export class BotBrain {
     this.pilot = null;                      // BotPilot while flying the helicopter
     this.heliRolls = new Set();             // heli generations this bot already rolled for
     this.heliGoal = false;                  // walking to a parked helicopter it found
+    this.seen = 0;                          // enemies in sight within 50 m (last think)
+    this.mob = new BotMobility(this);       // grapple / dash / double jump / roofs
   }
 
   get pos() { return this.ctrl.position; }
@@ -63,11 +66,14 @@ export class BotBrain {
     this.pilot = null; this.heliGoal = false;
     this.err.yaw = rand(-1, 1) * this.d.aimErr * DEG; this.err.pitch = rand(-1, 1) * this.d.aimErr * DEG;
     this.lastPos.copy(pos);
+    this.stuckCount = 0;
+    this.mob.onSpawn(this.auth.time());
   }
 
   onDamaged(attacker) {
     if (!attacker?.pos || attacker === this.p) return;
     if (attacker.inHeli) this.heliHurtT = this.auth.time();
+    this.mob.onHurt(this.auth.time());
     this.memory.set(attacker.id, { pos: new THREE.Vector3().fromArray(attacker.pos), t: this.auth.time() });
     if (!this.target) { this.goal = null; this.repathT = 0; }
   }
@@ -91,6 +97,7 @@ export class BotBrain {
     const eye = this.ctrl.getEye(_eye);
     // Perception.
     let best = null, bestD = Infinity, bestDist = Infinity;
+    let seen = 0;
     const fwdYaw = this.ctrl.yaw;
     for (const o of auth.players.values()) {
       if (!this._enemy(o) || !o.pos) continue;
@@ -108,6 +115,7 @@ export class BotBrain {
       const len = _v.length();
       if (this.mgr.hitscan.castWorld(eye, _v.normalize(), len - 0.3)) continue; // no wallhacks
       this.memory.set(o.id, { pos: new THREE.Vector3().fromArray(o.pos), t });
+      if (d < 50) seen++;
       // Stick with the current target (switching restarts the reaction delay); humans are slightly preferred.
       const score = d * (o === this.target ? 0.5 : 1) * (o.ai ? 1.15 : 1);
       if (score < bestD) { best = o; bestD = score; bestDist = d; }
@@ -123,8 +131,11 @@ export class BotBrain {
     }
     for (const [id, m] of this.memory) if (t - m.t > 10 || !auth.players.get(id)?.alive) this.memory.delete(id);
 
+    this.seen = seen;
     // Goal selection.
     this._chooseGoal(t);
+    // Movement kit: grapple / dash decisions, roof perch and descent.
+    this.mob.think(t);
 
     // Reload / weapon housekeeping.
     const bd = bestDist;
@@ -238,7 +249,10 @@ export class BotBrain {
     if (d > HELI.enterRange) return false;
     hr.handle(this.p, { t: 'heliEnter' });
     this.heliGoal = false;
-    if (h.pilot === this.p.id) { this.pilot = new BotPilot(this); this.path = null; return true; }
+    if (h.pilot === this.p.id) {
+      this.ctrl.grapple = null; this.mob.reset(this.auth.time());
+      this.pilot = new BotPilot(this); this.path = null; return true;
+    }
     return false;
   }
 
@@ -352,7 +366,7 @@ export class BotBrain {
   update(dt, t) {
     const p = this.p;
     if (!p.alive) return;
-    if (this.auth.finishers?.has(p.id)) return;   // playing a melee finisher: frozen (the host places us after it)
+    if (this.auth.finishers?.has(p.id)) { this.ctrl.grapple = null; return; }   // playing a melee finisher: frozen (the host places us after it)
     if (this.pilot) {
       if (this.pilot.update(dt, t)) return;
       this.pilot = null;
@@ -389,6 +403,11 @@ export class BotBrain {
         if (d < pref - 6) dir.addScaledVector(to, -0.8);
       }
     }
+    // Movement kit state (aiming / riding the grapple, fling air control, perched on a roof, walking off it).
+    const mv = this.mob.steer(dt, t, dir);
+    if (mv.sprint !== undefined) sprint = mv.sprint;
+    const kitBusy = this.mob.state !== 'idle' && this.mob.state !== 'descend';
+
     // Stuck handling: hop, sidestep, skip the waypoint, and eventually pick a new goal.
     this.stuckT += dt;
     if (this.unstuckT > 0) {
@@ -397,7 +416,7 @@ export class BotBrain {
     }
     if (this.stuckT > 0.9) {
       const moved = this.lastPos.distanceTo(this.pos);
-      const wantsMove = dir.lengthSq() > 0.1 && !this.visible;
+      const wantsMove = dir.lengthSq() > 0.1 && !this.visible && !kitBusy && !this.ctrl.grapple;
       if (wantsMove && moved < 0.7) {
         this.stuckCount = (this.stuckCount || 0) + 1;
         this.jump = true;
@@ -421,7 +440,10 @@ export class BotBrain {
 
     // Aim: desired view toward the target (with error), otherwise toward travel direction.
     let wantYaw = this.ctrl.yaw, wantPitch = 0;
-    if (this.target && (this.visible || t - this.lastSeenT < 1.5)) {
+    const aimTarget = this.target && (this.visible || t - this.lastSeenT < 1.5);
+    if (mv.look && (mv.lookForce || !aimTarget)) {
+      wantYaw = mv.look.yaw; wantPitch = mv.look.pitch;
+    } else if (aimTarget) {
       const eye = this.ctrl.getEye(_eye);
       const head = this._eyeOf(this.target, _tgt);
       head.y -= 0.35; // aim center mass
@@ -442,12 +464,15 @@ export class BotBrain {
     const sy = Math.sin(this.ctrl.yaw), cy = Math.cos(this.ctrl.yaw);
     const fwd = -dir.x * sy - dir.z * cy;
     const right = dir.x * cy - dir.z * sy;
-    const input = { forward: THREE.MathUtils.clamp(fwd, -1, 1), strafe: THREE.MathUtils.clamp(right, -1, 1), jump: this.jump, crouchToggle: false, sprint };
+    const input = { forward: THREE.MathUtils.clamp(fwd, -1, 1), strafe: THREE.MathUtils.clamp(right, -1, 1), jump: this.jump || mv.jump, crouchToggle: false, sprint };
     this.jump = false;
-    if (!!this.wantCrouch !== this.ctrl.crouching) input.crouchToggle = true;
+    // (No crouching while aiming / riding the grapple / in the air: it would block the mantle onto a ledge.)
+    const wantCrouch = !!this.wantCrouch && (!kitBusy || this.mob.state === 'perch') && !this.ctrl.grapple;
+    if (wantCrouch !== this.ctrl.crouching && !this.ctrl.sliding) input.crouchToggle = true;
     const cd = classOf(p.cls);
     const engaging = this.visible && !this.outOfRange;
     this.ctrl.update(dt, input, { ads: engaging ? 0.6 : 0, moveMult: this.gun.stats.moveMult * (cd.speedMult ?? 1), blockSprint: engaging });
+    this.mob.afterMove(t, this.ctrl.events);
     this.ctrl.events.length = 0;
     if (this.ctrl.position.y < -20) this.ctrl.teleport(this.mgr.nav.randomPoint(), this.ctrl.yaw);
 

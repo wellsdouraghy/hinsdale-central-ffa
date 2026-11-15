@@ -67,11 +67,12 @@ function field(ctx) {
     const b0 = -30, b1 = 3, bm = (b0 + b1) / 2, len = b1 - b0, rise = 0.28, topY = rise * 4; const conc = B.v('concrete'), col = B.c('concrete');
     for (let k = 0; k < 4; k++) {
       const aE = 31.0 - k * 1.2, aW = 19.6 + k * 0.6; const c = G((aE + aW) / 2, bm);
-      conc.box(c[0], (k + 0.5) * rise, c[1], aE - aW, rise, len, ROT, 1 / 3); col.box(c[0], (k + 0.5) * rise, c[1], aE - aW, rise, len, ROT);
+      conc.box(c[0], (k + 0.5) * rise, c[1], aE - aW, rise, len, ROT, 1 / 3); if (k === 3) col.box(c[0], topY / 2, c[1], aE - aW, topY, len, ROT);   // only the deck is a box: the steps are one smooth ramp (no riser to snag on)
       const nose = G(aE - 0.04, bm); B.v('limestone').box(nose[0], (k + 1) * rise + 0.006, nose[1], 0.1, 0.012, len, ROT, 1 / 3);
     }
     const q = (pts) => { const P3 = pts.map(([a, b, y]) => { const g = G(a, b); return [g[0], y, g[1]]; }); quadFacing(col, P3[0], P3[1], P3[2], P3[3], [0, 1, 0]); };
-    q([[31.35, b0, 0], [31.35, b1, 0], [27.1, b1, topY], [27.1, b0, topY]]); q([[19.3, b0, 0], [19.3, b1, 0], [21.6, b1, topY], [21.6, b0, topY]]);
+    q([[31.6, b0, 0], [31.6, b1, 0], [27.35, b1, topY], [27.35, b0, topY]]); q([[19.1, b0, 0], [19.1, b1, 0], [21.45, b1, topY], [21.45, b0, topY]]);
+    for (const b of [b0, b1]) for (const [a0, a1] of [[31.6, 27.35], [19.1, 21.45]]) { const A = G(a0, b), Bq = G(a1, b); col.tri([A[0], 0, A[1]], [Bq[0], 0, Bq[1]], [Bq[0], topY, Bq[1]]); col.tri([Bq[0], 0, Bq[1]], [A[0], 0, A[1]], [Bq[0], topY, Bq[1]]); }   // closed ends under the ramps
     for (const b of [-24, -13.5, -3]) { const p = G(24.3, b); B.v('wood').box(p[0], topY + 0.45, p[1], 0.5, 0.07, 4.2, ROT, 0.5); B.v('concrete').box(p[0], topY + 0.21, p[1], 0.36, 0.42, 3.8, ROT, 1 / 3); B.c('wood').box(p[0], topY + 0.24, p[1], 0.5, 0.48, 4.2, ROT); }
     for (const b of [b0, b1]) { const p = G(24.4, b); B.solidBox('limestone', 'concrete', p[0], topY + 0.3, p[1], 5.4, 0.6, 0.5, ROT, 1 / 3); ctx.shrubs.push([p[0], topY + 0.6, p[1], 4.6, 0.5, ROT]); }
   }
