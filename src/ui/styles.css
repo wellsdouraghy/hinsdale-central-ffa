@@ -698,3 +698,15 @@ details.fe-card[open] summary b { visibility: hidden; }
 
 #scoreboard td.lag { color: #ff4d55; font-weight: 800; }
 .keys .pad-head { grid-column: 1 / -1; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); letter-spacing: .08em; text-transform: uppercase; font-size: 11px; color: var(--gold); }
+
+/* ---------- password screen ---------- */
+.pw-gate { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, #161a20, #050607); }
+.pw-box { width: min(340px, calc(100vw - 32px)); padding: 28px 24px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-solid); display: flex; flex-direction: column; gap: 12px; }
+.pw-kicker { font-size: 11px; letter-spacing: .24em; text-transform: uppercase; color: var(--accent-2); font-weight: 700; }
+.pw-box h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: .04em; color: var(--text); }
+.pw-input { padding: 11px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text); font-size: 16px; outline: none; }
+.pw-input:focus { border-color: var(--accent); }
+.pw-box .btn { text-align: center; }
+.pw-err { margin: 0; min-height: 18px; font-size: 13px; color: var(--accent-2); }
+.pw-box.shake { animation: pwShake .35s; }
+@keyframes pwShake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
