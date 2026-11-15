@@ -57,6 +57,9 @@ after every map QA round. The contract itself is in CAMPUSES.md; this file is th
   the haze band must not be tone-mapped (or the horizon shows a hard line).
 - **Turf / fine detail shaders:** keep detail anisotropic and subtle; big octaves read as blotches.
 - **Shared prop kit (cars):** dangling shards under wheel arches/bumpers (open item).
+- **Stray wall decals / facade seams:** a small dark rectangle floating on a brick wall and a thin vertical seam
+  beside a downpipe (Hinsdale, user report: dev/shots/user-reports/hinsdale_wall_artifact.webp). Sweep walls at eye
+  level near doors, downpipes and vents for misplaced decals and z-fighting seams.
 
 **Performance**
 - Budget: medium quality holds 60 fps with ~1M triangles and ~300-500 draw calls. Chunking the merged static mesh
