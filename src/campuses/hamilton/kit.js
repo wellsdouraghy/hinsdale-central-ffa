@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { ensureCCW, signedArea, pointInRing, makeCanvas, canvasTexture, mulberry32 } from '../../world/util.js';
 import { edgeFrame, quadFacing, wallRect, fbox, facade, roofUnit, STYLES, BRICK_S } from '../../world/facade.js';
+import { polyRoofOf } from '../roofs.js';
 
 export const ANG = THREE.MathUtils.degToRad(18.5);      // the Castle Heights street grid is rotated 18.5 deg
 export const UX = Math.cos(ANG), UZ = Math.sin(ANG);     // grid "east" axis in world (x, z); grid "south" = (-UZ, UX)
@@ -179,21 +180,30 @@ export function hipRoof(ctx, boxOrRing, eaveY, rise, opts = {}) {
   const R0 = W(rA, vc, eaveY + rise), R1 = W(rB, vc, eaveY + rise); const sl = Math.hypot(hw, rise);
   const bucket = B.v(opts.bucket || 'shingles', true); const t = opts.tint || CLAY; if (bucket.setColor) bucket.setColor(t[0], t[1], t[2]);
   const col = opts.noCollision ? null : B.c('concrete'); const up = [0, 1, 0];
-  const q = (p0, p1, p2, p3, uv) => { quadFacing(bucket, p0, p1, p2, p3, up, uv); if (col) quadFacing(col, p0, p1, p2, p3, up); };
-  q(A, Bp, R1, R0, [[u0 * uvS, 0], [u1 * uvS, 0], [rB * uvS, sl * uvS], [rA * uvS, sl * uvS]]);
-  q(C, Dd, R0, R1, [[u1 * uvS, 0], [u0 * uvS, 0], [rA * uvS, sl * uvS], [rB * uvS, sl * uvS]]);
-  const tri = (bk, p0, p1, p2, w) => {
+  // opts.planeUV: texture coordinates from the face plane itself (along the eave in world metres, up the slope), so
+  // faces of two intersecting roofs that lie in one plane carry the same shingles and do not shimmer (polyRoof)
+  const puv = opts.planeUV ? (hx, hz) => (p) => [(p[2] * hx - p[0] * hz) * uvS, (p[1] - eaveY) * sl / rise * uvS] : null;
+  const q = (p0, p1, p2, p3, uv, f) => { quadFacing(bucket, p0, p1, p2, p3, up, f ? [f(p0), f(p1), f(p2), f(p3)] : uv); if (col) quadFacing(col, p0, p1, p2, p3, up); };
+  q(A, Bp, R1, R0, [[u0 * uvS, 0], [u1 * uvS, 0], [rB * uvS, sl * uvS], [rA * uvS, sl * uvS]], puv && puv(tz, -tx));
+  q(C, Dd, R0, R1, [[u1 * uvS, 0], [u0 * uvS, 0], [rA * uvS, sl * uvS], [rB * uvS, sl * uvS]], puv && puv(-tz, tx));
+  const tri = (bk, p0, p1, p2, w, f) => {
     const ux = p1[0] - p0[0], uz = p1[2] - p0[2], vx = p2[0] - p0[0], vz = p2[2] - p0[2]; const cy = uz * vx - ux * vz;
-    if (cy >= 0) bk.tri(p0, p1, p2, [0, 0], [w * uvS, 0], [w * uvS / 2, sl * uvS]); else bk.tri(p0, p2, p1, [0, 0], [w * uvS / 2, sl * uvS], [w * uvS, 0]);
+    const t0 = f ? f(p0) : [0, 0], t1 = f ? f(p1) : [w * uvS, 0], t2 = f ? f(p2) : [w * uvS / 2, sl * uvS];
+    if (cy >= 0) bk.tri(p0, p1, p2, t0, t1, t2); else bk.tri(p0, p2, p1, t0, t2, t1);
   };
-  if (!gable) { tri(bucket, Dd, A, R0, 2 * hw); tri(bucket, Bp, C, R1, 2 * hw); if (col) { tri(col, Dd, A, R0, 2 * hw); tri(col, Bp, C, R1, 2 * hw); } }
+  if (!gable) { tri(bucket, Dd, A, R0, 2 * hw, puv && puv(-tx, -tz)); tri(bucket, Bp, C, R1, 2 * hw, puv && puv(tx, tz)); if (col) { tri(col, Dd, A, R0, 2 * hw); tri(col, Bp, C, R1, 2 * hw); } }
   else {
     // gable end walls in the wall bucket
     const wb = B.v(opts.gableBucket || 'stucco', true); const gt = opts.gableTint || [1, 1, 1]; wb.setColor(gt[0], gt[1], gt[2]);
-    const g0 = W(u0 + ov, v0 + ov, eaveY), g1 = W(u0 + ov, v1 - ov, eaveY), g2 = W(u0 + ov, vc, eaveY + rise * (1 - ov / hw));
-    const h0 = W(u1 - ov, v0 + ov, eaveY), h1 = W(u1 - ov, v1 - ov, eaveY), h2 = W(u1 - ov, vc, eaveY + rise * (1 - ov / hw));
-    wb.tri(g0, g1, g2); wb.tri(g1, g0, g2); wb.tri(h0, h1, h2); wb.tri(h1, h0, h2); wb.setColor(1, 1, 1);
-    if (col) { col.tri(g0, g1, g2); col.tri(h0, h1, h2); }
+    // the wall fills the whole roof profile in the wall plane: at the wall line the slope is already rise * ov / hw
+    // above the eave, so the shape is a pentagon (a plain triangle from the eave corners leaves a slit under the rakes
+    // through which the attic, and the sky behind it, shows). Drawn with both windings; the same shape is solid.
+    const dy = rise * Math.min(1, ov / hw);
+    for (const ug of [u0 + ov, u1 - ov]) {
+      const a0 = W(ug, v0 + ov, eaveY), a1 = W(ug, v1 - ov, eaveY), b0 = W(ug, v0 + ov, eaveY + dy), b1 = W(ug, v1 - ov, eaveY + dy), top = W(ug, vc, eaveY + rise);
+      for (const [p0, p1, p2] of [[a0, a1, b1], [a0, b1, b0], [b0, b1, top]]) { wb.tri(p0, p1, p2); wb.tri(p1, p0, p2); if (col) col.tri(p0, p1, p2); }
+    }
+    wb.setColor(1, 1, 1);
   }
   // Solid attic: the space under the skin is filled with stepped collision blocks (each layer ends where the roof
   // reaches its top), so nobody who mantles over the eave or tunnels a wall can end up standing inside the roof.
@@ -205,7 +215,7 @@ export function hipRoof(ctx, boxOrRing, eaveY, rise, opts = {}) {
       B.c('wood').box(c[0], c[1], c[2], a1 - a0, y1 - y0, b1 - b0, rotY);
     }
   }
-  quadFacing(bucket, A, Bp, C, Dd, [0, -1, 0]);                                   // soffit
+  quadFacing(bucket, A, Bp, C, Dd, [0, -1, 0], puv ? [A, Bp, C, Dd].map((p) => [p[0] * uvS, p[2] * uvS]) : undefined);   // soffit
   // ridge / hip caps so the tile roof does not end in a razor line
   if (opts.caps !== false) {
     const cb = B.v(opts.bucket || 'shingles', true); cb.setColor(t[0] * 0.8, t[1] * 0.8, t[2] * 0.8);
@@ -216,34 +226,9 @@ export function hipRoof(ctx, boxOrRing, eaveY, rise, opts = {}) {
   return { ridgeY: eaveY + rise };
 }
 
-// Roof over an arbitrary footprint: every eave edge rises to a ridge line along the footprint's long axis (a hip roof
-// for a rectangle, sensible folded slopes for L / T shaped houses) so nothing overhangs empty ground.
-export function polyRoof(ctx, ringIn, eaveY, rise, opts = {}) {
-  const { B } = ctx; const ring = ensureCCW(ringIn); const o = minAreaOBB(ring); if (!o) return;
-  let { tx, tz, u0, u1, v0, v1 } = o;
-  if (v1 - v0 > u1 - u0) { const ntx = -tz, ntz = tx; const nu0 = v0, nu1 = v1, nv0 = -u1, nv1 = -u0; tx = ntx; tz = ntz; u0 = nu0; u1 = nu1; v0 = nv0; v1 = nv1; }
-  // area centroid
-  let A = 0, cx = 0, cz = 0; for (let i = 0; i < ring.length; i++) { const p = ring[i], q = ring[(i + 1) % ring.length]; const w = p[0] * q[1] - q[0] * p[1]; A += w; cx += (p[0] + q[0]) * w; cz += (p[1] + q[1]) * w; }
-  cx /= 3 * A; cz /= 3 * A; const cu = cx * tx + cz * tz, cv = -cx * tz + cz * tx; const hw = (v1 - v0) / 2;
-  const rA = Math.min(u0 + hw, cu), rB = Math.max(u1 - hw, cu); const ov = opts.overhang === undefined ? 0.5 : opts.overhang; const uvS = 1 / 3;
-  const n = ring.length; const pts = [];
-  for (let i = 0; i < n; i++) {   // push each vertex outward along the bisector of its two edge normals
-    const a = ring[(i + n - 1) % n], b = ring[i], c = ring[(i + 1) % n];
-    const l1 = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, l2 = Math.hypot(c[0] - b[0], c[1] - b[1]) || 1;
-    let nx = (b[1] - a[1]) / l1 + (c[1] - b[1]) / l2, nz = -(b[0] - a[0]) / l1 - (c[0] - b[0]) / l2; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
-    const x = b[0] + nx * ov * 1.2, z = b[1] + nz * ov * 1.2; const u = Math.max(rA, Math.min(rB, x * tx + z * tz));
-    pts.push({ e: [x, eaveY, z], r: [u * tx - cv * tz, eaveY + rise, u * tz + cv * tx] });
-  }
-  const bucket = B.v('shingles', true); const t = opts.tint || CLAY; bucket.setColor(t[0], t[1], t[2]); const col = opts.noCollision ? null : B.c('concrete'); const up = [0, 1, 0];
-  for (let i = 0; i < n; i++) {
-    const a = pts[i], b = pts[(i + 1) % n]; const L = Math.hypot(b.e[0] - a.e[0], b.e[2] - a.e[2]); if (L < 0.02) continue;
-    const sl = Math.hypot(rise, Math.hypot(a.r[0] - a.e[0], a.r[2] - a.e[2]));
-    quadFacing(bucket, a.e, b.e, b.r, a.r, up, [[0, 0], [L * uvS, 0], [L * uvS, sl * uvS], [0, sl * uvS]]);
-    if (col) quadFacing(col, a.e, b.e, b.r, a.r, up);
-  }
-  bucket.poly(pts.map((p) => [p.e[0], p.e[2]]), null, eaveY - 0.01, (x, z) => [x * uvS, z * uvS], true);
-  bucket.setColor(1, 1, 1);
-}
+// Roof over an arbitrary footprint (L / T / U plans): a union of closed hip roofs over the footprint's maximal
+// rectangles, see ../roofs.js. opts: tint, overhang, noCollision, fill (solid attic).
+export function polyRoof(ctx, ring, eaveY, rise, opts = {}) { return polyRoofOf(hipRoof, minAreaOBB, ctx, ring, eaveY, rise, { ...opts, tint: opts.tint || CLAY }); }
 
 // Hip perimeter around a flat roof well (the modern clay-tile buildings: tiled slopes outside, a grey membrane deck
 // with plant inside). box as from boxFromRect; run = horizontal depth of the tiled slope. Returns the deck frame.

@@ -355,7 +355,10 @@ export function createMaterials(T, quality) {
   M.chainlink = std({ map: cl, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.7, color: 0xd0d4d6 });
   M.windscreen = std({ map: windscreenTexture(aniso), side: THREE.DoubleSide, roughness: 0.9, color: 0xffffff });
   M.tower = std({ map: towerTexture(aniso), roughness: 0.42, metalness: 0.15, color: 0xf4f7fa });
-  M.shingles = std({ map: T.shinglesColor, normalMap: T.shinglesNormal, roughness: 0.92, vertexColors: true });
+  // roof skins are drawn from both sides: a pitched roof is a thin shell, and any face seen from behind (the underside of
+  // a rake / eave overhang, a step between two roof levels) would otherwise show the sky (MAP_NOTES.md, see-through roofs).
+  // shadowSide stays what it was for a front-side material.
+  M.shingles = std({ map: T.shinglesColor, normalMap: T.shinglesNormal, roughness: 0.92, vertexColors: true, side: THREE.DoubleSide, shadowSide: THREE.BackSide });
   M.houseWalls = HOUSE_KINDS.map((k) => std({ map: houseWallTexture(k, aniso), roughness: 0.85 }));
   M.net = std({ color: 0x111111, transparent: false, alphaTest: 0.3, map: cl, side: THREE.DoubleSide, roughness: 0.9 });
   M.glassInt = interiorGlass();

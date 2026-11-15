@@ -31,7 +31,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
 - **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, props, signs, boundary,
-  visualSolid, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
+  visualSolid, roofSkin, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
 
@@ -96,6 +96,16 @@ What each check does (and what to fix when it fails):
    right next to a wall): patches >= 2 m2 fail. Typical hits: hip / gable roofs whose collision is a box at eave
    height, canopies, porch roofs. Shrubs (ctx.shrubs) taller than 1.1 m with no collision under them fail too.
    Nets, chain-link and windscreens are skipped (see-through).
+5b. **roofSkin** (the "see-through roof" check, ~5-15 s). Rays against the DRAWN meshes, back-face culling included,
+   for every roof skin (bucket keys `TH.roofKeys`: shingles) up to 40 m outside the play bounds: (exposedBack) a side
+   of a roof face that the renderer culls must look into the closed attic, never into open air; (open) from points
+   0.35 m under the skin that are enclosed, rays in 48 directions (35 deg below the horizon up to 75 deg above: under
+   the eaves, from a neighbouring roof, from a helicopter) must meet a face that is drawn from outside (front face,
+   double-sided, or a both-windings pair) before they are out from under the roof. 4 m cells with >= 3 such rays
+   fail; every failure carries `views[].cam`, a camera string for `dev/world.html?campus=<id>&cam=` (or
+   `dev/marin.html`) that shows the hole. `strays` lists the cells below the threshold. Typical hits: a gable wall
+   that does not reach the rakes, a folded roof on an L / T plan, a missing hip end or soffit, a canopy made of roof
+   skin with no ceiling. Fix the generator, never the one house.
 6. **props.** Props placed with the shared helpers (src/world/props.js: cars, buses, dumpsters, containers, barriers,
    benches, tables, bins, utility boxes, porta-potties, pads, sleds, tarp rollers, film towers, bike racks) register
    their footprint (`registerProp`; use it for any custom solid prop too). Footprints must not overlap (> 5 cm) or
@@ -146,6 +156,10 @@ What each check does (and what to fix when it fails):
 - **Closed courtyards** (Hinsdale had three, walls of 10-12 m): door canopies inside them are "low roofs" you can
   drop onto and never leave. Every enclosed court needs a ladder (`wallLadder` in src/world/facade.js, `top` = the
   parapet top so the exit clears the lip) on plain brick between the corner pier and the first window, or an opening.
+- **Two eaves 0.5-0.9 m apart are a wedge:** a player who slides off a pitched roof into the slot between two
+  neighbouring roofs hangs there on the capsule (0.7 m) and cannot leave (map check roofVoids, `drop20 cantLeave`).
+  Roofs next to another building get a narrower overhang (`eaveOverhang` in src/campuses/roofs.js keeps the slot
+  >= 1.1 m); the list of all solid footprints (`ctx.playRings`) is built before the first house is roofed.
 - **Pitched roof over a box:** collision must be the visible shape (walls to the eave + the roof planes + the soffit
   closing the eave overhang from below), never a taller box "roughly the same volume": players stood 0.7 m above the
   eaves and sank 1.4 m into the ridge of Hinsdale's concession building.
@@ -157,6 +171,22 @@ What each check does (and what to fix when it fails):
   bases on walk cells, every ladder exits, a few wall/roof walk tests.
 
 **Visual**
+- **See-through roofs** (Marin, reported by a player standing on a roof): a pitched roof is a thin skin drawn
+  single-sided, so every mistake shows the SKY, not a dark attic. What went wrong, all in the shared generators:
+  (1) `polyRoof` raised every eave edge of an L / T / U footprint to one ridge line: faces folded over the yard, the
+  step between two eave depths was a vertical triangle with arbitrary winding, and whole roof planes vanished from
+  one side. (2) The gable wall was a triangle from the eave corners, but at the wall line the slope is already
+  `rise * overhang / halfWidth` above the eave: a slit under both rakes, open into the attic (and solid neither).
+  (3) The underside of every rake / eave overhang, seen from a roof next door or from the ground, was culled.
+  (4) A bounding-box hip on an L plan also roofed the notch and whatever stood in it.
+  Rules: **a roof is a union of closed convex pieces** (`polyRoof` = hip roofs at one pitch over the footprint's
+  maximal rectangles + a deck at the eave, src/campuses/roofs.js; coplanar faces of two pieces need plane / world
+  UVs or they shimmer; ridge caps only on real creases); **the gable wall is the roof profile in the wall plane (a
+  pentagon), visual and collision**; **roof skin materials are double-sided** (`M.shingles`, `shadowSide` left at
+  BackSide), and so is any instanced far house without a soffit; in-play poly roofs get the solid attic
+  (`fill`). Never judge a roof from above only: look along the ridge from eave height, from the ground under the
+  eaves and from a helicopter, and run the roofSkin check (it failed 290 cells on Marin and 87 on Hamilton before
+  the fix).
 - **Minimap / laptop images are per campus:** anything baked once at startup must re-bake on campus change.
 - **Props placed after other props without exclusion clip** (buses through parked cars, cars on tree trunks):
   reserve footprints before placing, and keep stalls ~1.2 m from tree trunks. Trunks are up to ~0.6 m in radius

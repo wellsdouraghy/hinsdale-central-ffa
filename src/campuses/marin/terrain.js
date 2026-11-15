@@ -135,7 +135,7 @@ export function buildTerrain(ctx) {
     const E = cs.map(([x, z]) => [x * 2 * e, wy - 0.04, z * 2 * e]), R0 = [-0.22, 1, 0], R1 = [0.22, 1, 0];
     quad(E[1], E[0], R0, R1, roof); quad(E[3], E[2], R1, R0, roof); tri(E[0], E[3], R0, roof); tri(E[2], E[1], R1, roof);
     const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); hg.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3)); hg.computeVertexNormals();
-    const im = new THREE.InstancedMesh(hg, new THREE.MeshStandardMaterial({ roughness: 0.9, vertexColors: true }), houses.length);
+    const im = new THREE.InstancedMesh(hg, new THREE.MeshStandardMaterial({ roughness: 0.9, vertexColors: true, side: THREE.DoubleSide }), houses.length);   // both sides: the eave overhang has no soffit and is seen from below
     houses.forEach(([x, y, z, v], k) => { dummy.position.set(x, y - 0.6, z); dummy.scale.set(9 + v * 6, 7.6 + ((v * 5) % 1) * 2.4, 7 + v * 4); dummy.rotation.set(0, v * 3, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const w = 0.5 + v * 0.3; const t = (v * 11) % 1; col.setRGB(w, w * (0.93 + t * 0.05), w * (0.8 + t * 0.14)); im.setColorAt(k, col); });
     im.name = 'terrain:houses'; im.castShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
   }

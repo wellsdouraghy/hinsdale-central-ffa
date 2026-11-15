@@ -46,6 +46,13 @@ export const TH = {
   heliMin: 12,
   // 5 visible-but-not-solid
   visMinY: 1.0, visMaxY: 80, visPatchArea: 2.0, visCellsMin: 3, visMinWidth: 0.45, shrubMaxH: 1.1,
+  // 5b see-through roofs
+  roofKeys: /shingles|roofTile/,             // bucket keys drawn as roof skins
+  roofSample: 2.5, roofMargin: 40,           // m between samples on a roof face; roofs up to 40 m outside the play bounds are checked too
+  roofEncDist: 30, roofEncFrac: 0.85,        // a point is inside an attic if >= 85 % of 26 probe rays (and both up / down) hit within 30 m
+  roofAz: 8, roofElev: [-35, -10, 6, 22, 45, 75],    // viewing directions of the attic test (deg above the horizon, seen from the roof)
+  roofViewDist: 60,                          // how far a ray out of an attic is followed
+  roofCellMin: 3,                            // flagged rays per 4 m cell that make a failure
   // 6 props
   propOverlap: 0.05,                         // penetration depth (m) that counts as clipping
   trunkWarn: 0.6,                            // prop edge closer than this to a trunk surface (m) = warn
@@ -718,6 +725,135 @@ async function checkVisualSolid() {
   finishCheck('visualSolid', res);
 }
 
+// ============================================================================================== 5b see-through roofs
+// A roof is a thin skin: a face drawn single-sided and seen from behind is simply not drawn, and the sky shows through.
+// Two ray tests against the VISUAL meshes (what the renderer draws, back-face culling included):
+//  a) exposedBack: every roof-skin triangle (materials TH.roofKeys) is sampled; a side the renderer culls must look
+//     into the closed roof (attic), never into open air (reversed winding, the underside of a rake / eave overhang,
+//     a vertical step between two roof levels, a canopy without a ceiling).
+//  b) open: from points 0.35 m under the skin that are enclosed (inside the attic), rays go out in the TH.roofElev x
+//     TH.roofAz directions (from below the eaves up to helicopter height). Each must meet a face that is drawn from
+//     outside (front face, double-sided, or a both-windings pair) before it is out from under the roof; fronts of
+//     things standing in the attic are stepped over. A ray that gets out unseen is a hole: missing gable / hip end,
+//     slit between the gable wall and the rakes, gap between roof planes or between roof and wall top, no soffit.
+function buildVisual() {
+  const vis = scene.getObjectByName('world-visuals') || scene; const SKIPV = /^(decal|stall-paint|shrubs|ground|ground-skirt|static:(groundDecal|wallDecal|net|chainlink|windscreen|lightEmit))$|^terrain:/;
+  const meshes = []; let n = 0;
+  vis.traverse((o) => {
+    if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.visible || SKIPV.test(o.name) || !o.geometry?.attributes?.position) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.some((mt) => !mt || mt.visible === false || mt.transparent || mt.alphaTest > 0)) return;   // see-through by design: neither a roof skin nor an occluder
+    meshes.push(o); n += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count);
+  });
+  const pos = new Float32Array(n * 3); const triMesh = new Uint16Array(n / 3); const info = []; let o = 0; const v = V();
+  for (const m of meshes) {
+    const p = m.geometry.attributes.position, idx = m.geometry.index, cnt = idx ? idx.count : p.count; const key = m.name.startsWith('static:') ? m.name.slice(7) : (m.name || 'mesh');
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    const mi = info.push({ key, dbl: mats.some((mt) => mt.side === THREE.DoubleSide), roof: TH.roofKeys.test(key) }) - 1;
+    for (let i = 0; i < cnt; i++) { v.fromBufferAttribute(p, idx ? idx.getX(i) : i).applyMatrix4(m.matrixWorld); pos[o * 3] = v.x; pos[o * 3 + 1] = v.y; pos[o * 3 + 2] = v.z; o++; }
+    triMesh.fill(mi, (o - cnt) / 3, o / 3);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const bvh = new MeshBVH(g, { indirect: true }); const ray = new THREE.Ray();   // indirect: faceIndex stays the triangle's place in `pos`
+  return {
+    pos, triMesh, info, nTris: n / 3,
+    of: (h) => info[triMesh[h.faceIndex]],
+    first(o, d, far) { ray.origin.copy(o); ray.direction.copy(d); return bvh.raycastFirst(ray, THREE.DoubleSide, 0, far); },
+    all(o, d, far) { ray.origin.copy(o); ray.direction.copy(d); return bvh.raycast(ray, THREE.DoubleSide, 0, far).sort((a, b) => a.distance - b.distance); },
+  };
+}
+async function checkRoofSkin() {
+  const VS = buildVisual(); const { pos, triMesh, info } = VS;
+  // probe directions: enclosure (16 level + 8 dipping + up + down) and the viewing directions of test b
+  const ENC = []; for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; ENC.push(V(Math.cos(a), 0, Math.sin(a))); } for (let k = 0; k < 8; k++) { const a = (k + 0.5) * Math.PI / 4; ENC.push(V(Math.cos(a) * 0.94, -0.342, Math.sin(a) * 0.94)); } ENC.push(UP.clone(), DOWN.clone());
+  const VIEW = []; for (const el of TH.roofElev) for (let k = 0; k < TH.roofAz; k++) { const a = (k + (el > 40 ? 0.5 : 0)) * Math.PI * 2 / TH.roofAz, e = el * Math.PI / 180; VIEW.push(V(Math.cos(e) * Math.cos(a), Math.sin(e), Math.cos(e) * Math.sin(a))); }
+  const maxMiss = Math.floor(ENC.length * (1 - TH.roofEncFrac));
+  // inside an attic: nearly every probe ray hits within range, and what they hit (straight up and down included) is roof
+  // skin or the back of a face. (Under an eave or a canopy the probes hit the ground and the fronts of walls instead.)
+  const enclosed = (q) => {
+    let miss = 0, shell = 0;
+    for (let i = ENC.length - 1; i >= 0; i--) {
+      const h = VS.first(q, ENC[i], TH.roofEncDist); const cap = i >= ENC.length - 2;
+      if (!h) { if (cap || ++miss > maxMiss) return false; continue; }
+      if (VS.of(h).roof || h.face.normal.dot(ENC[i]) > 0) shell++; else if (cap) return false;
+    }
+    return shell >= (ENC.length - miss) * 0.75;
+  };
+  // loosely under a roof: something above, something below, and around in most directions
+  const covered = (q) => { let miss = 0; for (let i = ENC.length - 1; i >= 0; i--) if (!VS.first(q, ENC[i], TH.roofEncDist) && (i >= ENC.length - 2 || ++miss > maxMiss)) return false; return true; };
+  const tp = V();
+  const drawnFrom = (h, d) => VS.of(h).dbl || h.face.normal.dot(d) > 0;   // d: from the face towards the viewer
+  const a = V(), b = V(), c = V(), n = V(), p = V(), q = V(), e1 = V(), e2 = V(), dir = V();
+  const cells = new Map(); const cnt = { roofTriangles: 0, samples: 0, atticSamples: 0, rays: 0, exposedBack: 0, open: 0 };
+  const flag = (kind, at, from, key) => {
+    cnt[kind]++; const ck = Math.floor(at.x / 4) + ',' + Math.floor(at.z / 4);
+    let cl = cells.get(ck); if (!cl) { cl = { n: 0, kinds: {}, keys: new Set(), at: P3(at), ex: [], minY: 1e9, maxY: -1e9 }; cells.set(ck, cl); }
+    cl.n++; cl.kinds[kind] = (cl.kinds[kind] || 0) + 1; cl.keys.add(key); cl.minY = Math.min(cl.minY, at.y); cl.maxY = Math.max(cl.maxY, at.y);
+    if (cl.ex.length < 3 && !cl.ex.some((x) => x.kind === kind)) {   // a camera that shows it: dev/world.html?cam=x,y,z,yaw,pitch
+      const v = from.clone().sub(at).normalize(); let dist = 9; if (v.y < -0.05) dist = Math.max(1.5, Math.min(9, (at.y - GY(at.x, at.z) - 1.2) / -v.y)); const eye = at.clone().addScaledVector(v, dist);
+      cl.ex.push({ kind, at: P3(at), cam: [r1(eye.x), r1(eye.y), r1(eye.z), Math.round(Math.atan2(v.x, v.z) * 180 / Math.PI), Math.round(-Math.asin(v.y) * 180 / Math.PI)].join(',') });
+    }
+  };
+  let lastYield = performance.now();
+  for (let t = 0; t < VS.nTris; t++) {
+    const mi = info[triMesh[t]]; if (!mi.roof) continue;
+    a.fromArray(pos, t * 9); b.fromArray(pos, t * 9 + 3); c.fromArray(pos, t * 9 + 6);
+    e1.subVectors(b, a); e2.subVectors(c, a); n.crossVectors(e1, e2); const area2 = n.length(); if (area2 < 0.3) continue; n.divideScalar(area2);
+    const L = Math.max(e1.length(), e2.length(), b.distanceTo(c)); if (area2 / L < 0.25) continue;   // ridge / hip cap tubes, thin trims
+    if (Math.max(a.y, b.y, c.y) - GY(a.x, a.z) < 1.2 || !inPB(a.x, a.z, -TH.roofMargin)) continue;
+    if (n.y < -0.9) { q.copy(a).add(b).add(c).multiplyScalar(1 / 3).addScaledVector(n, -0.35); if (enclosed(q)) continue; }   // soffit closing an attic: its top is never seen
+    cnt.roofTriangles++;
+    const k = Math.max(1, Math.ceil(Math.sqrt(area2 / 2) / TH.roofSample));   // k * k samples over the triangle
+    for (let i = 0; i < k; i++) for (let j = 0; j < k - i; j++) for (const up of [0, 1]) {
+      if (up && j === k - i - 1) continue;
+      const u = up ? (i + 2 / 3) / k : (i + 1 / 3) / k, w = up ? (j + 2 / 3) / k : (j + 1 / 3) / k;
+      p.copy(a).addScaledVector(e1, u).addScaledVector(e2, w); cnt.samples++;
+      // a) the culled side must not be exposed
+      if (!mi.dbl) {
+        q.copy(p).addScaledVector(n, -0.35); dir.copy(n).negate();
+        const cover = VS.first(V().copy(p).addScaledVector(n, -0.01), dir, 0.3);   // a ceiling / lining right behind the skin
+        if (!(cover && drawnFrom(cover, dir)) && !enclosed(q)) flag('exposedBack', p, q, mi.key);
+      }
+      // b) from inside the attic outwards
+      for (const s of [-1, 1]) {
+        q.copy(p).addScaledVector(n, s * 0.35); if (!enclosed(q)) continue; cnt.atticSamples++;
+        for (const d of VIEW) {
+          cnt.rays++;
+          const h0 = VS.first(q, d, TH.roofViewDist);
+          if (!h0) { if (d.y >= 0) flag('open', q, V().copy(q).addScaledVector(d, 12), mi.key); continue; }   // (downwards with nothing in the way: the ground)
+          if (drawnFrom(h0, d)) continue;
+          // The first face shows its front to the attic: something standing in it (a lantern / chimney box, a dormer, the
+          // neighbour's cornice). Walk on to the first face that is drawn towards the outside. A front met where the ray
+          // is no longer under a roof means the ray got out of the attic unseen.
+          const hs = VS.all(q, d, TH.roofViewDist); let sealed = false, out = null;
+          for (let m = 0; m < hs.length && !sealed && !out;) {
+            let e = m, nOut = 0, nIn = 0;   // faces at one distance are one surface (gable ends are drawn with both windings)
+            for (; e < hs.length && hs[e].distance - hs[m].distance < 0.003; e++) { if (drawnFrom(hs[e], d)) nOut++; else nIn++; }
+            if (nOut) sealed = true; else if (!covered(tp.copy(q).addScaledVector(d, hs[m].distance - 0.05))) out = hs[m];
+            m = e;
+          }
+          if (out) flag('open', out.point, V().copy(out.point).addScaledVector(d, 12), mi.key);
+          else if (!sealed && d.y >= 0) flag('open', q, V().copy(q).addScaledVector(d, 12), mi.key);
+        }
+        break;   // one attic point per sample
+      }
+      if (performance.now() - lastYield > 250) { lastYield = performance.now(); $('status').textContent = `roof skin ${Math.round(t / VS.nTris * 100)}%`; await tick(); }
+    }
+  }
+  const all = [...cells.values()].sort((x, y) => y.n - x.n); const bad = all.filter((cl) => cl.n >= TH.roofCellMin);
+  const failures = bad.map((cl) => ({ at: cl.at, y: [r1(cl.minY), r1(cl.maxY)], rays: cl.n, kinds: cl.kinds, materials: [...cl.keys], inPlay: inPB(cl.at[0], cl.at[2]), views: cl.ex }));
+  for (const f of failures) marks.push({ kind: 'vis', x0: f.at[0] - 2, z0: f.at[2] - 2, x1: f.at[0] + 2, z1: f.at[2] + 2 });
+  const res = {
+    status: status(failures.length, 0),
+    what: `Roof skins (materials ${TH.roofKeys}) against the drawn geometry: (exposedBack) a culled side of a roof face looks into open air; (open) a ray from inside an attic gets out without meeting a face that is drawn from outside (a gap, a missing gable / hip end / soffit, a single-sided face wound inwards). 4 m cells with >= ${TH.roofCellMin} such rays fail; each has camera strings (dev/world.html?cam=) that show it.`,
+    counts: { ...cnt, cells: all.length, failingCells: failures.length, failingInPlay: failures.filter((f) => f.inPlay).length, strayRaysIgnored: all.reduce((s, cl) => s + (cl.n < TH.roofCellMin ? cl.n : 0), 0) },
+    failures: failures.slice(0, 80),
+    strays: all.filter((cl) => cl.n < TH.roofCellMin).slice(0, 12).map((cl) => ({ at: cl.at, rays: cl.n, kinds: cl.kinds, materials: [...cl.keys], views: cl.ex })),   // below the threshold: listed, not failed
+  };
+  log(`roof skin: ${res.status} ${failures.length} cells (${cnt.exposedBack} exposed backs, ${cnt.open} open rays; ${cnt.atticSamples} attic samples)`);
+  finishCheck('roofSkin', res);
+}
+
 // ============================================================================================== 6 prop overlaps
 function obbCorners(p) { const c = Math.cos(p.rot), s = Math.sin(p.rot); return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, w]) => { const lx = u * p.sx / 2, lz = w * p.sz / 2; return [p.x + lx * c + lz * s, p.z - lx * s + lz * c]; }); }
 function obbOverlap(A, B) {   // SAT penetration depth (> 0 overlapping)
@@ -902,7 +1038,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'visualSolid', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -946,7 +1082,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

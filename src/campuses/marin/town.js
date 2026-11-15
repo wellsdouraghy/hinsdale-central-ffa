@@ -4,6 +4,7 @@
 import { ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK } from './kit.js';
 import * as THREE from 'three';
 import { STYLES } from '../../world/facade.js';
+import { eaveOverhang } from '../roofs.js';
 import { SCHOOL_IDS } from './school.js';
 
 const HOUSE_S = [1 / 4.0, 1 / 2.9];
@@ -50,7 +51,8 @@ function house(ctx, ring, info, rnd) {
     const pr = F.P(uc, 2.7, 0.7); B.c('wood').box(pr[0], 2.7, pr[2], 2.6, 0.16, 1.4, F.rotY);       // porch roof is solid too
   }
   const tint = tileTint(info.col);
-  { const o = minAreaOBB(ring); const fillR = Math.abs(signedArea(ring)) / Math.max(1, o.area); const rise = Math.min(info.rise || 1.8, 3.2); if (fillR > 0.9) hipRoof(ctx, ring, eave, rise, { tint, overhang: 0.55, gable: rnd() < 0.35, gableBucket: 'stucco', gableTint: [0.86, 0.84, 0.78] }); else polyRoof(ctx, ring, eave, rise, { tint, overhang: 0.5 }); }
+  { const o = minAreaOBB(ring); const fillR = Math.abs(signedArea(ring)) / Math.max(1, o.area); const rise = Math.min(info.rise || 1.8, 3.2); const ov = (want) => eaveOverhang(ring, ctx.playRings || [], want);   // narrower eaves next to a neighbour: no wedge between two roofs
+    if (fillR > 0.9) hipRoof(ctx, ring, eave, rise, { tint, overhang: ov(0.55), gable: rnd() < 0.35, gableBucket: 'stucco', gableTint: [0.86, 0.84, 0.78] }); else polyRoof(ctx, ring, eave, rise, { tint, overhang: ov(0.5), fill: true }); }
   B.c('wood').prism(ring, 0, eave, 1, true);
 }
 
@@ -140,6 +142,9 @@ export function buildTown(ctx) {
   let nHouse = 0, nShop = 0, nKit = 0, nCtx = 0; const flats = [];
   const named = data.buildings.filter((b) => b.tags.name && gen.buildings[String(b.id)]?.play && !SCHOOL_IDS.has(b.id)).map((b) => b.tags.name);
   const signNames = [...named.slice(0, 22), ...GENERIC].slice(0, SIGN_COLS * SIGN_ROWS); const signUV = signAtlas(ctx, signNames); const nNamed = Math.min(22, named.length); ctx.signCell = (b) => { const k = signNames.indexOf(b.tags.name || ''); return signUV(k >= 0 ? k : nNamed + Math.floor(rnd() * (signNames.length - nNamed))); };
+  // every solid footprint, known before the first house is roofed (eaveOverhang looks at the neighbours on both sides)
+  ctx.playRings = [...(ctx.buildingRings || [])];
+  for (const b of data.buildings) { const info = gen.buildings[String(b.id)]; const raw = b.outer[0]; if (!info || !info.play || SCHOOL_IDS.has(b.id) || SKIP.has(b.id) || raw.length < 3 || Math.abs(signedArea(raw)) < 14) continue; const r = simplify(raw, 0.5); r.id = b.id; ctx.playRings.push(r); }
   for (const b of data.buildings) {
     if (SCHOOL_IDS.has(b.id) || SKIP.has(b.id)) continue;
     const info = gen.buildings[String(b.id)]; if (!info) continue;
@@ -163,7 +168,7 @@ export function buildTown(ctx) {
     const ring = simplify(raw, 0.5); const cz = ring.reduce((s, p) => s + p[1], 0) / ring.length;
     (ctx.buildingRings = ctx.buildingRings || []).push(ring);
     const ov = OVERRIDE[b.id];
-    if (ov) { kitWalls(ctx, ring, ov.h, ov.style); polyRoof(ctx, ring, ov.h, ov.rise, { tint: CLAY, overhang: 0.7 }); B.c('concrete').prism(ring, 0, ov.h, 1, true); nKit++; continue; }
+    if (ov) { kitWalls(ctx, ring, ov.h, ov.style); polyRoof(ctx, ring, ov.h, ov.rise, { tint: CLAY, overhang: 0.7, fill: true }); B.c('concrete').prism(ring, 0, ov.h, 1, true); nKit++; continue; }
     if (info.roof !== 'flat') { house(ctx, ring, info, rnd); nHouse++; continue; }
     const t = b.tags; const commercial = t.shop || t.amenity === 'restaurant' || t.amenity === 'cafe' || t.amenity === 'bank' || t.building === 'commercial' || t.building === 'retail' || cz > 120;
     if (commercial) { shop(ctx, ring, info, rnd, b); nShop++; flats.push({ ring, roofY: Math.max(4.2, info.h + 0.5) - 0.45, area: info.area }); continue; }

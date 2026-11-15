@@ -5,6 +5,7 @@
 import { ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, storeyBlock, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK } from './kit.js';
 import * as THREE from 'three';
 import { STYLES } from '../../world/facade.js';
+import { eaveOverhang } from '../roofs.js';
 import { SCHOOL_IDS } from './school.js';
 
 const HOUSE_S = [1 / 4.0, 1 / 2.9];
@@ -51,7 +52,8 @@ function house(ctx, ring, info, rnd) {
     const pr = F.P(uc, 2.7, 0.7); B.c('wood').box(pr[0], 2.7, pr[2], 2.6, 0.16, 1.4, F.rotY);       // porch roof is solid too
   }
   const tint = tileTint(info.col);
-  { const o = minAreaOBB(ring); const fillR = Math.abs(signedArea(ring)) / Math.max(1, o.area); const rise = Math.min(info.rise || 1.8, 3.2); if (fillR > 0.9) hipRoof(ctx, ring, eave, rise, { tint, overhang: 0.55, gable: rnd() < 0.35, gableBucket: 'stucco', gableTint: [0.7, 0.68, 0.62] }); else { rnd(); hipRoof(ctx, o, eave, Math.min(rise, 2.4), { tint, overhang: 0.35 }); } }   // L / T plans: one closed hip over the whole house (folded roofs left a void you could get into)
+  { const o = minAreaOBB(ring); const fillR = Math.abs(signedArea(ring)) / Math.max(1, o.area); const rise = Math.min(info.rise || 1.8, 3.2); const ov = (want) => eaveOverhang(ring, ctx.playRings || [], want);   // narrower eaves next to a neighbour: no wedge between two roofs
+    if (fillR > 0.9) hipRoof(ctx, ring, eave, rise, { tint, overhang: ov(0.55), gable: rnd() < 0.35, gableBucket: 'stucco', gableTint: [0.7, 0.68, 0.62] }); else { rnd(); polyRoof(ctx, ring, eave, Math.min(rise, 2.4), { tint, overhang: ov(0.35) }); } }   // L / T plans: closed hip roofs over the plan's rectangles, attics solid (kit polyRoof). Not one hip over the bounding box: it also roofs the notch and whatever stands in it
   B.c('wood').prism(ring, 0, eave, 1, true);
 }
 
@@ -142,6 +144,9 @@ export function buildTown(ctx) {
   let nHouse = 0, nShop = 0, nKit = 0, nCtx = 0; const flats = [];
   const named = data.buildings.filter((b) => b.tags.name && gen.buildings[String(b.id)]?.play && !SCHOOL_IDS.has(b.id)).map((b) => b.tags.name);
   const signNames = [...named.slice(0, 22), ...GENERIC].slice(0, SIGN_COLS * SIGN_ROWS); const signUV = signAtlas(ctx, signNames); const nNamed = Math.min(22, named.length); ctx.signCell = (b) => { const k = signNames.indexOf(b.tags.name || ''); return signUV(k >= 0 ? k : nNamed + Math.floor(rnd() * (signNames.length - nNamed))); };
+  // every solid footprint, known before the first house is roofed (eaveOverhang looks at the neighbours on both sides)
+  ctx.playRings = [...(ctx.buildingRings || [])];
+  for (const b of data.buildings) { const info = gen.buildings[String(b.id)]; const raw = b.outer[0]; if (!info || !info.play || SCHOOL_IDS.has(b.id) || SKIP.has(b.id) || raw.length < 3 || Math.abs(signedArea(raw)) < 14) continue; const r = simplify(raw, 0.5); r.id = b.id; ctx.playRings.push(r); }
   for (const b of data.buildings) {
     if (SCHOOL_IDS.has(b.id) || SKIP.has(b.id)) continue;
     const info = gen.buildings[String(b.id)]; if (!info) continue;
