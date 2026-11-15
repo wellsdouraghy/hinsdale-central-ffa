@@ -187,6 +187,8 @@ async function checkEscape() {
   log(`escape: ${columns} columns, ${samples.length} elevated samples (${samples.length - flat.length} sloped) in ${regions.length} regions (${regions.filter((r) => r.slope).length} sloped), ${drops.length} drop tests`);
 
   const memo = new Set();
+  // second pass only (see "ladder pass" below): ground cells of sealed pockets from which a working ladder leads out
+  let ladderCells = null; const laddersUsed = new Set(); const lcKey = (x, z) => Math.floor(x) * 8192 + Math.floor(z);
   const key = (x, y, z) => (Math.floor(x) + 4096) * 67108864 + (Math.floor(z) + 4096) * 4096 + Math.round(y * 2) + 2048;
   let steps = 0;
   const lowerDirs = (x, y, z) => {   // 8 directions, the one with the nearest lower surface first
@@ -203,21 +205,26 @@ async function checkEscape() {
     ctrl.teleport(start, Math.atan2(-dx, -dz));     // forward = (-sin yaw, -cos yaw) = (dx, dz)
     if (drop) ctrl.grounded = false;
     const traj = []; let blockedT = 0, jumped = false, doubled = false; let minY = start.y, maxD = 0;
+    // "blocked" is measured from the real displacement: grinding against a wall or a low parapet on the ground keeps the
+    // controller's velocity (it is only cancelled in the air), so horizontalSpeed() alone never reports it
+    let lastX = start.x, lastZ = start.z, moved = Infinity;
     for (let t = 0; t < TH.escapeTime; t += DT) {
       let jump = false;
       if (ctrl.grounded) {
         jumped = false; doubled = false;
-        if (ctrl.horizontalSpeed() < 1.2) blockedT += DT; else blockedT = 0;
+        if (Math.min(ctrl.horizontalSpeed(), moved) < 1.2) blockedT += DT; else blockedT = 0;
         if (blockedT > 0.15 || (mode === 2 && t > 0.1)) { jump = true; jumped = true; blockedT = 0; }
       } else if (jumped && !doubled && ctrl.velocity.y < 0.8 && ctrl.airJumps > 0) { jump = true; doubled = true; }
       ctrl.update(DT, { forward: 1, strafe: mode === 2 ? Math.sin(t * 5) * 0.7 : 0, jump, crouchToggle: false, sprint: true });
       ctrl.events.length = 0; steps++;
       const p = ctrl.position;
+      moved = Math.hypot(p.x - lastX, p.z - lastZ) / DT; lastX = p.x; lastZ = p.z;
       if (p.y < minY) minY = p.y; const dd = Math.hypot(p.x - start.x, p.z - start.z); if (dd > maxD) maxD = dd;
       if (p.y < -5) return { ok: false, fell: true, traj, minY, maxD, last: p.clone() };
       if (ctrl.grounded) {
         if ((steps & 3) === 0 || !traj.length) traj.push(p.clone());
         if ((p.y < 0.35 && nearWalk(p.x, p.z)) || memo.has(key(p.x, p.y, p.z))) return { ok: true, traj };
+        if (ladderCells && p.y < 0.35) { const li = ladderCells.get(lcKey(p.x, p.z)); if (li !== undefined) { laddersUsed.add(li); return { ok: true, traj }; } }
       }
     }
     return { ok: false, traj, minY, maxD, last: ctrl.position.clone(), onGround: ctrl.position.y < 0.35 && ctrl.grounded };
@@ -278,6 +285,44 @@ async function checkEscape() {
     if (r.status === 'nofit') nofit++; else if (r.status === 'trapped') (s.ceil < TH.interiorCeil ? interiors : trapped).push({ s, r, kind: s.kind }); else if (r.status === 'fell') fell.push({ s, r });
     await yieldMaybe(`escape singles ${i + 1}/${singles.length} trapped ${trapped.length}`);
   }
+  // ---- ladder pass. A sealed pocket (closed courtyard) with a ladder is not a trap. A ladder counts when its scripted climb
+  // passed (ladders check) and the deck it exits onto was proven escapable above WITHOUT any ladder credit (so a roof cannot
+  // be "proven" by dropping into a courtyard whose only way out is back up to that same roof). The pocket's ground is flood
+  // filled from the ladder foot on a 1 m grid (standing room, no wall between neighbours); trapped starts are then re-run
+  // and pass if they reach one of those cells.
+  let viaLadder = 0; const ladderInfo = [];
+  if (trapped.length && world.ladders.length) {
+    const lres = report.checks.ladders?.ladders || []; const cells = new Map();
+    const free = (cx, cz) => !S.first(V(cx + 0.5, 1.9, cz + 0.5), DOWN, 1.6);
+    const open = (ax, az, bx, bz) => { for (const y of [0.45, 1.3]) if (S.first(V(ax + 0.5, y, az + 0.5), V(bx - ax, 0, bz - az), 1)) return false; return true; };
+    for (const [i, L] of world.ladders.entries()) {
+      const lr = lres[i]; if (!lr || !lr.ok || L.y0 > 1.2) continue;
+      const top = tryEscape(lr.end[0], lr.end[1], lr.end[2], false, true, false);
+      if (top.status !== 'ok') { ladderInfo.push({ i, at: lr.at, deckProven: false }); continue; }
+      const fx = Math.floor(L.x + L.nx * 0.9), fz = Math.floor(L.z + L.nz * 0.9); let n = 0;
+      if (!free(fx, fz)) { ladderInfo.push({ i, at: lr.at, deckProven: true, groundCells: 0 }); continue; }
+      const q = [[fx, fz]]; if (!cells.has(fx * 8192 + fz)) { cells.set(fx * 8192 + fz, i); n++; }
+      for (let h = 0; h < q.length && q.length < 40000; h++) {
+        const [cx, cz] = q[h];
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ax = cx + dx, az = cz + dz, k = ax * 8192 + az;
+          if (cells.has(k) || !inPB(ax + 0.5, az + 0.5) || navOK(ax + 0.5, az + 0.5) || !free(ax, az) || !open(cx, cz, ax, az)) continue;
+          cells.set(k, i); n++; q.push([ax, az]);
+        }
+      }
+      ladderInfo.push({ i, at: lr.at, deckProven: true, groundCells: n });
+    }
+    if (cells.size) {
+      ladderCells = cells;
+      for (let k = 0; k < trapped.length; k++) {
+        const t = trapped[k]; tested++;
+        const r = t.s.drop ? tryEscape(t.s.x, t.s.y, t.s.z, true, true, false) : tryEscape(t.s.x, t.s.y, t.s.z, false, true, t.kind === 'region');
+        if (r.status === 'ok') { trapped.splice(k--, 1); viaLadder++; if (t.region && !t.region.slope) for (const s of t.region.list) memo.add(key(s.x, s.y, s.z)); }
+        await yieldMaybe(`escape ladder pass ${k + 1}/${trapped.length}`);
+      }
+      ladderCells = null;
+    }
+  }
   // cluster trapped starts (3 m, 1.5 m height)
   const clusters = [];
   for (const t of trapped) {
@@ -299,9 +344,10 @@ async function checkEscape() {
   for (const f of fell) marks.push({ kind: 'fell', x: f.s.x, z: f.s.z });
   const res = {
     status: status(failures.length + fell.length, unchecked),
-    what: 'Real player controller placed on every elevated surface (flat regions, slopes) and dropped from ' + TH.dropHeight + ' m into creases / onto slopes must reach walkable ground or an already-proven surface with walk + jump + double jump + mantle (16 directions x ' + TH.escapeTime + ' s, then a second-level search). Falling below y = -5 = a hole in the collision.',
-    counts: { columns, samples: samples.length, regions: regions.length, slopeRegions: regions.filter((r) => r.slope).length, sloped: samples.length - flat.length, dropTests: drops.length, startsTested: tested, noFit: nofit, trappedStarts: trapped.length, trappedClusters: failures.length, sealedInteriors: interiors.length, fellThrough: fell.length, unchecked, simSteps: steps },
+    what: 'Real player controller placed on every elevated surface (flat regions, slopes) and dropped from ' + TH.dropHeight + ' m into creases / onto slopes must reach walkable ground or an already-proven surface with walk + jump + double jump + mantle (16 directions x ' + TH.escapeTime + ' s, then a second-level search). Falling below y = -5 = a hole in the collision. A sealed ground pocket (closed courtyard) passes when a working ladder leads from it to a deck that is itself proven escapable.',
+    counts: { columns, samples: samples.length, regions: regions.length, slopeRegions: regions.filter((r) => r.slope).length, sloped: samples.length - flat.length, dropTests: drops.length, startsTested: tested, noFit: nofit, trappedStarts: trapped.length, trappedClusters: failures.length, escapedViaLadder: viaLadder, sealedInteriors: interiors.length, fellThrough: fell.length, unchecked, simSteps: steps },
     failures, sealedInteriors: interiors.slice(0, 20).map((t) => ({ at: [r1(t.s.x), r2(t.s.base ?? t.s.y), r1(t.s.z)], kind: t.kind, type: t.s.ceil <= TH.roofSkin ? 'roof void' : 'interior', areaM2: t.region ? Math.round(t.region.list.length * g * g) : undefined, ceiling: r1(t.s.ceil) })), fellThrough: fell.slice(0, 20).map((f) => ({ start: [r1(f.s.x), r2(f.s.y), r1(f.s.z)], last: P3(f.r.last) })),
+    ladders: ladderInfo.map((l) => ({ ...l, used: laddersUsed.has(l.i) })),
     seconds: r1((performance.now() - tStart) / 1000),
   };
   log(`escape: ${res.status} trapped clusters ${failures.length} (starts ${trapped.length}), fell ${fell.length}, unchecked ${unchecked}, ${steps} steps, ${res.seconds} s`);
@@ -688,7 +734,10 @@ async function checkBoundary() {
       if (!nearWalk(ix, iz)) { flush(); continue; }
       reachable++;
       let barrier = false;
-      for (const y of [0.5, 1.0, 1.6]) if (S.first(V(x + E.n[0] * 3, y, z + E.n[1] * 3), V(-E.n[0], 0, -E.n[1]), 5)) { barrier = true; break; }
+      // the ray runs from the walkable ground nearest the edge on this line (at least 3 m in) to 2 m outside: with a fixed
+      // 3 m start, a building whose wall stands 3-5 m inside the edge was behind the ray origin and read as "open"
+      let d0 = 3; for (let dd = 0.75; dd <= 5.75; dd += 0.25) if (navOK(x + E.n[0] * dd, z + E.n[1] * dd)) { d0 = Math.max(3, dd); break; }
+      for (const y of [0.5, 1.0, 1.6]) if (S.first(V(x + E.n[0] * d0, y, z + E.n[1] * d0), V(-E.n[0], 0, -E.n[1]), d0 + 2)) { barrier = true; break; }
       if (!barrier) barrier = REG.trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 4);
       if (barrier) { flush(); continue; }
       open++;
@@ -702,7 +751,7 @@ async function checkBoundary() {
   const street = segs.filter((s) => s.street && s.len >= TH.boundaryStreetWarn);
   for (const s of segs) marks.push({ kind: 'edge', street: s.street, x0: s.from[0], z0: s.from[1], x1: s.to[0], z1: s.to[1] });
   const res = {
-    status: street.length ? 'warn' : 'pass', what: `Play-area edge sampled every ${TH.boundaryStep} m where the player can walk up to it: no collider (fence, wall, barrier) within 3 m inside / 2 m outside at 0.5-1.6 m and no tree trunk within 4 m = open edge (invisible wall). Open edges on asphalt >= ${TH.boundaryStreetWarn} m = "stopped mid-street" warning. Flag only, never fails.`,
+    status: street.length ? 'warn' : 'pass', what: `Play-area edge sampled every ${TH.boundaryStep} m where the player can walk up to it: no collider (fence, wall, barrier) between the nearest walkable ground (3 m inside or more) and 2 m outside at 0.5-1.6 m and no tree trunk within 4 m = open edge (invisible wall). Open edges on asphalt >= ${TH.boundaryStreetWarn} m = "stopped mid-street" warning. Flag only, never fails.`,
     counts: { reachablePoints: reachable, openPoints: open, openSegments: segs.length, streetSegments: street.length, streetMetres: street.reduce((a, s) => a + s.len, 0) },
     failures: street.map((s) => ({ edge: s.edge, from: s.from, to: s.to, len: s.len, surface: s.main })), otherOpen: segs.filter((s) => !street.includes(s)).map((s) => ({ edge: s.edge, from: s.from, to: s.to, len: s.len, surface: s.main })).slice(0, 40),
   };

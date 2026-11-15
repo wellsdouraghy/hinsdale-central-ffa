@@ -328,8 +328,10 @@ export function buildLandmarks(ctx) {
       for (const [xa, za, xb, zb] of [[pbx - 1.8, pz0, pbx + 1.8, pz0], [pbx + 1.8, pz0, pbx + 1.8, pz1], [pbx + 1.8, pz1, pbx - 1.8, pz1], [pbx - 1.8, pz1, pbx - 1.8, pz0]]) rl.tube([xa, ry + 1.0, za], [xb, ry + 1.0, zb], 0.025, 5).tube([xa, ry, za], [xa, ry + 1.0, za], 0.02, 4);
       B.v('frame').box(pbx, y0 + 1.05, pz1 + 0.02, 0.95, 2.1, 0.05);
       for (const z of [pz0 + 1, (pz0 + pz1) / 2, pz1 - 1]) B.v('galv').cyl(pbx - 1.2, 0, z, 0.12, 0.12, y0, 8, 1, false);
-      const tex = ctx.M.textDecal(['HINSDALE CENTRAL RED DEVILS'], { w: 2048, h: 128, font: 96, color: '#ffffff', align: 'center', weight: 800 });
-      const sm = new THREE.Mesh(new THREE.PlaneGeometry(pz1 - pz0 - 2, 0.8), new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, roughness: 0.6 }));
+      // wide-set lettering across the red band: the canvas has the sign's own 32 : 1 shape (a 16 : 1 canvas on a 28 m
+      // plane stretched every letter to more than twice its width)
+      const tex = ctx.M.textDecal(['HINSDALE CENTRAL RED DEVILS'], { w: 4096, h: 128, font: 100, color: '#ffffff', align: 'center', weight: 800, spacing: '38px' });
+      const sm = new THREE.Mesh(new THREE.PlaneGeometry(0.8 * 32, 0.8), new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.4, roughness: 0.6 }));
       sm.position.set(pbx + 1.77, y0 + 0.55, (pz0 + pz1) / 2); sm.rotation.y = Math.PI / 2; ctx.scene.add(sm);
     }
     // visitors (east)

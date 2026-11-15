@@ -2,7 +2,7 @@
 // benches, athletic equipment. Everything is merged into the shared static buckets and added to collision.
 import * as THREE from 'three';
 import { mulberry32 } from './util.js';
-import { bleachers } from './landmarks.js';
+import { bleachers, fence } from './landmarks.js';
 
 // Optional prop registry for the map check (dev/mapcheck.html): footprint boxes of placed props, in Bucket.box terms
 // (centre, size along local x / z, rotY). Purely informational: nothing in the game reads it.
@@ -229,7 +229,19 @@ export function buildProps(ctx) {
   const pick = () => { const r = rnd(); return r < 0.42 ? tpls.suv : r < 0.8 ? tpls.sedan : tpls.hatch; };
   const color = () => CAR_COLORS[Math.floor(rnd() * CAR_COLORS.length)];
   let nCars = 0;
-  const car = (x, z, heading) => { placeCar(ctx, pick(), x, z, heading + (rnd() - 0.5) * 0.05, color()); nCars++; };
+  // tree trunks near the play area: nothing is parked or set down on or against one (trunks are up to ~0.6 m in radius)
+  const pbT = ctx.playBounds; const trunks = (ctx.gen.trees || []).filter((t) => t[0] > pbT.minX - 30 && t[0] < pbT.maxX + 30 && t[1] > pbT.minZ - 30 && t[1] < pbT.maxZ + 30);
+  const nearTrunk = (x, z, rot, sx, sz, margin) => {   // any trunk centre within `margin` of the footprint (centre, rotY, size along local x / z)
+    const c = Math.cos(rot), s = Math.sin(rot);
+    return trunks.some((t) => { const dx = t[0] - x, dz = t[1] - z; return Math.hypot(Math.max(0, Math.abs(dx * c - dz * s) - sx / 2), Math.max(0, Math.abs(dx * s + dz * c) - sz / 2)) < margin; });
+  };
+  // A car that would stand on a trunk is left out, but still draws its three random numbers, so every other car keeps
+  // its place, type and colour.
+  const car = (x, z, heading) => {
+    const tpl = pick(), h = heading + (rnd() - 0.5) * 0.05, col = color();
+    if (nearTrunk(x, z, h, tpl.t.L, tpl.t.W, 1.3)) return;
+    placeCar(ctx, tpl, x, z, h, col); nCars++;
+  };
   // painted lines (visual only): 10 cm quads just above the asphalt, merged into one mesh after placement.
   // Stall lines are trimmed / dropped where the ground under them is not asphalt (kerbs, concrete crossings).
   const stripePos = [], stripeCol = [];
@@ -373,7 +385,7 @@ export function buildProps(ctx) {
   sled(ctx, -45, 99.5, 0.05);
 
   // ---- baseball: field maintenance gear that doubles as cover in the open outfield
-  tarpRoller(ctx, 31, 122, -0.78, 12); tarpRoller(ctx, 112, 112, 0.74, 10);
+  tarpRoller(ctx, 31, 122, -0.78, 12); tarpRoller(ctx, 106, 117, 0.74, 10);   // (the second one used to run into the containers at 118, 108)
   for (const [x, z, r] of [[68.3, 88.5, 0], [52, 112, 0.7], [84.6, 112, -0.7]]) { ctx.B.v('net').quad([x - 1.1 * Math.cos(r), 0, z + 1.1 * Math.sin(r)], [x - 1.1 * Math.cos(r), 2.1, z + 1.1 * Math.sin(r)], [x + 1.1 * Math.cos(r), 2.1, z - 1.1 * Math.sin(r)], [x + 1.1 * Math.cos(r), 0, z - 1.1 * Math.sin(r)], [0, 0], [0, 5], [5, 5], [5, 0]); ctx.B.v('paint', true).setColor(0.06, 0.16, 0.09).box(x, 1.05, z, 2.3, 2.1, 0.08, r); ctx.B.c('rubber').box(x, 1.05, z, 2.3, 2.1, 0.12, r); }
   { const B = ctx.B; const p = B.v('paint', true); p.setColor(0.1, 0.25, 0.12).box(40, 0.9, 150, 2.6, 1.2, 1.5, 0.5); p.setColor(0.9, 0.75, 0.1).box(40.3, 1.7, 150.2, 1.2, 0.5, 1.2, 0.5); B.v('rubber').tube([39, 0.35, 149], [39, 0.35, 150.6], 0.35, 8).tube([41.2, 0.35, 150], [41.2, 0.35, 151.6], 0.35, 8); B.c('metal').box(40, 0.9, 150, 2.6, 1.8, 1.5, 0.5); }
   pad(ctx, 96, 150, 0.3, 4.5, 0.4, 2.2, [0.06, 0.16, 0.09]); pad(ctx, 70, 162, 0, 5, 0.4, 2.2, [0.06, 0.16, 0.09]); pad(ctx, 34, 136, -0.6, 4.5, 0.4, 2.2, [0.06, 0.16, 0.09]);
@@ -389,14 +401,48 @@ export function buildProps(ctx) {
   picnicTable(ctx, 232, 120, 0.3); picnicTable(ctx, 244, 118, -0.2); picnicTable(ctx, 270, 100, 0.1);
 
   // ---- walkways around the building: benches, bike racks, bins, picnic tables
-  for (const [x, z, r] of [[-24, -70, Math.PI / 2], [-24, -110, Math.PI / 2], [60, -160, 0], [100, -160.6, 0], [-18, 40, Math.PI / 2], [10, 58, 0], [166, -80, -Math.PI / 2], [166, -30, -Math.PI / 2]]) bench(ctx, x, z, r);
+  for (const [x, z, r] of [[-24, -70, Math.PI / 2], [-24, -110, Math.PI / 2], [60, -160, 0], [103, -160.6, 0], [-18, 40, Math.PI / 2], [10, 58, 0], [166, -80, -Math.PI / 2], [166, -30, -Math.PI / 2]]) bench(ctx, x, z, r);
   for (const [x, z, r] of [[-29, -50, 1.57], [-29, -44, 1.57], [-21, 33, 1.57], [150, -160, 0], [108, 36, 0]]) bikeRack(ctx, x, z, r);
-  for (const [x, z] of [[-22, -62], [56, -159], [-20, 12], [164, -66], [-2, 60], [-110, -8], [-96, -62]]) trashCan(ctx, x, z);
+  for (const [x, z] of [[-22, -62], [57.6, -158.4], [-20, 12], [164, -66], [-2, 60], [-110, -8], [-96, -62]]) trashCan(ctx, x, z);
   for (const [x, z, r] of [[-104, -12, 0.2], [-99, -40, 1.2], [-106, -52, 0.5], [-16, 80, 0.3], [-60, 108, 0.1]]) picnicTable(ctx, x, z, r);
   // concrete planters along the west walk (cover between the building and the fields)
   for (const z of [-128, -100, -72, -44]) { ctx.B.solidBox('concrete', 'concrete', -33.5, 0.45, z, 1.4, 0.9, 6, 0, 1 / 3); ctx.shrubs.push([-33.5, 0.9, z, 5.2, 0.9, Math.PI / 2]); }
   for (const x of [-100, -70, -40]) { ctx.B.solidBox('concrete', 'concrete', x, 0.45, -30, 6, 0.9, 1.4, 0, 1 / 3); ctx.shrubs.push([x, 0.9, -30, 5.2, 0.9, 0]); }
+  edgeDressing(ctx, nearTrunk);
   ctx.stats = { cars: nCars };
+}
+
+// The play-area edge where it would otherwise be an invisible wall across open asphalt (MAP_NOTES "invisible wall
+// mid-street", map check "boundary"): the far kerbs of 55th St and Grant St get a chain-link fence, the east lot its
+// boundary fence, and every street that leaves the map is closed with striped concrete barriers. Everything stands just
+// outside the play bounds, so the walkable area, the nav grid and the spawns are untouched.
+function edgeDressing(ctx, nearTrunk) {
+  const pb = ctx.playBounds; const E = 0.7; const trees = ctx.gen.trees || [];
+  // chain-link run with a gap wherever a tree trunk stands on the line (the trunk closes the gap)
+  const edgeFence = (ax, az, bx, bz) => {
+    const L = Math.hypot(bx - ax, bz - az), tx = (bx - ax) / L, tz = (bz - az) / L; const gaps = [];
+    for (const t of trees) { const u = (t[0] - ax) * tx + (t[1] - az) * tz; if (u > 0 && u < L && Math.abs((t[0] - ax) * tz - (t[1] - az) * tx) < 0.6) gaps.push([u - 0.55, u + 0.55]); }
+    fence(ctx, [[ax, az], [bx, bz]], { h: 1.8, gaps });
+  };
+  const roadBlock = (ax, az, bx, bz) => {
+    const L = Math.hypot(bx - ax, bz - az), tx = (bx - ax) / L, tz = (bz - az) / L, rot = Math.atan2(-tz, tx); const n = Math.max(1, Math.round(L / 3)), len = L / n - 0.25;
+    for (let i = 0; i < n; i++) {
+      const x = ax + tx * (i + 0.5) * L / n, z = az + tz * (i + 0.5) * L / n;
+      if (nearTrunk(x, z, rot, len, 0.6, 1.3)) continue;
+      barrier(ctx, x, z, rot, len);
+      const pt = ctx.B.v('paint', true);
+      pt.setColor(0.95, 0.45, 0.05).box(x, 0.96, z, len - 0.5, 0.22, 0.07, rot); pt.setColor(0.9, 0.9, 0.88).box(x, 0.66, z, len - 0.5, 0.13, 0.32, rot); pt.setColor(1, 1, 1);
+    }
+  };
+  edgeFence(-201, pb.minZ - E, pb.maxX - 0.5, pb.minZ - E);          // 55th St, north kerb
+  edgeFence(pb.minX - E, -135, pb.minX - E, -191);                   // Grant St, west kerb (north end)
+  edgeFence(pb.maxX + 0.5, -24, pb.maxX + 0.5, 71.5);                // east lot
+  // (3 m barriers; the runs start and end on whole multiples of 3 m from the corner, in step with the map check's samples)
+  roadBlock(pb.minX - E, -212, pb.minX - E, -191);                   // 55th St leaving west
+  roadBlock(-222, pb.minZ - E, -201, pb.minZ - E);                   // Grant St leaving north
+  roadBlock(-216, pb.maxZ + E, -195, pb.maxZ + E);                   // Grant St leaving south
+  roadBlock(186, pb.maxZ + E, 201, pb.maxZ + E);                     // Madison St leaving south
+  roadBlock(pb.maxX + E, 190, pb.maxX + E, 202);                     // the south street leaving east
 }
 
 // Shared prop kit for other campuses (see src/campuses/*/world.js). Hinsdale's own placement above is unchanged.

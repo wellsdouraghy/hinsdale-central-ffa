@@ -43,14 +43,15 @@ export default {
   walkSeeds: [[-150, 60], [0, -175], [240, 20], [60, 150]],
   spawnCenter: [35, 0],
   navSeed: [-150, 60],
+  // Every entry is checked at load (src/world/collision.js pickHeliSpawns: exact 8.5 m rotor clearance, trees >= 10.5 m,
+  // open sky, deck under the skids) and by the map check; entries closer than 30 m to an accepted one are skipped.
   heliPark: [
-    // ground: courtyards, service yards, behind buildings, lot corners, field edges
-    [50, 0, -77], [134, 0, -125], [166, 0, -92], [166, 0, 22], [124, 0, 150], [162, 0, 168], [272, 0, -8], [274, 0, 62], [214, 0, 62],
-    [-20, 0, 88], [-46, 0, 152], [-80, 0, 128], [-186, 0, 122], [-198, 0, 30], [-198, 0, -28], [-104, 0, -22], [-66, 0, -52], [-34, 0, -160],
-    [272, 0, -182], [228, 0, -20], [262, 0, 150], [228, 0, 196], [30, 0, 196], [-150, 0, 150], [100, 0, 64], [91, 0, -20], [10, 0, 70],
-    [-120, 0, 60], [180, 0, -170], [-200, 0, -170], [150, 0, 100], [240, 0, -160], [20, 0, 130], [105, 0, 170],
-    // flat rooftops (deck height = wing height - 0.4)
-    [140, 13.1, -68], [22, 11.6, 6], [62, 10.6, 30], [138, 15.1, 19], [70, 9.6, -141], [-12, 9.6, -80], [30, 9.6, -45], [126, 9.6, -15],
+    // ground: service yards, behind buildings, field edges and corners
+    [123, 0, 150], [164, 0, 170], [270, 0, 66], [-20, 0, 90], [-47, 0, 162], [-80, 0, 128], [-186, 0, 122], [-198, 0, 30],
+    [-195, 0, -32], [-114, 0, -26], [-64, 0, -50], [-31, 0, -153], [272, 0, -182], [228, 0, -36], [262, 0, 150], [228, 0, 196],
+    [29, 0, 196], [107, 0, 78], [8, 0, 72], [-121, 0, 60], [180, 0, -170], [-196, 0, -170], [240, 0, -161], [20, 0, 131],
+    // flat rooftops (deck height = wing height - 0.4), clear of roof units, penthouses and parapets
+    [135, 13.1, -72], [19, 11.6, 11], [61, 10.6, 30], [-10, 9.6, -78], [30, 9.6, -46],
   ],
   // Menu camera tour: camera path + look-at path (Catmull-Rom), field of view, caption. -z = north (55th St).
   tour: [

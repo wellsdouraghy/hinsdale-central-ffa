@@ -50,6 +50,13 @@ What each check does (and what to fix when it fails):
    reached from the sky, so they are listed as `sealedInteriors` (info); getting INTO them is what 1b tests.
    The controller's stuck safety net (`_stuckWatch`, which pops a wedged player free) is switched off for this and
    the ladder test: the map has to be right without it.
+   "Blocked" (the cue to jump) is read from the real displacement, not from `horizontalSpeed()`: on the ground the
+   controller keeps its velocity while it grinds against a wall or a 0.4 m parapet, so the speed never drops.
+   **Ladder pass:** a `sealed pocket` with a ladder is not a trap. After the first pass, every ladder that passed
+   check 2 and whose deck was proven escapable *without* ladder credit gets its pocket flood-filled from the ladder
+   foot (1 m grid); trapped starts are re-run and pass if they reach one of those cells (`escapedViaLadder`, and
+   `ladders` in the report). A roof can therefore never be "proven" by dropping into a courtyard whose only way out
+   leads back up to that same roof.
 1b. **roofVoids** (ways into the hidden space under pitched roofs). Reuses dev/trap-sweep.js with the real
    controller: 0.5 m top-surface scan, 800 wall jumps + double jumps + mantles from the ground and 800 from roofs at
    building walls, walking / jumping / sprinting / dropping on 150 pitched-roof points at 60 / 30 / 20 fps, and 250
@@ -63,10 +70,14 @@ What each check does (and what to fix when it fails):
    cell. Also: >= 24 FFA / >= 8 per team, navGrid.unreachable = 0, both CTF bases on walk cells and connected (nav
    path length reported), team spawns 25-70 m from their own base and never nearer the enemy base, base distance
    (warn outside 150-420 m), cover around each base (fraction of 16 directions blocked within 30 m).
+   The pipeline itself now refuses cells closer than 1.25 m to a wall / fence / prop (`wallClear` in
+   src/world/collision.js, tested lazily on the cells the samplers pick), for FFA and team spawns on every campus.
 4. **heli.** Exact shape query (not rays): nothing solid within 8 m of the rotor axis between deck + 0.3 m and
    + 3.4 m (warn < 8.5 m), tree trunks >= 10.5 m (canopies are not collision), open sky, roof spots have deck under
-   the centre and all four skid ends, >= 12 spots. The pipeline's own 16-ray test misses small roof units between
-   rays: this check does not.
+   the centre and all four skid ends, >= 12 spots. The pipeline (`pickHeliSpawns`) runs the same exact query after
+   its 16 rays and wants 8.5 m, so a bad `heliPark` entry is dropped at load instead of failing here; what the
+   campus has to guarantee is the count. Keep >= 12 entries that pass at 8.5 m: with fewer, the pipeline falls back
+   to 7 m and 6 m and those spots fail this check (that is how Marin's bad spots got in).
 5. **visualSolid.** Upward-facing visual triangles above 1 m inside the play area that are at least 0.45 m wide
    (triangle altitude) and have no collision within 0.6 m below (and are not buried in a solid, and are not a lip
    right next to a wall): patches >= 2 m2 fail. Typical hits: hip / gable roofs whose collision is a box at eave
@@ -79,8 +90,11 @@ What each check does (and what to fix when it fails):
 7. **signs.** Every `M.textDecal` texture records a fit (`texture.userData.textFit`). Fail: text still wider than the
    canvas or taller than its line band; > 15% of the sign over windows (glass / frames found right behind it).
    Warn: shrunk below 60%, stretched > 20% (canvas aspect vs decal aspect), letters < 12 cm, not backed by a wall.
-8. **boundary** (warn only). Where the player can walk up to the play-area edge, no collider within 3 m inside /
-   2 m outside and no tree trunk within 4 m = an invisible wall. Open edges >= 6 m on asphalt = "stopped
+8. **boundary** (warn only). Where the player can walk up to the play-area edge, no collider between the nearest
+   walkable ground on that line (3 m inside or more) and 2 m outside, and no tree trunk within 4 m = an invisible
+   wall. (The ray starts at the walkable ground: a building whose wall stands 3-5 m inside the edge is a barrier.)
+   Samples are every 3 m from the corner: a row of 3 m barriers with 0.3 m gaps drifts onto a gap sooner or later,
+   so lay roadblocks out in whole multiples of 3 m from the corner. Open edges >= 6 m on asphalt = "stopped
    mid-street": dress them (fence + windscreen, barriers, tree belt).
 9. **bots** (warn only). 8 normal bots, FFA, 60 s: a bot staying within 2 m for > 12 s while trying to move (not
    fighting, not perched) is logged with its position and goal; the controller's stuck safety net firing for a bot
@@ -106,11 +120,25 @@ What each check does (and what to fix when it fails):
 - **Steps/terraces with a tall first riser** (frontH ~0.9) snag or block players: use ramps or real step heights.
 - **Hedges/shrubs** taller than eye height with no collision: keep under ~1.1 m or make them solid.
 - **Invisible wall mid-street at the play edge:** dress the boundary (fence + windscreen, barriers at street
-  crossings, tree belt) so the edge reads as physical.
+  crossings, tree belt) so the edge reads as physical. Hinsdale: plain chain-link along the far kerb of the two
+  streets that run along the edge and along the east lot, striped barriers where a street leaves the map, all 0.5-0.7 m
+  *outside* the bounds so nothing walkable changes (`edgeDressing` in src/world/props.js). Leave a gap in the fence
+  at tree trunks and shift a barrier that would touch one.
 - **FFA spawns in far corners** (farthest-point sampling pushes them out): set `spawnBounds` to the campus core.
 - **CTF bases must be fair:** both need cover, multiple approaches (fence openings) and no single roof overlooking
   one but not the other. Keep them ~250-300 m apart.
 - **Heli spots need rotor clearance** (~8 m radius) from any collider, roof spots need deck under the skids.
+  Parking-lot aisles, service yards with dumpsters, roofs with units: nearly every hand-picked spot was 3-7 m from
+  something. Find spots with a scan (exact segment-to-triangle distance >= 9 m, trunks >= 11 m, 3 m grid), not by eye.
+- **Closed courtyards** (Hinsdale had three, walls of 10-12 m): door canopies inside them are "low roofs" you can
+  drop onto and never leave. Every enclosed court needs a ladder (`wallLadder` in src/world/facade.js, `top` = the
+  parapet top so the exit clears the lip) on plain brick between the corner pier and the first window, or an opening.
+- **Pitched roof over a box:** collision must be the visible shape (walls to the eave + the roof planes + the soffit
+  closing the eave overhang from below), never a taller box "roughly the same volume": players stood 0.7 m above the
+  eaves and sank 1.4 m into the ridge of Hinsdale's concession building.
+- **Layout data that feeds placement** (Marin: ground `heliPark` entries were also the walk seeds and the car-free
+  circles): editing the list reshuffled every parked car. Spell such inputs out separately (`walkSeeds`, `CAR_FREE`
+  in src/campuses/marin/world.js) and have anything that is rejected still draw its random numbers.
 - Chain-link / nets use the `metal:mesh` collision surface (bulletPassthrough): solid to players, bullets pass.
 - Re-validate after every change: spawn count + all inside spawnBounds, nav unreachable 0, heli spot count, CTF
   bases on walk cells, every ladder exits, a few wall/roof walk tests.
@@ -118,7 +146,9 @@ What each check does (and what to fix when it fails):
 **Visual**
 - **Minimap / laptop images are per campus:** anything baked once at startup must re-bake on campus change.
 - **Props placed after other props without exclusion clip** (buses through parked cars, cars on tree trunks):
-  reserve footprints before placing, and keep stalls ~1.2 m from tree trunks.
+  reserve footprints before placing, and keep stalls ~1.2 m from tree trunks. Trunks are up to ~0.6 m in radius
+  (the radius is only known once the trees are planted), so test props against `gen.trees` with footprint + 1.3 m;
+  lane cars need an oriented-box test against the kerb-parked ones (a centre-distance test let two overlap by 0.7 m).
 - **Satellite smears** (old cars, shadows, lane paint) on asphalt look like blotches up close: use the low-pass
   asphalt (`ground.asphaltDeblur`) and paint real markings (stall lines, centre lines) as geometry.
 - **Ground-class blobs** (amoeba concrete patches, tree-shadow grass on car parks, white speckles): rasterise OSM
@@ -138,6 +168,9 @@ What each check does (and what to fix when it fails):
 - **Shared prop kit (cars):** dangling shards under wheel arches/bumpers (open item).
 - **Signs / text decals:** text must fit its canvas (textDecal now shrinks to fit) and sit on clear wall (brick
   band, parapet), never over windows. Read every sign at eye level in QA ("HIGH SCHO" shipped once).
+  Work the heights out from the facade kit (lintel top, sill course), make the canvas the same shape as the decal
+  (a 16 : 1 canvas on a 35 : 1 plane doubles every letter's width) and pick a font that fits without shrinking. No
+  clear wall behind a canopy? Stand the name on the canopy edge on its own solid sign band (Marin science center).
 - **Wall-mounted fixtures:** wall packs / downpipes must mount on the surface actually behind them (pilaster faces),
   stand proud of it, and not hide half a pilaster (reads as a stray seam).
 - **Car model:** closed end caps + floor pan; wheel-arch discs clipped at the sill (shards otherwise).

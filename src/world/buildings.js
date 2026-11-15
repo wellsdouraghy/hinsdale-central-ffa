@@ -2,7 +2,7 @@
 // ribbon windows, satellite-projected roofs) and the surrounding houses.
 import * as THREE from 'three';
 import { ensureCCW, signedArea, mulberry32, pointInRing, makeCanvas, canvasTexture } from './util.js';
-import { edgeFrame, quadFacing, wallRect, fbox, facade, roofUnit, doorFromKit, BRICK_S } from './facade.js';
+import { edgeFrame, quadFacing, wallRect, fbox, facade, roofUnit, doorFromKit, wallLadder, BRICK_S } from './facade.js';
 import { lampPost } from './landmarks.js';
 
 const STONE_S = 1 / 3.0;
@@ -19,6 +19,10 @@ function orientRing(pts, base, ccw) {
 
 // edges whose bays are replaced by hand-built entrances (world-space boxes: minX, minZ, maxX, maxZ)
 const PLAIN_ZONES = [[-9, -21, -3, 28]];
+// Roof-access ladders in the three closed courtyards (walls of 10-12 m all round: without them a player who drops in
+// can only leave with the grapple). Each is a point just inside a courtyard corner; the ladder goes on the nearest
+// ground-floor wall, on the plain brick between the corner pier and the first window, up to that wing's parapet.
+const COURT_LADDERS = [[33.8, -59.9], [10.5, -63.5], [98.5, -130.0]];
 
 function parapetTop(B, F, L, h, roofY, alu) {
   quadFacing(B.v(alu ? 'frameAlu' : 'frame'), F.P(-0.1, h + 0.03, 0.13), F.P(L + 0.1, h + 0.03, 0.13), F.P(L, h + 0.03, -0.32), F.P(0, h + 0.03, -0.32), [0, 1, 0]);
@@ -30,7 +34,7 @@ export function buildSchool(ctx) {
   B.v('brick', true);
   const rr = gen.roofs;
   const roofUV = (lean) => (x, z) => [(x + lean[0] - rr.minX) / (rr.maxX - rr.minX), 1 - (z + lean[1] - rr.minZ) / (rr.maxZ - rr.minZ)];
-  ctx.schoolRings = [];
+  ctx.schoolRings = []; const wallEdges = [];
   for (const piece of gen.school) {
     const h = piece.h; const roofY = h - 0.4;
     const rings = [orientRing(piece.outer.pts, piece.outer.base, true), ...piece.holes.map((r) => orientRing(r.pts, r.base, false))];
@@ -43,6 +47,7 @@ export function buildSchool(ctx) {
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
         if (base >= h - 0.05 || L < 0.02) { uOff += L; continue; }
         const F = edgeFrame(a[0], a[1], b[0], b[1]);
+        if (base === 0 && L > 4) wallEdges.push({ F, h });
         const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
         const plain = PLAIN_ZONES.some(([x0, z0, x1, z1]) => mx > x0 && mx < x1 && mz > z0 && mz < z1);
         facade(ctx, F, base > 0 ? Math.max(0, base - 0.4) : 0, h, plain ? 'link' : piece.name, uOff, rnd, { tintFrom: piece.name });
@@ -68,6 +73,17 @@ export function buildSchool(ctx) {
     for (const hr of rings.slice(1)) for (let i = 0; i < hr.pts.length; i++) { const a = hr.pts[i], b = hr.pts[(i + 1) % hr.pts.length]; col.wall(a[0], a[1], b[0], b[1], 0, roofY); }
     ctx.schoolRings.push(rings[0].pts);
     roofFurniture(ctx, rings, roofY, rnd);
+  }
+  for (const [px, pz] of COURT_LADDERS) {
+    // nearest wall that faces the point (the point is ~1 m out from it and 1.5 m along it from the corner)
+    let best = null;
+    for (const e of wallEdges) {
+      const u = (px - e.F.ax) * e.F.tx + (pz - e.F.az) * e.F.tz, out = (px - e.F.ax) * e.F.nx + (pz - e.F.az) * e.F.nz;
+      if (u < 0.9 || u > e.F.L - 0.9 || out < 0.05 || (best && out >= best.out)) continue;
+      best = { e, u, out };
+    }
+    if (!best || best.out > 3) continue;
+    const p = best.e.F.P(best.u, 0, 0.14); wallLadder(ctx, p[0], p[2], best.e.F.nx, best.e.F.nz, best.e.h + 0.03);
   }
   B.v('brick', true).setColor(1, 1, 1);
   schoolFeatures(ctx);
@@ -136,9 +152,11 @@ function schoolFeatures(ctx) {
   // --- school name on the north-west block facing 55th St (as on the real building)
   {
     const F = edgeFrame(-11.17, -152.39, -1.25, -152.66);
-    // On the brick band between the floors (it used to sit over the second-floor windows and was cut off).
-    const tex = M.textDecal(['HINSDALE TOWNSHIP HIGH SCHOOL', 'CENTRAL'], { w: 2048, h: 384, font: 150, color: '#e9ecee', spacing: '10px', align: 'center' });
-    addDecal(tex, F, F.L * 0.5, 4.95, 7.6, 1.42, 0.16);
+    // On the clear brick between the two window rows: first-floor lintels end at 3.43 m, the second-floor sill course
+    // starts at 5.01 m (it used to sit at 4.95 m, a quarter of it over the second-floor glass). The canvas matches the
+    // decal's 8 : 1 shape and the type is sized to fit it without shrinking.
+    const tex = M.textDecal(['HINSDALE TOWNSHIP HIGH SCHOOL', 'CENTRAL'], { w: 2048, h: 256, font: 88, color: '#e9ecee', spacing: '10px', align: 'center' });
+    addDecal(tex, F, F.L * 0.5, 4.22, 8.8, 1.1, 0.16);
   }
   // --- 55th St (north) entrances: projecting brick pavilion with a limestone portal and deep storefront doors
   {
@@ -311,7 +329,7 @@ function grantPlaza(ctx, addDecal) {
   B.c('glass').box(wx - dep / 2, T + 1.65, 11.9, dep, 3.3, 12.6);
   addDecal(emblemTexture(), edgeFrame(wx, 4.9, wx, 1.3), 1.8, 5.5, 2.4, 2.4, 0.2);
   const tex = M.textDecal(['HINSDALE CENTRAL'], { w: 2048, h: 160, font: 120, color: '#34383c', align: 'center', weight: 700, spacing: '14px' });
-  addDecal(tex, edgeFrame(-17.1, 4, -17.1, -13), 8.5, 7.55, 11, 0.62, 0.02);
+  addDecal(tex, edgeFrame(-17.1, 4, -17.1, -13), 8.5, 7.55, 0.62 * 12.8, 0.62, 0.02);   // 12.8 : 1 like its canvas (was stretched to 11 m)
   // terrace furniture
   for (const z of [-12, -4]) { B.v('wood').box(-13.5, T + 0.45, z, 0.45, 0.06, 1.9, 0, 0.5); B.v('blackMetal').box(-13.5, T + 0.22, z - 0.85, 0.45, 0.45, 0.06).box(-13.5, T + 0.22, z + 0.85, 0.45, 0.45, 0.06); B.c('wood').box(-13.5, T + 0.45, z, 0.5, 0.9, 1.9); }
   lampPost(ctx, xe - 3.4, 2.6); lampPost(ctx, xe - 3.4, 21.5);
@@ -331,7 +349,7 @@ function minAreaOBB(pts) {
   return best;
 }
 
-function hipRoof(bucket, ring, eaveY, pitch, overhang, uvS) {
+function hipRoof(bucket, ring, eaveY, pitch, overhang, uvS, col = null) {
   const o = minAreaOBB(ring); if (!o) return 0;
   let { tx, tz, u0, u1, v0, v1 } = o;
   // make u the long axis
@@ -355,6 +373,10 @@ function hipRoof(bucket, ring, eaveY, pitch, overhang, uvS) {
   t(D, A, R0, 2 * hw); t(Bp, C, R1, 2 * hw);
   // soffit (underside of the overhang) so eaves do not look paper thin from below
   quadFacing(bucket, A, Bp, C, D, [0, -1, 0]);
+  if (col) {   // the same closed shape as collision
+    quadFacing(col, A, Bp, R1, R0, up); quadFacing(col, C, D, R0, R1, up); quadFacing(col, A, Bp, C, D, [0, -1, 0]);
+    for (const [p0, p1, p2] of [[D, A, R0], [Bp, C, R1]]) { const cy = (p1[2] - p0[2]) * (p2[0] - p0[0]) - (p1[0] - p0[0]) * (p2[2] - p0[2]); if (cy >= 0) col.tri(p0, p1, p2); else col.tri(p0, p2, p1); }
+  }
   return rise;
 }
 
@@ -405,7 +427,9 @@ export function buildHouses(ctx) {
       B.v('groundDecal').quad(F.P(0, 0.025, 0.02), F.P(L, 0.025, 0.02), F.P(L, 0.025, 1.3), F.P(0, 0.025, 1.3), [0, 0], [1, 0], [1, 1], [0, 1]);
       u += L;
     }
-    B.v('shingles', true).setColor(3.4, 0.5, 0.36); hipRoof(B.v('shingles', true), ring, h, 0.55, 0.8, 1 / 3);
-    B.c('brick').prism(ring, 0, h + 1.2, 1, true);
+    // collision follows the visible roof: walls to the eave, the four roof planes and the soffit (the eave overhang closed
+    // from below, so there is no slot between wall top and roof to climb into: MAP_NOTES "players inside a roof")
+    B.v('shingles', true).setColor(3.4, 0.5, 0.36); hipRoof(B.v('shingles', true), ring, h, 0.55, 0.8, 1 / 3, B.c('concrete'));
+    B.c('brick').prism(ring, 0, h, 1, true);
   }
 }

@@ -42,12 +42,18 @@ export default {
   water: [
     { kind: 'pool', rect: { cx: 53.5, cz: 73.6, w: 23.6, d: 33.6, angle: 0.12566 }, depth: [1.2, 3.8], deepEnd: 1, lanes: { count: 14, along: 'short' }, ladders: 4 },
   ],
-  // hidden-helicopter candidates [x, y, z]: y = 0 ground, y = roof deck height on flat roofs (validated at load)
+  // hidden-helicopter candidates [x, y, z]: y = 0 ground, y = roof deck height on flat roofs. Every entry is checked at
+  // load (src/world/collision.js pickHeliSpawns: exact 8.5 m rotor clearance, trees >= 10.5 m, open sky, deck under the
+  // skids) and by the map check; entries closer than 30 m to an accepted one are skipped.
   heliPark: [
-    [108, 0, -30], [62, 0, -22], [76, 0, -74], [12, 0, -140], [-86, 0, -44], [-20, 0, -5], [84, 0, 58], [-141, 0, 131],
-    [-30, 0, 150], [-10, 0, 180], [128, 0, 172], [70, 0, 150], [150, 0, 62], [-160, 0, 160], [100, 0, 258], [-48, 0, 240],
-    [-196, 0, 0], [196, 0, 44], [13, 0, 92], [-110, 0, 96], [170, 0, 110], [-150, 0, -150], [60, 0, -190], [180, 0, -60],
+    [62, 0, -22], [76, 0, -71], [-87, 0, -45], [-21, 0, -20], [84, 0, 59], [-10, 0, 179], [68, 0, 152], [-166, 0, 170], [14, 0, 92],
+    [-97, 0, 89], [-140, 0, 47], [28, 0, -112], [103, 0, -52], [166, 0, 155], [133, 0, 41], [43, 0, 2], [28, 0, 188], [-32, 0, 98],
+    [-86, 5.9, -4], [22, 15, -52],   // flat roofs: the west classroom block and the Science + Innovation Center
   ],
+  // walkable flood-fill seeds (CAMPUSES.md). Spelled out so the reachable area does not depend on the helicopter list:
+  // the flag bases, the practice pad and open ground around campus.
+  walkSeeds: [[104, -27], [-141, 131], [62, -22], [108, -30], [76, -74], [12, -140], [-86, -44], [-20, -5], [84, 58], [-30, 150], [-10, 180],
+    [128, 172], [70, 150], [150, 62], [-160, 160], [13, 92], [-110, 96], [170, 110], [-150, -150], [180, -60]],
   // Menu camera tour: camera path + look-at path (Catmull-Rom), field of view, caption. -z = north (uphill).
   tour: [
     { name: 'Championship Field', fov: 44,

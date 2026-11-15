@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { Bucket } from './util.js';
 import { SAT } from './ground.js';
 
+const SPAWN_WALL_CLEAR = 1.25;   // m: no spawn closer than this to a wall, fence or prop (the map check warns below 1.2)
+
 export function buildCollision(ctx, group) {
   const meshes = [];
   const mat = new THREE.MeshBasicMaterial({ visible: false });
@@ -106,7 +108,17 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
       state[idx] = 1; queue.push(a, b);
     }
   }
-  ctx.walkGrid = { x0, z0, nx, nz, cell, state };
+  // Spawns keep their distance from walls and fences: a cell centre can sit a few centimetres from a chain-link run that
+  // lies between two grid lines (the flood fill only tests cell-to-cell segments). Tested lazily, on the cells the
+  // samplers below actually pick: 16 directions at knee and chest height.
+  const wallClear = (x, z, r = SPAWN_WALL_CLEAR) => {
+    for (const y of [0.5, 1.3]) for (let k = 0; k < 16; k++) {
+      const a = k * Math.PI / 8; o.set(x, y, z); d.set(Math.cos(a), 0, Math.sin(a)); rc.set(o, d); rc.far = r;
+      if (rc.intersectObjects(solids, false).length > 0) return false;
+    }
+    return true;
+  };
+  ctx.walkGrid = { x0, z0, nx, nz, cell, state, wallClear };
   // optional campus spawn region (keeps FFA spawns near the action without shrinking the play area)
   const sb = ctx.campus?.spawnBounds;
   const inSpawnArea = (x, z) => !sb || (x >= sb.minX && x <= sb.maxX && z >= sb.minZ && z <= sb.maxZ);
@@ -129,13 +141,19 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
       for (let b = -4; b <= 4; b++) for (let a = -4; a <= 4; a++) { const ii = i + a, jj = j + b; if (ii >= 0 && jj >= 0 && ii < nx && jj < nz && state[jj * nx + ii] === -1) near++; }
       return near > 0 ? 1.25 : 1.0;
     });
-    for (let n = 0; n < count; n++) {
-      const [cx, cz] = cands[cur]; spawns.push(new THREE.Vector3(cx, 0, cz));
-      let bi = 0, bd = -1;
+    const dead = new Uint8Array(cands.length);   // picked but too close to a wall / fence: skipped, never a spawn
+    for (let n = 0, tries = 0; n < count && tries < cands.length; tries++) {
+      const [cx, cz] = cands[cur];
+      if (!wallClear(cx, cz)) dead[cur] = 1;
+      else { spawns.push(new THREE.Vector3(cx, 0, cz)); n++; for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; } }
+      let bi = -1, bd = -1;
       for (let k = 0; k < cands.length; k++) {
-        const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd;
-        const sc = dist[k] * coverBonus[k]; if (sc > bd) { bd = sc; bi = k; }
+        if (dead[k]) continue;
+        // before the first spawn is placed every distance is still infinite: stay with "nearest to the centre"
+        const sc = spawns.length ? dist[k] * coverBonus[k] : -Math.hypot(cands[k][0] - L.spawnCenter[0], cands[k][1] - L.spawnCenter[1]);
+        if (bi < 0 || sc > bd) { bd = sc; bi = k; }
       }
+      if (bi < 0) break;
       cur = bi;
     }
   }
@@ -172,10 +190,14 @@ export function spawnsNear(ctx, center, rMin, rMax, count, awayFrom) {
   if (!cands.length) return out;
   const dist = new Float32Array(cands.length).fill(Infinity); let cur = 0, bc = -1;
   cands.forEach((c, k) => { if (c[2] > bc) { bc = c[2]; cur = k; } });
-  for (let n = 0; n < count && n < cands.length; n++) {
-    const [cx, cz] = cands[cur]; out.push(new THREE.Vector3(cx, 0, cz));
-    let bi = 0, bd = -1;
-    for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; const sc = dist[k] * cands[k][2]; if (sc > bd) { bd = sc; bi = k; } }
+  const wallClear = g.wallClear || (() => true); const dead = new Uint8Array(cands.length);   // see computeSpawns
+  for (let n = 0, tries = 0; n < count && tries < cands.length; tries++) {
+    const [cx, cz] = cands[cur];
+    if (!wallClear(cx, cz)) dead[cur] = 1;
+    else { out.push(new THREE.Vector3(cx, 0, cz)); n++; for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; } }
+    let bi = -1, bd = -1;
+    for (let k = 0; k < cands.length; k++) { if (dead[k]) continue; const sc = out.length ? dist[k] * cands[k][2] : cands[k][2]; if (bi < 0 || sc > bd) { bd = sc; bi = k; } }
+    if (bi < 0) break;
     cur = bi;
   }
   return out;
@@ -192,7 +214,19 @@ function solidBVH(collisionMeshes) {
   const ray = new THREE.Ray();
   // distance to the first solid along a ray, or Infinity
   const cast = (ox, oy, oz, dx, dy, dz, far) => { ray.origin.set(ox, oy, oz); ray.direction.set(dx, dy, dz); const h = g.boundsTree.raycastFirst(ray, THREE.DoubleSide); return h && h.distance <= far ? h.distance : Infinity; };
-  return { cast, dispose() { g.disposeBoundsTree(); g.dispose(); } };
+  // exact distance (up to maxR) from the vertical segment (x, y0..y1, z) to the nearest solid, ignoring contact points at
+  // or below yMin (the deck / ground the segment stands on). Rays can pass between small things; this cannot.
+  const seg = new THREE.Line3(), box = new THREE.Box3(), p1 = new THREE.Vector3(), p2 = new THREE.Vector3();
+  const clearance = (x, y0, y1, z, maxR, yMin = -Infinity) => {
+    seg.start.set(x, y0, z); seg.end.set(x, y1, z); box.makeEmpty().expandByPoint(seg.start).expandByPoint(seg.end).expandByScalar(maxR);
+    let best = maxR;
+    g.boundsTree.shapecast({
+      intersectsBounds: (bb) => bb.intersectsBox(box),
+      intersectsTriangle: (tri) => { const dd = tri.closestPointToSegment(seg, p1, p2); if (dd < best && p1.y > yMin) best = dd; return false; },
+    });
+    return best;
+  };
+  return { cast, clearance, dispose() { g.disposeBoundsTree(); g.dispose(); } };
 }
 
 // Ground-level walk grid for A*: 1.25 m cells, walkable where a standing player fits (nothing solid between 0.3 m and
@@ -282,7 +316,11 @@ export function pickHeliSpawns(ctx, S, min = 12) {
         if (ok) { const d = Math.min(S.cast(x, y + 1.8, z, dx, 0, dz, 60), 60); if (d > bestD) { bestD = d; bestA = an; } }
       }
       if (!ok) continue;
+      // exact rotor-disc test (the 16 rays above miss roof units, lamp heads and fence ends between them), with half a
+      // metre in hand so no accepted spot sits right at the limit
+      if (S.clearance && S.clearance(x, y + 0.5, y + 3.4, z, clear + 0.6, y + 0.3) < clear + 0.5) continue;
       if (trees.some((t) => Math.hypot(t[0] - x, t[1] - z) < clear + 2.5)) continue;
+      if ((ctx.trunks || []).some((t) => Math.hypot(t[0] - x, t[1] - z) < clear + 2.5)) continue;   // builder-planted trees too
       const pb = ctx.playBounds; if (x < pb.minX + 6 || x > pb.maxX - 6 || z < pb.minZ + 6 || z > pb.maxZ - 6) continue;
       // nose (-z at yaw 0) toward the most open direction
       out.push({ pos: new THREE.Vector3(x, y, z), yaw: Math.atan2(-Math.cos(bestA), -Math.sin(bestA)), roof: y > 0.5 });

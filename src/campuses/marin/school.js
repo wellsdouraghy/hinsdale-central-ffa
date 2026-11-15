@@ -72,7 +72,7 @@ function fosterHall(ctx) {
       const s2 = B.v('shingles', true); s2.setColor(...CLAY_DARK);
       quadFacing(s2, Fs.P(-0.4, 5.3, 0), Fs.P(Fs.L + 0.4, 5.3, 0), Fs.P(Fs.L + 0.4, top + 0.42, dep + 0.5), Fs.P(-0.4, top + 0.42, dep + 0.5), [0, 1, 0], [[0, 0], [Fs.L / 3, 0], [Fs.L / 3, 1.3], [0, 1.3]]); s2.setColor(1, 1, 1);
       quadFacing(B.v('whitePanel'), Fs.P(-0.4, top + 0.4, 0), Fs.P(Fs.L + 0.4, top + 0.4, 0), Fs.P(Fs.L + 0.4, top + 0.4, dep + 0.5), Fs.P(-0.4, top + 0.4, dep + 0.5), [0, -1, 0]);
-      quadFacing(B.c('concrete'), Fs.P(0, 5.3, 0), Fs.P(Fs.L, 5.3, 0), Fs.P(Fs.L, top + 0.42, dep + 0.5), Fs.P(0, top + 0.42, dep + 0.5), [0, 1, 0]);
+      quadFacing(B.c('concrete'), Fs.P(-0.4, 5.3, 0), Fs.P(Fs.L + 0.4, 5.3, 0), Fs.P(Fs.L + 0.4, top + 0.42, dep + 0.5), Fs.P(-0.4, top + 0.42, dep + 0.5), [0, 1, 0]);   // the whole visible roof, end overhangs included
       fbox(B.v('whitePanel'), Fs, -0.2, Fs.L + 0.2, top, top + 0.4, dep - 0.6, dep - 0.1, 1, 0, 'fstb');
       for (const u of sd < 0 ? [Fs.L - 0.5, Fs.L * 0.62, Fs.L * 0.3] : [0.5, Fs.L * 0.38, Fs.L * 0.7]) { const c = Fs.P(u, 0, dep - 0.35); B.v('whitePanel').box(c[0], py + (top - py) / 2, c[2], 0.42, top - py, 0.42, ROT); B.c('concrete').box(c[0], top / 2, c[2], 0.45, top, 0.45, ROT); }
       fbox(B.v('whitePanel'), Fs, sd < 0 ? Fs.L * 0.15 : 0.6, sd < 0 ? Fs.L - 0.6 : Fs.L * 0.85, py, py + 0.95, dep - 0.22, dep - 0.02, 1, 0, 'fstb');
@@ -129,7 +129,9 @@ function scienceCenter(ctx, ring) {
     fbox(B.v('whitePanel'), best, best.L * 0.5 - 5, best.L * 0.5 + 5, 3.5, 3.85, 0, 3.2, 1, 0, 'fstb');
     const c = best.P(best.L * 0.5, 3.67, 1.6); B.c('metal').box(c[0], c[1], c[2], 10, 0.35, 3.2, best.rotY);
     for (const du of [-4.6, 4.6]) { const pp = best.P(best.L * 0.5 + du, 0, 2.9); B.v('frameAlu').cyl(pp[0], 0, pp[2], 0.1, 0.1, 3.5, 8, 1, false); B.c('metal').box(pp[0], 1.75, pp[2], 0.25, 3.5, 0.25); }
-    wallDecal(ctx, ctx.M.textDecal(['SCIENCE + INNOVATION CENTER'], { w: 2048, h: 128, font: 84, color: '#3b4046', align: 'center', weight: 600, spacing: '10px' }), best, best.L * 0.5, 4.5, 9.5, 0.6, 0.1);
+    // the name stands on the canopy's front edge on its own sign band (on the wall behind, half of it lay over the windows)
+    { const sb = best.P(best.L * 0.5, 4.2, 3.1); B.v('whitePanel').box(sb[0], sb[1], sb[2], 9.8, 0.7, 0.1, best.rotY); B.c('metal').box(sb[0], sb[1], sb[2], 9.8, 0.7, 0.1, best.rotY); }
+    wallDecal(ctx, ctx.M.textDecal(['SCIENCE + INNOVATION CENTER'], { w: 2048, h: 128, font: 84, color: '#3b4046', align: 'center', weight: 600, spacing: '10px' }), best, best.L * 0.5, 4.2, 8.8, 0.55, 3.17);
   }
   ringLadder(ctx, ring, 0, 0.5, roofY);
 }

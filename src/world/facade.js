@@ -339,6 +339,18 @@ function bed(ctx, F, uc, len) {
   ctx.shrubs.push([p[0], 0.05, p[2], len, 0.85, F.rotY]);
 }
 
+// Climbable roof-access ladder on a wall: (x, z) on the wall face, (nx, nz) its outward normal, `top` = the height the
+// climber steps off at (the parapet top, so the exit clears the lip; see MAP_NOTES "Ladders that can't be exited").
+// Galvanised rails on stand-off brackets with walk-through grab rails over the parapet; registered in ctx.ladders.
+export function wallLadder(ctx, x, z, nx, nz, top) {
+  const g = ctx.B.v('galv'); const tx = -nz * 0.24, tz = nx * 0.24; const ox = x + nx * 0.16, oz = z + nz * 0.16;
+  g.tube([ox - tx, 0.2, oz - tz], [ox - tx, top + 1.1, oz - tz], 0.028, 5).tube([ox + tx, 0.2, oz + tz], [ox + tx, top + 1.1, oz + tz], 0.028, 5);
+  for (let y = 0.5; y < top + 0.2; y += 0.3) g.tube([ox - tx, y, oz - tz], [ox + tx, y, oz + tz], 0.015, 4);
+  for (let y = 1.5; y < top - 0.2; y += 2.4) { g.tube([ox - tx, y, oz - tz], [x - tx, y, z - tz], 0.02, 4); g.tube([ox + tx, y, oz + tz], [x + tx, y, z + tz], 0.02, 4); }
+  for (const s of [-1, 1]) g.tube([ox + s * tx, top + 1.1, oz + s * tz], [x - nx * 0.6 + s * tx, top + 1.1, z - nz * 0.6 + s * tz], 0.028, 5).tube([x - nx * 0.6 + s * tx, top + 1.1, z - nz * 0.6 + s * tz], [x - nx * 0.6 + s * tx, top - 0.4, z - nz * 0.6 + s * tz], 0.028, 5);
+  ctx.ladders.push({ x: ox, z: oz, nx, nz, y0: 0.4, y1: top, exitY: top + 0.05 });
+}
+
 // rooftop mechanical unit that shows above the parapet
 export function roofUnit(ctx, x, y, z, rot, rnd) {
   const { B } = ctx; const g = B.v('galv'); const w = 2.4 + rnd() * 1.6, d = 1.6 + rnd() * 0.8, hh = 1.5 + rnd() * 0.7;
