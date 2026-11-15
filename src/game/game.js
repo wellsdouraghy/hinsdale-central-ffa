@@ -1018,6 +1018,11 @@ export class Game {
     // Footsteps / landing.
     if (p.grounded) {
       if (!this.wasGrounded && this.airPeak > 0.25) this._footstep(1.3);
+      // Your own steps are silent, but a real drop gets a soft, low landing thump (felt more than heard).
+      if (!this.wasGrounded && this.airPeak > 0.55 && this.alive && !this.piloting) {
+        const wh = this.hitscan.castWorld(_v1.set(p.position.x, p.position.y + 0.3, p.position.z), _v2.set(0, -1, 0), 1.5);
+        this.audio.land?.(wh?.surface || 'concrete', null, Math.min(1.4, 0.6 + this.airPeak * 0.4));
+      }
       this.stepDist += p.horizontalSpeed() * dt;
       const stride = p.sprinting ? 2.7 : p.crouching ? 1.5 : 2.1;
       if (this.stepDist > stride) { this.stepDist = 0; this._footstep(p.crouching ? 0.35 : p.sprinting ? 1.15 : 0.8); }
@@ -1105,15 +1110,21 @@ export class Game {
   }
 
   _remoteFootsteps(r, dt) {
-    if (!r.alive || r.bot || !r.grounded) return;
+    if (!r.alive || r.bot) { r.airT = 0; return; }
+    if (!r.grounded) { r.airT = (r.airT || 0) + dt; return; }
+    const air = r.airT || 0;
+    r.airT = 0;
+    const near = () => r.feet.distanceTo(this.camera.position) < 45;
+    const surface = () => this.world.surfaceAt?.(r.feet.x, r.feet.z) || 'concrete';
+    // Landing thump after a real jump / drop (not a one-frame grounded flicker).
+    if (air > 0.3) { r.stepDist = 0; if (near()) this.audio.land?.(surface(), r.feet.clone(), Math.min(1.6, 0.7 + air * 0.6)); return; }
     const sp = Math.hypot(r.velocity.x, r.velocity.z);
     if (sp < 1.5) return;
     r.stepDist += sp * dt;
     const stride = r.sprinting ? 2.7 : 2.1;
     if (r.stepDist > stride) {
       r.stepDist = 0;
-      const d = r.feet.distanceTo(this.camera.position);
-      if (d < 45) this.audio.footstep(this.world.surfaceAt?.(r.feet.x, r.feet.z) || 'concrete', r.feet.clone(), r.crouch > 0.5 ? 0.25 : r.sprinting ? 1.2 : 0.8);
+      if (near()) this.audio.footstep(surface(), r.feet.clone(), r.crouch > 0.5 ? 0.3 : r.sprinting ? 1.2 : 0.8);
     }
   }
 
