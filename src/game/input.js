@@ -60,7 +60,7 @@ export class Input {
     this._onWheel = (e) => { if (this.active) this.wheel += Math.sign(e.deltaY); };
     this._onLock = () => {
       this.locked = document.pointerLockElement === this.element;
-      if (!this.locked) this.down.clear();
+      if (!this.locked) { this.down.clear(); this.unlockedAt = performance.now(); }
       this.onLockChange?.(this.locked);
     };
     this._onBlur = () => this.down.clear();

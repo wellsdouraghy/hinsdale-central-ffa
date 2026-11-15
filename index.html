@@ -324,8 +324,12 @@
         <button id="btn-unstuck" class="btn" title="Stuck in the map? Move to the nearest safe spot">Unstuck</button>
         <button id="btn-pause-settings" class="btn">Settings</button>
         <button id="btn-leave" class="btn danger">Leave match</button>
-        <div class="conn-diag hidden" id="conn-diag"></div>
-        <div class="keys controls-list small"></div>
+        <details class="pause-more">
+          <summary>Controls &amp; connection</summary>
+          <div class="conn-diag hidden" id="conn-diag"></div>
+          <div class="keys controls-list small"></div>
+        </details>
+        <p class="pause-hint">Esc or click outside to resume</p>
       </div>
     </section>
 

@@ -457,6 +457,14 @@ menus.on('deploy', () => {
 });
 menus.on('selectClass', (id) => { game?.selectClass(id); if (!game) { settings.cls = id; menus.setLoadout(id); } saveSettings(settings); });
 menus.on('resume', () => { menus.hidePause(); input.enabled = true; enterPlay(); });
+// Click outside the pause panel, or press Esc while paused, to resume.
+document.getElementById('pause').addEventListener('click', (e) => { if (e.target.id === 'pause') document.getElementById('btn-resume').click(); });
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !menus.pauseOpen || menus.settingsOpen || !game) return;
+  if (performance.now() - (input.unlockedAt || 0) < 500) return;   // the Esc that released the mouse opened this menu
+  e.preventDefault();
+  document.getElementById('btn-resume').click();
+});
 menus.on('leave', () => leave());
 menus.on('unstuck', () => {
   if (!game) return;

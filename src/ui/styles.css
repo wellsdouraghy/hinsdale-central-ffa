@@ -775,3 +775,13 @@ body[data-campus="marin"] .lw-main::after { left: 0; right: 30%; bottom: -.55em;
   clip-path: polygon(0 100%, 10% 0, 20% 100%, 30% 0, 40% 100%, 50% 0, 60% 100%, 70% 0, 80% 100%, 90% 0, 100% 100%); }
 body[data-campus="marin"] .logo-mark { filter: drop-shadow(0 6px 18px rgba(0,0,0,0.6)); }
 body[data-campus="marin"] .logo-tags span.hot { background: #00bbdc; border-color: #00bbdc; color: #0a0b09; }
+
+/* Panels always fit the window: scroll inside instead of running off-screen. */
+.overlay > .panel { max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.pause-more { margin-top: 4px; border-top: 1px solid var(--line); padding-top: 8px; }
+.pause-more > summary { cursor: pointer; list-style: none; font: 700 12px var(--display); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); padding: 6px 2px; }
+.pause-more > summary::-webkit-details-marker { display: none; }
+.pause-more > summary::before { content: '\25B8'; display: inline-block; margin-right: 8px; transition: transform .15s; }
+.pause-more[open] > summary::before { transform: rotate(90deg); }
+.pause-more .controls-list { margin-top: 8px; }
+.pause-hint { margin: 2px 0 0; text-align: center; font-size: 11px; color: var(--muted); }
