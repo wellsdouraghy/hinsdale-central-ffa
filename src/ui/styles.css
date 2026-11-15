@@ -713,3 +713,4 @@ details.fe-card[open] summary b { visibility: hidden; }
 .error-msg:not(:empty) { padding: 8px 12px; background: rgba(227,36,43,0.18); border-left: 3px solid var(--red); color: #ffd2d4; max-width: 520px; }
 
 #scoreboard td.lag { color: #ff4d55; font-weight: 800; }
+.keys .pad-head { grid-column: 1 / -1; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--line); letter-spacing: .08em; text-transform: uppercase; font-size: 11px; color: var(--gold); }

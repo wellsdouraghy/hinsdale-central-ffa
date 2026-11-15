@@ -12,14 +12,20 @@ export class Input {
     this.enabled = false;       // false while menus are open
     this.onLockChange = null;
     this.lastLockRequest = 0;
+    // Controller (see gamepad.js): virtual held keys, analog move (-1..1, y = forward), and whether the controller is
+    // the device in use (true lets play run without pointer lock, which a controller cannot request).
+    this.padDown = new Set();
+    this.padMove = { x: 0, y: 0 };
+    this.padActive = false;
     this._bind();
   }
 
-  get active() { return this.enabled && (this.locked || this.forceActive); }
+  get active() { return this.enabled && (this.locked || this.forceActive || this.padActive); }
 
   _bind() {
     this._onKeyDown = (e) => {
       if (e.target instanceof HTMLInputElement) return;
+      if (e.isTrusted) this.padActive = false;
       if (!this.enabled) return;
       if (['Tab', 'Space', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
       // Ctrl can be the sprint key: swallow browser shortcuts (Ctrl+S/D/F/R...) while playing.
@@ -30,6 +36,7 @@ export class Input {
     };
     this._onKeyUp = (e) => { this.down.delete(e.code); };
     this._onMouseDown = (e) => {
+      if (this.locked) this.padActive = false;
       if (!this.active) return;
       // Ctrl+click (macOS secondary-click gesture; may arrive as button 0 or 2) toggles aim-down-sights.
       if (e.ctrlKey && (e.button === 0 || e.button === 2)) {
@@ -46,6 +53,7 @@ export class Input {
       if (!this.locked) return;
       // Ignore absurd spikes some browsers emit right after locking.
       if (Math.abs(e.movementX) > 400 || Math.abs(e.movementY) > 400) return;
+      if (Math.abs(e.movementX) + Math.abs(e.movementY) > 6) this.padActive = false;
       this.dx += e.movementX;
       this.dy += e.movementY;
     };
@@ -81,7 +89,7 @@ export class Input {
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
-  isDown(code) { return this.down.has(code); }
+  isDown(code) { return this.down.has(code) || this.padDown.has(code); }
   wasPressed(code) { return this.pressed.has(code); }
 
   /** Returns and clears accumulated per-frame deltas. */

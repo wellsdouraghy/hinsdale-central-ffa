@@ -172,6 +172,7 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
     ['s-sens', 'o-sens', 'sensitivity', (v) => v.toFixed(2)],
     ['s-fov', 'o-fov', 'fov', (v) => `${v}°`],
     ['s-ads', 'o-ads', 'adsMultiplier', (v) => v.toFixed(2) + '×'],
+    ['s-padsens', 'o-padsens', 'padSens', (v) => v.toFixed(2) + '×'],
     ['s-vol', 'o-vol', 'volume', (v) => Math.round(v * 100) + '%'],
     ['s-sfx', 'o-sfx', 'sfxVolume', (v) => Math.round(v * 100) + '%'],
     ['s-voice', 'o-voice', 'voiceVolume', (v) => Math.round(v * 100) + '%'],
@@ -190,6 +191,10 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
   const syncSeg = () => segBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.quality));
   segBtns.forEach((b) => b.addEventListener('click', () => { settings.quality = b.dataset.v; syncSeg(); onSettingsChange('quality'); }));
   syncSeg();
+  const invBtns = [...document.querySelectorAll('#s-padinvert button')];
+  const syncInv = () => invBtns.forEach((b) => b.classList.toggle('on', (b.dataset.v === 'inverted') === !!settings.padInvert));
+  invBtns.forEach((b) => b.addEventListener('click', () => { settings.padInvert = b.dataset.v === 'inverted'; syncInv(); onSettingsChange('padInvert'); }));
+  syncInv();
   const mapBtns = [...document.querySelectorAll('#s-mapstyle button')];
   const syncMap = () => mapBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.mapStyle));
   mapBtns.forEach((b) => b.addEventListener('click', () => { settings.mapStyle = b.dataset.v; syncMap(); onSettingsChange('mapStyle'); }));
@@ -224,7 +229,21 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
       ['<kbd>Tab</kbd>', 'Scoreboard'],
       ['<kbd>Esc</kbd>', 'Menu'],
     ];
-    const html = rows.map(([k, l]) => `<div>${k}<span>${l}</span></div>`).join('');
+    const pad = [
+      ['<kbd>LS</kbd> / <kbd>RS</kbd>', 'Move / look'],
+      ['<kbd>L3</kbd>', 'Sprint · again: dash'],
+      ['<kbd>RT</kbd> / <kbd>LT</kbd>', 'Fire / aim'],
+      ['<kbd>A</kbd> / <kbd>B</kbd>', 'Jump / crouch, slide'],
+      ['<kbd>X</kbd>', 'Reload · hold: interact'],
+      ['<kbd>Y</kbd>', 'Switch weapon'],
+      ['<kbd>LB</kbd> / <kbd>RB</kbd>', 'Grapple / frag'],
+      ['<kbd>R3</kbd>', 'Melee'],
+      ['<kbd>D-pad</kbd>', '↑ streak · → dash · ↓ class'],
+      ['<kbd>View</kbd> / <kbd>Menu</kbd>', 'Scores / pause'],
+    ];
+    const html = rows.map(([k, l]) => `<div>${k}<span>${l}</span></div>`).join('')
+      + '<div class="pad-head"><b>Xbox controller</b><span></span></div>'
+      + pad.map(([k, l]) => `<div>${k}<span>${l}</span></div>`).join('');
     document.querySelectorAll('.controls-list').forEach((c) => { c.innerHTML = html; });
   }
   syncSprint();

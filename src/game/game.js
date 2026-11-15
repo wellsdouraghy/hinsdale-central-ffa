@@ -539,6 +539,7 @@ export class Game {
     this.hp = m.hp;
     this.lastDamage = clock();
     this.hud.damageFlash();
+    this.input.rumble?.(220, 0.5, 0.8);
     this.audio.hurt();
     const r = this.remotes.get(m.by);
     if (r) {
@@ -693,6 +694,7 @@ export class Game {
   _fire(t) {
     this.markDirty();
     const ar = this.arsenal, gun = ar.gun, st = gun.stats;
+    this.input.rumble?.(st.scope ? 160 : 60, 0.35, st.scope || gun.id === 'shotgun' ? 0.75 : 0.25);
     const eye = this.player.getEye(new THREE.Vector3());
     const aim = this._viewDir(new THREE.Vector3());
     const moving = Math.min(1, this.player.horizontalSpeed() / 5);
@@ -918,9 +920,11 @@ export class Game {
     const sprintHeld = this.settings.sprintKey === 'ctrl'
       ? key('ControlLeft') || key('ControlRight')
       : key('ShiftLeft') || key('ShiftRight');
+    // Controller left stick (analog) wins over WASD when deflected.
+    const pm = active && (this.input.padMove.x || this.input.padMove.y) ? this.input.padMove : null;
     const move = {
-      forward: (key('KeyW') ? 1 : 0) - (key('KeyS') ? 1 : 0),
-      strafe: lapOpen ? 0 : (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0),   // A / D rotate the strike on the laptop
+      forward: pm ? pm.y : (key('KeyW') ? 1 : 0) - (key('KeyS') ? 1 : 0),
+      strafe: lapOpen ? 0 : pm ? pm.x : (key('KeyD') ? 1 : 0) - (key('KeyA') ? 1 : 0),   // A / D rotate the strike on the laptop
       jump: active && !busy && pressed.has('Space'),
       crouchToggle: active && pressed.has('KeyC'),
       sprint: sprintHeld && !busy,

@@ -17,6 +17,13 @@ Some strict school/office/mobile networks block peer-to-peer connections.
 **Controls:** WASD move · Shift hold to sprint (or Ctrl, in Settings → Sprint key) · Space jump · C crouch (slide while sprinting) ·
 G frag grenade (hold to cook) · 4 use killstreak (3 kills: care package, 5: UAV, 7: airstrike) · Airstrike: 4 opens the targeting laptop (mouse moves the reticle on the campus map, wheel or A/D rotates the run, LMB confirms, RMB/Esc/4 cancels and keeps it) · hold X capture a care package · F grapple (F again to let go, Space to fling) · E boost dash · Space in mid-air boost jump · jump into ledges to climb ·
 Left click fire · Right click hold to aim · Ctrl+click or Q toggle aim · R reload · 1/2 or wheel switch · V melee · Tab scoreboard · Esc menu.
+
+**Xbox controller** (any standard-mapping pad over USB or Bluetooth; press a button once so the browser sees it):
+left stick move · right stick look · L3 sprint (L3 again while sprinting: dash) · RT fire · LT aim · A jump · B crouch/slide ·
+X tap reload, hold to interact · Y switch weapon · LB grapple · RB frag (hold to cook) · R3 melee · D-pad up killstreak,
+right dash, down class swap · View scoreboard · Menu pause. Helicopter: A up, B down, L3 boost, RT cannon, LT rockets, X bail out.
+Airstrike laptop: right stick aims, left stick rotates, A or RT calls it in, B cancels. Menus: D-pad / left stick to move, A select, B back.
+Light aim slowdown over enemies (controller only). Look speed and invert in Settings.
 **Classes:** Rifleman, Runner, Brawler, Recon, Grappler (keys 1-5 on the deploy/death screen). **Voice chat is always on in online lobbies** (microphone required; not in Practice): in TDM/CTF your team always hears you; enemies only by proximity. Settings has Master / Effects / Voice volume.
 **Modes:** Free-for-all (30 kills / 10 min) and Team Deathmatch (Red Devils vs Lions, 50 kills / 10 min), each with one attack helicopter hidden somewhere on campus, or Capture the Flag (3 captures / 12 min), chosen by the host along with AI bots (up to 12 players in total; in team modes the host sets bots per team, e.g. 10 v 2) (Easy/Normal/Hard). Practice has all three.
 **Helicopter (FFA + TDM):** first to find it takes it (bots too, if they stumble on it) · hold X near it to fly · mouse steers/aims · W/S/A/D move · Space climb · C descend · Shift boost · LMB chin cannon (overheats) · R or RMB rockets · X to exit (near the ground it stays parked; higher up you bail out and it crashes, crushing anyone below) · no fuel limit: it stays until destroyed (crashes, rams and rotor strikes count; in TDM it never hurts teammates and teammates can't damage it).

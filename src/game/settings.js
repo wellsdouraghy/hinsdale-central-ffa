@@ -24,6 +24,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   botCount: 0,             // AI bots added by Host / Practice setup (0-7)
   botDiff: 'normal',       // 'easy' | 'normal' | 'hard'
   sprintKey: 'shift',      // 'ctrl' | 'shift'
+  padSens: 1.0,            // controller look speed multiplier
+  padInvert: false,        // controller: invert vertical look
   controlsRev: 2,          // bump to migrate old saved control defaults
   mode: 'ffa',             // last chosen game mode for Host / Practice: 'ffa' | 'ctf'
 });
@@ -45,6 +47,8 @@ export function loadSettings() {
   s.volume = clampNum(s.volume, 0, 1, 0.8);
   s.sfxVolume = clampNum(s.sfxVolume, 0, 1, 0.6);
   s.voiceVolume = clampNum(s.voiceVolume, 0.25, 1, 0.85);
+  s.padSens = clampNum(s.padSens, 0.3, 3, 1);
+  s.padInvert = s.padInvert === true;
   if (!['low', 'medium', 'high'].includes(s.quality)) s.quality = 'medium';
   if (!['ar', 'smg', 'sniper', 'shotgun'].includes(s.primary)) s.primary = 'ar';
   if (!['rifleman', 'runner', 'brawler', 'recon', 'grappler'].includes(s.cls)) s.cls = 'rifleman';

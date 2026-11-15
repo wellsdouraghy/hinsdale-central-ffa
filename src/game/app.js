@@ -5,6 +5,7 @@ import { createEffects } from '../visuals/effects.js';
 import { loadSettings, saveSettings, resolveGoogleKey, sanitizeName } from './settings.js';
 import { createAudio } from './audio.js';
 import { Input } from './input.js';
+import { GamepadInput } from './gamepad.js';
 import { Game } from './game.js';
 import { createHitscan } from './hitscan.js';
 import { planPractice, planCtfPractice } from './practice.js';
@@ -45,6 +46,8 @@ audio.setSfxVolume(settings.sfxVolume);
 audio.setVoiceVolume(settings.voiceVolume);
 const input = new Input(renderer.domElement);
 input.forceActive = debug;
+// Xbox / standard controller (created after menus below; see gamepad.js for the layout).
+let pad = null;
 const hud = createHud();
 const minimap = createMinimap(document.getElementById('minimap'));
 const menus = createMenus({
@@ -427,6 +430,7 @@ menus.on('toLobby', () => net?.isHost && net.backToLobby());
 input.onLockChange = (locked) => {
   if (!game) return;
   if (locked) { menus.hidePause(); input.enabled = true; return; }
+  if (input.padActive) return;   // playing on a controller: losing the mouse lock is not a pause
   if (!debug && !menus.endOpen && game.deployed && menus.deployMode === null) {
     menus.showPause(game.session.roomCode);
     input.enabled = false;
@@ -435,6 +439,19 @@ input.onLockChange = (locked) => {
 renderer.domElement.addEventListener('click', () => {
   if (game && game.deployed && !menus.pauseOpen && !menus.endOpen && menus.deployMode !== 'loadout') enterPlay();
 });
+
+pad = new GamepadInput(input, settings, {
+  isPlaying: () => !!game && game.deployed && input.enabled && !menus.pauseOpen && !menus.endOpen && !menus.settingsOpen
+    && menus.deployMode === null,
+  game: () => game,
+  pause: () => {
+    if (!game || menus.pauseOpen) return;
+    input.exitLock();
+    menus.showPause(game.session.roomCode);
+    input.enabled = false;
+  },
+});
+input.rumble = (ms, weak, strong) => pad.rumble(ms, weak, strong);
 
 // Invite link: ?join=CODE
 const joinParam = normalizeCode(params.get('join'));
@@ -486,11 +503,12 @@ function frame() {
     attrTimer = 1;
     menus.setAttribution(worldCache?.world.attributionHTML || 'Map data &copy; OpenStreetMap contributors &middot; Imagery &copy; Esri, Maxar, Earthstar Geographics');
   }
+  pad?.poll(dt);
   if (voice && !game) updateVoice(dt);
   diagTimer -= dt;
   if (diagTimer <= 0) { diagTimer = 1; updateDiag(dt); }
   if (!game) { tour.update(dt); return; }
-  if (!debug && !input.locked && game.alive && game.deployed && input.enabled && !menus.pauseOpen && !menus.endOpen
+  if (!debug && !input.locked && !input.padActive && game.alive && game.deployed && input.enabled && !menus.pauseOpen && !menus.endOpen
     && menus.deployMode === null && nowMs - input.lastLockRequest > 800) {
     menus.showPause(game.session.roomCode);
     input.enabled = false;
@@ -517,7 +535,7 @@ window.__game = {
   get voice() { return voice; },
   get net() { return net; },
   lobbyUi, tour,
-  input, settings, audio, menus, renderer, camera,
+  input, settings, audio, menus, renderer, camera, get pad() { return pad; },
   start, leave,
   key: (code, down = true) => input.simKey(code, down),
   look: (dx, dy) => input.simLook(dx, dy),
