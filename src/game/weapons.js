@@ -161,12 +161,12 @@ export class Gun {
   spread({ ads, moving, airborne, crouching }) {
     const sp = this.stats.spread;
     let deg = sp.hip + (sp.ads - sp.hip) * ads;
-    // Moving while aimed keeps 40% of the move penalty, but a fully scoped rifle keeps only 4%: shots go where the
-    // scope points when walking scoped (it was ~0.9 deg = 1.5 m off at 100 m).
-    deg += sp.move * moving * (1 - ads * (this.stats.scope ? 0.96 : 0.6));
+    // Fully aimed down sights, every gun is accurate: only 4% of the movement penalty and 15% of the recoil bloom
+    // remain (recoil still kicks the view). The shotgun keeps its pellet pattern (sp.ads). Jumping still hurts.
+    deg += sp.move * moving * (1 - ads * 0.96);
     if (airborne) deg += sp.air;
     if (crouching) deg *= sp.crouch;
-    deg += this.bloom * (1 - ads * 0.5);
+    deg += this.bloom * (1 - ads * 0.85);
     return Math.max(0, deg) * DEG;
   }
 }

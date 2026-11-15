@@ -2,7 +2,7 @@
 // shooting, walk speed). A north-up tactical map of the campus is drawn over the laptop screen; the reticle follows the
 // mouse (pointer lock stays on), the wheel or A / D rotates the run, LMB confirms, RMB / Esc / 4 cancels (reward kept).
 import { createTargetingLaptop } from '../visuals/airstrike.js';
-import { SAT, loadSatellite, drawArrow, MAP_ALLY } from '../ui/minimap.js';
+import { SAT, loadSatellite, drawArrow, drawCrate, MAP_ALLY } from '../ui/minimap.js';
 import { STRIKE } from './streaks.js';
 
 const BAKE_PPM = 1.8;          // satellite cache resolution (px per meter)
@@ -209,7 +209,8 @@ export class StrikeLaptop {
     for (const bl of blips) {
       const [px, py] = this._toMap(bl.x, bl.z);
       c.globalAlpha = Math.max(0, fade) * (bl.alpha ?? 1);
-      if (bl.shape === 'arrow') drawArrow(c, px, py, Math.atan2(-Math.cos(bl.yaw || 0), -Math.sin(bl.yaw || 0)), 5, bl.color);
+      if (bl.shape === 'crate') drawCrate(c, px, py, 5, bl.color);
+      else if (bl.shape === 'arrow') drawArrow(c, px, py, Math.atan2(-Math.cos(bl.yaw || 0), -Math.sin(bl.yaw || 0)), 5, bl.color);
       else if (bl.shape === 'flag') {
         c.fillStyle = bl.color; c.strokeStyle = '#000'; c.lineWidth = 1;
         c.fillRect(px - 1, py - 9, 2, 12);

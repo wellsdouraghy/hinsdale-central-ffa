@@ -1242,7 +1242,7 @@ export class Game {
       if (this.isTeammate(r.id)) blips.push({ x: r.feet.x, z: r.feet.z, color: MAP_ALLY, alpha: 1, size: 5, shape: 'arrow', yaw: r.yaw });
       else blips.push({ x: r.feet.x, z: r.feet.z, color: MAP_ENEMY, alpha: r.bot && !r.ai ? 0.7 : 1, size: 4.5 });
     }
-    for (const b of this.mapBlips(t)) if (b.shape === 'flag' || b.shape === 'heli') blips.push(b);
+    for (const b of this.mapBlips(t)) if (b.shape === 'flag' || b.shape === 'heli' || b.shape === 'crate') blips.push(b);
     return blips;
   }
 
@@ -1305,6 +1305,13 @@ export class Game {
         const fp = this.ctfView.flagPos(team, _v3);
         blips.push({ x: fp.x, z: fp.z, color: team === this.myTeam ? MAP_ALLY : MAP_ENEMY, alpha: 1, size: 6, shape: 'flag' });
       }
+    }
+    // Care packages are on everyone's minimap (steal the enemy's): green = ours / a teammate's, red = an enemy's.
+    for (const e of this.streaks.crates?.values?.() || []) {
+      if (e.state !== 'incoming' && e.state !== 'landed') continue;
+      const ours = e.owner === this.localId || this.isTeammate(e.owner);
+      const alpha = e.state === 'incoming' ? 0.55 + 0.45 * Math.abs(Math.sin(t * 4)) : 1;
+      blips.push({ x: e.p.x, z: e.p.z, color: ours ? MAP_ALLY : MAP_ENEMY, alpha, size: 6, shape: 'crate', edge: true });
     }
     // The helicopter is on everyone's minimap while it flies.
     // Green when we (or a teammate) fly it, red for the enemy.

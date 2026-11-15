@@ -22,6 +22,19 @@ export function loadSatellite() {
   return satPromise;
 }
 
+/** Care-package icon: gold-rimmed square with a cross strap, filled in the owner's relation color. */
+export function drawCrate(ctx, x, y, size, fill) {
+  const h = size;
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = '#f2b544';
+  ctx.lineWidth = 2;
+  ctx.fillRect(x - h, y - h, h * 2, h * 2);
+  ctx.strokeRect(x - h, y - h, h * 2, h * 2);
+  ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x - h, y); ctx.lineTo(x + h, y); ctx.moveTo(x, y - h); ctx.lineTo(x, y + h); ctx.stroke();
+}
+
 /** Small arrow (teammate facing). ang: canvas angle of the pointing direction (radians, 0 = +x). */
 export function drawArrow(ctx, x, y, ang, size, fill) {
   const c = Math.cos(ang), s = Math.sin(ang);
@@ -126,6 +139,10 @@ export function createMinimap(canvas) {
         // World facing (-sin yaw, -cos yaw) rotated into the heading-up minimap frame.
         const fx = -Math.sin(b.yaw || 0), fz = -Math.cos(b.yaw || 0);
         drawArrow(ctx, W / 2 + px, H / 2 + py, Math.atan2(fx * s + fz * c, fx * c - fz * s), b.size || 5, b.color);
+        continue;
+      }
+      if (b.shape === 'crate') {
+        drawCrate(ctx, W / 2 + px, H / 2 + py, b.size || 6, b.color);
         continue;
       }
       if (b.shape === 'flag') {
