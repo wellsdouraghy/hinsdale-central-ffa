@@ -318,3 +318,6 @@ export function buildProps(ctx) {
   for (const x of [-100, -70, -40]) { ctx.B.solidBox('concrete', 'concrete', x, 0.45, -30, 6, 0.9, 1.4, 0, 1 / 3); ctx.shrubs.push([x, 0.9, -30, 5.2, 0.9, 0]); }
   ctx.stats = { cars: nCars };
 }
+
+// Shared prop kit for other campuses (see src/campuses/*/world.js). Hinsdale's own placement above is unchanged.
+export const propKit = { CAR_TYPES, CAR_COLORS, buildCarTemplate, placeCar, placeBus, dumpster, container, barrier, bench, picnicTable, trashCan, utilityBox, portaPotty, bikeRack };

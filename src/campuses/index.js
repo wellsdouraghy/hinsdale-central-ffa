@@ -1,8 +1,9 @@
 // Campus registry (see CAMPUSES.md). One active campus at a time; shared modules read its values through the
 // mutable objects they export (SAT, PLAY_BOUNDS, TEAM_NAMES...), updated in place through onCampusChange().
 import hinsdale from './hinsdale/campus.js';
+import marin from './marin/campus.js';
 
-export const CAMPUSES = [hinsdale];
+export const CAMPUSES = [hinsdale, marin];
 export const DEFAULT_CAMPUS = 'hinsdale';
 
 export function getCampus(id) {

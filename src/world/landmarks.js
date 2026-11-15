@@ -532,3 +532,6 @@ export function buildLandmarks(ctx) {
   for (let x = -8; x <= 150; x += 22) lampPost(ctx, x, -161.5);
   for (const [x, z] of [[-23, -20], [-23, 5], [-23, 28], [-28, -60], [-28, -95], [-28, -130], [3, 62], [20, 58], [165, -100], [165, -60], [165, -20], [165, 20]]) lampPost(ctx, x, z);
 }
+
+// Shared landmark kit for other campuses (see src/campuses/*/world.js). Hinsdale's own build above is unchanged.
+export const landmarkKit = { lightPole, lotLight, goalPost, soccerGoal, addOverlay };

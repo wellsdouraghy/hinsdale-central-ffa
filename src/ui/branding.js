@@ -12,7 +12,13 @@ export function initBranding() {
       else if (k in fields) el.textContent = fields[k];
     });
     document.querySelectorAll('[data-team-name]').forEach((el) => { el.textContent = c.teams[el.dataset.teamName]; });
-    if (c.brand?.red) document.documentElement.style.setProperty('--red', c.brand.red);
+    // Palette: --red (logo / highlights), --accent / --accent-2 (buttons). Falls back to the stylesheet defaults.
+    const root = document.documentElement.style;
+    const rgb = (hex) => { const n = parseInt(hex.slice(1), 16); return `${n >> 16},${(n >> 8) & 255},${n & 255}`; };
+    for (const [prop, val] of [['--red', c.brand?.red], ['--accent', c.brand?.accent || c.brand?.red], ['--accent-2', c.brand?.accent2]]) {
+      if (val) { root.setProperty(prop, val); if (prop !== '--accent-2') root.setProperty(prop + '-rgb', rgb(val)); }
+      else { root.removeProperty(prop); if (prop !== '--accent-2') root.removeProperty(prop + '-rgb'); }
+    }
     const sat = `url(./${c.files.satellite})`;
     document.querySelectorAll('.title-bg').forEach((b) => { b.style.backgroundImage = sat; });
     const ld = document.getElementById('ld-map');

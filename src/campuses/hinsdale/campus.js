@@ -7,7 +7,7 @@ export default {
   blurb: 'Red brick, Dickinson Field, the water tower and a lot of rooftops.',
   legal: 'Fan-made campus game. Not affiliated with Hinsdale Central High School or District 86.',
   short: 'HC',
-  brand: { red: '#e3242b' },
+  brand: { red: '#e3242b', accent: '#e0393e', accent2: '#ff5a5f' },
   // Title emblem (inside a 100 x 112 SVG): Red Devils horns + pitchfork shield.
   emblem: `<path class="lm-horn" d="M22 34C12 24 9 12 14 0c4 12 12 19 24 23z" />
     <path class="lm-horn" d="M78 34C88 24 91 12 86 0c-4 12-12 19-24 23z" />
