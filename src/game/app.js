@@ -8,6 +8,7 @@ import { Input } from './input.js';
 import { GamepadInput } from './gamepad.js';
 import { CAMPUSES, getCampus, activeCampus, setActiveCampus } from '../campuses/index.js';
 import { initBranding } from '../ui/branding.js';
+import { createCampusPicker } from '../ui/campusPicker.js';
 import { Game } from './game.js';
 import { createHitscan } from './hitscan.js';
 import { planPractice, planCtfPractice } from './practice.js';
@@ -437,6 +438,12 @@ menus.on('deploy', () => {
 menus.on('selectClass', (id) => { game?.selectClass(id); if (!game) { settings.cls = id; menus.setLoadout(id); } saveSettings(settings); });
 menus.on('resume', () => { menus.hidePause(); input.enabled = true; enterPlay(); });
 menus.on('leave', () => leave());
+menus.on('unstuck', () => {
+  if (!game) return;
+  const msg = game.unstuck();
+  menus.toast(msg, 3);
+  if (/^Moved/.test(msg)) { menus.hidePause(); input.enabled = true; enterPlay(); }
+});
 menus.on('loadout', () => {
   menus.hidePause();
   input.enabled = true;
@@ -459,39 +466,24 @@ async function copyInvite() {
 }
 menus.on('copyInvite', copyInvite);
 
-// ---------- campus select ("Welcome to Campus Combat") ----------
-function esc2(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function renderCampusCards() {
-  const wrap = document.getElementById('cs-cards');
-  wrap.innerHTML = CAMPUSES.map((c) => `
-    <button class="cs-card" data-campus-id="${c.id}" style="--cs-accent:${c.brand?.red || '#e3242b'}">
-      <div class="cs-img" style="background-image:url(./${c.thumb || c.files.satellite})"></div>
-      ${c.emblem ? `<svg class="cs-emb" viewBox="0 0 100 112" aria-hidden="true">${c.emblem}</svg>` : ''}
-      ${c.id === settings.campus ? '<span class="cs-last">Last played</span>' : ''}
-      <div class="cs-body">
-        <div class="cs-name">${esc2(c.name)}</div>
-        <div class="cs-city">${esc2(c.city)}</div>
-        <div class="cs-teams"><b>${esc2(c.teams.red)}</b> vs <b>${esc2(c.teams.blue)}</b></div>
-        ${c.blurb ? `<div class="cs-blurb">${esc2(c.blurb)}</div>` : ''}
-      </div>
-    </button>`).join('');
-  wrap.querySelectorAll('.cs-card').forEach((b) => b.addEventListener('click', () => chooseCampus(b.dataset.campusId)));
-}
+// ---------- campus select ("Welcome to Campus Combat · Find your school") ----------
+const picker = createCampusPicker({
+  root: csEl, campuses: CAMPUSES, lastId: () => settings.campus,
+  onChoose: (id) => chooseCampus(id),
+  sound: (k) => (k === 'hover' ? audio.uiHover() : audio.uiSelect()),
+});
 function showCampusSelect() {
   if (game || net || starting) return;
   tour.stop();
-  renderCampusCards();
   csEl.classList.remove('hidden');
   document.getElementById('title').classList.add('hidden');
-  const last = csEl.querySelector(`[data-campus-id="${settings.campus}"]`) || csEl.querySelector('.cs-card');
-  setTimeout(() => last?.focus({ preventScroll: true }), 30);
+  picker.show();
 }
 function chooseCampus(id) {
   setActiveCampus(getCampus(id).id);
   settings.campus = activeCampus().id;
   saveSettings(settings);
   csEl.classList.add('hidden');
-  audio.uiSelect();
   loadCampusThenTitle();   // queues behind any load still running for the previous campus
 }
 document.getElementById('btn-campus').addEventListener('click', showCampusSelect);

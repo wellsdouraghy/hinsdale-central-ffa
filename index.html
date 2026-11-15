@@ -25,12 +25,23 @@
 
     <!-- ================= TITLE ================= -->
     <section id="campus-select" class="screen cs-screen hidden">
+      <div class="cs-bg-img" aria-hidden="true"></div>
       <div class="cs-bg"></div>
       <div class="cs-wrap">
-        <div class="cs-kicker">Welcome to</div>
-        <h1 class="cs-title">Campus <span>Combat</span></h1>
-        <p class="cs-sub">Choose your campus</p>
-        <div class="cs-cards" id="cs-cards"></div>
+        <header class="cs-head">
+          <div class="cs-kicker">Welcome to</div>
+          <h1 class="cs-title">Campus <span>Combat</span></h1>
+          <p class="cs-sub">Find your school. Defend your campus.</p>
+        </header>
+        <div class="cs-search-box">
+          <svg class="cs-search-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+          <input id="cs-search" type="search" placeholder="Search by school, city, state or mascot" autocomplete="off" spellcheck="false"
+            role="combobox" aria-expanded="true" aria-controls="cs-results" aria-label="Find your school" />
+          <kbd class="cs-enter" aria-hidden="true">Enter</kbd>
+        </div>
+        <div class="cs-recent" id="cs-recent"></div>
+        <div class="cs-list-head"><span id="cs-count"></span><span class="cs-hint">&uarr;&darr; to browse &middot; Enter to play</span></div>
+        <ul class="cs-results" id="cs-results" role="listbox" aria-label="Schools"></ul>
         <p class="cs-note">Fan-made. Not affiliated with any school.</p>
       </div>
     </section>
@@ -310,6 +321,7 @@
         <button id="btn-resume" class="btn primary">Resume</button>
         <button id="btn-loadout" class="btn">Change class</button>
         <button id="btn-pause-team" class="btn hidden">Switch team</button>
+        <button id="btn-unstuck" class="btn" title="Stuck in the map? Move to the nearest safe spot">Unstuck</button>
         <button id="btn-pause-settings" class="btn">Settings</button>
         <button id="btn-leave" class="btn danger">Leave match</button>
         <div class="conn-diag hidden" id="conn-diag"></div>

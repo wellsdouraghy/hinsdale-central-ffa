@@ -26,6 +26,9 @@ export default {
   name: 'Marin Academy',             // full name (loading screen, credits)
   wordmark: ['Marin', 'Academy'],    // title logo: small top line, big main line
   city: 'San Rafael, CA',
+  stateName: 'California',          // search: full state name
+  rival: 'San Domenico',             // search: the rival school (its mascot is teams.blue)
+  aliases: ['Marin Academy High School', 'MA', ...],   // search: nicknames, abbreviations, nearby city
   legal: 'Fan-made campus game. Not affiliated with Marin Academy.',
   brand: { accent: '#d22630', accent2: '#ff4b55', dark: '#0b0b0d' },   // menu accent colors
   teams: { red: 'Wildcats', blue: 'Panthers' },   // home team vs its main rival (Hinsdale: Red Devils vs LT Lions); player-facing names; ids stay red/blue, colors stay red/blue

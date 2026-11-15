@@ -621,6 +621,31 @@ export class Game {
     this.player.teleport(p, this.player.yaw);
   }
 
+  /**
+   * Pause-menu "Unstuck": moves the player to the nearest safe spawn point (open ground) when trapped in geometry.
+   * Not usable in a fight (no damage in the last 5 s), in the helicopter, during a finisher or carrying a flag,
+   * and on a 15 s cooldown. Returns a message for the toast.
+   */
+  unstuck() {
+    const t = clock();
+    if (!this.alive || !this.deployed) return 'You can use Unstuck once you have spawned';
+    if (this.piloting || this.fin?.localAttacking) return 'Not available right now';
+    if (this.ctfView && ['red', 'blue'].some((tm) => this.ctfView.carrierOf(tm) === this.localId)) return 'Not while carrying a flag';
+    if (t - this.lastDamage < 5) return 'Not while under fire (wait 5 s after taking damage)';
+    if (t < (this._unstuckAt || 0)) return `Unstuck is cooling down (${Math.ceil(this._unstuckAt - t)} s)`;
+    const p = this.player.position;
+    const pts = this.isTeams && this.world.ctfSpawns?.[this.myTeam]?.length && this.isCtf ? this.world.ctfSpawns[this.myTeam] : this.world.spawnPoints;
+    let best = null, bd = Infinity;
+    for (const s of pts) { const d = Math.hypot(s.x - p.x, s.z - p.z); if (d > 3 && d < bd) { bd = d; best = s; } }
+    if (!best) return 'No safe spot found';
+    this.player.grapple = null;
+    this.player.velocity.set(0, 0, 0);
+    this.player.teleport(best, this.player.yaw);
+    this._unstuckAt = t + 15;
+    this._sendState?.();
+    return 'Moved to the nearest safe spot';
+  }
+
   /** Grapple anchor along the view ray, or null (out of range, nothing there, the ground, or passthrough). */
   _findGrappleTarget() {
     const p = this.player;

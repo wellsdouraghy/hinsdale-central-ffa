@@ -4,6 +4,9 @@ export default {
   name: 'Hinsdale Central',
   wordmark: ['Hinsdale', 'Central'],
   city: 'Hinsdale, IL',
+  stateName: 'Illinois',
+  rival: 'Lyons Township',   // the Lions (LT): Hinsdale Central's main rival
+  aliases: ['Hinsdale Central High School', 'HC', 'HCHS', 'Hinsdale Township', 'District 86', 'D86', 'Chicago'],
   blurb: 'Red brick, Dickinson Field, the water tower and a lot of rooftops.',
   legal: 'Fan-made campus game. Not affiliated with Hinsdale Central High School or District 86.',
   short: 'HC',

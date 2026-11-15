@@ -267,6 +267,7 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
   $('btn-pause-settings').addEventListener('click', () => openSettings('pause'));
   $('btn-leave').addEventListener('click', () => handlers.leave?.());
   $('btn-loadout').addEventListener('click', () => handlers.loadout?.());
+  $('btn-unstuck').addEventListener('click', () => handlers.unstuck?.());
   $('btn-copy').addEventListener('click', () => handlers.copyInvite?.());
   el.pauseTeam.addEventListener('click', () => handlers.switchTeam?.());
   $('btn-team').addEventListener('click', () => handlers.switchTeam?.());
