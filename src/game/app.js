@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createWorld, PLAY_BOUNDS } from '../world/index.js';
 import { createEffects } from '../visuals/effects.js';
-import { loadSettings, saveSettings, resolveGoogleKey, sanitizeName } from './settings.js';
+import { loadSettings, saveSettings, sanitizeName } from './settings.js';
 import { createAudio } from './audio.js';
 import { Input } from './input.js';
 import { GamepadInput } from './gamepad.js';
@@ -101,15 +101,14 @@ addEventListener('keydown', unlockAudio, { capture: true });
 
 // ---------- world ----------
 async function getWorld(onProgress) {
-  const gkey = resolveGoogleKey(settings);
   const campus = activeCampus();
-  const key = `${campus.id}|${settings.quality}|${gkey || ''}`;
+  const key = `${campus.id}|${settings.quality}`;
   if (worldCache && worldCache.key === key) { onProgress(1, 'Ready'); return worldCache; }
   if (worldCache) { worldCache.world.dispose(); worldCache = null; }
   const scene = new THREE.Scene();
   const world = await createWorld({
     renderer, scene, camera,
-    settings: { quality: settings.quality, googleTilesKey: gkey },
+    settings: { quality: settings.quality },
     onProgress, campus,
   });
   world.setSize(innerWidth, innerHeight);
@@ -289,7 +288,7 @@ function backToLobby() {
 }
 
 function debugSuffix() {
-  const keep = ['gkey', 'fakemic', 'mute'].filter((k) => params.has(k)).map((k) => `&${k}=${encodeURIComponent(params.get(k))}`);
+  const keep = ['fakemic', 'mute'].filter((k) => params.has(k)).map((k) => `&${k}=${encodeURIComponent(params.get(k))}`);
   if (debug) keep.push('&debug=1');
   return keep.join('');
 }

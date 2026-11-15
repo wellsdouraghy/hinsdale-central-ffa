@@ -126,7 +126,7 @@
         <h2 data-campus="name">Hinsdale Central</h2>
         <div class="credits-grid">
           <div><h4>Made by</h4><p>A small crew of friends and a few tireless AI builders: gameplay, world and visuals were built from scratch.</p></div>
-          <div><h4>Campus</h4><p>Map data &copy; OpenStreetMap contributors (ODbL). Aerial imagery &copy; Esri, Maxar, Earthstar Geographics. Optional 3D scan &copy; Google.</p></div>
+          <div><h4>Campus</h4><p>Map data &copy; OpenStreetMap contributors (ODbL). Aerial imagery &copy; Esri, Maxar, Earthstar Geographics. Building heights and roof shapes referenced from Google 3D map data.</p></div>
           <div><h4>Art &amp; audio</h4><p>Weapons, effects, outfits, jets and helicopter are procedural and original. All sound is synthesized live with Web Audio. Soldier base model: Mixamo via three.js examples. Sky: Poly Haven (CC0). Textures: ambientCG &amp; Poly Haven (CC0).</p></div>
           <div><h4>Tech</h4><p>three.js, three-mesh-bvh, postprocessing, n8ao, 3d-tiles-renderer, PeerJS. Fonts: Barlow Condensed &amp; Inter (OFL).</p></div>
         </div>
@@ -424,15 +424,6 @@
               <button data-v="ctrl">Control (hold)</button><button data-v="shift">Shift (hold)</button>
             </div>
             <small id="sprint-warn" class="warn hidden">On Windows/Linux, Ctrl+W closes the tab. The game goes fullscreen and locks the keyboard during play when supported (Chrome/Edge); otherwise prefer Shift.</small>
-          </label>
-          <label class="wide">Map style
-            <div class="seg" id="s-mapstyle">
-              <button data-v="built">Built campus</button><button data-v="scan">Real 3D scan</button>
-            </div>
-            <small>Built campus is a detailed model of the real campus: sharp up close, loads fast, full shadows. Real 3D scan streams Google's photographed 3D model of the actual campus instead: the real thing from a distance, but melty up close and slower to load. Applies to the next match.</small>
-          </label>
-          <label class="wide">Google Map Tiles API key (advanced)
-            <input id="s-gkey" type="password" placeholder="Leave empty to use the built-in key" autocomplete="off" spellcheck="false" />
           </label>
         </div>
         <div class="set-actions"><button id="btn-settings-close" class="btn primary">Done</button></div>

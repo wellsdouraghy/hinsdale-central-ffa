@@ -8,7 +8,6 @@ import { createGround, SAT } from './ground.js';
 import { createPost } from './post.js';
 import { createTrees } from './trees.js';
 import { createGrass } from './grass.js';
-import { createTiles } from './tiles.js';
 import { activeCampus, onCampusChange, setActiveCampus } from '../campuses/index.js';
 import { buildCollision, computeSpawns, nearestOpenGround, spawnsNear, buildNav, pickHeliSpawns } from './collision.js';
 
@@ -133,9 +132,8 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   sky.bakeShadowMask({ minX: SAT.minX, maxX: SAT.maxX, minZ: SAT.minZ, maxZ: SAT.maxZ });
   trees.setForceFull(false, camera);
 
-  // ---- optional Google Photorealistic 3D Tiles
-  let attributionHTML = BASE_ATTRIBUTION;
-  let tiles = null;
+  // (Google 3D Tiles are used only offline, as a reference for building the campuses: no runtime streaming.)
+  const attributionHTML = BASE_ATTRIBUTION;
   const world = {
     collisionMeshes,
     groundY: () => 0,
@@ -147,6 +145,8 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     ctfSpawns,
     grapplePoles: ctx.grapplePoles,   // [{ x, z, y0, y1, r }] thin vertical poles for grapple aim assist
     ladders: ctx.ladders,             // [{ x, z, nx, nz, y0, y1, exitY }] climbable ladders
+    // dev-only build registry for the map check (dev/mapcheck.html): prop footprints, tree trunks, shrubs, ground walk grid
+    registry: { props: ctx.props || [], trunks: ctx.trunks || [], shrubs: ctx.shrubs, keepClear: ctx.keepClear || [], walkGrid: ctx.walkGrid || null },
     playBounds: { ...campus.playBounds },
     campus,
     tour: campus.tour || [],
@@ -164,28 +164,15 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
       trees.update(c, dt);
       if (grass) grass.update(c, dt);
       for (const u of ctx.updaters) u(dt, c);
-      if (tiles) { tiles.update(c, dt); attributionHTML = tiles.attributionHTML(BASE_ATTRIBUTION); }
     },
     render(overlayScene, overlayCamera) { post.render(overlayScene, overlayCamera); },
-    setSize(w, h) { post.setSize(w, h); if (tiles) tiles.setSize(); },
+    setSize(w, h) { post.setSize(w, h); },
     dispose() {
-      if (tiles) tiles.dispose();
       post.dispose(); sky.dispose();
       root.traverse((o) => { if (o.geometry) { if (o.geometry.boundsTree) o.geometry.disposeBoundsTree(); o.geometry.dispose(); } });
       scene.remove(root);
     },
   };
-
-  if (typeof settings.googleTilesKey === 'string' && settings.googleTilesKey.trim()) {
-    progress(0.96, 'Connecting to Google 3D Tiles');
-    try {
-      tiles = await createTiles({ renderer, scene: root, camera, key: settings.googleTilesKey.trim(), quality, customVisuals, sky, collisionMeshes });
-      world.googleTilesActive = true; world.tiles = tiles;
-    } catch (e) {
-      console.warn('[world] Google 3D Tiles unavailable, using the built-in campus instead:', e && e.message ? e.message : e);
-      tiles = null; customVisuals.visible = true;
-    }
-  }
 
   // warm up: compile shaders before the first visible frame
   progress(0.98, 'Compiling shaders'); await tick();

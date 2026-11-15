@@ -195,10 +195,6 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
   const syncInv = () => invBtns.forEach((b) => b.classList.toggle('on', (b.dataset.v === 'inverted') === !!settings.padInvert));
   invBtns.forEach((b) => b.addEventListener('click', () => { settings.padInvert = b.dataset.v === 'inverted'; syncInv(); onSettingsChange('padInvert'); }));
   syncInv();
-  const mapBtns = [...document.querySelectorAll('#s-mapstyle button')];
-  const syncMap = () => mapBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.mapStyle));
-  mapBtns.forEach((b) => b.addEventListener('click', () => { settings.mapStyle = b.dataset.v; syncMap(); onSettingsChange('mapStyle'); }));
-  syncMap();
   const sprintBtns = [...document.querySelectorAll('#s-sprint button')];
   const syncSprint = () => {
     sprintBtns.forEach((b) => b.classList.toggle('on', b.dataset.v === settings.sprintKey));
@@ -248,9 +244,6 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
   }
   syncSprint();
 
-  const gkey = $('s-gkey');
-  gkey.value = settings.googleTilesKey || '';
-  gkey.addEventListener('input', () => { settings.googleTilesKey = gkey.value.trim(); onSettingsChange('googleTilesKey'); });
   $('btn-settings-close').addEventListener('click', closeSettings);
 
   function openSettings(from) {

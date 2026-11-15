@@ -1,4 +1,4 @@
-// Persisted user settings (localStorage) and Google 3D Tiles key resolution.
+// Persisted user settings (localStorage).
 const KEY = 'hcffa.settings.v1';
 
 export const IS_MAC = (() => {
@@ -17,8 +17,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   volume: 0.8,             // master volume 0..1
   sfxVolume: 0.6,          // effects (gunshots, explosions, vehicles, UI) 0..1
   voiceVolume: 0.85,       // proximity / team voice 0.25..1 (never fully off)
-  googleTilesKey: '',
-  mapStyle: 'built',       // 'scan' = Google photorealistic 3D tiles (if a key is available), 'built' = built-in campus model
   primary: 'ar',           // (legacy) last chosen primary weapon
   cls: 'rifleman',         // last chosen class
   botCount: 0,             // AI bots added by Host / Practice setup (0-7)
@@ -54,8 +52,7 @@ export function loadSettings() {
   if (!['ar', 'smg', 'sniper', 'shotgun'].includes(s.primary)) s.primary = 'ar';
   if (!['rifleman', 'runner', 'brawler', 'recon', 'grappler'].includes(s.cls)) s.cls = 'rifleman';
   if (typeof s.name !== 'string') s.name = '';
-  if (typeof s.googleTilesKey !== 'string') s.googleTilesKey = '';
-  if (!['scan', 'built'].includes(s.mapStyle)) s.mapStyle = 'built';
+  delete s.googleTilesKey; delete s.mapStyle;   // the 3D-scan map style was removed
   if (!['ctrl', 'shift'].includes(s.sprintKey)) s.sprintKey = DEFAULT_SETTINGS.sprintKey;
   // rev 2: Shift is the default sprint key again for everyone (Ctrl stays available in Settings)
   if (stored && !(stored.controlsRev >= 2)) { s.sprintKey = 'shift'; s.controlsRev = 2; saveSettings(s); }
@@ -73,16 +70,6 @@ export function saveSettings(s) {
 function clampNum(v, lo, hi, def) {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def;
-}
-
-/** `?gkey=` URL param > localStorage setting > VITE_GOOGLE_TILES_KEY > null */
-export function resolveGoogleKey(settings) {
-  if (settings.mapStyle === 'built') return null;
-  const url = new URLSearchParams(location.search).get('gkey');
-  if (url) return url;
-  if (settings.googleTilesKey) return settings.googleTilesKey;
-  const env = import.meta.env?.VITE_GOOGLE_TILES_KEY;
-  return env ? String(env) : null;
 }
 
 export function sanitizeName(name) {

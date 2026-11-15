@@ -25,7 +25,7 @@ optional addition and note it at the bottom of this file under "Change log".
 ## World / graphics: `src/world/index.js` (owner: World builder, Fable)
 ```js
 export async function createWorld({ renderer, scene, camera, settings, onProgress }) // -> Promise<World>
-// settings: { quality: 'low'|'medium'|'high', googleTilesKey: string|null }
+// settings: { quality: 'low'|'medium'|'high' }
 // onProgress(fraction 0..1, label string)
 World = {
   collisionMeshes: THREE.Mesh[],   // static, world-space, geometry has .boundsTree (three-mesh-bvh) computed.
@@ -39,13 +39,12 @@ World = {
   render(overlayScene, overlayCamera): void, // renders the frame incl. post-processing, then draws overlayScene
                                    // (first-person viewmodel) on top after clearing depth. overlayScene may be null.
   setSize(w, h): void,
-  attributionHTML: string,         // must be shown on screen (OSM, Esri, Google when tiles active)
+  attributionHTML: string,         // must be shown on screen (OSM, Esri)
   dispose(): void,
 }
 ```
 The world module owns the renderer configuration (tone mapping, shadows, color space), lights, sky/environment,
-post-processing, and Google Photorealistic 3D Tiles mode. In Google mode the custom campus geometry stays as
-**invisible** collision; the tiles are visual only.
+and post-processing. (Google Photorealistic 3D Tiles are only a dev-time reference for building campuses.)
 
 ## Visuals: `src/visuals/` (owner: Visuals builder, Fable)
 ### `src/visuals/weapons.js`
@@ -93,8 +92,7 @@ Hitboxes are NOT the visuals' job: gameplay uses simple capsules/spheres around 
 ## Gameplay, networking, UI: `src/main.js`, `src/game/`, `src/net/`, `src/ui/`, `index.html`, `styles.css` (owner: Gameplay builder, Opus)
 - Player controller (capsule collision vs `world.collisionMeshes` using three-mesh-bvh), weapons logic, FFA rules,
   HUD, menus, minimap from the satellite image, audio, PeerJS networking.
-- Settings persisted in localStorage: name, sensitivity, FOV, quality, Google tiles key.
-- Google key resolution order: `?gkey=` URL param > localStorage > `import.meta.env.VITE_GOOGLE_TILES_KEY` > null.
+- Settings persisted in localStorage: name, sensitivity, FOV, quality (the Google 3D-tiles map style was removed in round 13; tiles are a dev-only reference).
 
 ## Change log
 - (Gameplay) No interface changes required. Clarifications of how Gameplay calls the existing interfaces:
