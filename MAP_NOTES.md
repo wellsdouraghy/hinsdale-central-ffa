@@ -30,7 +30,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
-- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, overlook, seating, props, signs, boundary,
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
   visualSolid, roofSkin, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
@@ -98,6 +98,10 @@ What each check does (and what to fix when it fails):
    right in front of its face (> 0.12 m) or above its top inside the footprint (> 0.25 m fails).
    `overlook` (warn only): 3 m cells of open, standable ground within 80 m of a CTF base, >= 4 m above it, with a clear
    line of sight to the base (chain-link is not cover); warns when one base has >= 8 cells and the other under a third.
+   `interior`: ground inside each `ctx.footprints` entry `{ id, ring, roof, floor }` (1 m grid, 0.6 m clear of the walls):
+   at / above the roof deck fails, > 0.3 m above the floor warns.
+   `glassBuried` / `wallGap` (run together as `facadeSweep`, no registry): see "Geometry sweeps" in the Marin lessons;
+   they fail on terrain campuses and only warn on flat ones (cantilevers and canopies in wall materials).
 5. **visualSolid.** Upward-facing visual triangles above 1 m inside the play area that are at least 0.45 m wide
    (triangle altitude) and have no collision within 0.6 m below (and are not buried in a solid, and are not a lip
    right next to a wall): patches >= 2 m2 fail. Typical hits: hip / gable roofs whose collision is a box at eave
@@ -420,6 +424,34 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   Map check `seating` (builder registers `ctx.walls`: `{ id, a, b, floor, top, open }`): ground 0.4 m outside every wall,
   every ~1 m; > 0.3 m above the floor of a wall with openings fails, ground up to the wall top fails, 0.15-0.3 m and
   bermed blank walls warn. Flat campuses and builders that register nothing skip.
+- **Lessons from QA round 2:**
+  - **Per-wall pads seat the walls, not the building: flatten the footprint interior too.** The hill inside a footprint
+    is untouched by the wall strips; where it stands above the roof deck it comes out through the roof (the service
+    building had a 12 m grass ridge across its white roof). After all pads, cut the ground inside EVERY solid footprint
+    to its floor (`seatInteriors`: `min(ground, floor)` over the outline). Map check `interior` (`ctx.footprints`).
+  - **Order of earthworks:** designed campus pads first (field, terraces, courtyard, pool deck, regraded lot), THEN plan
+    the walls on that ground and lay the wall strips (they win at the walls), then the interiors. With the strips laid
+    first, every later campus pad cut notches and mounds into them (asphalt mound under a roof ladder, a notch at a
+    wall base, door stoops above the lawn). A wall that faces a designed pad takes that pad as its floor (`zones`).
+  - **A deep cut pad must reach one lattice cell behind the face of its retaining block** (same rule as the field wall):
+    with the pad ending at the face, the "is the ground in front level?" test never passed and no building pad got a
+    block at all, only banks.
+  - **Level an apron at every door and garage sill** (3 m, eased into the drive): a sill placed at the highest ground
+    within its width still has one corner in a sloping driveway. Fix door positions at plan time (a hash of the id,
+    not a random draw at build time) so the earthworks know where they are.
+  - **Planting beds only on bed-level ground:** where the ground a metre out is more than 0.3 m off the wall's floor the
+    kit's mulch bed is dropped (it showed as an orange sliver through the bank).
+  - **A gameplay blocker needs a real skin, seen from both sides.** The sight-blocking belt was a near-black `paint` slab:
+    correct for the overlook check, a black wall to every player behind it. Now `hedgeMass` (kit.js): leaf texture, mid
+    green with a little self-light for the shaded side, a broken line of crowns, collision unchanged.
+  - **A QA camera inside a wall manufactures defects** (a "black block" that was a window mullion 17 cm from the lens).
+    Test every screenshot pose against collision before shooting: nothing solid within 0.6 m, not under a roof cap from
+    inside, not below ground; reject the pose otherwise.
+  - **Geometry sweeps complement registry checks.** `seating` / `interior` only see what the builder registered. The map
+    check's `glassBuried` (glazing triangles vs the ground 0.35 m in front) and `wallGap` (wall triangles whose foot
+    hangs over the ground with nothing drawn below) read the drawn meshes themselves. Decide "outdoors" from the
+    collision face the triangle sits on (triangle winding is unreliable), and probe a little in from wall corners:
+    a ray along a wall end misses the wall below it (345 false cells before that).
 - **Lessons from QA round 1 (all four now have a map-check rule):**
   - **Houses on slopes need a pad, not just a datum.** "Datum = lowest ground, let the hill bury the rest" is right for a
     campus building cut into a slope, and wrong for a house whose footprint falls 6-10 m: the downhill wall became

@@ -1,6 +1,7 @@
 // Marin Academy builder (San Rafael, CA): the school's buildings, the surrounding blocks, Championship Field, the pool,
 // the circle drive, car parks and street furniture. See CAMPUSES.md for the contract and tools/ for the data pipeline.
-import { addMaterials, minAreaOBB, gp, ANG, planWalls, applyPads, buildPadWalls } from './kit.js';
+import { addMaterials, minAreaOBB, gp, ANG, planWalls, applyPads, buildPadWalls, seatInteriors } from './kit.js';
+import { shapeSDF } from '../../world/terrain.js';
 import { buildSchool, schoolWalls } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, turfWorld } from './grounds.js';
@@ -17,12 +18,7 @@ function sitework(ctx) {
   const T = ctx.terrain; if (!T) return;
   const R = (cx, cz, w, d) => ({ rect: { cx, cz, w, d, angle: ANG } }); const G = (a, b) => gp(0, 0, a, b);
   const mean = (shape) => T.footprint(shape).mean;
-  // Seat every building (MAP_NOTES "seat every building on a pad"): plan all walls on the natural ground, then lay the pads.
-  const sw = schoolWalls(ctx); const porch = gp(-18.0, -45.3, 0, 12.5); const porchY = mean(R(porch[0], porch[1], 16, 3));
-  const rings = [...sw.map((w) => w[1]), ...ctx.data.buildings.filter((b) => ctx.gen.buildings[String(b.id)]?.play && b.outer[0].length >= 3).map((b) => b.outer[0])];
-  for (const [name, ring, top, style, lv] of sw) planWalls(ctx, ring, lv === 'porch' ? porchY + 8.8 : top, style, { name, others: rings, level: lv === 'porch' ? porchY : undefined });
-  planTown(ctx, rings);   // houses (fill / cut terraces), shops and blocks
-  applyPads(ctx);         // ...then the hand-placed campus pads below, which override where they overlap
+  const porch = gp(-18.0, -45.3, 0, 12.5); const porchY = mean(R(porch[0], porch[1], 16, 3));
   // Foster Hall's terrace: the house, its porch and the steps down to the circle (level of the ground at the porch)
   { const c = gp(-18.0, -45.3, 0, 2.6); ctx.flatten(R(c[0], c[1], 27, 29), { y: porchY, blend: 5 }); }
   // the spectator terrace between Thacher Hall and the pitch: one metre above the turf, as the real steps are
@@ -41,10 +37,19 @@ function sitework(ctx) {
   { const lot = ctx.data.areas.find((q) => q.id === 652917772); if (lot) ctx.flatten({ outline: lot.outer[0] }, { y: 11.0, blend: 3.5 }); }
   // picnic plaza between the Science Center, the gyms and Foster Hall: level pads under the tables
   for (const [x, z] of [[2, -76], [8, -79.5], [-2, -82], [14, -74]]) ctx.flatten({ circle: { x, z, r: 2.4 } }, { blend: 2.5 });
-  // a sliver between three buildings off 4th St (their OSM outlines do not quite touch): level ground there, so it is an ordinary dead corner and not a hollow in a slope
+  // ---- Seat every building (MAP_NOTES "seat every building on a pad"), AFTER the designed campus pads above: the walls
+  // are planned on the ground as designed, each wall piece gets its own level strip (they win at the walls), a wall that
+  // faces a designed pad takes that pad as its floor, and last the ground inside every footprint is cut to its floor.
+  const zoneShapes = [R(...G(21.9, -13.5), 11.2, 36), R(7.7, 60.5, 10.6, 36.4), R(...gp(53.1, 75.6, 0.7, -5.2), 37.6, 60.6), { outline: turfWorld(4.2) }].map((sh) => shapeSDF(sh).sd);
+  const zones = zoneShapes.map((sd) => (x, z) => sd(x, z) <= 0);
+  const sw = schoolWalls(ctx);
+  const rings = [...sw.map((w) => w[1]), ...ctx.data.buildings.filter((b) => ctx.gen.buildings[String(b.id)]?.play && b.outer[0].length >= 3).map((b) => b.outer[0])];
+  for (const [name, ring, top, style, lv] of sw) planWalls(ctx, ring, lv === 'porch' ? porchY + 8.8 : top, style, { name, others: rings, zones, level: lv === 'porch' ? porchY : undefined });
+  planTown(ctx, rings, zones);   // houses (fill / cut terraces, door aprons), shops and blocks
+  applyPads(ctx);
+  seatInteriors(ctx);
+  // a sliver between three buildings off 4th St (their OSM outlines do not quite touch): level ground there (laid last, over the wall pads), so it is an ordinary dead corner and not a hollow in a slope
   ctx.flatten({ circle: { x: 85.5, z: 168, r: 9.5 } }, { blend: 2.5 });
-  // the service building above the gyms is cut into the hill: pad at its floor
-  // (its pad comes from the wall plan like every other building's: floor = roof - 3.4 m, retaining blocks on the uphill sides)
 }
 
 export function build(ctx, progress = () => {}) {

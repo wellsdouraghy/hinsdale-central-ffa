@@ -116,6 +116,10 @@ export function addMaterials(ctx) {
   M.trimRed = std({ color: 0xb3261e, roughness: 0.6, metalness: 0.05 });
   M.awning = std({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
   for (const k of WALL_KINDS) { M['maW_' + k] = std({ map: houseWall(k, T.aniso), vertexColors: true, roughness: k === 'stucco' ? 0.93 : 0.85 }); M['maP_' + k] = std({ map: houseWall(k, T.aniso, false), vertexColors: true, roughness: 0.9 }); }
+  { // clipped evergreen hedge / tree belt: leaf-clump texture, mid green, a little self-light so the shaded side is not black
+    const S = 128, c = makeCanvas(S, S), g = c.getContext('2d'); const r = mulberry32(77); g.fillStyle = '#3d5a2c'; g.fillRect(0, 0, S, S);
+    for (let k = 0; k < 520; k++) { const x = r() * S, y = r() * S, rr = 2 + r() * 5; const t = r(); g.fillStyle = t < 0.45 ? `rgba(${22 + r() * 18 | 0},${44 + r() * 22 | 0},${16 + r() * 12 | 0},0.8)` : `rgba(${78 + r() * 40 | 0},${118 + r() * 46 | 0},${50 + r() * 26 | 0},0.7)`; for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { g.beginPath(); g.arc(x + ox, y + oy, rr, 0, 7); g.fill(); } }
+    M.maHedge = std({ map: canvasTexture(c, { aniso: T.aniso }), roughness: 1, emissive: 0x16240f, emissiveIntensity: 0.55 }); }
   M.maFrond = std({ color: 0x3f5a2a, roughness: 0.8, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
@@ -180,6 +184,9 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
       const marks = ctx.terrain ? ['groundDecal', 'mulch'].map((k) => { const bk = B.v(k); return [bk, bk.pos.length, bk.nor.length, bk.uv.length, bk.col ? bk.col.length : 0]; }) : null; const cut = ex ? marks : null; const nSh = ctx.shrubs.length;
       if (dy + ex > 0) ctx.onGround([p[0], p[1]], run, { mode: base0 + dy + ex }); else run();
       if (!shared) (ctx.walls = ctx.walls || []).push({ id: opts.id || ringIn.id || ctx.siteName || null, a: p, b: q, floor: base0 + dy + ex, top: base0 + h, open: !plain && !(st && st.plain) });   // map check: seating
+      // a planting bed only where the ground a metre out is the bed's level: across a bank it shows as a sliver of mulch
+      const bedOff = marks && !cut ? (() => { const g1 = edgeGround(ctx, p, q, 1.0), fl = base0 + dy + ex; return g1.max - fl > 0.3 || fl - g1.min > 0.3; })() : false;
+      if (bedOff) { const [bk, np, nn, nu, nc] = marks[1]; bk.pos.length = np; bk.nor.length = nn; bk.uv.length = nu; if (bk.col) bk.col.length = nc; ctx.shrubs.length = nSh; }
       if (cut) { for (const [bk, np, nn, nu, nc] of cut) { bk.pos.length = np; bk.nor.length = nn; bk.uv.length = nu; if (bk.col) bk.col.length = nc; } ctx.shrubs.length = nSh; }
       else if (marks) {   // contact shading, mulch and bed shrubs lie on the ground as it is (it dips at a step between two pads)
         for (const [bk, np] of marks) for (let k = np; k < bk.pos.length; k += 3) { const gy = ctx.groundY(bk.pos[k], bk.pos[k + 2]) + 0.03; if (bk.pos[k + 1] > gy + 0.1) bk.pos[k + 1] = gy; }
@@ -188,6 +195,7 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
     }
   }
   B.v('stucco', true).setColor(1, 1, 1); B.v('brick', true).setColor(1, 1, 1);
+  if (ctx.terrain) (ctx.footprints = ctx.footprints || []).push({ id: opts.id || ringIn.id || ctx.siteName || null, ring, roof: base0 + h - (opts.parapet ? 0.4 : 0), floor: plan ? plan.maxLevel : base0 });   // map check: interior
   return ring;
 }
 
@@ -399,42 +407,61 @@ export const ringKey = (ring) => ring.length + ':' + ring[0][0].toFixed(1) + ','
 export function planWalls(ctx, ringIn, topAbs, style, opts = {}) {
   if (!ctx.terrain) return null;
   const ring = ensureCCW(ringIn); const st = STYLES[style] || {}; const cls = st.kind === 'class'; const minH = opts.minH || 3.4; const others = opts.others || [];
-  const plan = { name: opts.name || ringIn.id || null, top: topAbs, edges: new Map(), minLevel: Infinity, strips: [] };
+  const plan = { name: opts.name || ringIn.id || null, top: topAbs, ring, edges: new Map(), minLevel: Infinity, maxLevel: -Infinity, strips: [] }; const zones = opts.zones || [];
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
     const g = edgeGround(ctx, a, b); const n = opts.split !== false && L >= 14 && g.max - g.min > 1.1 ? Math.max(1, Math.min(Math.floor(L / 8), Math.ceil((g.max - g.min) / 1.1))) : 1; const pcs = [];
     for (let k = 0; k < n; k++) {
       const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], q = [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]; const ge = edgeGround(ctx, p, q); let level;
+      const nx0 = (q[1] - p[1]) / (L / n), nz0 = -(q[0] - p[0]) / (L / n); const zone = zones.some((zf) => zf((p[0] + q[0]) / 2 + nx0 * 1.5, (p[1] + q[1]) / 2 + nz0 * 1.5));   // faces a designed campus pad (terrace, courtyard, pool deck): its floor is that pad, no strip
       if (opts.level !== undefined) level = opts.level;
+      else if (zone) level = Math.min(ge.mean, topAbs - minH);
       else if (cls) { const two = Math.min(ge.mean, topAbs - 7.4), one = topAbs - 4.6; level = topAbs - ge.mean >= 7.4 ? two : Math.abs(ge.mean - one) <= Math.abs(ge.mean - two) ? one : two; }
       else level = Math.min(ge.mean, topAbs - minH);
       const nx = (q[1] - p[1]) / (L / n), nz = -(q[0] - p[0]) / (L / n); const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
       const shared = others.some((r) => r !== ringIn && r !== ring && pointInRing(m[0] + nx * 1.2, m[1] + nz * 1.2, r));   // a party wall: no ground outside it
       pcs.push({ p, q, level, shared, natural: ge });
-      if (!shared) { plan.minLevel = Math.min(plan.minLevel, level); plan.strips.push({ p, q, nx, nz, level, L: L / n }); }
+      if (!shared) { plan.minLevel = Math.min(plan.minLevel, level); plan.maxLevel = Math.max(plan.maxLevel, level); plan.strips.push({ p, q, nx, nz, level, L: L / n, zone }); }
     }
     plan.edges.set(i, pcs);
   }
-  if (!Number.isFinite(plan.minLevel)) plan.minLevel = ringGround(ctx, ring).min;
+  if (!Number.isFinite(plan.minLevel)) { plan.minLevel = ringGround(ctx, ring).min; plan.maxLevel = plan.minLevel; }
+  (ctx.seatList = ctx.seatList || []).push({ ring, cap: Math.min(plan.maxLevel, topAbs - 1.0) });
   (ctx.wallPlans = ctx.wallPlans || new Map()).set(ringKey(ring), plan);
   return plan;
 }
 /** Flattens the strips of every planned wall (highest first), then builds the retaining blocks where a pad is a deep cut. */
 export function applyPads(ctx) {
-  const T = ctx.terrain; if (!T || !ctx.wallPlans) return; const strips = []; for (const pl of ctx.wallPlans.values()) strips.push(...pl.strips);
+  const T = ctx.terrain; if (!T || !ctx.wallPlans) return; const all = []; for (const pl of ctx.wallPlans.values()) all.push(...pl.strips);
+  // the designed ground as it is now: a wall that faces a designed pad gets that ground back along its strip at the end
+  // (a neighbouring wall's higher pad wraps round the corner onto it otherwise)
+  const snap = Float32Array.from(T.heights); const snapAt = (x, z) => { let fx = (x - T.x0) / T.cell, fz = (z - T.z0) / T.cell; let i = Math.max(0, Math.min(T.nx - 2, Math.floor(fx))), j = Math.max(0, Math.min(T.nz - 2, Math.floor(fz))); fx = Math.max(0, Math.min(1, fx - i)); fz = Math.max(0, Math.min(1, fz - j)); const k = j * T.nx + i; return (snap[k] * (1 - fx) + snap[k + 1] * fx) * (1 - fz) + (snap[k + T.nx] * (1 - fx) + snap[k + T.nx + 1] * fx) * fz; };
+  const strips = all.filter((s) => !s.zone);
   for (const s of strips) s.nat = T.heightAt((s.p[0] + s.q[0]) / 2 + s.nx * (PAD_OUT + PAD_BLEND + 0.3), (s.p[1] + s.q[1]) / 2 + s.nz * (PAD_OUT + PAD_BLEND + 0.3));   // the hill beyond the pad, before it is cut
   strips.sort((a, b) => b.level - a.level);
-  for (const s of strips) { const o = (PAD_OUT - 1.0) / 2; ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 2.4, d: PAD_OUT + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: s.level, blend: PAD_BLEND }); }
-  ctx.padCuts = strips.filter((s) => s.nat - s.level > 1.7);
+  // (a deep cut is laid one lattice cell wider: the level ground must reach BEHIND the face of the retaining block that
+  // will stand at PAD_OUT, or the 2 m lattice ramps up in front of it)
+  for (const s of strips) { s.cut = s.nat - s.level > 1.7; const out = PAD_OUT + (s.cut ? 2.0 : 0), o = (out - 1.0) / 2; ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 2.4, d: out + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: s.level, blend: PAD_BLEND }); }
+  for (const s of all) if (s.zone) { const o = (PAD_OUT - 1.0) / 2; ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 1.0, d: PAD_OUT + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: snapAt, blend: 1.6 }); }
+  ctx.padCuts = strips.filter((s) => s.cut);
+}
+/**
+ * Per-wall pads seat the WALLS, not the building: inside the footprint the hill is still there, and where it stands above
+ * the roof deck it comes out through the roof. After all pads: the ground inside every solid footprint is cut down to
+ * its floor (ctx.seatList: { ring, cap }, filled by planWalls and the house plans).
+ */
+export function seatInteriors(ctx) {
+  const T = ctx.terrain; if (!T) return;
+  for (const s of ctx.seatList || []) ctx.flatten({ outline: s.ring }, { y: (x, z) => Math.min(T.heightAt(x, z), s.cap), blend: 0.8 });
 }
 /** Retaining blocks (with a coping) along the pads that are cut deep into the hill; call after every flatten. */
 export function buildPadWalls(ctx) {
   const { B } = ctx; if (!ctx.terrain) return;
   for (const s of ctx.padCuts || []) {
-    const mx = (s.p[0] + s.q[0]) / 2, mz = (s.p[1] + s.q[1]) / 2; const tx = (s.q[0] - s.p[0]) / s.L, tz = (s.q[1] - s.p[1]) / s.L; const D = PAD_BLEND + 0.5;
+    const mx = (s.p[0] + s.q[0]) / 2, mz = (s.p[1] + s.q[1]) / 2; const tx = (s.q[0] - s.p[0]) / s.L, tz = (s.q[1] - s.p[1]) / s.L; const D = 2.0 + PAD_BLEND + 0.3;
     const cx = mx + s.nx * (PAD_OUT + D / 2), cz = mz + s.nz * (PAD_OUT + D / 2); if ((ctx.allRings || []).some((r) => pointInRing(cx, cz, r) || pointInRing(mx + s.nx * (PAD_OUT + 0.3), mz + s.nz * (PAD_OUT + 0.3), r))) continue;
     const pad = ctx.groundY(mx + s.nx * (PAD_OUT - 0.4), mz + s.nz * (PAD_OUT - 0.4)); if (Math.abs(pad - s.level) > 0.4) continue;   // another pad took this ground
-    { let lo = Infinity, hi = -Infinity; for (let t = -0.5; t <= 0.5; t += 0.125) { const y = ctx.groundY(mx + tx * s.L * t + s.nx * (PAD_OUT - 0.08), mz + tz * s.L * t + s.nz * (PAD_OUT - 0.08)); lo = Math.min(lo, y); hi = Math.max(hi, y); } if (hi - lo > 0.2 || hi - pad > 0.1) continue; }   // the ground in front is not one level (a later pad cut across): a bank, no block
+    { let lo = Infinity, hi = -Infinity; for (let t = -0.5; t <= 0.5; t += 0.125) { const y = ctx.groundY(mx + tx * s.L * t + s.nx * (PAD_OUT - 0.08), mz + tz * s.L * t + s.nz * (PAD_OUT - 0.08)); lo = Math.min(lo, y); hi = Math.max(hi, y); } if (hi - lo > 0.3 || hi - pad > 0.2) continue; }   // the ground in front is not one level (a later pad cut across): a bank, no block
     let top = -Infinity; for (const t of [-0.5, -0.25, 0, 0.25, 0.5]) for (const o of [0.3, D * 0.5, D + 0.2]) top = Math.max(top, ctx.groundY(mx + tx * s.L * t + s.nx * (PAD_OUT + o), mz + tz * s.L * t + s.nz * (PAD_OUT + o))); if (top - pad < 1.2) continue;
     const rot = Math.atan2(-tz, tx), h = top + 0.1 - (pad - 0.5);
     B.v('concrete').box(cx, pad - 0.5 + h / 2, cz, s.L + 0.05, h, D, rot, 1 / 3); B.c('concrete').box(cx, pad - 0.5 + h / 2, cz, s.L + 0.05, h, D, rot);
@@ -503,3 +530,18 @@ export function onSlope(ctx, x, z, r, fn) {
   return out;
 }
 export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, signedArea, pointInRing, mulberry32, makeCanvas, canvasTexture };
+
+/**
+ * A mass of clipped evergreens (hedge wall / tree belt): leaf-skinned block with a broken top line of crowns, solid for
+ * players and bullets (collision reaches the crowns; shelves inside so no mechanic finds standing room in it).
+ * (x, z) centre, y base, w along `rot`, d deep, h tall.
+ */
+export function hedgeMass(ctx, x, z, y, w, d, h, rot, seed = 1) {
+  const { B } = ctx; const hb = B.v('maHedge'); const r = mulberry32(Math.abs(Math.round(x * 31 + z * 17 + seed)) + 5); const c = Math.cos(rot), s = Math.sin(rot);
+  hb.box(x, y + h / 2 - 0.3, z, w, h + 0.6, d, rot, 1 / 2.4);
+  const n = Math.max(1, Math.round(w / 1.5));
+  for (let k = 0; k < n; k++) { const u = -w / 2 + (k + 0.5) * w / n + (r() - 0.5) * 0.5, v = (r() - 0.5) * d * 0.3; const px = x + u * c + v * s, pz = z - u * s + v * c; const rr = Math.min(d * 0.55, 0.75 + r() * 0.5), ch = 0.45 + r() * 0.65; hb.cyl(px, y + h - 0.25, pz, rr, rr * 0.45, ch + 0.25, 6, 1 / 2.4, true); }
+  for (const sd of [-1, 1]) for (let k = 0; k < n; k += 2) { const u = -w / 2 + (k + 0.5 + r() * 0.8) * w / n, yy = y + h * (0.3 + r() * 0.45); const px = x + u * c + sd * (d / 2) * s, pz = z - u * s + sd * (d / 2) * c; hb.box(px, yy, pz, 1.2 + r() * 0.8, 0.9 + r() * 0.8, 0.5, rot, 1 / 2.4); }
+  B.c('wood').box(x, y + h / 2 + 0.2, z, w, h + 1.6, d + 0.3, rot);
+  for (let yy = 0.55; yy < h + 0.8; yy += 0.75) B.c('wood').box(x, y + yy, z, w - 0.1, 0.06, d - 0.1, rot);
+}

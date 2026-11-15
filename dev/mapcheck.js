@@ -702,6 +702,67 @@ async function checkSeating() {
     counts: { walls: W.length, samples: nS, buildingsFailing: fails.length, buildingsWarning: warns.length, worstM: fails.length ? fails[0].worst : 0 }, failures: fails.slice(0, 80), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`seating: ${res.status} ${fails.length} buildings with ground on the facade`); finishCheck('seating', res);
 }
+// Footprint interiors: per-wall pads seat the walls, the hill inside the footprint is still there. Registry ctx.footprints
+// ({ id, ring, roof, floor }): ground inside may not reach the roof deck (fail: it comes out through the roof) and should
+// stay within 0.3 m of the floor (warn).
+async function checkInterior() {
+  const Fp = REG.footprints || []; if (!Fp.length || !world.terrain) { finishCheck('interior', { status: 'skip', note: 'no footprints registered (ctx.footprints) or flat campus' }); return; }
+  const inRing = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) if ((r[i][1] > z) !== (r[j][1] > z) && x < (r[j][0] - r[i][0]) * (z - r[i][1]) / (r[j][1] - r[i][1]) + r[i][0]) c = !c; return c; };
+  const fails = [], warns = []; let nS = 0;
+  for (const f of Fp) {
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const [x, z] of f.ring) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
+    let through = 0, high = 0, worst = -Infinity, at = null;
+    for (let z = z0 + 0.5; z < z1; z += 1) for (let x = x0 + 0.5; x < x1; x += 1) {
+      if (![[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]].every(([dx, dz]) => inRing(x + dx, z + dz, f.ring))) continue; const g = GY(x, z); nS++;
+      if (g > f.roof - 0.05) { through++; if (g - f.roof > worst) { worst = g - f.roof; at = [r1(x), r2(g), r1(z)]; } } else if (g > f.floor + 0.3) high++;
+    }
+    if (through >= 2) { fails.push({ id: f.id, at, samples: through, aboveRoofM: r2(worst), roof: r2(f.roof), note: 'the hill comes out through the roof: flatten the ground inside the footprint to the floor' }); marks.push({ kind: 'vis', x0: at[0] - 2, z0: at[2] - 2, x1: at[0] + 2, z1: at[2] + 2 }); }
+    else if (high >= 3) warns.push({ id: f.id, samplesAboveFloor: high });
+  }
+  const res = { status: status(fails.length, warns.length), what: 'Ground inside every registered footprint (ctx.footprints, 1 m grid, 0.6 m clear of the walls): at or above the roof deck fails, more than 0.3 m above the floor warns.',
+    counts: { footprints: Fp.length, samples: nS, failing: fails.length, warning: warns.length }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`interior: ${res.status} ${fails.length} footprints with ground through the roof`); finishCheck('interior', res);
+}
+// Geometry sweeps over the DRAWN meshes (no registry): they catch what a builder forgot to register.
+//  glassBuried: glazing triangles (glass / storefront materials) whose lower edge is below the ground 0.35 m in front.
+//  wallGap: wall triangles (stucco / brick / house wall materials) whose foot hangs above the ground with nothing drawn
+//  under it (a floating wall: the ground fell away and no plinth was built).
+// Fail on terrain campuses; on flat campuses (ground = 0 everywhere, cantilevers and canopies in wall materials) warn only.
+async function checkFacadeSweep() {
+  const VS = buildVisual(); const { pos, triMesh, info } = VS; const hilly = !!world.terrain;
+  const a = V(), b = V(), c = V(), e1 = V(), e2 = V(), n = V(), p = V(), d = V();
+  const glassCells = new Map(), gapCells = new Map(); let nGlass = 0, nWall = 0;
+  const hit = (cells, pt, extra) => { const k = Math.floor(pt.x / 4) + ',' + Math.floor(pt.z / 4); let cl = cells.get(k); if (!cl) { cl = { n: 0, at: P3(pt), worst: 0, key: extra.key }; cells.set(k, cl); } cl.n++; if (extra.m > cl.worst) { cl.worst = r2(extra.m); cl.at = P3(pt); } };
+  let lastYield = performance.now();
+  for (let t = 0; t < VS.nTris; t++) {
+    const key = info[triMesh[t]].key; const glass = /^(glassInt|storefront)$/.test(key), wall = /^(stucco|brick|maW_|maP_)/.test(key); if (!glass && !wall) continue;
+    a.fromArray(pos, t * 9); b.fromArray(pos, t * 9 + 3); c.fromArray(pos, t * 9 + 6); if (!inPB(a.x, a.z, 1)) continue;
+    e1.subVectors(b, a); e2.subVectors(c, a); n.crossVectors(e1, e2); const area2 = n.length(); if (area2 < 0.2) continue; n.divideScalar(area2); if (Math.abs(n.y) > 0.3) continue; n.y = 0; n.normalize();
+    const lo = a.y <= b.y && a.y <= c.y ? a : b.y <= c.y ? b : c; const ymax = Math.max(a.y, b.y, c.y);
+    if (glass) {
+      nGlass++; { let side = 1; for (const sg of [1, -1]) { p.copy(a).add(b).add(c).multiplyScalar(1 / 3).addScaledVector(n, sg * 0.5); d.copy(n).multiplyScalar(-sg); const h = S.first(p, d, 1.2); if (h && h.face && h.face.normal.dot(d) < -0.3) { side = sg; break; } } n.multiplyScalar(side); }
+      p.copy(a).add(b).add(c).multiplyScalar(1 / 3).addScaledVector(n, 0.35); const g = GY(p.x, p.z); const m = g - lo.y;
+      if (m > 0.25) { p.y = g; hit(glassCells, p, { m, key }); }
+    } else {
+      if (ymax - lo.y < 1.0) continue; nWall++;
+      // which side is outdoors: the side from which the collision wall behind this triangle is met on its front face
+      let side = 0; for (const sg of [1, -1]) { p.copy(a).add(b).add(c).multiplyScalar(1 / 3).addScaledVector(n, sg * 0.3); d.copy(n).multiplyScalar(-sg); const h = S.first(p, d, 0.8); if (h && h.face && h.face.normal.dot(d) < -0.3) { side = sg; break; } }
+      if (!side) continue; n.multiplyScalar(side);
+      p.copy(a).add(b).add(c).multiplyScalar(1 / 3).sub(lo).multiplyScalar(0.3).add(lo); p.y = lo.y; p.addScaledVector(n, 0.3);   // (a little in from the corner: a ray along a wall end misses the wall below)
+      const g = GY(p.x, p.z); const gap = lo.y - g; if (gap < 0.3 || gap > 3) continue;
+      p.y = g + 0.12; d.copy(n).negate(); if (VS.first(p, d, 0.9)) continue;     // something drawn at the base (plinth, steps, another wall)
+      p.y = g + gap * 0.6; if (VS.first(p, d, 0.9)) continue;
+      hit(gapCells, p, { m: gap, key });
+    }
+    if (performance.now() - lastYield > 250) { lastYield = performance.now(); $('status').textContent = `facade sweep ${Math.round(t / VS.nTris * 100)}%`; await tick(); }
+  }
+  const pack = (cells, min) => [...cells.values()].filter((cl) => cl.n >= min).sort((x, y) => y.worst - x.worst);
+  const gb = pack(glassCells, 2), wg = pack(gapCells, 2);
+  for (const cl of gb.concat(wg)) marks.push({ kind: 'vis', x0: cl.at[0] - 2, z0: cl.at[2] - 2, x1: cl.at[0] + 2, z1: cl.at[2] + 2 });
+  const mk = (id, list, what, counts) => { const res = { status: hilly ? status(list.length, 0) : status(0, list.length), what, counts, failures: hilly ? list.slice(0, 60) : [], warnings: hilly ? [] : list.slice(0, 20).map((w) => JSON.stringify(w)) }; log(`${id}: ${res.status} ${list.length} cells`); finishCheck(id, res); };
+  mk('glassBuried', gb, 'Glazing triangles (glass / storefront materials) of the drawn meshes whose lower edge lies more than 0.25 m below the ground 0.35 m in front of them; 4 m cells with >= 2 such triangles. Fails on terrain campuses, warns on flat ones.', { glazingTriangles: nGlass, cells: gb.length, worstM: gb.length ? gb[0].worst : 0 });
+  mk('wallGap', wg, 'Wall triangles (stucco / brick / house wall materials, >= 1 m tall) whose foot is 0.3-3 m above the ground 0.3 m in front with nothing drawn below it; 4 m cells with >= 2 such triangles. Fails on terrain campuses, warns on flat ones.', { wallTriangles: nWall, cells: wg.length, worstM: wg.length ? wg[0].worst : 0 });
+}
 async function checkOverlook() {
   if (!world.terrain || !world.ctfBases) { finishCheck('overlook', { status: 'skip', note: 'flat campus' }); return; }
   const out = {}; const dir = V(), o = V();
@@ -1120,7 +1181,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'overlook', 'seating', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1164,7 +1225,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['overlook', checkOverlook], ['seating', checkSeating], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

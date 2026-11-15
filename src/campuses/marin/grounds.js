@@ -1,7 +1,7 @@
 // Marin Academy grounds: Championship Field (turf, lines, the MA mark, goals, bleachers, fences, hedge, scoreboard),
 // the circle drive in front of Foster Hall, entry sign and flag, car parks and kerb-side cars, street lamps, cover.
 import * as THREE from 'three';
-import { atGround, hillFence, onSlope, ANG, UX, UZ, gp, rect, CLAY, minAreaOBB, hipRoof, boxFromRect, wallDecal, edgeFrame, quadFacing, pointInRing, ensureCCW, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
+import { hedgeMass, atGround, hillFence, onSlope, ANG, UX, UZ, gp, rect, CLAY, minAreaOBB, hipRoof, boxFromRect, wallDecal, edgeFrame, quadFacing, pointInRing, ensureCCW, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
 import { paintedQuad } from '../../world/fields.js';
 import { fence, bleachers, lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
@@ -50,13 +50,7 @@ function turfDetail(ctx, mat, w, h) {
 // hedge(mid) -> true = a 5.5 m evergreen belt behind the fence (solid: blocks sight and bullets).
 const WALL_D = 4.7;
 const wallTop = (ctx, x, z, nx, nz) => gY(ctx, x + nx * (WALL_D + 0.25), z + nz * (WALL_D + 0.25));
-function hedgeBlock(ctx, x, z, y, w, d, h, rot, k = 0) {
-  const { B } = ctx; const hb = B.v('paint', true); const hh = h + ((k * 7) % 5) * 0.14;
-  hb.setColor(0.03, 0.075, 0.028).box(x, y + hh / 2 - 0.3, z, w, hh + 0.6, d, rot); hb.setColor(0.045, 0.1, 0.035).box(x, y + hh + 0.03, z, w - 0.25, 0.12, d - 0.3, rot); hb.setColor(1, 1, 1);
-  B.c('wood').box(x, y + hh / 2 - 0.3, z, w, hh + 0.6, d, rot);
-  // (a hollow box over a wall top is a ledge with headroom inside it: the mantle found it. Shelves leave no room to stand.)
-  for (let yy = 0.55; yy < hh - 0.2; yy += 0.75) B.c('wood').box(x, y + yy, z, w - 0.1, 0.06, d - 0.1, rot);
-}
+const hedgeBlock = (ctx, x, z, y, w, d, h, rot, k = 0) => hedgeMass(ctx, x, z, y, w, d, h + ((Math.abs(Math.round(x * 3 + z)) % 5) * 0.16), rot, k);   // (kit.js: leaf skin, crowns, solid)
 function perimeter(ctx, pts, opts = {}) {
   const { B } = ctx; const step = 3.0; let dist = 0; const run = []; const gaps = opts.gaps || [];   // fence runs: [[x, z, lift], ...]
   const flush = () => { if (run.length > 1) { const lifts = new Map(run.map((p) => [p[0].toFixed(2) + ',' + p[1].toFixed(2), p[2]])); hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, run.map((p) => [p[0], p[1]]), { h: 3.0, black: true, every: step }); } run.length = 0; };
@@ -177,7 +171,7 @@ function field(ctx) {
   // clipped hedge between the fence and the Mission Ave sidewalk
   // (Street View: a dense evergreen hedge wall 4-5 m high hides the pitch from Mission Ave; it was a knee-high row before)
   for (let a = 37; a < 122; a += 4.7) { if (a > 68 && a < 78) continue; const p = G(a + 2.35, 20.6); const y = gY(ctx, p[0], p[1]); const hb = B.v('paint', true); const hh = 4.2 + ((a * 7) % 5) * 0.12;
-    hb.setColor(0.03, 0.075, 0.028).box(p[0], y + hh / 2 - 0.4, p[1], 4.74, hh + 0.8, 1.7, ROT); hb.setColor(0.045, 0.1, 0.035).box(p[0], y + hh + 0.03, p[1], 4.5, 0.12, 1.4, ROT); hb.setColor(1, 1, 1); B.c('wood').box(p[0], y + hh / 2 - 0.4, p[1], 4.74, hh + 0.8, 1.7, ROT); }
+    hedgeMass(ctx, p[0], p[1], y - 0.2, 4.74, 1.7, hh, ROT, a); }
   // scoreboard in the north-east corner, angled back at the pitch
   {
     const p = G(118.5, -57); const rot = ROT - 0.75; const pt = B.v('paint', true);
