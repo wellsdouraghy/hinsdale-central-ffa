@@ -5,7 +5,7 @@
 // facades.js (read from Google Street View, tools/streetview.py + facades.py). Nothing is a random skin any more:
 // a building Street View cannot see takes the look of its nearest classified neighbour of the same kind.
 // Outside the play area only cheap context shells without collision.
-import { sited, atGround, onSlope, edgeGround, ringGround, groundLadder, wallTint, WALL_KINDS, ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK } from './kit.js';
+import { planWalls, ringKey, sited, atGround, onSlope, edgeGround, ringGround, groundLadder, wallTint, WALL_KINDS, ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK } from './kit.js';
 import * as THREE from 'three';
 import { STYLES } from '../../world/facade.js';
 import { eaveOverhang } from '../roofs.js';
@@ -15,6 +15,13 @@ import { FACADES } from './facades.js';
 const HOUSE_S = [1 / 4.0, 1 / 2.9];
 const STREETS = ['primary', 'secondary', 'secondary_link', 'tertiary', 'residential'];
 const lin = (rgb, k = 1) => { const c = srgb(...rgb); return [c[0] * k, c[1] * k, c[2] * k]; };
+// Colours read off Street View come out too pure once they fill a whole sunlit wall (neon orange, bright blue): pull them
+// 25 % toward grey and cap the chroma.
+const tame = (rgb) => { if (!rgb) return rgb; const l = (rgb[0] + rgb[1] + rgb[2]) / 3; let c = rgb.map((v) => l + (v - l) * 0.75); const ch = Math.max(...c) - Math.min(...c); if (ch > 58) c = c.map((v) => l + (v - l) * 58 / ch); return c.map((v) => Math.max(40, Math.min(232, v))); };
+const MAIN_STREETS = ['Fourth Street', 'Fifth Avenue', 'Mission Avenue'];
+// single buildings Street View shows differently from the generic house: First Presbyterian's hall on E St is a brown
+// wood-sided hall under one steep gable
+const HOUSE_FIX = { 900888958: { eave: 4.6, rise: 4.8, lv: 1, col: [112, 84, 60], wall: 'wood_siding', roof: 'gable' } };
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([900888954]);
 
@@ -33,10 +40,12 @@ function simplify(ring, tol = 0.6) {
 }
 
 // street side of a footprint: the wall that faces the nearest street (door, garage, storefront, fence go there)
-function frontEdge(ctx, ring) {
+function frontEdge(ctx, ring, main = false) {
   let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
-  let best = null;
-  for (const [a, b] of ctx.streetSegs) { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cz - a[1]) * dz) / (dx * dx + dz * dz || 1))); const qx = a[0] + dx * t, qz = a[1] + dz * t, d = Math.hypot(cx - qx, cz - qz); if (!best || d < best.d) best = { d, qx, qz }; }
+  let best = null, bestMain = null;
+  for (const [a, b, , name] of ctx.streetSegs) { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cz - a[1]) * dz) / (dx * dx + dz * dz || 1))); const qx = a[0] + dx * t, qz = a[1] + dz * t, d = Math.hypot(cx - qx, cz - qz); if (!best || d < best.d) best = { d, qx, qz }; if (MAIN_STREETS.includes(name) && (!bestMain || d < bestMain.d)) bestMain = { d, qx, qz }; }
+  // a shop on a corner fronts the main street (4th St, 5th Ave, Mission Ave), not the side street that happens to be nearer
+  if (main && bestMain && bestMain.d < 32) best = bestMain;
   if (!best) return null; const ux = (best.qx - cx) / (best.d || 1), uz = (best.qz - cz) / (best.d || 1);
   let pick = null;
   for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.L < 3) continue; const sc = (F.nx * ux + F.nz * uz) * Math.sqrt(F.L); if (!pick || sc > pick.sc) pick = { sc, F, i, a, b }; }
@@ -60,14 +69,34 @@ function palm(ctx, x, z, big, rnd) {
 
 // house: wall module in the real material and colour, storeys counted from the street side, the roof at its measured
 // height; the lower floors of a house on a slope show on the downhill side and disappear into the hill uphill
+// What a house is before any ground is moved: eave height (the storeys seen from the street decide; the roof sample only
+// when Street View has none), the windowed rows it may show, and the band its ground must lie in. On the steep streets a
+// footprint falls 6-10 m: with nothing but a datum the downhill wall was 9-13 m of windows (a "four-storey block" where
+// a one- or two-storey house stands), so the ground under and round the house is filled up to `pad` (and cut down to
+// `cut` where the hill would bury the eave): the terrace every real hillside house is built on.
+function housePlan(ctx, ring, info, fa, id) {
+  const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.max; const fix = HOUSE_FIX[id];
+  const lv = fa.lv || Math.max(1, Math.min(2, info.lv || 1)); const walls = lv >= 3 && fa.roof !== 'flat' ? 2 : Math.min(lv, 3);   // a third 'storey' under a pitched roof is the attic in the gable
+  let top = fa.lv ? gF + walls * 2.9 + (lv >= 3 ? 0.8 : 0.3) : Math.min(Math.max(info.top ?? g.max + info.h, gF + 2.7), gF + 6.4);
+  if (fix) top = gF + fix.eave;
+  const rows = walls + (fa.garage ? 1 : 0);              // + the garage level under the house where Street View shows one
+  return { top, rows, walls, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
+}
+function housePad(ctx, ring, pl) {
+  const T = ctx.terrain; if (!T) return; const fill = pl.pad - pl.g.min, cut = pl.g.max - pl.cut; if (fill < 0.3 && cut < 0.3) return;
+  let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
+  const out = ring.map(([x, z]) => { const d = Math.hypot(x - cx, z - cz) || 1; return [x + (x - cx) / d * 2.4, z + (z - cz) / d * 2.4]; });
+  ctx.flatten({ outline: out }, { y: (x, z) => Math.min(Math.max(T.heightAt(x, z), pl.pad), Math.max(pl.cut, pl.pad)), blend: Math.max(3, Math.min(4.5, Math.max(fill, cut) * 1.2)) });
+  pl.padded = true;
+}
+
+// house: wall module in the real material and colour, storeys counted from the street side; on a slope the house
+// stands on its pad (housePlan) and shows at most its own storeys (+ garage level) downhill, blank foundation below
 function house(ctx, ring, info, rnd, fa, id) {
-  const { B } = ctx; const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring);
-  const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.max;
-  let top = info.top ?? g.max + info.h;
-  // the eyes win over a coarse roof sample; a third 'storey' under a pitched roof is the attic in the gable, not a wall storey
-  if (fa.lv) { const walls = fa.lv >= 3 && fa.roof !== 'flat' ? 2 : fa.lv; const sv = gF + walls * 2.9 + (fa.lv >= 3 ? 0.8 : 0.3); if (Math.abs(sv - top) > 1.5 || fa.lv >= 3) top = sv; }
-  top = Math.max(top, g.max + 2.6);
-  const kind = WALL_KINDS.includes(fa.wall) ? fa.wall : 'stucco'; const col = fa.col || [214, 206, 188]; const tint = wallTint(col).map((v) => v * 1.12), dark = wallTint(col.map((v) => v * 0.84));
+  const { B } = ctx; const fr = frontEdge(ctx, ring); const plan = (ctx.townPlan && ctx.townPlan.houses.get(id)) || housePlan(ctx, ring, info, fa, id); const fix = HOUSE_FIX[id];
+  // (if a neighbour's terrace was laid over this one, the hill may stand above the planned eave: the roof clears it)
+  const top = Math.max(plan.top, ringGround(ctx, ring).max + 1.0); let rowsDrawn = 0;
+  const kind = WALL_KINDS.includes(fa.wall) ? fa.wall : 'stucco'; const col = tame(fa.col || [214, 206, 188]); const tint = wallTint(col).map((v) => v * 1.12), dark = wallTint(col.map((v) => v * 0.84));
   const trim = fa.trim ? lin(fa.trim) : [0.85, 0.84, 0.8];
   const roofTint = fa.roofMat === 'clay_tile' ? CLAY : tileTint(fa.roofCol && fa.roofMat !== 'membrane' ? fa.roofCol.map((v) => Math.max(v, 70)) : info.col);
   sited(ctx, ring, (base) => {
@@ -75,11 +104,14 @@ function house(ctx, ring, info, rnd, fa, id) {
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], b = ring[(i + 1) % ring.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
       const F = edgeFrame(a[0], a[1], b[0], b[1]); const ge = edgeGround(ctx, a, b); const lo = Math.max(0, ge.min - base);
-      const n = Math.max(1, Math.round(L / 4)); const rows = Math.max(1, Math.min(3, Math.floor((eave - lo + 0.5) / 2.9))); const yb = Math.max(0, eave - rows * 2.9);
+      const n = Math.max(1, Math.round(L / 4)); const hi = Math.max(0, ge.max - base);   // a row of windows is drawn only where the whole row clears the ground along this wall
+      const rows = Math.max(1, Math.min(plan.rows, Math.floor((eave - hi + 0.3) / 2.9))); const yb = Math.max(0, eave - rows * 2.9); rowsDrawn = Math.max(rowsDrawn, rows);
+      const bermed = eave - hi < 2.6;   // the hill stands above this wall's sill line: a blank wall, no windows (bermed side)
       w.setColor(...tint);
-      if (L > 3.2) wallRect(w, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, n, 0]); else { pl.setColor(...tint); wallRect(pl, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, L / 4, 0]); }
+      if (L > 3.2 && !bermed) wallRect(w, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, n, 0]); else { pl.setColor(...tint); wallRect(pl, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, L / 4, 0]); }
       if (yb > 0.02) { pl.setColor(...dark); wallRect(pl, F, 0, L, 0, yb, 0, [0, (0 - eave) / 2.9, L / 4, (yb - eave) / 2.9]); }   // foundation / under-floor wall
       tb.setColor(...trim); fbox(tb, F, -0.06, L + 0.06, eave - 0.22, eave, 0, 0.06, 1, 0, 'fsb');
+      if (!(ctx.allRings || []).some((r) => r !== ring && pointInRing((a[0] + b[0]) / 2 + F.nx * 1.2, (a[1] + b[1]) / 2 + F.nz * 1.2, r))) (ctx.walls = ctx.walls || []).push({ id, a, b, floor: base + yb, top: base + eave, open: L > 3.2 && !bermed });   // map check: seating
     }
     w.setColor(1, 1, 1); pl.setColor(1, 1, 1);
     if (fr && fr.F.L > 4.5) {
@@ -92,18 +124,19 @@ function house(ctx, ring, info, rnd, fa, id) {
       if (garage) { const ug = F.L * 0.28; const gp2 = F.P(ug, 0, 0.3); atGround(ctx, gp2[0], gp2[2], () => { tb.setColor(...trim); fbox(tb, F, ug - 1.45, ug + 1.45, 0, 2.35, 0, 0.05, 1, 0, 'fst'); tb.setColor(trim[0] * 0.8, trim[1] * 0.8, trim[2] * 0.8); for (let k = 0; k < 4; k++) fbox(tb, F, ug - 1.3, ug + 1.3, 0.06 + k * 0.55, 0.55 + k * 0.55, 0.05, 0.07, 1, 0, 'f'); }, 1.4); }
       tb.setColor(1, 1, 1);
     }
-    const o = minAreaOBB(ring); const fillR = Math.abs(signedArea(ring)) / Math.max(1, o.area); const rise = Math.min(Math.max(info.rise || 1.8, fa.roof === 'gable' ? 2.0 : 1.2), 3.2); const ov = (want) => eaveOverhang(ring, ctx.playRings || [], want);   // narrower eaves next to a neighbour: no wedge between two roofs
+    const o = minAreaOBB(ring); const fillR = Math.abs(signedArea(ring)) / Math.max(1, o.area); const rise = fix ? fix.rise : Math.min(Math.max(info.rise || 1.8, fa.roof === 'gable' ? 2.0 : 1.2), 3.2); const ov = (want) => eaveOverhang(ring, ctx.playRings || [], want);   // narrower eaves next to a neighbour: no wedge between two roofs
     if (fa.roof === 'flat' || fa.roof === 'shed') { B.v('roofSat').poly(ring, null, eave + 0.02, (x, z) => [(x - ctx.gen.roofs.minX) / (ctx.gen.roofs.maxX - ctx.gen.roofs.minX), 1 - (z - ctx.gen.roofs.minZ) / (ctx.gen.roofs.maxZ - ctx.gen.roofs.minZ)]); }
     else if (fillR > 0.9) hipRoof(ctx, ring, eave, rise, { fill: true, tint: roofTint, overhang: ov(0.55), gable: fa.roof ? fa.roof === 'gable' : rnd() < 0.35, gableBucket: 'stucco', gableTint: lin(col, 1.05) });
     else polyRoof(ctx, ring, eave, rise, { tint: roofTint, overhang: ov(0.5), fill: true });
     B.c('wood').prism(ring, 0, eave, 1, true);
   });
+  (ctx.houses = ctx.houses || []).push({ id, ring, top, storeys: plan.walls, garage: plan.garage, rows: rowsDrawn });   // map check: houses (the ones inside the bounds; beyond the fence they keep the natural ground)
   if (fr) yard(ctx, ring, fr, fa, rnd, lin(col));
 }
 
 // front yard from Street View: fence / hedge along the street side (a gap at the door), palms where they stand
 function yard(ctx, ring, fr, fa, rnd, wallCol) {
-  const { B } = ctx; const F = fr.F; const set = Math.min(4.2, fr.dist - 5.5); if (set < 1.6 || F.L < 6) return;
+  const { B } = ctx; const F = fr.F; const set = Math.min(4.2, fr.dist - 5.0); if (set < 1.2 || F.L < 6) return;
   const free = (x, z) => { const s = ctx.surfaceAt(x, z); const pb = ctx.playBounds; return s !== 'asphalt' && x > pb.minX + 2 && x < pb.maxX - 2 && z > pb.minZ + 2 && z < pb.maxZ - 2 && !(ctx.playRings || []).some((r) => pointInRing(x, z, r)) && !(ctx.keepClear || []).some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r); };
   if (fa.fence || fa.hedge) {
     const hH = fa.hedge ? Math.min(fa.hedge, 2.4) : 0; const gap = F.L * 0.5;
@@ -126,14 +159,27 @@ function yard(ctx, ring, fr, fa, rnd, wallCol) {
   if (con.length) { const near = (ctx.gen.trees || []).map((t) => [Math.hypot(t[0] - cx, t[1] - cz), t]).filter((e) => e[0] < 22 && e[1][2] === 0).sort((p, q) => p[0] - q[0]); con.slice(0, 2).forEach((t, k) => { if (near[k]) { near[k][1][2] = 1; if (t.endsWith('!')) near[k][1][3] = Math.max(near[k][1][3], 1.25); } }); }
 }
 
+// parapet heights, decided on the natural ground (planTown) so the pads can be laid before anything is built
+function shopTop(ctx, ring, info, fa) {
+  const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring, true); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.mean; let top = (info.top ?? g.max + info.h) + 0.5;
+  if (fa.lv) { const sv = gF + (fa.lv === 1 ? Math.min(Math.max(top - gF, 4.4), 6.2) : 4.3 + (fa.lv - 1) * 3.5); if (Math.abs(sv - top) > 1.2) top = sv; }
+  return Math.max(top, g.max + 4.2);
+}
+function kitTop(ctx, ring, info, fa) {
+  const gr = ringGround(ctx, ring); let top = (info.top ?? gr.max + info.h) + 0.4; const fr = frontEdge(ctx, ring); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : gr.mean;
+  if (fa.lv) { const sv = gF + 1.0 + fa.lv * 3.3; if (Math.abs(sv - top) > 1.5) top = sv; }
+  return Math.max(top, gr.max + 3.6);
+}
+const kitStyle = (fa, info) => (fa.wall === 'brick' ? 'service' : (fa.lv || info.lv) >= 2 ? 'maWhite' : 'maLowCream');
+const isShop = (b, fa, cz) => { const t = b.tags; return !!(fa.store || ['shop', 'restaurant'].includes(fa.kind) || t.shop || t.amenity === 'restaurant' || t.amenity === 'cafe' || t.amenity === 'bank' || t.building === 'commercial' || t.building === 'retail' || cz > 120); };
+
 // downtown shop / office: every wall starts at its own ground; storefront band (or an office front) on the walls that
 // face a street, the real wall colour, awning and sign where Street View shows them, cornice, flat satellite roof
 function shop(ctx, ring, info, rnd, b, fa) {
-  const { B, gen } = ctx; const rr = gen.roofs; const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.mean;
-  let top = (info.top ?? g.max + info.h) + 0.5;
-  if (fa.lv) { const sv = gF + (fa.lv === 1 ? Math.min(Math.max(top - gF, 4.4), 6.2) : 4.3 + (fa.lv - 1) * 3.5); if (Math.abs(sv - top) > 1.2) top = sv; }
-  top = Math.max(top, g.max + 4.2); const levels = fa.lv || (top - gF > 7.2 ? 2 : 1);
-  const brick = fa.wall ? fa.wall === 'brick' : false; const col = fa.col || [208, 200, 184]; const tint = lin(col, 1.08);
+  const { B, gen } = ctx; const rr = gen.roofs; const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring, true); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.mean;
+  const tp = ctx.townPlan && ctx.townPlan.tops.get(b.id); const top = tp ? tp.top : shopTop(ctx, ring, info, fa); const wp = ctx.wallPlans ? ctx.wallPlans.get(ringKey(ensureCCW(ring))) : null;
+  const levels = fa.lv || (top - gF > 7.2 ? 2 : 1);
+  const brick = fa.wall ? fa.wall === 'brick' : false; const col = tame(fa.col || [208, 200, 184]); const tint = lin(col, 1.08);
   const st = fa.store || (b.tags.shop || b.tags.amenity === 'restaurant' || b.tags.amenity === 'cafe' ? {} : null); const aw = st && st.awning ? lin(st.awning) : null; const trimC = fa.trim ? lin(fa.trim) : [0.16, 0.16, 0.17];
   const wb = B.v(brick ? 'brick' : 'stucco', true); const two = levels >= 2; const tile = fa.roofMat === 'clay_tile';
   let u = 0; const rd = mulberry32((b.id % 100003) + 17); let roofY = 0;
@@ -141,7 +187,8 @@ function shop(ctx, ring, info, rnd, b, fa) {
     const h0 = top - base; roofY = h0 - 0.45;
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 0.05) continue;
-      const F = edgeFrame(a[0], a[1], c[0], c[1]); const S = 1 / 2.2; const ge = edgeGround(ctx, a, c); let dy = Math.max(0, Math.min(ge.min - base - 0.05, h0 - 3.6)); if (dy <= 0.3) dy = 0; const h = h0 - dy;
+      const F = edgeFrame(a[0], a[1], c[0], c[1]); const S = 1 / 2.2; const pc = wp && wp.edges.get(i) ? wp.edges.get(i)[0] : null; const ge = edgeGround(ctx, a, c); let dy = Math.max(0, Math.min((pc ? Math.max(pc.level, pc.shared ? -1e9 : ge.max - 0.12) : ge.min - 0.05) - base, h0 - 3.6)); if (dy <= (pc ? 0.05 : 0.3)) dy = 0; const h = h0 - dy;
+      if (dy > 0.05) { wb.setColor(tint[0] * 0.8, tint[1] * 0.8, tint[2] * 0.8); wallRect(wb, F, 0, L, -0.6, dy + 0.02, 0, [u * S, 0, (u + L) * S, dy * S]); }   // foundation under a raised wall
       const mid = F.P(L / 2, 0, 3.0); const open = ctx.surfaceAt(mid[0], mid[2]) !== 'grass';
       const front = L > 5 && facesStreet(ctx, F) && !(ctx.playRings || []).some((r) => r.id !== b.id && pointInRing(mid[0], mid[2], r));
       const edge = () => {
@@ -188,6 +235,7 @@ function shop(ctx, ring, info, rnd, b, fa) {
       const pc = F.P(L / 2, h - 0.225, -0.15); B.c('concrete').box(pc[0], pc[1], pc[2], L, 0.45, 0.3, F.rotY);
       };
       if (dy > 0) ctx.onGround([a[0], a[1]], edge, { mode: base + dy }); else edge();
+      if (!(pc && pc.shared)) (ctx.walls = ctx.walls || []).push({ id: b.id, a, b: c, floor: base + dy, top: base + h0, open: true });   // map check: seating
       u += L;
     }
     wb.setColor(1, 1, 1); B.v('paint', true).setColor(1, 1, 1); B.v('awning', true).setColor(1, 1, 1);
@@ -216,17 +264,43 @@ function signAtlas(ctx, signs) {   // signs: [{ text, bg, fg }]
 }
 // Hand notes on single buildings. First Presbyterian (east of the pool): Street View shows a steep wood-shake A-frame
 // sanctuary, cream stucco walls; its hall next door is a low cream block under a hip roof.
-const OVERRIDE = { 900888958: { top: 7.4, rise: 4.2, style: 'maMission', tint: [1.5, 1.15, 0.85] }, 900888959: { top: 6.4, rise: 2.2, style: 'maLowCream', tint: CLAY } };
+const OVERRIDE = { 900888959: { top: 6.4, rise: 2.2, style: 'maLowCream', tint: CLAY } };
+const isHouse = (fa, info) => { const pitched = fa.roof ? ['hip', 'gable', 'mansard'].includes(fa.roof) : info.roof !== 'flat'; return pitched || fa.kind === 'house' || (!fa.kind && info.roof !== 'flat'); };
 
-export function buildTown(ctx) {
-  const { B, data, gen } = ctx; const rnd = mulberry32(1600);
-  let nHouse = 0, nShop = 0, nKit = 0, nCtx = 0; const flats = [];
-  ctx.streetSegs = []; for (const r of data.roads) if (STREETS.includes(r.tags.highway)) for (let i = 0; i < r.line.length - 1; i++) ctx.streetSegs.push([r.line[i], r.line[i + 1], { primary: 15, secondary: 13, secondary_link: 8, tertiary: 11.5, residential: 8.5 }[r.tags.highway]]);
+// Before any ground is moved (called from sitework): the look of every in-play building and, for the houses, their plan
+// on the NATURAL ground; then the house pads are flattened. buildTown reads ctx.townPlan.
+export function planTown(ctx, rings = []) {
+  const { data, gen } = ctx; ctx.allRings = rings;
+  ctx.streetSegs = []; for (const r of data.roads) if (STREETS.includes(r.tags.highway)) for (let i = 0; i < r.line.length - 1; i++) ctx.streetSegs.push([r.line[i], r.line[i + 1], { primary: 15, secondary: 13, secondary_link: 8, tertiary: 11.5, residential: 8.5 }[r.tags.highway], r.tags.name || '']);
   const inPlay = (b) => gen.buildings[String(b.id)]?.play && !SCHOOL_IDS.has(b.id) && !SKIP.has(b.id);
   // look of a building Street View could not see: its nearest classified neighbour of the same roof kind (never a random skin)
   const cen = (r) => { let x = 0, z = 0; for (const p of r) { x += p[0]; z += p[1]; } return [x / r.length, z / r.length]; };
   const known = data.buildings.filter((b) => inPlay(b) && FACADES[b.id] && FACADES[b.id].col).map((b) => ({ c: cen(b.outer[0]), fa: FACADES[b.id], flat: gen.buildings[String(b.id)].roof === 'flat' }));
-  const facadeOf = (b, info) => { const own = FACADES[b.id] || {}; if (own.col && own.wall) return own; const c = cen(b.outer[0]); let best = null; for (const k of known) { if (k.flat !== (info.roof === 'flat')) continue; const d = Math.hypot(k.c[0] - c[0], k.c[1] - c[1]); if (!best || d < best.d) best = { d, fa: k.fa }; } const n = best ? best.fa : {}; return { ...own, wall: own.wall || n.wall, col: own.col || n.col, trim: own.trim || n.trim, roofCol: own.roofCol || n.roofCol, roofMat: own.roofMat || n.roofMat }; };
+  const facadeOf = (b, info) => { const own = { ...(FACADES[b.id] || {}), ...(HOUSE_FIX[b.id] || {}) }; if (own.col && own.wall) return own; const c = cen(b.outer[0]); let best = null; for (const k of known) { if (k.flat !== (info.roof === 'flat')) continue; const d = Math.hypot(k.c[0] - c[0], k.c[1] - c[1]); if (!best || d < best.d) best = { d, fa: k.fa }; } const n = best ? best.fa : {}; return { ...own, wall: own.wall || n.wall, col: own.col || n.col, trim: own.trim || n.trim, roofCol: own.roofCol || n.roofCol, roofMat: own.roofMat || n.roofMat }; };
+  const plan = { inPlay, facadeOf, houses: new Map(), tops: new Map() }; const pads = [];
+  for (const b of data.buildings) { const ov = OVERRIDE[b.id]; if (ov && inPlay(b)) planWalls(ctx, simplify(b.outer[0], 0.5), ov.top, ov.style, { others: rings, name: b.tags.name || b.id }); }
+  for (const b of data.buildings) {
+    if (!inPlay(b) || OVERRIDE[b.id]) continue; const info = gen.buildings[String(b.id)]; const raw = b.outer[0]; if (raw.length < 3 || Math.abs(signedArea(raw)) < 14) continue;
+    const fa = facadeOf(b, info); const ring0 = simplify(raw, 0.5); ring0.id = b.id;
+    if (!isHouse(fa, info)) {   // shops (one level per wall) and kit blocks: seated wall by wall
+      const cz = ring0.reduce((q, p) => q + p[1], 0) / ring0.length;
+      if (isShop(b, fa, cz)) { const top = shopTop(ctx, ring0, info, fa); plan.tops.set(b.id, { top }); planWalls(ctx, ring0, top - 0.6, null, { split: false, others: rings, minH: 3.6, name: b.tags.name || b.id }); }
+      else { const top = kitTop(ctx, ring0, info, fa); plan.tops.set(b.id, { top }); planWalls(ctx, ring0, top, kitStyle(fa, info), { others: rings, name: b.tags.name || b.id }); }
+      continue;
+    }
+    const ring = ring0; const pl = housePlan(ctx, ring, info, fa, b.id); plan.houses.set(b.id, pl); pads.push([ring, pl]);
+  }
+  const pb = ctx.playBounds; const inside = (r) => { const c = cen(r); return c[0] > pb.minX && c[0] < pb.maxX && c[1] > pb.minZ && c[1] < pb.maxZ; };
+  pads.sort((p, q) => p[1].pad - q[1].pad);   // lowest first: on a steep street the upper house's terrace is laid last and keeps its level next to its own walls
+  for (const [ring, pl] of pads) { pl.inside = inside(ring); housePad(ctx, ring, pl); }   // (a house beyond the fence gets no earthworks: its fill would spill across the boundary street)
+  //   // (after every plan is made: a pad must not change a neighbour's plan)
+  ctx.townPlan = plan;
+}
+
+export function buildTown(ctx) {
+  const { B, data, gen } = ctx; const rnd = mulberry32(1600);
+  let nHouse = 0, nShop = 0, nKit = 0, nCtx = 0; const flats = [];
+  if (!ctx.townPlan) planTown(ctx); const { inPlay, facadeOf } = ctx.townPlan;
   // shop signs: only real ones (Street View sign text, else the OSM name)
   const signs = [], signIdx = new Map();
   for (const b of data.buildings) { if (!inPlay(b)) continue; const fa = FACADES[b.id] || {}; const text = (fa.store && fa.store.sign) || (fa.store || b.tags.shop || b.tags.amenity ? b.tags.name : null); if (!text || signs.length >= SIGN_COLS * SIGN_ROWS) continue; signIdx.set(b.id, signs.length); signs.push({ text: text.toUpperCase(), bg: fa.store && fa.store.signBg, fg: fa.store && fa.store.signFg }); }
@@ -259,15 +333,14 @@ export function buildTown(ctx) {
     const fa = facadeOf(b, info);
     const ov = OVERRIDE[b.id];
     if (ov) { sited(ctx, ring, (base) => { const h = ov.top - base; kitWalls(ctx, ring, h, ov.style); polyRoof(ctx, ring, h, ov.rise, { tint: ov.tint, overhang: 0.7, fill: true }); B.c('concrete').prism(ring, 0, h, 1, true); }); nKit++; continue; }
-    const t = b.tags; const pitched = fa.roof ? ['hip', 'gable', 'mansard'].includes(fa.roof) : info.roof !== 'flat';
-    const homey = fa.kind === 'house' || (!fa.kind && info.roof !== 'flat');
-    if (pitched || homey) { house(ctx, ring, info, rnd, fa, b.id); nHouse++; continue; }
-    const commercial = fa.store || ['shop', 'restaurant'].includes(fa.kind) || t.shop || t.amenity === 'restaurant' || t.amenity === 'cafe' || t.amenity === 'bank' || t.building === 'commercial' || t.building === 'retail' || cz > 120;
+    const t = b.tags;
+    if (isHouse(fa, info)) { house(ctx, ring, info, rnd, fa, b.id); nHouse++; continue; }
+    const commercial = isShop(b, fa, cz);
     if (commercial) { const roofAbs = shop(ctx, ring, info, rnd, b, fa); nShop++; flats.push({ ring, roofY: roofAbs, area: info.area }); continue; }
     // civic / institutional / apartment / office blocks: the facade kit in the building's real colour
-    const brick = fa.wall === 'brick'; const base0 = brick ? 'service' : (fa.lv || info.lv) >= 2 ? 'maWhite' : 'maLowCream';
-    const style = 'maB' + b.id; STYLES[style] = { ...STYLES[base0], tint: fa.col ? lin(fa.col, 1.08) : STYLES[base0].tint };
-    const gr = ringGround(ctx, ring); let top = (info.top ?? gr.max + info.h) + 0.4; { const fr = frontEdge(ctx, ring); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : gr.mean; if (fa.lv) { const sv = gF + 1.0 + fa.lv * 3.3; if (Math.abs(sv - top) > 1.5) top = sv; } } top = Math.max(top, gr.max + 3.6);
+    const brick = fa.wall === 'brick'; const base0 = kitStyle(fa, info);
+    const style = 'maB' + b.id; STYLES[style] = { ...STYLES[base0], tint: fa.col ? lin(tame(fa.col), 1.08) : STYLES[base0].tint };
+    const top = (ctx.townPlan.tops.get(b.id) || { top: kitTop(ctx, ring, info, fa) }).top;
     sited(ctx, ring, (base) => flatBuilding(ctx, ring, top - base, style, { skin: brick ? SKIN_BRICK : SKIN_STUCCO, rnd, units: info.area > 450 ? 2 : 0, surface: 'brick' }));
     nKit++; flats.push({ ring, roofY: top - 0.4, area: info.area });
   }

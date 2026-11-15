@@ -103,6 +103,12 @@ float gNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 *
   float wsum = ww0.x + ww0.y + ww0.z + ww0.w + wd0 + 1e-5; ww0 /= wsum; wd0 /= wsum;
   wG = ww0.x; wA = ww0.y; wC = ww0.z; wS = ww0.w; wD = wd0;
   vec3 gMacro = texture2D(uMacro, gUvT).rgb;
+#ifdef GROUND_TERRAIN
+  { // nobody paves a bank: ground steeper than ~25 deg (cut / fill slopes beside lots and streets) reads as grass, whatever
+    // the surface class under it says (terrain campuses only)
+    float gSteep = 1.0 - smoothstep(0.82, 0.905, normalize(vTerrN).y); float gTake = (wA + wC) * gSteep;
+    wA *= 1.0 - gSteep; wC *= 1.0 - gSteep; wG += gTake; gMacro = mix(gMacro, vec3(0.07, 0.11, 0.035), gTake); }
+#endif
   float nearW = 1.0 - smoothstep(18.0, 75.0, gDist);
 #ifdef GROUND_ASPHALT_DEBLUR
   { // where the surroundings are asphalt (low-pass mask in uSoft.a), small bright features are paint / car remnants in

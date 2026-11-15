@@ -34,7 +34,7 @@ export default {
   terrain: { file: 'campuses/marin/terrain.bin', format: 'i16', nx: 331, nz: 301, scale: 0.01, offset: 0, extent: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 }, outside: backdropY, blend: 20, cell: 2 },
   // red = the north-east corner of Championship Field by the scorer's tents (cover + 4 fence openings), blue = the
   // downtown car park off 4th St, ~295 m apart
-  ctf: { red: [104, -27], blue: [-141, 131] },
+  ctf: { red: [104, -27], blue: [-150, 136] },   // (blue: the open car park; [-141, 131] is inside the red cottage at the back of that court, so the base used to be nudged 9 m)
   practiceHeli: { x: 62, z: -22, yaw: -1.45 },
   spawnCenter: [-10, 20],
   // free-for-all spawns stay on and around campus (needs computeSpawns to honour it; ignored otherwise)
@@ -60,7 +60,7 @@ export default {
   ],
   // walkable flood-fill seeds (CAMPUSES.md). Spelled out so the reachable area does not depend on the helicopter list:
   // the flag bases, the practice pad and open ground around campus.
-  walkSeeds: [[104, -27], [-141, 131], [62, -22], [108, -30], [76, -74], [12, -140], [-86, -44], [-20, -5], [84, 58], [-30, 150], [-10, 180],
+  walkSeeds: [[104, -27], [-150, 136], [62, -22], [108, -30], [76, -74], [12, -140], [-86, -44], [-20, -5], [84, 58], [-30, 150], [-10, 180],
     [128, 172], [70, 150], [150, 62], [-160, 160], [13, 92], [-110, 96], [170, 110], [-150, -150], [180, -60]],
   // Menu camera tour: camera path + look-at path (Catmull-Rom), field of view, caption. -z = north (uphill).
   tour: [

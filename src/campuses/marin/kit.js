@@ -127,6 +127,8 @@ export function addMaterials(ctx) {
     maVisArts: { kind: 'lowmod', bay: 4.4, frame: 'frameAlu', top: 'panel', tint: [0.5, 0.45, 0.3], beds: true },   // Visual Arts Center: olive-tan stucco (Street View)
     maLowCream: { kind: 'lowmod', bay: 4.4, frame: 'frame', top: 'stone', tint: [0.9, 0.81, 0.6], beds: true },
     maGym: { kind: 'gym', bay: 5.6, frame: 'frame', top: 'stone', tint: [0.94, 0.92, 0.86], clerestory: true },
+    maPac: { kind: 'gym', bay: 6.2, frame: 'frameAlu', top: 'panel', tint: [0.8, 0.72, 0.52] },                         // Performing Arts Center: cream stucco (Street View), not white
+    maCream: { kind: 'class', bay: 4.6, frame: 'frame', top: 'stone', tint: [0.82, 0.75, 0.56], beds: true },         // Founders Hall
     maGymPlain: { kind: 'gym', bay: 6.2, frame: 'frameAlu', top: 'panel', tint: [0.92, 0.86, 0.68] },
     maService: { kind: 'service', bay: 5.6, frame: 'frame', top: 'stone', tint: [0.92, 0.9, 0.84] },
     maPlain: { kind: 'service', bay: 6.0, frame: 'frame', top: 'stone', tint: [0.92, 0.9, 0.84], plain: true },
@@ -148,6 +150,7 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
   const ring = ensureCCW(ringIn); const sctx = skin(ctx, opts.skin || SKIN_STUCCO); const rnd = opts.rnd || mulberry32(Math.abs(Math.round(ring[0][0] * 13 + ring[0][1] * 7)) + 3);
   const B = ctx.B; const st = STYLES[style]; const alu = st && st.frame === 'frameAlu';
   const base0 = ctx.terrain && B.off ? B.off.y : 0;   // the building's datum (its lowest ground: see `sited`)
+  const plan = ctx.wallPlans ? ctx.wallPlans.get(ringKey(ring)) : null;
   let u = 0;
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
@@ -155,8 +158,15 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
     // On a slope every wall (long walls: every 8-12 m piece of it) starts at its own ground: the facade kit lays out
     // storeys, doors and the base course from the ground up, so a wall on the uphill side is a storey shorter instead
     // of having its doors and windows buried in the hill.
-    for (const [p, q, dy] of wallPieces(ctx, a, b, base0, h)) {
-      const F = edgeFrame(p[0], p[1], q[0], q[1]); const hh = h - dy;
+    const planned = plan ? plan.edges.get(i) : null;   // seated pieces: each on its own level pad (planWalls)
+    for (const [p, q, dy0, shared] of (planned ? planned.map((pc) => [pc.p, pc.q, Math.max(0, Math.min(Math.max(pc.level, pc.shared ? -1e9 : edgeGround(ctx, pc.p, pc.q).max - 0.12) - base0, h - 2.6)), pc.shared])   /* the floor follows the pad as finally laid (a later campus pad may have raised it) */ : wallPieces(ctx, a, b, base0, h))) {
+      const dy = dy0 < 0.05 ? 0 : dy0;
+      if (dy > 0.05) { const Fb = edgeFrame(p[0], p[1], q[0], q[1]); const sb = sctx.B.v('brick', true); const tn = (st && st.tint) || [0.9, 0.9, 0.88]; sb.setColor(tn[0] * 0.86, tn[1] * 0.86, tn[2] * 0.86); wallRect(sb, Fb, 0, Fb.L, -0.6, dy + 0.02, 0, [u * BRICK_S, 0, (u + Fb.L) * BRICK_S, dy * BRICK_S]); sb.setColor(1, 1, 1); }   // foundation under a raised piece (shows where the ground dips at a step between two pads)
+      const F = edgeFrame(p[0], p[1], q[0], q[1]);
+      // A 'class' wall between one and two storeys high would leave a blank band under the eaves, stepping at every
+      // piece join: the facade is laid out at its one-row height and the leftover goes to the base as a plain plinth.
+      const ex = ctx.terrain && st && st.kind === 'class' && h - dy > 4.8 && h - dy < 7.4 ? h - dy - 4.6 : 0; const hh = h - dy - ex;
+      if (ex) ctx.onGround([p[0], p[1]], () => { const sb = sctx.B.v('brick', true); sb.setColor(st.tint[0] * 0.9, st.tint[1] * 0.9, st.tint[2] * 0.9); wallRect(sb, F, 0, F.L, 0, ex + 0.02, 0, [u * BRICK_S, 0, (u + F.L) * BRICK_S, ex * BRICK_S]); fbox(B.v('whitePanel'), F, -0.03, F.L + 0.03, ex - 0.1, ex + 0.02, 0, 0.07, 1, 0, 'fstb'); sb.setColor(1, 1, 1); }, { mode: base0 + dy });
       const run = () => {
         facade(sctx, F, 0, hh, plain ? (opts.plainStyle || 'maPlain') : style, u, rnd);
         if (opts.parapet) {
@@ -166,7 +176,14 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
           const pc = F.P(F.L / 2, (roofY + hh + 0.03) / 2, -0.16); B.c('concrete').box(pc[0], pc[1], pc[2], F.L, hh + 0.03 - roofY, 0.32, F.rotY);
         }
       };
-      if (dy > 0) ctx.onGround([p[0], p[1]], run, { mode: base0 + dy }); else run();
+      // (on a plinth the kit's ground-contact shading, mulch beds and bed shrubs would hang in the air: drop them)
+      const marks = ctx.terrain ? ['groundDecal', 'mulch'].map((k) => { const bk = B.v(k); return [bk, bk.pos.length, bk.nor.length, bk.uv.length, bk.col ? bk.col.length : 0]; }) : null; const cut = ex ? marks : null; const nSh = ctx.shrubs.length;
+      if (dy + ex > 0) ctx.onGround([p[0], p[1]], run, { mode: base0 + dy + ex }); else run();
+      if (!shared) (ctx.walls = ctx.walls || []).push({ id: opts.id || ringIn.id || ctx.siteName || null, a: p, b: q, floor: base0 + dy + ex, top: base0 + h, open: !plain && !(st && st.plain) });   // map check: seating
+      if (cut) { for (const [bk, np, nn, nu, nc] of cut) { bk.pos.length = np; bk.nor.length = nn; bk.uv.length = nu; if (bk.col) bk.col.length = nc; } ctx.shrubs.length = nSh; }
+      else if (marks) {   // contact shading, mulch and bed shrubs lie on the ground as it is (it dips at a step between two pads)
+        for (const [bk, np] of marks) for (let k = np; k < bk.pos.length; k += 3) { const gy = ctx.groundY(bk.pos[k], bk.pos[k + 2]) + 0.03; if (bk.pos[k + 1] > gy + 0.1) bk.pos[k + 1] = gy; }
+        for (let k = nSh; k < ctx.shrubs.length; k++) { const sh = ctx.shrubs[k]; sh[1] = Math.min(sh[1], ctx.groundY(sh[0], sh[2]) + 0.05); } }
       u += F.L;
     }
   }
@@ -367,6 +384,64 @@ function wallPieces(ctx, a, b, base0, h) {
   }
   return out;
 }
+// ------------------------------------------------------------------------------------------ seating (pads)
+// "Seat every building on a pad; terrain never touches a facade above the plinth." A wall that simply starts at the
+// lowest ground along it has the hill climbing its windows wherever the ground rises along the wall. So, BEFORE any
+// ground is moved, every building's walls are planned on the natural ground (planWalls): each wall piece gets a floor
+// level, and a strip of ground along it (PAD_OUT outside, 1 m inside) is flattened to exactly that level (applyPads).
+// Levels per piece: the facade kit lays a 'class' wall out either as one row of windows (4.6 m to the eave) or as two
+// (>= 7.4 m), so its floor is top - 4.6 or anything at / below top - 7.4, whichever is nearer the natural ground;
+// other kinds take the mean ground (at most top - minH). Lower strips are laid last: at a step between two pieces the
+// ramp lies under the UPPER piece (its foundation shows), never against the lower piece's windows. Where the hill
+// stands well above a pad, a retaining block with a coping holds it at the edge of the strip.
+const PAD_OUT = 2.2, PAD_BLEND = 2.6;
+export const ringKey = (ring) => ring.length + ':' + ring[0][0].toFixed(1) + ',' + ring[0][1].toFixed(1) + ':' + ring[ring.length >> 1][0].toFixed(1);
+export function planWalls(ctx, ringIn, topAbs, style, opts = {}) {
+  if (!ctx.terrain) return null;
+  const ring = ensureCCW(ringIn); const st = STYLES[style] || {}; const cls = st.kind === 'class'; const minH = opts.minH || 3.4; const others = opts.others || [];
+  const plan = { name: opts.name || ringIn.id || null, top: topAbs, edges: new Map(), minLevel: Infinity, strips: [] };
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
+    const g = edgeGround(ctx, a, b); const n = opts.split !== false && L >= 14 && g.max - g.min > 1.1 ? Math.max(1, Math.min(Math.floor(L / 8), Math.ceil((g.max - g.min) / 1.1))) : 1; const pcs = [];
+    for (let k = 0; k < n; k++) {
+      const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], q = [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]; const ge = edgeGround(ctx, p, q); let level;
+      if (opts.level !== undefined) level = opts.level;
+      else if (cls) { const two = Math.min(ge.mean, topAbs - 7.4), one = topAbs - 4.6; level = topAbs - ge.mean >= 7.4 ? two : Math.abs(ge.mean - one) <= Math.abs(ge.mean - two) ? one : two; }
+      else level = Math.min(ge.mean, topAbs - minH);
+      const nx = (q[1] - p[1]) / (L / n), nz = -(q[0] - p[0]) / (L / n); const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+      const shared = others.some((r) => r !== ringIn && r !== ring && pointInRing(m[0] + nx * 1.2, m[1] + nz * 1.2, r));   // a party wall: no ground outside it
+      pcs.push({ p, q, level, shared, natural: ge });
+      if (!shared) { plan.minLevel = Math.min(plan.minLevel, level); plan.strips.push({ p, q, nx, nz, level, L: L / n }); }
+    }
+    plan.edges.set(i, pcs);
+  }
+  if (!Number.isFinite(plan.minLevel)) plan.minLevel = ringGround(ctx, ring).min;
+  (ctx.wallPlans = ctx.wallPlans || new Map()).set(ringKey(ring), plan);
+  return plan;
+}
+/** Flattens the strips of every planned wall (highest first), then builds the retaining blocks where a pad is a deep cut. */
+export function applyPads(ctx) {
+  const T = ctx.terrain; if (!T || !ctx.wallPlans) return; const strips = []; for (const pl of ctx.wallPlans.values()) strips.push(...pl.strips);
+  for (const s of strips) s.nat = T.heightAt((s.p[0] + s.q[0]) / 2 + s.nx * (PAD_OUT + PAD_BLEND + 0.3), (s.p[1] + s.q[1]) / 2 + s.nz * (PAD_OUT + PAD_BLEND + 0.3));   // the hill beyond the pad, before it is cut
+  strips.sort((a, b) => b.level - a.level);
+  for (const s of strips) { const o = (PAD_OUT - 1.0) / 2; ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 2.4, d: PAD_OUT + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: s.level, blend: PAD_BLEND }); }
+  ctx.padCuts = strips.filter((s) => s.nat - s.level > 1.7);
+}
+/** Retaining blocks (with a coping) along the pads that are cut deep into the hill; call after every flatten. */
+export function buildPadWalls(ctx) {
+  const { B } = ctx; if (!ctx.terrain) return;
+  for (const s of ctx.padCuts || []) {
+    const mx = (s.p[0] + s.q[0]) / 2, mz = (s.p[1] + s.q[1]) / 2; const tx = (s.q[0] - s.p[0]) / s.L, tz = (s.q[1] - s.p[1]) / s.L; const D = PAD_BLEND + 0.5;
+    const cx = mx + s.nx * (PAD_OUT + D / 2), cz = mz + s.nz * (PAD_OUT + D / 2); if ((ctx.allRings || []).some((r) => pointInRing(cx, cz, r) || pointInRing(mx + s.nx * (PAD_OUT + 0.3), mz + s.nz * (PAD_OUT + 0.3), r))) continue;
+    const pad = ctx.groundY(mx + s.nx * (PAD_OUT - 0.4), mz + s.nz * (PAD_OUT - 0.4)); if (Math.abs(pad - s.level) > 0.4) continue;   // another pad took this ground
+    { let lo = Infinity, hi = -Infinity; for (let t = -0.5; t <= 0.5; t += 0.125) { const y = ctx.groundY(mx + tx * s.L * t + s.nx * (PAD_OUT - 0.08), mz + tz * s.L * t + s.nz * (PAD_OUT - 0.08)); lo = Math.min(lo, y); hi = Math.max(hi, y); } if (hi - lo > 0.2 || hi - pad > 0.1) continue; }   // the ground in front is not one level (a later pad cut across): a bank, no block
+    let top = -Infinity; for (const t of [-0.5, -0.25, 0, 0.25, 0.5]) for (const o of [0.3, D * 0.5, D + 0.2]) top = Math.max(top, ctx.groundY(mx + tx * s.L * t + s.nx * (PAD_OUT + o), mz + tz * s.L * t + s.nz * (PAD_OUT + o))); if (top - pad < 1.2) continue;
+    const rot = Math.atan2(-tz, tx), h = top + 0.1 - (pad - 0.5);
+    B.v('concrete').box(cx, pad - 0.5 + h / 2, cz, s.L + 0.05, h, D, rot, 1 / 3); B.c('concrete').box(cx, pad - 0.5 + h / 2, cz, s.L + 0.05, h, D, rot);
+    B.v('limestone').box(mx + s.nx * (PAD_OUT + 0.14), top + 0.13, mz + s.nz * (PAD_OUT + 0.14), s.L + 0.1, 0.07, 0.4, rot, 1 / 3);
+    (ctx.retaining = ctx.retaining || []).push({ x: cx, z: cz, tx, tz, fx: -s.nx, fz: -s.nz, w: s.L, d: D, top: top + 0.1, frontY: pad });
+  }
+}
 /**
  * Stands a building on the terrain: runs fn(base, ground) with the Builder raised to `base` (default: the lowest ground
  * on the footprint's outline, so every wall reaches the ground and the uphill walls are simply shorter; kitWalls starts
@@ -374,8 +449,9 @@ function wallPieces(ctx, a, b, base0, h) {
  */
 export function sited(ctx, ring, fn, opts = {}) {
   if (!ctx.terrain) return fn(0, { min: 0, max: 0, mean: 0 });
-  const g = ringGround(ctx, ring); const base = opts.base ?? g.min;
-  return ctx.onGround(ensureCCW(ring), () => fn(base, g), { mode: base, plinth: { material: opts.plinth || 'concrete', surface: 'concrete', cap: false } });   // no cap: it would be a drawn floor inside the building (the roof-skin check sees it from the attic)
+  const g = ringGround(ctx, ring); const plan = ctx.wallPlans ? ctx.wallPlans.get(ringKey(ensureCCW(ring))) : null; const base = opts.base ?? (plan ? Math.min(plan.minLevel, g.min) : g.min);
+  const prevName = ctx.siteName; ctx.siteName = opts.id || ring.id || (plan && plan.name) || null;
+  try { return ctx.onGround(ensureCCW(ring), () => fn(base, g), { mode: base, plinth: { material: opts.plinth || 'concrete', surface: 'concrete', cap: false } }); } finally { ctx.siteName = prevName; }   // no cap: it would be a drawn floor inside the building (the roof-skin check sees it from the attic)
 }
 /** Runs fn(groundY) with the Builder on the ground at (x, z) (highest ground within r: nothing built there is buried). */
 export function atGround(ctx, x, z, fn, r = 0.4, mode = 'max') { return ctx.terrain ? ctx.onGround([x, z, r], fn, { mode }) : fn(0); }

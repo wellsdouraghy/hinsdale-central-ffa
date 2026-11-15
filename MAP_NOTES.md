@@ -30,7 +30,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
-- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, props, signs, boundary,
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, overlook, seating, props, signs, boundary,
   visualSolid, roofSkin, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
@@ -91,6 +91,13 @@ What each check does (and what to fix when it fails):
    Heli (check 4) also tests ground spots on terrain: skids neither floating (> 15 cm) nor in the ground, <= 0.35 m of
    drop under them, no hillside more than 2 m above the skids inside the 8 m rotor disc. Spawns (check 3) fail on
    slopes over 20 deg.
+4c. **houses / retaining / overlook / seating** (hilly campuses; they `skip` when the builder registers nothing or the campus is flat).
+   `houses`: each `ctx.houses` entry `{ id, ring, top, storeys, garage, rows }`: eave over the lowest ground at the walls
+   must stay within (storeys + garage) x 3 m + 1.5 m (warn; fail beyond + 2.5 m), and windowed rows within the storeys.
+   `retaining`: each `ctx.retaining` block `{ x, z, tx, tz, fx, fz, w, d, top, frontY }`: no terrain above the pad level
+   right in front of its face (> 0.12 m) or above its top inside the footprint (> 0.25 m fails).
+   `overlook` (warn only): 3 m cells of open, standable ground within 80 m of a CTF base, >= 4 m above it, with a clear
+   line of sight to the base (chain-link is not cover); warns when one base has >= 8 cells and the other under a third.
 5. **visualSolid.** Upward-facing visual triangles above 1 m inside the play area that are at least 0.45 m wide
    (triangle altitude) and have no collision within 0.6 m below (and are not buried in a solid, and are not a lip
    right next to a wall): patches >= 2 m2 fail. Typical hits: hip / gable roofs whose collision is a box at eave
@@ -392,5 +399,52 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   along the pitch that had been a knee-high row, one-storey frontages of buildings that are three storeys downhill.
   "Storeys" from the street include the attic of a gabled house: a third storey under a pitched roof is not a wall storey.
   Shop windows belong on the main frontage only; the side-street wall of a corner shop is usually blank.
+- **Seat every building on a pad; terrain never touches a facade above the plinth** (player report, with a screenshot of a
+  window band half buried in a lawn: "you gotta get smarter about topography"). Starting each wall at the LOWEST ground
+  along it is not seating: wherever the ground rises along that wall, the hill climbs over its windows. 125 of Marin's
+  ~150 solid buildings had ground more than 0.3 m above a windowed wall's floor (worst 6 m), school buildings included.
+  The rule, for every building, school or town:
+  1. **Plan on the natural ground, before any earthworks** (`planWalls` in marin/kit.js, called from `sitework`): each wall
+     piece (8-12 m of a long wall) gets a floor level the facade can really have (the kit's 'class' wall is one row of
+     windows = 4.6 m to the eave, or two = 7.4 m and up; other kinds take the mean ground).
+  2. **Lay a pad along every piece** (`applyPads`): a strip 2.2 m outside (1 m inside) the wall, flattened to exactly that
+     level, blend 2.6 m. Highest pads first, lowest last: at a step between two pieces the ramp then lies under the
+     UPPER piece (its foundation shows, drawn as plain wall), never against the lower piece's windows.
+  3. **Deep cuts get a retaining block with a coping** at the pad edge (`buildPadWalls`: as deep as the blend, top at the
+     ground behind); shallow ones are a planted bank that starts 2.2 m from the wall, below the sills.
+  4. **The floor follows the pad as finally laid**: kitWalls / shop walls re-read the ground after all flattening and
+     start no lower than it (a campus pad laid later may have raised it).
+  5. **A side that is genuinely bermed is blank**: a house wall whose top row of windows would not clear the ground is
+     drawn without openings; rows of windows are counted from the HIGHEST ground along the wall, not the lowest.
+  6. Party walls (the next footprint 1.2 m outside) get no pad and are not checked.
+  Map check `seating` (builder registers `ctx.walls`: `{ id, a, b, floor, top, open }`): ground 0.4 m outside every wall,
+  every ~1 m; > 0.3 m above the floor of a wall with openings fails, ground up to the wall top fails, 0.15-0.3 m and
+  bermed blank walls warn. Flat campuses and builders that register nothing skip.
+- **Lessons from QA round 1 (all four now have a map-check rule):**
+  - **Houses on slopes need a pad, not just a datum.** "Datum = lowest ground, let the hill bury the rest" is right for a
+    campus building cut into a slope, and wrong for a house whose footprint falls 6-10 m: the downhill wall became
+    9-13 m of windows (a four-storey block where a one-storey house stands). Plan every house on the NATURAL ground
+    first (eave = street-side ground + the storeys Street View shows), then fill the ground under and round it up to
+    eave - (storeys [+ garage level] x 2.9 m + 0.9 m), cut it down to eave - 2.5 m where the hill would bury the eave
+    (`housePlan` / `housePad` in marin/town.js: a `flatten` whose y function clamps the existing height into that band,
+    blend 1.5 x the fill). Windowed rows are capped at the storey count; anything below is blank foundation.
+    Map check `houses` (builder registers `ctx.houses`): tallest wall <= storeys x 3 m + 1.5 m, rows <= storeys.
+  - **A retaining block must be deeper than the pad's blend + one lattice cell,** and the level pad must reach one cell
+    BEHIND the block's face. With the pad edge at the face, the 2 m lattice interpolates the bank through the wall: a
+    sawtooth of ground triangles up to 1 m high (Championship Field). Now: pad 4.2 m past the turf, face at 2 m, block
+    4.7 m deep, wedge blocks on the outside of corners. Map check `retaining` (`ctx.retaining`).
+  - **Terrain creates overlooks the flat-map fairness rules miss.** "No roof overlooking one base only" said nothing
+    about a lawn 10 m above the red base, 40 m away, behind chain-link (bullets pass). Map check `overlook`: open
+    standable ground within 80 m, >= 4 m above a base, with a clear line (terrain and solid colliders block, mesh does
+    not), compared between the two bases. Cure used: the evergreen belt that really grows on that bank, as solid blocks.
+  - **Re-class the ground by slope after flattening.** A cut bank beside a car park keeps the lot's asphalt class and
+    draws as a tilted road. The ground shader now turns asphalt / concrete into grass above ~25-35 deg on terrain
+    campuses (src/world/ground.js, `GROUND_TERRAIN`); beside play space anything over 45 deg gets a wall or steps
+    (the grass ramp by the Science Center looked climbable and was not).
+  - A descriptor point inside a footprint is silently moved (`nearestOpenGround`): the blue base sat 9 m from where the
+    descriptor said because [-141, 131] is a cottage. Compare `world.ctfBases` with the descriptor after every load.
+  - Colours typed from Street View are too pure for a whole sunlit wall: desaturate ~25 % and cap the chroma (`tame`).
+  - A local variable named like the plan object (`pl` = a bucket) turned every house wall into NaN without an error:
+    after any builder refactor, scan the merged meshes for NaN positions (three.js only logs a bounding-sphere warning).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.

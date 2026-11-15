@@ -22,6 +22,7 @@ const enabled = (id) => (!ONLY || ONLY.has(id)) && !SKIP.has(id);
 // ---------------------------------------------------------------------------------------------- thresholds
 export const TH = {
   // 1 escapability
+  overlookR: 80, overlookRise: 4, overlookCells: 8,   // CTF overlook: radius (m), height above the base (m), cells (3 m) that make an imbalance worth a warning
   escapeGrid: num('grid', 2.5),      // m between downward sample rays over the play area
   escapeMinY: 0.6,                   // surfaces above this are "elevated" (kerbs / low steps are not)
   escapeTime: 7,                     // s per attempt (one direction)
@@ -644,6 +645,85 @@ async function checkTerrain() {
   finishCheck('terrain', res);
 }
 
+// ============================================================================================== 4c houses / retaining blocks / CTF overlooks (hilly campuses)
+// Builders register what they placed in ctx.houses / ctx.retaining (world.registry); campuses that register nothing skip.
+async function checkHouses() {
+  const H = REG.houses || []; if (!H.length) { finishCheck('houses', { status: 'skip', note: 'no houses registered (ctx.houses)' }); return; }
+  const fails = [], warns = []; let worst = 0;
+  for (const h of H) {
+    let cx = 0, cz = 0; for (const p of h.ring) { cx += p[0]; cz += p[1]; } cx /= h.ring.length; cz /= h.ring.length;
+    let lo = Infinity, at = null;   // lowest ground 0.7 m outside the walls
+    for (let i = 0; i < h.ring.length; i++) { const a = h.ring[i], b = h.ring[(i + 1) % h.ring.length]; const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 1.5));
+      for (let k = 0; k <= n; k++) { let x = a[0] + (b[0] - a[0]) * k / n, z = a[1] + (b[1] - a[1]) * k / n; const d = Math.hypot(x - cx, z - cz) || 1; x += (x - cx) / d * 0.7; z += (z - cz) / d * 0.7; const g = GY(x, z); if (g < lo) { lo = g; at = [r1(x), r2(g), r1(z)]; } } }
+    const storeys = Math.max(1, h.storeys || 1) + (h.garage ? 1 : 0); const tall = h.top - lo, limit = storeys * 3 + 1.5; worst = Math.max(worst, tall - limit);
+    const e = { id: h.id, at, storeys: h.storeys, garage: !!h.garage, tallestWall: r1(tall), limit: r1(limit), windowRows: h.rows };
+    if (tall > limit + 2.5) fails.push({ ...e, note: 'wall far taller than its storeys: a house on a slope needs a pad (fill / cut), not just a datum' });
+    else if (tall > limit || (h.rows || 0) > storeys) warns.push({ ...e, note: tall > limit ? 'tallest wall exceeds storeys x 3 m + 1.5 m' : 'more windowed rows than recorded storeys' });
+    if (tall > limit) marks.push({ kind: 'vis', x0: cx - 2, z0: cz - 2, x1: cx + 2, z1: cz + 2 });
+  }
+  const res = { status: status(fails.length, warns.length), what: 'Houses registered by the builder (ctx.houses: ring, eave height, storeys seen from the street, garage level, windowed rows): the tallest wall (eave over the lowest ground at the walls) may not exceed storeys x 3 m + 1.5 m (fail beyond + 2.5 m), and no wall may show more windowed rows than storeys.',
+    counts: { houses: H.length, failing: fails.length, warning: warns.length, worstExcessM: r1(worst) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`houses: ${res.status} ${fails.length} too tall, ${warns.length} warnings (${H.length} houses)`); finishCheck('houses', res);
+}
+async function checkRetaining() {
+  const Rb = REG.retaining || []; if (!Rb.length || !world.terrain) { finishCheck('retaining', { status: 'skip', note: 'no retaining blocks registered (ctx.retaining)' }); return; }
+  const fails = [], warns = []; let maxPoke = 0;
+  for (const b of Rb) {   // { x, z, tx, tz (along the face), fx, fz (out of the front face), w, d, top, frontY }
+    let poke = 0, n = 0, at = null;
+    for (let u = -b.w / 2 + 0.15; u <= b.w / 2 - 0.15 + 1e-6; u += 0.5) {
+      const x = b.x + b.tx * u + b.fx * (b.d / 2 + 0.08), z = b.z + b.tz * u + b.fz * (b.d / 2 + 0.08); const e = GY(x, z) - b.frontY; if (e > 0.12) { n++; if (e > poke) { poke = e; at = [r1(x), r2(GY(x, z)), r1(z)]; } }
+      for (let v = -b.d / 2 + 0.2; v <= b.d / 2 - 0.2; v += 0.6) { const xi = b.x + b.tx * u + b.fx * v, zi = b.z + b.tz * u + b.fz * v; const t = GY(xi, zi) - b.top; if (t > 0.04) { n++; if (t > poke) { poke = t; at = [r1(xi), r2(GY(xi, zi)), r1(zi)]; } } }
+    }
+    maxPoke = Math.max(maxPoke, poke);
+    if (poke > 0.25) { fails.push({ at, poke: r2(poke), samples: n, note: 'terrain pokes through a retaining block (front face or top): make the block deeper than the pad blend + one lattice cell' }); marks.push({ kind: 'vis', x0: b.x - 1.5, z0: b.z - 1.5, x1: b.x + 1.5, z1: b.z + 1.5 }); }
+    else if (n) warns.push({ at, poke: r2(poke), samples: n });
+  }
+  const res = { status: status(fails.length, warns.length), what: 'Retaining blocks registered by the builder (ctx.retaining): the terrain may not rise above the pad level right in front of the block face (> 0.12 m) nor above its top inside the footprint; > 0.25 m fails.',
+    counts: { blocks: Rb.length, failing: fails.length, warning: warns.length, maxPokeM: r2(maxPoke) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`retaining: ${res.status} ${fails.length} blocks with terrain through them`); finishCheck('retaining', res);
+}
+// Building seating: the ground just outside every registered wall (ctx.walls: { id, a, b (CCW ring edge), floor, top, open })
+// against that wall's floor. Terrain may not touch a facade above its floor line where the wall has windows / doors.
+async function checkSeating() {
+  const W = REG.walls || []; if (!W.length || !world.terrain) { finishCheck('seating', { status: 'skip', note: 'no walls registered (ctx.walls) or flat campus' }); return; }
+  const by = new Map(); let nS = 0;
+  for (const w of W) {
+    const L = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]); if (L < 1.2) continue; const nx = (w.b[1] - w.a[1]) / L, nz = -(w.b[0] - w.a[0]) / L; const n = Math.max(2, Math.round(L));
+    let over = 0, worst = 0, at = null, poke = 0, low = 0;
+    for (let k = 0; k <= n; k++) { const t = (0.35 + (L - 0.7) * k / n) / L; const x = w.a[0] + (w.b[0] - w.a[0]) * t + nx * 0.4, z = w.a[1] + (w.b[1] - w.a[1]) * t + nz * 0.4; if (!inPB(x, z, -30)) continue; const g = GY(x, z); nS++;
+      const e = g - w.floor; if (e > 0.3) { over++; if (e > worst) { worst = e; at = [r1(x), r2(g), r1(z)]; } } else if (e > 0.15) low++; if (g > w.top - 0.3) poke++; }
+    if (!over && !poke && !low) continue;
+    const key = w.id ?? (Math.round(w.a[0] / 20) + ',' + Math.round(w.a[1] / 20)); let b = by.get(key); if (!b) { b = { id: w.id ?? null, walls: 0, bermedOpen: 0, bermedBlank: 0, poking: 0, lowOnly: 0, worst: 0, at: null }; by.set(key, b); }
+    b.walls++; if (poke) b.poking++; if (over) { if (w.open) b.bermedOpen++; else b.bermedBlank++; if (worst > b.worst) { b.worst = r2(worst); b.at = at; } } else if (low) b.lowOnly++;
+    if (over && w.open) marks.push({ kind: 'vis', x0: at[0] - 1.5, z0: at[2] - 1.5, x1: at[0] + 1.5, z1: at[2] + 1.5 });
+  }
+  const all = [...by.values()]; const fails = all.filter((b) => b.bermedOpen || b.poking).sort((p, q) => q.worst - p.worst); const warns = all.filter((b) => !b.bermedOpen && !b.poking && (b.bermedBlank || b.lowOnly));
+  const res = { status: status(fails.length, warns.length), what: 'Building seating: the ground 0.4 m outside every registered wall (ctx.walls), sampled every ~1 m, against the floor line of that wall. Fail: ground more than 0.3 m above the floor of a wall with windows / doors (the hill buries the facade), or ground up to the wall top (the hill runs through the wall). Warn: ground 0.15-0.3 m above the floor, or a blank wall bermed into the hill.',
+    counts: { walls: W.length, samples: nS, buildingsFailing: fails.length, buildingsWarning: warns.length, worstM: fails.length ? fails[0].worst : 0 }, failures: fails.slice(0, 80), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`seating: ${res.status} ${fails.length} buildings with ground on the facade`); finishCheck('seating', res);
+}
+async function checkOverlook() {
+  if (!world.terrain || !world.ctfBases) { finishCheck('overlook', { status: 'skip', note: 'flat campus' }); return; }
+  const out = {}; const dir = V(), o = V();
+  for (const team of ['red', 'blue']) {
+    const base = world.ctfBases[team]; const tgt = V(base.x, GY(base.x, base.z) + 1.2, base.z); let cells = 0, best = null; const pts = [];
+    for (let z = base.z - TH.overlookR; z <= base.z + TH.overlookR; z += 3) for (let x = base.x - TH.overlookR; x <= base.x + TH.overlookR; x += 3) {
+      const d2 = Math.hypot(x - base.x, z - base.z); if (d2 > TH.overlookR || d2 < 8 || !inPB(x, z, 1)) continue; const g = GY(x, z); if (g - (tgt.y - 1.2) < TH.overlookRise) continue;
+      if (world.terrain.slopeAt(x, z) > 1) continue;                                             // not standable
+      if (S.first(o.set(x, g + 30, z), DOWN, 29.6)) continue;                                    // under / inside something (a roof is its own question)
+      o.set(x, g + 1.6, z); dir.subVectors(tgt, o); const L = dir.length(); dir.divideScalar(L);
+      if (S.all(o, dir, L - 0.3).some((h) => !/:mesh$/.test(S.surfOf(h)))) continue;             // solid cover in the way (chain-link is not cover)
+      let hill = false; for (let t = 1.5; t < L - 1 && !hill; t += 1.5) { const px = o.x + dir.x * t, pz = o.z + dir.z * t; if (GY(px, pz) > o.y + dir.y * t + 0.05) hill = true; } if (hill) continue;
+      cells++; pts.push([x, z]); if (!best || g > best[1]) best = [r1(x), r2(g), r1(z), r1(d2)];
+    }
+    out[team] = { cells, areaM2: cells * 9, highest: best }; for (const [x, z] of pts.slice(0, 200)) marks.push({ kind: 'vis', x0: x - 1, z0: z - 1, x1: x + 1, z1: z + 1 });
+  }
+  const a = out.red.cells, b = out.blue.cells, hi = Math.max(a, b), lo = Math.min(a, b); const warn = hi >= TH.overlookCells && lo < hi / 3;
+  const res = { status: status(0, warn ? 1 : 0), what: `CTF base overlooks: open, standable ground within ${TH.overlookR} m of a base, at least ${TH.overlookRise} m above it, with a clear line of sight to the base (terrain and solid colliders block; chain-link does not). Warn when one base has >= ${TH.overlookCells} such 3 m cells and the other less than a third of that.`,
+    counts: { redCells: a, blueCells: b, redAreaM2: a * 9, blueAreaM2: b * 9 }, bases: out, failures: [], warnings: warn ? [`${a > b ? 'red' : 'blue'} base is overlooked from ${hi * 9} m2 of high ground (the other: ${lo * 9} m2); highest point ${JSON.stringify((a > b ? out.red : out.blue).highest)}`] : [] };
+  log(`overlook: ${res.status} red ${a} / blue ${b} cells`); finishCheck('overlook', res);
+}
+
 // ============================================================================================== 5 visible but not solid
 async function checkVisualSolid() {
   const vis = scene.getObjectByName('world-visuals');
@@ -971,7 +1051,9 @@ async function checkBoundary() {
       // 3 m start, a building whose wall stands 3-5 m inside the edge was behind the ray origin and read as "open"
       let d0 = 3; for (let dd = 0.75; dd <= 5.75; dd += 0.25) if (navOK(x + E.n[0] * dd, z + E.n[1] * dd)) { d0 = Math.max(3, dd); break; }
       const bg = GY(x + E.n[0] * d0, z + E.n[1] * d0);
-      for (const y of [0.5, 1.0, 1.6]) if (S.first(V(x + E.n[0] * d0, bg + y, z + E.n[1] * d0), V(-E.n[0], 0, -E.n[1]), d0 + 2)) { barrier = true; break; }
+      // (terrain: the rays run parallel to the ground from the start to 2 m outside, or a fence up a steep lane is missed)
+      const og = GY(x - E.n[0] * 2, z - E.n[1] * 2), bdir = V(-E.n[0] * (d0 + 2), og - bg, -E.n[1] * (d0 + 2)), blen = bdir.length(); bdir.divideScalar(blen);
+      for (const y of [0.5, 1.0, 1.6]) if (S.first(V(x + E.n[0] * d0, bg + y, z + E.n[1] * d0), bdir, blen)) { barrier = true; break; }
       if (!barrier) barrier = REG.trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 4);
       if (barrier) { flush(); continue; }
       open++;
@@ -1038,7 +1120,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'overlook', 'seating', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1082,7 +1164,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['overlook', checkOverlook], ['seating', checkSeating], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

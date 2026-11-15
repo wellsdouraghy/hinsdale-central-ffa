@@ -43,24 +43,38 @@ function turfDetail(ctx, mat, w, h) {
   mat.customProgramCacheKey = () => prevKey + '|maTurf';
   mat.needsUpdate = true;
 }
-// Field edge along a polyline (world coords, 2 m outside the turf, y = 0 pad inside): 3 m panels of black ball-stop fence;
-// where the hill behind is higher than the pitch, a retaining wall (2.2 m deep block over the pad's blend zone, top
-// stepped with the ground behind it) with the fence on top. `gaps`: [d0, d1] distances along the line left open.
-function perimeter(ctx, pts, gaps) {
-  const { B } = ctx; const step = 3.0; let dist = 0; const run = [];   // fence runs: [[x, z, lift], ...]
+// Field edge along a polyline (world coords, 2 m outside the turf; the level pad reaches 4.2 m out): 3 m panels of black
+// ball-stop fence; where the hill behind is higher than the pitch, a retaining block WALL_D deep (it swallows the pad's
+// whole blend zone plus a lattice cell in front of it, so no terrain triangle can show through its face), top stepped
+// with the ground behind it, the fence on top. opts: gaps [[d0, d1]] left open, fence: false = wall only,
+// hedge(mid) -> true = a 5.5 m evergreen belt behind the fence (solid: blocks sight and bullets).
+const WALL_D = 4.7;
+const wallTop = (ctx, x, z, nx, nz) => gY(ctx, x + nx * (WALL_D + 0.25), z + nz * (WALL_D + 0.25));
+function hedgeBlock(ctx, x, z, y, w, d, h, rot, k = 0) {
+  const { B } = ctx; const hb = B.v('paint', true); const hh = h + ((k * 7) % 5) * 0.14;
+  hb.setColor(0.03, 0.075, 0.028).box(x, y + hh / 2 - 0.3, z, w, hh + 0.6, d, rot); hb.setColor(0.045, 0.1, 0.035).box(x, y + hh + 0.03, z, w - 0.25, 0.12, d - 0.3, rot); hb.setColor(1, 1, 1);
+  B.c('wood').box(x, y + hh / 2 - 0.3, z, w, hh + 0.6, d, rot);
+  // (a hollow box over a wall top is a ledge with headroom inside it: the mantle found it. Shelves leave no room to stand.)
+  for (let yy = 0.55; yy < hh - 0.2; yy += 0.75) B.c('wood').box(x, y + yy, z, w - 0.1, 0.06, d - 0.1, rot);
+}
+function perimeter(ctx, pts, opts = {}) {
+  const { B } = ctx; const step = 3.0; let dist = 0; const run = []; const gaps = opts.gaps || [];   // fence runs: [[x, z, lift], ...]
   const flush = () => { if (run.length > 1) { const lifts = new Map(run.map((p) => [p[0].toFixed(2) + ',' + p[1].toFixed(2), p[2]])); hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, run.map((p) => [p[0], p[1]]), { h: 3.0, black: true, every: step }); } run.length = 0; };
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.round(L / step)); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
     // outward = away from the pitch centre
     const c = G(79, -30); let nx = -tz, nz = tx; if (nx * (a[0] - c[0]) + nz * (a[1] - c[1]) < 0) { nx = -nx; nz = -nz; }
     for (let k = 0; k < n; k++) {
-      const p = [a[0] + tx * L * k / n, a[1] + tz * L * k / n], q = [a[0] + tx * L * (k + 1) / n, a[1] + tz * L * (k + 1) / n]; const d0 = dist + L * k / n, d1 = dist + L * (k + 1) / n;
-      // ground behind the wall line (beyond the pad's blend): the wall top for this panel
-      let top = -Infinity; for (const t of [0, 0.5, 1]) top = Math.max(top, gY(ctx, p[0] + (q[0] - p[0]) * t + nx * 2.5, p[1] + (q[1] - p[1]) * t + nz * 2.5));
-      const wall = top > 0.7; const lift = wall ? top + 0.12 : null;
-      if (wall) { const m = [(p[0] + q[0]) / 2 + nx * 1.25, (p[1] + q[1]) / 2 + nz * 1.25]; const w = L / n + 0.04; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, 2.5, Math.atan2(-tz, tx), 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, 2.5, Math.atan2(-tz, tx));
-        B.v('limestone').box(m[0] - nx * 1.2, lift + 0.03, m[1] - nz * 1.2, w, 0.06, 0.34, Math.atan2(-tz, tx), 1 / 3); }
-      const open = gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
+      const p = [a[0] + tx * L * k / n, a[1] + tz * L * k / n], q = [a[0] + tx * L * (k + 1) / n, a[1] + tz * L * (k + 1) / n]; const d0 = dist + L * k / n, d1 = dist + L * (k + 1) / n; const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+      // ground behind the block (beyond the pad's blend): the wall top for this panel
+      let top = -Infinity; for (const t of [0, 0.5, 1]) top = Math.max(top, wallTop(ctx, p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, nx, nz));
+      const wall = top > 0.7; const lift = wall ? top + 0.12 : null; const rot = Math.atan2(-tz, tx); const w = L / n + 0.04;
+      if (wall) { const m = [mid[0] + nx * WALL_D / 2, mid[1] + nz * WALL_D / 2]; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WALL_D, rot, 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WALL_D, rot);
+        B.v('limestone').box(mid[0] + nx * 0.05, lift + 0.03, mid[1] + nz * 0.05, w, 0.06, 0.34, rot, 1 / 3);
+        (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WALL_D, top: lift, frontY: 0 }); }   // map check: retaining
+      // (flush behind the fence line: a strip between fence and hedge would be a slot a player can drop into)
+      if (opts.hedge && opts.hedge(mid, wall ? lift : 0)) { const o = wall ? 1.45 : 1.2; hedgeBlock(ctx, mid[0] + nx * o, mid[1] + nz * o, wall ? lift : gY(ctx, mid[0] + nx * o, mid[1] + nz * o), w + 0.3, 2.3, 5.5, rot, 0); }
+      const open = opts.fence === false || gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
       if (open) { flush(); continue; }
       const y0 = wall ? lift : gY(ctx, p[0], p[1]), y1 = wall ? lift : gY(ctx, q[0], q[1]); const o = wall ? 0.25 : 0;
       const P0 = [p[0] + nx * o, p[1] + nz * o, y0], P1 = [q[0] + nx * o, q[1] + nz * o, y1];
@@ -71,6 +85,15 @@ function perimeter(ctx, pts, gaps) {
     dist += L;
   }
   flush();
+}
+// the outside of a convex corner between two wall runs: a wedge of the same block, so the bank does not show between them
+function cornerWedge(ctx, v, prev, next, hedge) {
+  const { B } = ctx; const c = G(79, -30); const nrm = (a, b) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); let nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L; if (nx * (v[0] - c[0]) + nz * (v[1] - c[1]) < 0) { nx = -nx; nz = -nz; } return [nx, nz]; };
+  const n1 = nrm(prev, v), n2 = nrm(v, next); let bx = n1[0] + n2[0], bz = n1[1] + n2[1]; const bl = Math.hypot(bx, bz); if (bl < 1e-3) return; bx /= bl; bz /= bl; const cosH = bx * n1[0] + bz * n1[1]; if (cosH > 0.995) return;
+  const R = WALL_D / Math.max(0.35, cosH); const ring = ensureCCW([[v[0], v[1]], [v[0] + n1[0] * WALL_D, v[1] + n1[1] * WALL_D], [v[0] + bx * R, v[1] + bz * R], [v[0] + n2[0] * WALL_D, v[1] + n2[1] * WALL_D]]);
+  const top = Math.max(wallTop(ctx, v[0], v[1], n1[0], n1[1]), wallTop(ctx, v[0], v[1], n2[0], n2[1]), gY(ctx, v[0] + bx * (R + 0.25), v[1] + bz * (R + 0.25))); if (top <= 0.7) return;
+  B.v('concrete').prism(ring, -0.4, top + 0.12, 1 / 3, true); B.c('concrete').prism(ring, -0.4, top + 0.12, 1, true);
+  if (hedge || top > 2.2) hedgeBlock(ctx, v[0] + bx * 1.75, v[1] + bz * 1.75, top + 0.12, 3.4, 3.4, 5.5, Math.atan2(-bz, bx), 0);
 }
 function field(ctx) {
   const { B, quality } = ctx;   const a0 = 31, a1 = 127, b0 = -90, b1 = 18; const ppm = quality === 'high' ? 18 : quality === 'low' ? 9 : 12; const W = Math.round((b1 - b0) * ppm), H = Math.round((a1 - a0) * ppm);
@@ -141,8 +164,16 @@ function field(ctx) {
   // is a level pad cut into the hill: where the ground outside stands more than 0.7 m above the turf (the whole north
   // end, up to ~6 m) a concrete retaining wall holds the bank and the fence runs along its top.
   const P = turfWorld(2.0);
-  perimeter(ctx, [P[1], P[0], P[5]], [[38, 43], [118, 122]]);        // south (Mission Ave) + east
-  perimeter(ctx, [P[5], P[4], P[3], P[2]], [[20, 24], [100, 126]]);   // north-east, north, north-west
+  // The bank above the north-east wall is 9-10 m over the red flag base 40 m away, and in reality densely overgrown
+  // (Street View from the lane above): an evergreen belt on the wall top closes that overlook for sight and bullets.
+  // The same belt runs along every stretch of wall more than 2.2 m high (the whole north end: the gym plaza looks down
+  // on the pitch from there too); the aerial photo shows the tree line on that bank.
+  const belt = (m, lift) => (m[0] > 92 && m[1] < -27) || lift > 2.2;
+  perimeter(ctx, [P[1], P[0], P[5]], { gaps: [[38, 43], [118, 122]], hedge: belt });        // south (Mission Ave) + east
+  perimeter(ctx, [P[5], P[4], P[3], P[2]], { gaps: [[20, 24], [100, 126]], hedge: belt });   // north-east, north, north-west
+  // west side north of the spectator terrace (below the Science Center): the wall carries on, no fence (campus side)
+  { const t = (-33 - TURF[2][1]) / (TURF[1][1] - TURF[2][1]); const w1 = [P[2][0] + (P[1][0] - P[2][0]) * t, P[2][1] + (P[1][1] - P[2][1]) * t]; perimeter(ctx, [P[2], w1], { fence: false });
+    cornerWedge(ctx, P[5], P[0], P[4], true); cornerWedge(ctx, P[4], P[5], P[3], false); cornerWedge(ctx, P[3], P[4], P[2], false); cornerWedge(ctx, P[2], P[3], w1, false); }
   // clipped hedge between the fence and the Mission Ave sidewalk
   // (Street View: a dense evergreen hedge wall 4-5 m high hides the pitch from Mission Ave; it was a knee-high row before)
   for (let a = 37; a < 122; a += 4.7) { if (a > 68 && a < 78) continue; const p = G(a + 2.35, 20.6); const y = gY(ctx, p[0], p[1]); const hb = B.v('paint', true); const hh = 4.2 + ((a * 7) % 5) * 0.12;
@@ -408,18 +439,31 @@ function boundary(ctx) {
   const trunks = (ctx.gen.trees || []).filter((t) => t[0] > pb.minX - 8 && t[0] < pb.maxX + 8 && t[1] > pb.minZ - 8 && t[1] < pb.maxZ + 8);
   for (let e = 0; e < 4; e++) {
     const a = corners[e], b = corners[(e + 1) % 4]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.ceil(L / 6); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const rot = Math.atan2(-tz, tx);
-    let run = null; const flush = () => { if (run && run.length > 1) hillFence(ctx, run, { h: 2.4, screen: 2.0, every: 3 }); run = null; };
+    // (the green windscreen only where the edge runs along pavement: through lawns and the wooded hillside it is plain
+    // chain-link, or the screen draws a dark line through the trees from the air)
+    let run = null, runScreen = true; const flush = () => { if (run && run.length > 1) hillFence(ctx, run, runScreen ? { h: 2.4, screen: 2.0, every: 3 } : { h: 2.4, every: 3 }); run = null; };
+    const cxm = (pb.minX + pb.maxX) / 2, czm = (pb.minZ + pb.maxZ) / 2;
+    // behind every roadblock a chain-link panel 0.5 m further out: a closed road, also where the street falls away and
+    // the low barrier alone would sit under eye level
+    const ox = e % 2 ? Math.sign(a[0] - cxm) : 0, oz = e % 2 ? 0 : Math.sign(a[1] - czm); const panel = (p0, p1) => hillFence(ctx, [[p0[0] + ox * 0.5, p0[1] + oz * 0.5], [p1[0] + ox * 0.5, p1[1] + oz * 0.5]], { h: 2.4, every: 3 });
     for (let i = 0; i < n; i++) {
       const p0 = [a[0] + tx * (i * L / n), a[1] + tz * (i * L / n)], p1 = [a[0] + tx * ((i + 1) * L / n), a[1] + tz * ((i + 1) * L / n)], mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
       if (inBld(mid[0], mid[1])) { flush(); continue; }
-      if (onStreet(mid[0], mid[1]) && !(ctx.terrain && ctx.terrain.maxIn(mid[0], mid[1], 2.8) - ctx.terrain.minIn(mid[0], mid[1], 2.8) > 0.38)) {   // (a roadblock needs fairly level ground: on a steep lane the fence carries on)
-        flush();
+      if (onStreet(mid[0], mid[1]) && ctx.terrain && ctx.terrain.maxIn(mid[0], mid[1], 2.8) - ctx.terrain.minIn(mid[0], mid[1], 2.8) > 0.38) {
+        // a steep lane: a striped concrete roadblock laid on the slope (built here, sheared with the road; propKit's level
+        // barrier would be half buried)
+        flush(); const bl = L / n - 0.1; panel(p0, p1);
+        onSlope(ctx, mid[0], mid[1], bl / 2, () => { ctx.B.solidBox('concrete', 'concrete', mid[0], 0.3, mid[1], bl, 1.0, 0.6, rot, 1 / 3); const pt = ctx.B.v('paint', true); for (const sd of [-0.31, 0.31]) { pt.setColor(0.95, 0.45, 0.05).box(mid[0] + tz * sd, 0.55, mid[1] - tx * sd, bl - 0.3, 0.22, 0.02, rot); pt.setColor(0.9, 0.9, 0.88).box(mid[0] + tz * sd, 0.27, mid[1] - tx * sd, bl - 0.3, 0.16, 0.02, rot); } pt.setColor(1, 1, 1); });
+        continue;
+      }
+      if (onStreet(mid[0], mid[1])) {
+        flush(); panel(p0, p1);
         // a street tree beside the roadblock: shift the barrier a step out (or in) so it stands clear of the trunk
         const bl = L / n - 0.3; const clearOfTrunks = (x, z) => !trunks.some((t) => { const dx = t[0] - x, dz = t[1] - z; return Math.hypot(Math.max(0, Math.abs(dx * tx + dz * tz) - bl / 2), Math.max(0, Math.abs(dx * tz - dz * tx) - 0.3)) < 1.1; });
         for (const o of [0, 0.3, -0.3, 0.6, -0.6]) if (clearOfTrunks(mid[0] + tz * o, mid[1] - tx * o)) { mid[0] += tz * o; mid[1] -= tx * o; break; }
         onSlope(ctx, mid[0], mid[1], bl / 2, () => { propKit.barrier(ctx, mid[0], mid[1], rot, bl); const pt = ctx.B.v('paint', true); pt.setColor(0.95, 0.45, 0.05).box(mid[0], 1.0, mid[1], L / n - 0.6, 0.22, 0.06, rot); pt.setColor(0.9, 0.9, 0.88).box(mid[0], 0.72, mid[1], L / n - 0.6, 0.16, 0.06, rot); pt.setColor(1, 1, 1); }); continue;
       }
-      if (!run) run = [p0]; run.push(p1);
+      { const ix = mid[0] + Math.sign(cxm - mid[0]) * (e % 2 ? 4 : 0), iz = mid[1] + Math.sign(czm - mid[1]) * (e % 2 ? 0 : 4); const sc = ctx.surfaceAt(ix, iz) !== 'grass'; if (run && sc !== runScreen) { const last = run[run.length - 1]; flush(); run = [last]; } if (!run) run = [p0]; runScreen = sc; run.push(p1); }
     }
     flush();
   }

@@ -270,7 +270,7 @@ function performingArts(ctx, rings) {
   sited(ctx, rings.low, (base) => flatBuilding(ctx, rings.low, 5.6 - base, 'maLowCream', { units: 1 }));
   // Founders Hall: long two-storey white bar with a clay-tile mansard edge (parapet 7.4 m above the field)
   sited(ctx, rings.founders, (base) => {
-    const H = 7.4 - base; const f = flatBuilding(ctx, rings.founders, H, 'maWhite', { units: 2 });
+    const H = 7.4 - base; const f = flatBuilding(ctx, rings.founders, H, 'maCream', { units: 2 });
     const fr = f.ring; const sh = B.v('shingles', true); sh.setColor(...CLAY);
     for (let i = 0; i < fr.length; i++) { const a = fr[i], b = fr[(i + 1) % fr.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.L < 1) continue; quadFacing(sh, F.P(-0.5, H - 1.1, 0.62), F.P(F.L + 0.5, H - 1.1, 0.62), F.P(F.L, H + 0.1, 0.1), F.P(0, H + 0.1, 0.1), [F.nx, 1, F.nz], [[0, 0], [F.L / 3, 0], [F.L / 3, 0.45], [0, 0.45]]); quadFacing(B.v('whitePanel'), F.P(-0.5, H - 1.1, 0.0), F.P(F.L + 0.5, H - 1.1, 0.0), F.P(F.L + 0.5, H - 1.1, 0.62), F.P(-0.5, H - 1.1, 0.62), [0, -1, 0]); const mc = F.P(F.L / 2, H - 0.5, 0.31); B.c('concrete').box(mc[0], mc[1], mc[2], F.L + 1.0, 1.2, 0.62, F.rotY); }
     sh.setColor(1, 1, 1);
@@ -278,7 +278,7 @@ function performingArts(ctx, rings) {
 }
 function pacAt(ctx, rings, h, base) {
   const { B } = ctx;
-  const { roofY } = flatBuilding(ctx, rings.pac, h, 'maGymPlain', { units: 3 });
+  const { roofY } = flatBuilding(ctx, rings.pac, h, 'maPac', { units: 3 });
   const r = ensureCCW(rings.pac);
   for (let i = 0; i < r.length; i++) {
     const a = r[i], b = r[(i + 1) % r.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]);
@@ -320,6 +320,21 @@ function aquaticCenterAt(ctx) {
   }
   // shade sails / canopy on steel posts over the north deck
   { const p = gp(pc[0], pc[1], 0, -21.6); const aw = B.v('awning', true); aw.setColor(0.86, 0.84, 0.78); aw.box(p[0], 3.3, p[1], 30, 0.06, 3.6, ROT); for (const a of [-14.5, -5, 5, 14.5]) { const q = gp(pc[0], pc[1], a, -20.2); B.v('galv').cyl(q[0], 0, q[1], 0.06, 0.06, 3.3, 6, 1, false); B.c('metal').box(q[0], 1.65, q[1], 0.2, 3.3, 0.2); } B.c('metal').box(p[0], 3.3, p[1], 30, 0.15, 3.6, ROT); aw.setColor(1, 1, 1); }
+}
+
+// Every school building the facade kit walls: [name, ring, roof / eave height above the field, style, forced level].
+// sitework plans their walls on the natural ground and seats each wall piece on a level pad (kit.js planWalls).
+export function schoolWalls(ctx) {
+  const ring = (id) => ctx.data.buildings.find((b) => b.id === id).outer[0];
+  return [
+    ['Foster Hall', rect(-18.0, -45.3, 22.4, 19.4), null, 'maFoster', 'porch'], ['Foster Hall north wing', rect(-14.9, -66.6, 13.2, 23.4), 12.4, 'maFoster'],
+    ['Thacher Hall', rect(10.6, -1.3, 11.2, 33.4), 8.9, 'maMission'], ['Thacher Hall west wing', rect(1.6, 9.2, 7.0, 10.6), 8.3, 'maMission'],
+    ['Science + Innovation Center', ring(652917782), 13.8, 'maModern'], ['Old Gym', ring(652917783), 17.6, 'maGym'], ['Athletic Center', ring(652917773), 17.8, 'maGymPlain'],
+    ['Visual Arts Center', ring(652917785), 4.7, 'maVisArts'], ['Campus building 1460794276', ring(1460794276), 13.9, 'maLow'], ['Service building', ring(652917784), 18.7, 'maService'],
+    ['Leadership Center', rect(-12.4, 61.0, 10.6, 51.6), 5.6, 'maMission'], ['Leadership Center east wing', rect(-2.3, 54.6, 10.4, 30.4), 5.4, 'maMission'],
+    ['Library', rect(29.9, 60.4, 12.9, 42.4), 5.9, 'maMission'], ['Library west wing', rect(18.9, 58.6, 9.6, 34.6), 5.3, 'maMission'],
+    ['Performing Arts Center', ring(652917778), 7.7, 'maPac'], ['Performing Arts low block', ring(652917777), 5.6, 'maLowCream'], ['Founders Hall', ring(652917779), 7.4, 'maCream'],
+  ];
 }
 
 // ============================================================================================ entry
