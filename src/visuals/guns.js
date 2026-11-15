@@ -404,7 +404,7 @@ function buildSniper() {
   bolt.add('steel', handle);
   bolt.add('polymer', sphere(0.0115, 0.012 + Math.sin(1.0) * 0.062, -Math.cos(1.0) * 0.062, -0.036));
   return finish(new THREE.Group(), [['body', k], ['mag', mag], ['bolt', bolt, [0, 0, 0]]], {
-    muzzle: V(0, 0, 0.895), eject: V(0.022, 0.006, 0.1), sight: V(0, sY, -0.13), dot: null,
+    muzzle: V(0, 0, 0.895), eject: V(0.022, 0.006, 0.1), sight: V(0, sY, -0.13), dot: null, lens: V(0, sY, 0.392),
     gripR: V(0, -0.105, -0.078), gripL: V(0, -0.045, 0.3), butt: V(0, -0.05, -0.365), scope: true,
   });
 }

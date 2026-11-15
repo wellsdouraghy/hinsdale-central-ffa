@@ -141,7 +141,60 @@ const HOLD = {
   pistol: { off: [-0.17, 0.0, -0.5], two: true, pistol: true },
 };
 
-let flashGeo = null, bandGeo = null;
+let flashGeo = null, bandGeo = null, glintTex = null;
+
+// Scope glint: a small sun reflection on the front lens of a scoped sniper rifle, so a camping sniper can be spotted.
+// Only seen from in front of the scope (fades out past ~35 deg off its axis), keeps a small, roughly constant screen
+// size out to long range and never shows through walls. Deliberately subtle.
+function glintTexture() {
+  if (glintTex) return glintTex;
+  const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+  const x = c.getContext('2d'), h = S / 2;
+  const g = x.createRadialGradient(h, h, 0, h, h, h);
+  // the bright core must stay several texels wide: at range the sprite is only ~20 px and mipmaps average a pin-prick away
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.16, 'rgba(255,250,232,0.95)'); g.addColorStop(0.32, 'rgba(255,236,190,0.4)');
+  g.addColorStop(0.6, 'rgba(255,226,170,0.08)'); g.addColorStop(1, 'rgba(255,220,160,0)');
+  x.fillStyle = g; x.fillRect(0, 0, S, S);
+  // thin four-point star rays
+  x.globalCompositeOperation = 'lighter';
+  for (const [ang, w, l, a] of [[0, 5, h, 0.6], [Math.PI / 2, 5, h, 0.6], [Math.PI / 4, 3, h * 0.55, 0.3], [-Math.PI / 4, 3, h * 0.55, 0.3]]) {
+    x.save(); x.translate(h, h); x.rotate(ang);
+    const r = x.createLinearGradient(-l, 0, l, 0);
+    r.addColorStop(0, 'rgba(255,240,210,0)'); r.addColorStop(0.5, `rgba(255,248,230,${a})`); r.addColorStop(1, 'rgba(255,240,210,0)');
+    x.fillStyle = r; x.fillRect(-l, -w / 2, l * 2, w);
+    x.restore();
+  }
+  glintTex = new THREE.CanvasTexture(c);
+  glintTex.colorSpace = THREE.SRGBColorSpace;
+  return glintTex;
+}
+
+const _gl = new THREE.Vector3(), _gm = new THREE.Vector3(), _gc = new THREE.Vector3();
+function makeScopeGlint(gun) {
+  const mat = new THREE.SpriteMaterial({ map: glintTexture(), color: 0xfff1d6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
+  const sp = new THREE.Sprite(mat);
+  sp.position.copy(gun.anchors.lens).add(_v1.set(0, 0, 0.03));
+  sp.renderOrder = 12; sp.visible = false;
+  const muzzle = gun.anchors.muzzle, lens = gun.anchors.lens, seed = Math.random() * 10;
+  sp.onBeforeRender = (r, s, cam) => {
+    gun.root.localToWorld(_gl.copy(lens)); gun.root.localToWorld(_gm.copy(muzzle));
+    _gm.sub(_gl).normalize();                                        // the scope's optical axis (world)
+    _gc.setFromMatrixPosition(cam.matrixWorld).sub(_gl);
+    const d = _gc.length(); _gc.divideScalar(Math.max(d, 1e-4));
+    const facing = seg(_gm.dot(_gc), 0.82, 0.97);                    // ~35 deg cone in front of the lens, full near the axis
+    const t = performance.now() / 1000 + seed;
+    mat.opacity = facing * (0.7 + 0.12 * Math.sin(t * 2.3) + 0.06 * Math.sin(t * 7.1)) * seg(d, 3, 9);   // not in your face up close
+    mat.rotation = t * 0.15;
+    // ~1.6 deg across (a small star with a few pixels of bright core) at any range out to ~200 m
+    const size = THREE.MathUtils.clamp(d * 0.028, 0.3, 5.6) * (0.9 + 0.1 * Math.sin(t * 3.7));
+    // Drawn a little toward the viewer so the rifle's own barrel / muzzle (and depth precision at range) can't swallow
+    // it, while anything really in between (walls, cover) still hides it. Set on matrixWorld: it is read right after this.
+    _gl.addScaledVector(_gc, Math.min(Math.max(0.7, d * 0.012), d * 0.5));
+    sp.matrixWorld.makeScale(size, size, size).setPosition(_gl);
+  };
+  gun.root.add(sp);
+  return sp;
+}
 
 export function createCharacter({ color = 0xcc3333, name = '', look = null } = {}) {
   let lookId = look;
@@ -214,7 +267,9 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
     }
     gun = guns[id]; gunId = id; gun.root.visible = true;
     flash.position.copy(gun.anchors.muzzle).add(_v1.set(0, 0, -0.06));
+    if (gun.anchors.lens && !glint) glint = makeScopeGlint(gun);
   }
+  let glint = null;
   setGun('ar');
 
   // rig (filled in when the model has loaded)
@@ -571,6 +626,7 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       boostT = Math.max(0, boostT - dt / 0.42); tuckT = Math.max(0, tuckT - dt / 0.6);
       flinchT = damp(flinchT, 0, 9, dt); kick = damp(kick, 0, 20, dt); fireHold = Math.max(0, fireHold - dt);
       st._ladY = root.position.y;
+      if (glint) glint.visible = gunId === 'sniper' && alive && !controlled && adsT > 0.8 && sat(st.ads || 0) > 0.85;
       if (!rig || controlled) return;
 
       // --- lean: into acceleration and turns on the ground (about the feet); along the cable / dash in the air
@@ -653,7 +709,7 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       root.userData.disposed = true;
       root.removeFromParent();
       mixer?.stopAllAction();
-      tagTex.dispose(); tagMat.dispose(); accent.dispose(); flashMat.dispose();
+      tagTex.dispose(); tagMat.dispose(); accent.dispose(); flashMat.dispose(); glint?.material.dispose();
       allyTex?.dispose(); allyFront?.material.dispose(); allyGhost?.material.dispose();
       rig?.model.traverse((o) => { if (o.isSkinnedMesh) o.skeleton.dispose(); });
     },
