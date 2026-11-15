@@ -6,7 +6,7 @@ import hamilton from './hamilton/campus.js';
 import terraintest from './terraintest.js';
 
 // Campuses still in review are only listed on the local dev server or with ?preview (until they pass QA).
-const IN_REVIEW = new Set(['hamilton']);
+const IN_REVIEW = new Set([]);
 const PREVIEW = import.meta.env.DEV || (typeof location !== 'undefined' && new URLSearchParams(location.search).has('preview'));
 export const CAMPUSES = [hinsdale, marin, hamilton].filter((c) => PREVIEW || !IN_REVIEW.has(c.id));
 export const DEFAULT_CAMPUS = 'hinsdale';
