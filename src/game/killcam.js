@@ -16,7 +16,31 @@ export class KillCamRecorder {
   constructor() {
     this.self = [];
     this.events = [];
+    this.heli = [];          // helicopter pose track (for helicopter killcams)
     this.lastSelf = -1;
+    this.lastHeli = -1;
+  }
+
+  /** Helicopter pose as we saw it (pos, yaw/pitch/roll, pilot id), ~30 Hz, kept KEEP seconds. */
+  recordHeli(t, hv) {
+    if (!hv?.active || t - this.lastHeli < 1 / 30) return;
+    this.lastHeli = t;
+    const o = hv.vis.object3D, p = hv.pos;
+    this.heli.push({ t, p: [p.x, p.y, p.z], yaw: o.rotation.y, pitch: o.rotation.x, roll: o.rotation.z, pilot: hv.s?.pilot ?? null });
+    while (this.heli.length && this.heli[0].t < t - KEEP) this.heli.shift();
+  }
+
+  heliAt(t) {
+    const h = this.heli;
+    if (!h.length) return null;
+    let a = h[0], b = h[h.length - 1];
+    if (t <= a.t) return a;
+    if (t >= b.t) return b;
+    for (let i = 0; i < h.length - 1; i++) if (h[i].t <= t && h[i + 1].t >= t) { a = h[i]; b = h[i + 1]; break; }
+    const k = (t - a.t) / Math.max(1e-6, b.t - a.t);
+    const ang = (x, y) => x + Math.atan2(Math.sin(y - x), Math.cos(y - x)) * k;
+    return { t, p: [a.p[0] + (b.p[0] - a.p[0]) * k, a.p[1] + (b.p[1] - a.p[1]) * k, a.p[2] + (b.p[2] - a.p[2]) * k],
+      yaw: ang(a.yaw, b.yaw), pitch: a.pitch + (b.pitch - a.pitch) * k, roll: a.roll + (b.roll - a.roll) * k, pilot: b.pilot };
   }
 
   /** ads: the local aim-down-sights amount (0..1); the rest comes from the controller (as in the 'st' state). */
@@ -74,6 +98,10 @@ export class KillCam {
     game.scene.add(this.ghost.object3D);
     this.ghostDead = false;
     this.camPos = null;
+    // Helicopter kill: the killer was flying (cannon, rockets, a crash): replay the helicopter, not their seat body.
+    const hk = game.killcamRec.heliAt(info.killTime);
+    this.heliReplay = !!(game.heliView && game.killcamRec.heli.length &&
+      (['heli', 'heligun', 'rocket', 'heliCrash'].includes(info.w) || (hk && hk.pilot === info.killerId && hk.pilot !== null)));
     this.scoped = false;      // the killer is looking through a scope right now (the HUD draws the scope overlay)
     this.scopeK = 0;
   }
@@ -108,8 +136,9 @@ export class KillCam {
       if (e.t <= prev || e.t > rt) continue;
       if (e.type === 'shot') {
         const r = g.remotes.get(e.id);
-        r?.character.fire();
-        const from = r ? r.muzzle(new THREE.Vector3()) : e.from;
+        const fromHeli = this.heliReplay && e.id === this.info.killerId;   // cannon rounds leave the helicopter's nose
+        if (!fromHeli) r?.character.fire();
+        const from = r && !fromHeli ? r.muzzle(new THREE.Vector3()) : e.from;
         for (const end of e.ends.slice(0, 3)) g.effects.tracer(from, end);
         if (e.id === this.info.killerId) g.audio.shot(e.weapon, from.clone());
       } else if (e.type === 'boom') {
@@ -125,6 +154,7 @@ export class KillCam {
   /** Over-the-shoulder camera on the killer, pulled in if a wall is behind them. */
   _camera(dt) {
     const g = this.game, cam = g.camera;
+    if (this.heliReplay && this._heliCamera(dt)) return;
     if (this.info.w === 'airstrike') {
       const run = g.strikeView?.runBy(this.info.killerId);
       if (run) { this._strikeCamera(run, dt); return; }
@@ -160,6 +190,38 @@ export class KillCam {
     cam.updateMatrixWorld();
   }
 
+  /**
+   * Helicopter kills: pose the helicopter from the recorded track and chase it from behind and above, framing the
+   * spot where we died. Returns false when there is no track for this moment (falls back to the normal camera).
+   */
+  _heliCamera(dt) {
+    const g = this.game, cam = g.camera, hv = g.heliView;
+    const h = g.killcamRec.heliAt(this.rt);
+    if (!h || !hv) return false;
+    hv._pose(new THREE.Vector3().fromArray(h.p), h.yaw, h.pitch, h.roll);
+    hv.vis.object3D.visible = true;
+    hv.vis.setRotorSpeed?.(1);
+    const pos = hv.pos;
+    const fwd = new THREE.Vector3(-Math.sin(h.yaw), 0, -Math.cos(h.yaw));
+    const victim = this.ghost.object3D.position.clone().add(new THREE.Vector3(0, 1, 0));
+    // Behind the helicopter, on the side away from the victim, raised so both are in frame.
+    const want = pos.clone().addScaledVector(fwd, -15).add(new THREE.Vector3(0, 5.5, 0));
+    const hit = g.hitscan.castWorld(pos, want.clone().sub(pos).normalize(), want.distanceTo(pos));
+    if (hit) want.copy(pos).addScaledVector(want.clone().sub(pos).normalize(), Math.max(4, hit.distance - 0.5));
+    if (!this.camPos) this.camPos = want.clone();
+    else this.camPos.lerp(want, Math.min(1, dt * 6));
+    const focus = pos.clone().lerp(victim, 0.55);
+    if (!this.look) this.look = focus.clone();
+    else this.look.lerp(focus, Math.min(1, dt * 6));
+    this.scoped = false;
+    cam.position.copy(this.camPos);
+    cam.lookAt(this.look);
+    cam.fov += (g._baseVFov() - cam.fov) * Math.min(1, dt * 8);
+    cam.updateProjectionMatrix();
+    cam.updateMatrixWorld();
+    return true;
+  }
+
   /** Airstrike kills: high above and behind the run, panning along the bomb line as the blasts walk down it. */
   _strikeCamera(run, dt) {
     const g = this.game, cam = g.camera;
@@ -179,6 +241,12 @@ export class KillCam {
   }
 
   dispose() {
+    // Hand the helicopter back to live updates (a parked one is only re-posed when its state changes).
+    const hv = this.game.heliView;
+    if (this.heliReplay && hv?.s) {
+      if (hv.s.state === 'parked') hv._pose(new THREE.Vector3().fromArray(hv.s.pos), hv.s.yaw, hv.s.pitch || 0, hv.s.roll || 0);
+      if (!hv.active) hv.vis.object3D.visible = false;
+    }
     this.game.scene.remove(this.ghost.object3D);
     this.ghost.dispose();
     // Remote characters resume live interpolation next frame; hide the dead ones again.

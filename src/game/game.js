@@ -918,6 +918,7 @@ export class Game {
     this.fin.update(dt);
     const holdX = this.alive && active && this.input.isDown('KeyX');
     const heliPrompt = this.heliView ? this.heliView.update(dt, t, holdX && !this.piloting) : null;
+    if (this.heliView && !this.killcam) this.killcamRec.recordHeli(t, this.heliView);
     this.streakPrompt = heliPrompt || this.streaks.update(dt, t, holdX && !heliPrompt && !this.piloting);
 
     if (!this.killcam) {

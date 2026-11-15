@@ -135,8 +135,8 @@ export class HeliView {
 
   update(dt, t, holdX) {
     const g = this.game;
-    // Remote pose interpolation.
-    if ((this.flying || this.falling) && !this.mine && this.buf.length) {
+    // Remote pose interpolation (not while a helicopter killcam is replaying the recorded flight path).
+    if ((this.flying || this.falling) && !this.mine && this.buf.length && !g.killcam?.heliReplay) {
       const rt = clock() - INTERP;
       let a = this.buf[0], b = this.buf[this.buf.length - 1];
       for (let i = 0; i < this.buf.length - 1; i++) if (this.buf[i].t <= rt && this.buf[i + 1].t >= rt) { a = this.buf[i]; b = this.buf[i + 1]; break; }
