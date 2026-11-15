@@ -145,9 +145,14 @@ function textDecal(lines, opt = {}) {
   const W = opt.w || 1024, H = opt.h || 512, c = makeCanvas(W, H), g = c.getContext('2d');
   if (opt.bg) { g.fillStyle = opt.bg; g.fillRect(0, 0, W, H); }
   g.fillStyle = opt.color || '#f4f2ec'; g.textAlign = opt.align || 'left'; g.textBaseline = 'middle';
-  const fs = opt.font || Math.floor(H / (lines.length + 0.6));
-  g.font = `${opt.weight || 600} ${fs}px ${opt.family || 'Futura, "Century Gothic", "Trebuchet MS", Arial, sans-serif'}`;
+  let fs = opt.font || Math.floor(H / (lines.length + 0.6));
+  const setFont = () => { g.font = `${opt.weight || 600} ${fs}px ${opt.family || 'Futura, "Century Gothic", "Trebuchet MS", Arial, sans-serif'}`; };
+  setFont();
   if (g.letterSpacing !== undefined) g.letterSpacing = opt.spacing || '6px';
+  // Shrink to fit: the widest line must stay inside the canvas (long names were cut off, e.g. "HIGH SCHO").
+  const room = W - 2 * (opt.pad || 10);
+  const widest = () => Math.max(...lines.map((l) => g.measureText(l).width));
+  for (let i = 0; i < 40 && widest() > room && fs > 8; i++) { fs = Math.floor(fs * 0.95); setFont(); }
   lines.forEach((l, i) => g.fillText(l, opt.align === 'center' ? W / 2 : (opt.pad || 10), (i + 0.5) * (H / lines.length) + (opt.dy || 0)));
   const t = canvasTexture(c, { repeat: false, aniso: 8 });
   return t;

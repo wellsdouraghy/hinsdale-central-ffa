@@ -136,8 +136,9 @@ function schoolFeatures(ctx) {
   // --- school name on the north-west block facing 55th St (as on the real building)
   {
     const F = edgeFrame(-11.17, -152.39, -1.25, -152.66);
-    const tex = M.textDecal(['HINSDALE', 'TOWNSHIP', 'HIGH SCHOOL', 'CENTRAL'], { w: 1024, h: 768, font: 150, color: '#e9ecee', spacing: '10px' });
-    addDecal(tex, F, F.L * 0.5, 6.1, 5.2, 3.9, 0.16);
+    // On the brick band between the floors (it used to sit over the second-floor windows and was cut off).
+    const tex = M.textDecal(['HINSDALE TOWNSHIP HIGH SCHOOL', 'CENTRAL'], { w: 2048, h: 384, font: 150, color: '#e9ecee', spacing: '10px', align: 'center' });
+    addDecal(tex, F, F.L * 0.5, 4.95, 7.6, 1.42, 0.16);
   }
   // --- 55th St (north) entrances: projecting brick pavilion with a limestone portal and deep storefront doors
   {
