@@ -22,6 +22,16 @@ after every map QA round. The contract itself is in CAMPUSES.md; this file is th
 **Gameplay**
 - **Ladders that can't be exited:** a parapet/roof lip above the ladder's exitY makes the player fall and regrab
   forever. Walk every ladder as a player; exitY must clear the lip, or notch the parapet collision at the ladder.
+- **Players ending up INSIDE a roof ("stuck in a roof"):** a pitched roof is a thin shell over the wall prism's cap, so
+  every hip roof / roof-well perimeter hides a void with a floor (attics at 2.9 / 5.8 / 8.8 m, the space under the
+  tiled rim of a roof well). Nothing leads out of it. The way in was the mantle: jumping or grappling at a wall under
+  the eaves found the attic floor as a "ledge" through the slot between wall top and roof slope and climbed in. Fixed
+  in the controller (`_tryMantle` needs a clear level sight line to the landing spot and no low cover over it), but
+  keep the rule: **roof wells, courts and anything enclosed on a roof must be escapable without the grapple, and
+  no mechanic may put a player under a roof skin. Test by teleport + leave** (drop the player on a grid of roof
+  points and in every void, try to leave with walk / jump / double jump only; jump and grapple at walls under eaves
+  and check nobody ends up below the top surface). Harness: `dev/trap-sweep.js` (scans top-surface heights on a 0.5 m grid,
+  flood-fills reachability to the ground with a 1.7 m climb limit, simulates the rest with the real `player.update`).
 - **Walkable-looking surfaces without collision:** canopies, porch roofs, mansard edges, dormers. Anything you can
   see and would try to stand on needs collision.
 - **Steps/terraces with a tall first riser** (frontH ~0.9) snag or block players: use ramps or real step heights.

@@ -306,6 +306,40 @@ export class PlayerController {
       if (pz !== this.position.z) { this.position.z = pz; this.velocity.z = 0; }
     }
     if (this.position.y < -20 && this.onFellOut) this.onFellOut();
+    this._stuckWatch(dt, input);
+  }
+
+  /**
+   * Safety net for a wedged capsule (a crease between two slopes, a gap narrower than the body): if movement has been
+   * held for 1.5 s with no displacement, and a short probe in all eight directions cannot move either, pop the player
+   * to the nearest free standing spot that is in line of sight. Leaning on a wall never triggers it (sideways is free).
+   */
+  _stuckWatch(dt, input) {
+    const st = this._stuck || (this._stuck = { t: 0, x: this.position.x, y: this.position.y, z: this.position.z, count: 0 });
+    const pushing = Math.abs(input.forward) + Math.abs(input.strafe) > 0.5;
+    const moved = Math.abs(this.position.x - st.x) + Math.abs(this.position.y - st.y) + Math.abs(this.position.z - st.z);
+    if (!pushing || this.ladder || this.grapple || this.mantle || moved > 0.06) { st.t = 0; st.x = this.position.x; st.y = this.position.y; st.z = this.position.z; return; }
+    st.t += dt; if (st.t < 1.5) return;
+    st.t = 0;
+    const canMove = (x, y, z) => {   // can the capsule move a quarter metre in any direction from here (allowing a step up)?
+      for (let k = 0; k < 8; k++) {
+        const a = k * Math.PI / 4, dx = -Math.sin(a) * 0.25, dz = -Math.cos(a) * 0.25;
+        for (const up of [0, STEP]) { _v.set(x + dx, y + up, z + dz); const p = this._resolve(_v, this.height, _dir); if (Math.hypot(dx + p.x, dz + p.z) > 0.12) return true; }
+      }
+      return false;
+    };
+    if (canMove(this.position.x, this.position.y, this.position.z)) return;
+    const chest = new THREE.Vector3(this.position.x, this.position.y + 1.0, this.position.z); let best = null, bestD = 1e9;
+    // sideways-and-up spots first (straight up would only drop back into the same crease); straight up as a last resort
+    for (const r of [0.5, 0.9, 1.3, 0]) for (const up of [0.15, 0.5, 0.9, 1.3]) for (let k = 0; k < (r ? 8 : 1); k++) {
+      if (r === 0 && best) break;
+      const a = k * Math.PI / 4; const c = new THREE.Vector3(this.position.x - Math.sin(a) * r, this.position.y + up, this.position.z - Math.cos(a) * r);
+      const d = up + r + (r ? 0 : 10); if (d >= bestD) continue;
+      if (this._resolve(c, this.height, _dir).lengthSq() > 1e-5 || !canMove(c.x, c.y, c.z)) continue;
+      const to = _m2.set(c.x - chest.x, c.y + 1.0 - chest.y, c.z - chest.z); const L = to.length(); if (L > 1e-3 && this.raycast(chest, to.multiplyScalar(1 / L), L, true)) continue;
+      best = c; bestD = d;
+    }
+    if (best) { this.position.copy(best); this.velocity.set(0, 0, 0); st.count++; this.events.push('unstuck'); }
   }
 
   // ---------- ladders ----------
@@ -418,6 +452,35 @@ export class PlayerController {
       if (this._resolve(t2, CROUCH.height, _dir).lengthSq() < 1e-4) { target = t2; crouch = true; break; }
     }
     if (!target) return;
+    // The landing spot must be reachable through open air: a level sight line from above the player to above the spot,
+    // just over the highest thing in between (the ledge, a parapet). Without this a "ledge" found on the far side of a
+    // thin sloped roof (the attic floor under a hip roof, the void under a roof well) pulled players inside the roof,
+    // where nothing leads out.
+    {
+      let ly = Math.max(down.point.y, target.y);
+      const span = Math.hypot(target.x - wall.point.x, target.z - wall.point.z);
+      for (let u = 0.1; u < span; u += 0.15) {
+        const q = _v.set(wall.point.x + fx * u, topY + 0.05, wall.point.z + fz * u);
+        const d3 = this.raycast(q, _down, topY - this.position.y - 0.35, true);
+        if (d3 && d3.point.y > ly) ly = d3.point.y;
+      }
+      const clear = (ox, oz) => {
+        const from = new THREE.Vector3(ox, ly + 0.12, oz); const to = _m2.set(target.x - ox, 0, target.z - oz); const dist = to.length();
+        return dist > 1e-3 ? this.raycast(from, to.multiplyScalar(1 / dist), dist, true) : null;
+      };
+      const hit = clear(this.position.x, this.position.z);
+      if (hit) {
+        // a fence or rail is a thin upright sheet no downward probe can see: allowed if it is the face being climbed
+        // and the way on from it is clear. Anything else in the way (an eave, a roof slope) means no mantle.
+        const wd = Math.hypot(wall.point.x - this.position.x, wall.point.z - this.position.z);
+        const upright = hit.face && Math.abs(hit.face.normal.clone().transformDirection(hit.object.matrixWorld).y) < 0.3;
+        if (!upright || Math.abs(hit.distance - wd) > 0.1 || clear(wall.point.x + fx * 0.06, wall.point.z + fz * 0.06)) return;
+      }
+      // ... and the spot must not sit under a low cover: the sight line also runs through the hand-high slot between a
+      // wall top and the roof slope above it, and the space behind that slot is the inside of the roof
+      _v.set(target.x, target.y + 2.2, target.z);
+      if (this.raycast(_v, _down, 1.9, true)) return;
+    }
     if (crouch) this.crouching = true;
     this.grapple = null;
     this.mantle = { from: this.position.clone(), to: target, t: 0 };
