@@ -2,7 +2,7 @@
 // modernisation site in the quad and its staging yard, the Robertson Blvd frontage (marquee, flag, palms, iron
 // fence), car parks with stall paint, street paint, lamps, signals, kerb-side cars, buses and the play-area edge.
 import * as THREE from 'three';
-import { ANG, UX, UZ, minAreaOBB, wallDecal, edgeFrame, quadFacing, pointInRing, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
+import { ANG, UX, UZ, minAreaOBB, wallDecal, edgeFrame, quadFacing, wallRect, fbox, pointInRing, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
 import { G, GR, ROT, gbox } from './school.js';
 import { paintedQuad } from '../../world/fields.js';
 import { fence as sharedFence, bleachers, lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
@@ -28,16 +28,22 @@ function field(ctx) {
   // infield: natural grass between the two rubber "D" aprons, mown in 5 yd bands, worn down the middle
   const bc = -12.5, YD = 0.9144, gl = 50 * YD, el = 60 * YD, hw = 26.67 * YD;
   g.save(); oval(rIn - 0.12); g.clip();
-  g.fillStyle = '#4c7434'; g.fillRect(X(-70), Y(ac + rIn), (45 + 70) * ppm, 2 * rIn * ppm);
-  for (let k = -12; k < 12; k++) if (k & 1) { g.fillStyle = 'rgba(255,255,220,0.05)'; g.fillRect(X(bc + k * 5 * YD), Y(ac + rIn), 5 * YD * ppm, 2 * rIn * ppm); }
+  // (the aerial photo shows a tired Bermuda-grass field: yellow-green, thin and brown down the middle and in front
+  // of both goals, faint mowing bands, patchy everywhere; nothing like the even green of synthetic turf)
+  g.fillStyle = '#62783a'; g.fillRect(X(-70), Y(ac + rIn), (45 + 70) * ppm, 2 * rIn * ppm);
+  for (let k = -12; k < 12; k++) if (k & 1) { g.fillStyle = 'rgba(255,255,220,0.035)'; g.fillRect(X(bc + k * 5 * YD), Y(ac + rIn), 5 * YD * ppm, 2 * rIn * ppm); }
   const rnd = mulberry32(1931);
-  for (let k = 0; k < 46; k++) { const b = bc + (rnd() - 0.5) * 92, a = ac + (rnd() - 0.5) * (k < 30 ? 14 : 44), r = 2 + rnd() * 5; g.fillStyle = `rgba(96,78,44,${0.05 + rnd() * 0.1})`; g.beginPath(); g.ellipse(X(b), Y(a), r * 1.8 * ppm, r * ppm, 0, 0, 7); g.fill(); }
+  const blot = (b, a, rb, ra, col) => { const gr = g.createRadialGradient(0, 0, 0, 0, 0, 1); gr.addColorStop(0, col); gr.addColorStop(0.6, col.replace(/[\d.]+\)$/, (m) => (parseFloat(m) * 0.55).toFixed(3) + ')')); gr.addColorStop(1, col.replace(/[\d.]+\)$/, '0)')); g.save(); g.translate(X(b), Y(a)); g.rotate(rnd() * 3.1); g.scale(rb * ppm, ra * ppm); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, 1, 0, 7); g.fill(); g.restore(); };
+  for (let k = 0; k < 150; k++) blot(bc + (rnd() - 0.5) * 112, ac + (rnd() - 0.5) * 58, 2 + rnd() * 6, 1.5 + rnd() * 4, k % 3 ? `rgba(${150 + rnd() * 30 | 0},${146 + rnd() * 20 | 0},${78 + rnd() * 20 | 0},${(0.1 + rnd() * 0.14).toFixed(3)})` : `rgba(58,${92 + rnd() * 20 | 0},40,${(0.1 + rnd() * 0.12).toFixed(3)})`);   // dry and lush patches
+  for (let k = 0; k < 70; k++) blot(bc + (rnd() - 0.5) * (k < 46 ? 74 : 20), ac + (rnd() - 0.5) * (k < 46 ? 12 : 16), 2.5 + rnd() * 5, 1.4 + rnd() * 2.6, `rgba(${128 + rnd() * 18 | 0},${104 + rnd() * 14 | 0},${66 + rnd() * 10 | 0},${(0.16 + rnd() * 0.2).toFixed(3)})`);   // worn to dirt between the hashes and at midfield
+  for (const s2 of [-1, 1]) for (let k = 0; k < 9; k++) blot(bc + s2 * (el - 4 - rnd() * 14), ac + (rnd() - 0.5) * 12, 2 + rnd() * 3.5, 1.6 + rnd() * 2.6, `rgba(126,102,64,${(0.18 + rnd() * 0.2).toFixed(3)})`);   // goal mouths
+  for (let k = 0; k < 1600; k++) { g.fillStyle = k & 1 ? `rgba(196,186,120,${0.05 + rnd() * 0.07})` : `rgba(40,66,30,${0.05 + rnd() * 0.07})`; const r = (0.25 + rnd() * 0.7) * ppm; g.beginPath(); g.ellipse(X(bc + (rnd() - 0.5) * 116), Y(ac + (rnd() - 0.5) * 62), r * 1.7, r, rnd() * 3, 0, 7); g.fill(); }
   // football: end zones, yard lines, hashes, numbers
   for (const [s, word] of [[-1, 'HAMILTON'], [1, 'YANKEES']]) {
-    g.fillStyle = '#1f5a33'; g.fillRect(X(Math.min(bc + s * gl, bc + s * el)), Y(ac + hw), 10 * YD * ppm, 2 * hw * ppm);
-    g.save(); g.translate(X(bc + s * (gl + el) / 2), Yc); g.rotate(s * Math.PI / 2); g.fillStyle = '#eef0e6'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `900 ${Math.round(6.2 * ppm)}px Impact, "Arial Black", sans-serif`; g.fillText(word, 0, 0.3 * ppm, 2 * hw * ppm * 0.9); g.restore();
+    g.fillStyle = 'rgba(31,90,51,0.62)'; g.fillRect(X(Math.min(bc + s * gl, bc + s * el)), Y(ac + hw), 10 * YD * ppm, 2 * hw * ppm);   // end-zone paint sprayed on the grass, worn thin
+    g.save(); g.translate(X(bc + s * (gl + el) / 2), Yc); g.rotate(s * Math.PI / 2); g.fillStyle = 'rgba(238,240,230,0.8)'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `900 ${Math.round(6.2 * ppm)}px Impact, "Arial Black", sans-serif`; g.fillText(word, 0, 0.3 * ppm, 2 * hw * ppm * 0.9); g.restore();
   }
-  g.strokeStyle = '#eef0e6'; g.fillStyle = '#eef0e6'; g.lineWidth = Math.max(1.4, 0.11 * ppm);
+  g.strokeStyle = 'rgba(238,240,230,0.78)'; g.fillStyle = 'rgba(238,240,230,0.78)'; g.lineWidth = Math.max(1.4, 0.11 * ppm);   // chalk on grass: softer than paint on turf
   g.strokeRect(X(bc - el), Y(ac + hw), 2 * el * ppm, 2 * hw * ppm);
   for (let k = -10; k <= 10; k++) { const b = bc + k * 5 * YD; g.beginPath(); g.moveTo(X(b), Y(ac + hw)); g.lineTo(X(b), Y(ac - hw)); g.stroke(); }
   for (let k = -49; k <= 49; k++) { if (k % 5 === 0) continue; const b = bc + k * YD; for (const a of [ac + hw - 0.4, ac + 8.13, ac - 8.13, ac - hw + 0.4]) g.fillRect(X(b) - 0.06 * ppm, Y(a) - 0.3 * ppm, 0.12 * ppm, 0.6 * ppm); }
@@ -51,7 +57,7 @@ function field(ctx) {
   g.fillStyle = 'rgba(244,242,236,0.92)'; g.font = `800 ${Math.round(2.3 * ppm)}px Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('HAMILTON HIGH SCHOOL', X(-12), Y(ac - rIn - 4.3), 44 * ppm);
   g.save(); g.translate(X(b0 - 17.5), Yc); g.rotate(-Math.PI / 2); g.fillStyle = 'rgba(20,34,24,0.9)'; g.font = `900 ${Math.round(5.4 * ppm)}px Impact, "Arial Black", sans-serif`; g.fillText('YANKEES', 0, 0, 40 * ppm); g.restore();
   turfNoise(g, W, H, quality === 'low' ? 26 : 12, 31);
-  { const m = G(ac, (bMin + bMax) / 2); paintedQuad(ctx, c, m[0], m[1], bMax - bMin, aMax - aMin, ANG, { cut: true, y: 0.018, nScale: 0.6, rough: 0.94 }); }
+  { const m = G(ac, (bMin + bMax) / 2); paintedQuad(ctx, c, m[0], m[1], bMax - bMin, aMax - aMin, ANG, { cut: true, y: 0.018, nScale: 0.6, rough: 0.97 }); }
 
   // goal posts (tuning-fork style, yellow) on the end lines, soccer goals parked beside them
   for (const s of [-1, 1]) {
@@ -111,26 +117,81 @@ function courts(ctx) {
 }
 
 // ------------------------------------------------------------------------------------------ construction
-function mound(ctx, a, b, r, h, seed) {
-  const { B } = ctx; const p = G(a, b); const rnd = mulberry32(seed); const N = 9; const rim = [];
-  for (let k = 0; k < N; k++) { const an = k / N * Math.PI * 2, rr = r * (0.8 + rnd() * 0.4); rim.push([p[0] + Math.cos(an) * rr, 0, p[1] + Math.sin(an) * rr]); }
-  const top = [p[0] + (rnd() - 0.5) * r * 0.3, h, p[1] + (rnd() - 0.5) * r * 0.3]; ctx.B.v('paint', true);
-  for (let k = 0; k < N; k++) { const A = rim[k], Bq = rim[(k + 1) % N]; B.v('paint', true).setColor(0.4 + rnd() * 0.06, 0.31 + rnd() * 0.04, 0.2); for (const bk of [B.v('paint', true), B.c('dirt')]) { const ux = Bq[0] - A[0], uz = Bq[2] - A[2], vx = top[0] - A[0], vz = top[2] - A[2]; if (uz * vx - ux * vz >= 0) bk.tri(A, Bq, top, [0, 0], [1, 0], [0.5, 1]); else bk.tri(Bq, A, top, [1, 0], [0, 0], [0.5, 1]); } }
+// spoil heap / stockpile: a lumpy cone with a rounded top, earth (or gravel / sand) texture, solid
+function mound(ctx, a, b, r, h, seed, kind = 'dirt') {
+  const { B } = ctx; const p = G(a, b); const rnd = mulberry32(seed); const N = 16, R = 5; const vb = B.v('hamDirt', true);
+  const tone = kind === 'dirt' ? [0.6, 0.45, 0.31] : kind === 'sand' ? [0.86, 0.74, 0.52] : [0.38, 0.38, 0.37];
+  const top = [p[0] + (rnd() - 0.5) * r * 0.25, h, p[1] + (rnd() - 0.5) * r * 0.25]; const rings = [];
+  for (let j = 0; j < R; j++) { const t = j / R, ring = []; const rr0 = r * (1 - t * 0.78), y = h * (1 - (1 - t) * (1 - t)) * 0.96; for (let k = 0; k < N; k++) { const an = k / N * Math.PI * 2 + j * 0.2, jit = kind === 'dirt' ? 0.16 : 0.05, rr = rr0 * (1 - jit + rnd() * 2 * jit); ring.push([p[0] + (top[0] - p[0]) * t + Math.cos(an) * rr, j ? y * (1 - jit * 0.6 + rnd() * jit * 1.2) : 0, p[1] + (top[2] - p[1]) * t + Math.sin(an) * rr]); } rings.push(ring); }
+  const uv = (q) => [q[0] / 2.2, q[2] / 2.2 + q[1] / 2.2];
+  const tri = (A, Bq, C) => { const sh = 0.9 + rnd() * 0.16; vb.setColor(tone[0] * sh, tone[1] * sh, tone[2] * sh); const ux = Bq[0] - A[0], uy = Bq[1] - A[1], uz = Bq[2] - A[2], vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2]; const up = uz * vx - ux * vz >= 0; for (const bk of [vb, B.c('dirt')]) { if (up) bk.tri(A, Bq, C, uv(A), uv(Bq), uv(C)); else bk.tri(Bq, A, C, uv(Bq), uv(A), uv(C)); } };
+  for (let j = 0; j < R - 1; j++) for (let k = 0; k < N; k++) { const A = rings[j][k], Bq = rings[j][(k + 1) % N], C = rings[j + 1][(k + 1) % N], D = rings[j + 1][k]; tri(A, Bq, C); tri(A, C, D); }
+  for (let k = 0; k < N; k++) tri(rings[R - 1][k], rings[R - 1][(k + 1) % N], top);
+  vb.setColor(1, 1, 1);
 }
+// box-shaped stack helpers in street-grid coordinates: everything is solid as one box (the footprint is registered)
+function siteStack(ctx, kind, a, b, w, h, d, r) {
+  const { B } = ctx; const p = G(a, b), rot = ROT + r; const c = Math.cos(rot), sn = Math.sin(rot); const L = (lx, y, lz) => [p[0] + lx * c + lz * sn, y, p[1] - lx * sn + lz * c]; const pt = B.v('paint', true);
+  const pallet = (lx, lz, pw, pd) => { const q = L(lx, 0.07, lz); B.v('wood').box(q[0], 0.07, q[2], pw, 0.14, pd, rot, 0.6); };
+  if (kind === 'pipes') { // concrete drain pipes on timber bearers, chocked
+    const rr = Math.min(h / 2 - 0.06, d / 4 - 0.02), n = Math.max(1, Math.floor(d / (2 * rr))); for (const lx of [-w * 0.3, w * 0.3]) { const q = L(lx, 0.05, 0); B.v('wood').box(q[0], 0.05, q[2], 0.14, 0.1, d, rot, 0.6); }
+    for (let k = 0; k < n; k++) { const lz = (k - (n - 1) / 2) * 2 * rr; B.v('concrete').tube(L(-w / 2, 0.1 + rr, lz), L(w / 2, 0.1 + rr, lz), rr, 12, 1 / 3); pt.setColor(0.07, 0.07, 0.07); pt.tube(L(-w / 2 - 0.01, 0.1 + rr, lz), L(-w / 2 + 0.02, 0.1 + rr, lz), rr * 0.82, 10); pt.tube(L(w / 2 - 0.02, 0.1 + rr, lz), L(w / 2 + 0.01, 0.1 + rr, lz), rr * 0.82, 10); }
+  } else if (kind === 'lumber') { // banded packs of studs on bearers
+    const layers = Math.max(1, Math.floor((h - 0.1) / 0.3)); for (let j = 0; j < layers; j++) { const y = 0.1 + j * 0.3 + 0.13; const q = L((j % 2) * 0.08, y, 0); B.v('wood').box(q[0], y, q[2], w - 0.1, 0.26, d - 0.12 - (j % 2) * 0.1, rot, 0.5); }
+    pt.setColor(0.1, 0.1, 0.1); for (const lx of [-w * 0.3, 0, w * 0.3]) { const q = L(lx, h / 2, 0); pt.box(q[0], h / 2 + 0.05, q[2], 0.03, h - 0.08, d - 0.08, rot); } for (const lx of [-w * 0.35, w * 0.35]) { const q = L(lx, 0.05, 0); B.v('wood').box(q[0], 0.05, q[2], 0.12, 0.1, d, rot, 0.6); }
+  } else if (kind === 'blocks') { // pallets of concrete masonry units, shrink-wrapped tops
+    const n = Math.max(1, Math.round(w / 1.2)), pw = w / n - 0.12; const bk = B.v('hamBlock', true); bk.setColor(0.72, 0.72, 0.7); for (let k = 0; k < n; k++) { const lx = (k - (n - 1) / 2) * (w / n); pallet(lx, 0, pw, d - 0.05); const q = L(lx, 0, 0); bk.box(q[0], 0.14 + (h - 0.14) / 2, q[2], pw - 0.06, h - 0.14, d - 0.14, rot, 0.45); } bk.setColor(1, 1, 1);
+  } else if (kind === 'forms') { // plywood formwork panels leaning in a rack + scaffold tubes
+    const n = 6; for (let k = 0; k < n; k++) { const lz = -d / 2 + 0.12 + k * (d * 0.6) / n; const q = L(0, h / 2, lz); B.v('wood').box(q[0], h / 2 + 0.02, q[2], w - 0.2, h - 0.06, 0.05, rot, 0.4); }
+    for (let k = 0; k < 5; k++) B.v('galv').tube(L(-w / 2 + 0.1, 0.1 + (k % 3) * 0.1, d / 2 - 0.12 - Math.floor(k / 3) * 0.1), L(w / 2 - 0.1, 0.1 + (k % 3) * 0.1, d / 2 - 0.12 - Math.floor(k / 3) * 0.1), 0.045, 6);
+  } else if (kind === 'generator') { // towable generator / light plant: yellow canopy, louvres, drawbar, wheels
+    pt.setColor(0.86, 0.6, 0.06); const q = L(0, 0, 0); pt.box(q[0], 0.4 + (h - 0.4) / 2, q[2], w - 0.5, h - 0.4, d - 0.25, rot); pt.setColor(0.1, 0.1, 0.1); for (const sz of [-1, 1]) { const f = L(0, 0.95, sz * (d / 2 - 0.12)); pt.box(f[0], 0.95, f[2], (w - 0.5) * 0.6, 0.5, 0.02, rot); for (const lx of [-0.45, 0.45]) pt.tube(L(lx, 0.33, sz * (d / 2 - 0.2)), L(lx, 0.33, sz * (d / 2 - 0.02)), 0.33, 10); }
+    pt.setColor(0.2, 0.2, 0.2); pt.tube(L(w / 2 - 0.3, 0.42, 0), L(w / 2, 0.36, 0), 0.04, 5); pt.box(q[0], 0.36, q[2], w - 0.5, 0.1, d - 0.5, rot);
+  } else { // bagged cement on a pallet
+    pallet(0, 0, w - 0.05, d - 0.05); pt.setColor(0.7, 0.66, 0.56); for (let j = 0; j < 5; j++) { const y = 0.14 + (j + 0.5) * (h - 0.14) / 5; const q = L((j % 2) * 0.04 - 0.02, y, 0); pt.box(q[0], y, q[2], w - 0.14, (h - 0.14) / 5 - 0.02, d - 0.14, rot); }
+  }
+  pt.setColor(1, 1, 1); B.c(kind === 'lumber' || kind === 'forms' ? 'wood' : 'metal').box(p[0], h / 2, p[1], w, h, d, rot); propKit.registerProp(ctx, 'crate', p[0], p[1], rot, w, d, h);
+}
+// tracked excavator parked with the bucket on the ground (solid; footprint registered)
+function excavator(ctx, a, b, r) {
+  const { B } = ctx; const p = G(a, b), rot = ROT + r; const c = Math.cos(rot), sn = Math.sin(rot); const L = (lx, y, lz) => [p[0] + lx * c + lz * sn, y, p[1] - lx * sn + lz * c]; const pt = B.v('paint', true); const bx = (lx, y, lz, w, h, d) => { const q = L(lx, y, lz); pt.box(q[0], y, q[2], w, h, d, rot); };
+  pt.setColor(0.07, 0.07, 0.07); for (const sz of [-1.05, 1.05]) { bx(0, 0.38, sz, 3.7, 0.76, 0.5); for (const lx of [-1.85, 1.85]) pt.tube(L(lx, 0.38, sz - 0.25), L(lx, 0.38, sz + 0.25), 0.38, 10); }
+  pt.setColor(0.16, 0.16, 0.17); bx(0, 0.72, 0, 2.0, 0.3, 1.7); pt.setColor(0.9, 0.62, 0.04); bx(-0.35, 1.5, 0, 3.1, 1.25, 2.5); pt.setColor(0.12, 0.12, 0.13); bx(-1.75, 1.35, 0, 0.5, 0.95, 2.3);   // slew ring, house, counterweight
+  pt.setColor(0.9, 0.62, 0.04); bx(0.55, 2.55, 0.72, 1.25, 0.9, 1.0); bx(0.55, 3.03, 0.72, 1.35, 0.07, 1.1); { const q = L(1.19, 2.55, 0.72); B.v('glass').box(q[0], 2.55, q[2], 0.03, 0.8, 0.9, rot); } for (const sz of [0.21, 1.23]) { const q = L(0.55, 2.55, sz); B.v('glass').box(q[0], 2.55, q[2], 1.1, 0.75, 0.03, rot); }
+  // boom, stick, bucket (two-piece arm folded forward), hydraulic rams
+  const j0 = L(0.9, 1.9, -0.35), j1 = L(3.6, 4.4, -0.35), j2 = L(5.6, 1.5, -0.35), j3 = L(5.3, 0.45, -0.35); pt.setColor(0.9, 0.62, 0.04); pt.tube(j0, j1, 0.2, 6); pt.tube(j1, j2, 0.16, 6); pt.setColor(0.75, 0.75, 0.76); pt.tube(L(1.6, 1.5, -0.35), L(2.6, 3.2, -0.35), 0.07, 6); pt.tube(L(3.0, 4.2, -0.35), L(4.4, 3.5, -0.35), 0.06, 6);
+  pt.setColor(0.2, 0.2, 0.21); pt.tube(j2, j3, 0.1, 5); { const q = L(5.05, 0.42, -0.35); pt.box(q[0], 0.42, q[2], 0.95, 0.75, 1.0, rot); } pt.setColor(1, 1, 1);
+  { const q = L(-0.1, 1.55, 0); B.c('metal').box(q[0], 1.55, q[2], 3.9, 3.1, 2.6, rot); propKit.registerProp(ctx, 'excavator', q[0], q[2], rot, 3.9, 2.6, 3.1); const m = L(4.2, 1.3, -0.35); B.c('metal').box(m[0], 1.5, m[2], 3.2, 3.0, 0.5, rot); const k = L(5.05, 0.42, -0.35); B.c('metal').box(k[0], 0.42, k[2], 0.95, 0.84, 1.0, rot); }
+}
+// site office: a white portable cabin on blocks with a door, steps, windows, an A/C unit and the contractor's board
+function siteOffice(ctx, a, b, r) {
+  const { B } = ctx; const p = G(a, b), rot = ROT + r; const w = 7.2, d = 3.0, h = 2.7, y0 = 0.35; const c = Math.cos(rot), sn = Math.sin(rot); const L = (lx, y, lz) => [p[0] + lx * c + lz * sn, y, p[1] - lx * sn + lz * c];
+  B.v('whitePanel').box(p[0], y0 + h / 2, p[1], w, h, d, rot); B.v('frame').box(p[0], y0 + h + 0.04, p[1], w + 0.12, 0.08, d + 0.12, rot); for (const lx of [-3, -1, 1, 3]) for (const lz of [-1.2, 1.2]) { const q = L(lx, 0.17, lz); B.v('concrete').box(q[0], 0.17, q[2], 0.4, 0.35, 0.4, rot, 1 / 3); }
+  const F = edgeFrame(...L(-w / 2, 0, d / 2).filter((_, k) => k !== 1), ...L(w / 2, 0, d / 2).filter((_, k) => k !== 1)); const Ff = (F.nx * (L(0, 0, d)[0] - p[0]) + F.nz * (L(0, 0, d)[2] - p[1])) > 0 ? F : edgeFrame(...L(w / 2, 0, d / 2).filter((_, k) => k !== 1), ...L(-w / 2, 0, d / 2).filter((_, k) => k !== 1));
+  fbox(B.v('frame'), Ff, 1.0, 1.95, y0 + 0.05, y0 + 2.1, 0, 0.04, 1, 0, 'fst'); { const pt = B.v('paint', true); pt.setColor(0.2, 0.3, 0.42); fbox(pt, Ff, 1.06, 1.89, y0 + 0.08, y0 + 2.04, 0.04, 0.06, 1, 0, 'f'); pt.setColor(1, 1, 1); }
+  for (const u of [3.0]) { fbox(B.v('frame'), Ff, u - 0.6, u + 0.6, y0 + 1.0, y0 + 1.95, 0, 0.04, 1, 0, 'fstb'); wallRect(B.v('glassInt'), Ff, u - 0.54, u + 0.54, y0 + 1.06, y0 + 1.89, 0.045, [u + 1, 1, u, 2]); }
+  fbox(B.v('galv'), Ff, 0.75, 2.2, 0, y0, 0.02, 1.1, 1, 0, 'fst'); fbox(B.v('galv'), Ff, 0.75, 2.2, 0, y0 * 0.5, 1.1, 1.45, 1, 0, 'fst'); fbox(B.v('galv'), Ff, 6.3, 7.0, y0 + 1.5, y0 + 2.1, 0, 0.45, 1, 0, 'fstb');
+  wallDecal(ctx, text(ctx, ['LAUSD', 'HAMILTON HS', 'MODERNIZATION'], { w: 1024, h: 512, font: 104, color: '#f1efe6', bg: '#1c4f7a', weight: 700 }), Ff, 5.0, y0 + 1.45, 2.2, 1.1, 0.05, { opaque: true });
+  B.c('metal').box(p[0], (y0 + h) / 2, p[1], w, y0 + h, d, rot); { const q = L(-w / 2 + 1.47, y0 / 2, d / 2 + 0.72); B.c('metal').box(q[0], y0 / 2, q[2], 1.45, y0, 1.45, rot); } propKit.registerProp(ctx, 'siteOffice', p[0], p[1], rot, w, d, y0 + h);
+}
+function cones(ctx, list) { const { B } = ctx; const pt = B.v('paint', true); for (const [a, b] of list) { const p = G(a, b); pt.setColor(0.07, 0.07, 0.07).box(p[0], 0.02, p[1], 0.36, 0.04, 0.36, ROT); pt.setColor(0.95, 0.38, 0.04).cyl(p[0], 0.04, p[1], 0.13, 0.03, 0.66, 8, 1, true); pt.setColor(0.92, 0.92, 0.9).cyl(p[0], 0.36, p[1], 0.079, 0.058, 0.12, 8, 1, false); } pt.setColor(1, 1, 1); }
 function construction(ctx) {
   const { B } = ctx;
-  // the quad is a building site (comprehensive modernisation): screened fence with two gates, spoil heaps, site
-  // offices, pipe stacks, a pump, and the old octagonal lunch pavilion still standing in the middle
+  // the quad is a building site (LAUSD comprehensive modernisation): screened fence with gates, spoil heaps and gravel /
+  // sand stockpiles, an excavator, the site office, pipe and lumber stacks, block pallets, a generator, skips, and
+  // the old octagonal lunch pavilion still standing in the middle
   const q = [G(5.5, -24.5), G(66.8, -24.5), G(66.8, 24.5), G(5.5, 24.5), G(5.5, -24.5)];
   fence(ctx, q, { h: 2.4, screen: 2.0, every: 3, gaps: [[26, 32], [84, 90], [142, 148], [196, 201]] });
-  mound(ctx, 22, -10, 5.2, 2.1, 3); mound(ctx, 34, 8, 4.2, 1.6, 4); mound(ctx, 16, 12, 3.4, 1.3, 5); mound(ctx, 44, -15, 3.0, 1.2, 6);
-  { const p = G(12, -4); propKit.container(ctx, p[0], p[1], ROT + Math.PI / 2, [0.82, 0.8, 0.74]); const p2 = G(60, 14); propKit.container(ctx, p2[0], p2[1], ROT, [0.12, 0.25, 0.42]); const p3 = G(60, 17.6); propKit.container(ctx, p3[0], p3[1], ROT, [0.5, 0.12, 0.1]); }
+  mound(ctx, 22, -10, 5.2, 2.1, 3); mound(ctx, 34, 8, 4.2, 1.6, 4, 'gravel'); mound(ctx, 16, 12, 3.4, 1.3, 5); mound(ctx, 44, -15, 3.0, 1.2, 6, 'sand');
+  { const p2 = G(60, 14); propKit.container(ctx, p2[0], p2[1], ROT, [0.12, 0.25, 0.42]); const p3 = G(60, 17.6); propKit.container(ctx, p3[0], p3[1], ROT, [0.5, 0.12, 0.1]); }
+  siteOffice(ctx, 12, -4, Math.PI / 2);
   { const p = G(28, 19); propKit.portaPotty(ctx, p[0], p[1], ROT); const p2 = G(30, 19); propKit.portaPotty(ctx, p2[0], p2[1], ROT); const d = G(46, 19.5); propKit.dumpster(ctx, d[0], d[1], ROT, [0.1, 0.16, 0.3]); }
-  const pt = B.v('paint', true);
-  for (const [a, b, w, h, d, col, r] of [[40, -6, 6.0, 0.9, 1.4, [0.45, 0.47, 0.5], 0.3], [50, 4, 6.0, 0.6, 1.2, [0.2, 0.42, 0.5], -0.2], [26, 2, 2.4, 1.5, 1.6, [0.85, 0.6, 0.05], 0], [14, 20, 3.6, 1.1, 1.2, [0.55, 0.5, 0.42], 0], [36, -19, 4.8, 1.3, 1.1, [0.5, 0.36, 0.22], 0], [48, 14, 1.2, 1.0, 1.2, [0.6, 0.6, 0.58], 0.4]]) {
-    const p = G(a, b); pt.setColor(...col).box(p[0], h / 2, p[1], w, h, d, ROT + r); B.c('metal').box(p[0], h / 2, p[1], w, h, d, ROT + r); propKit.registerProp(ctx, 'crate', p[0], p[1], ROT + r, w, d, h);
-  }
-  pt.setColor(1, 1, 1);
+  for (const [kind, a, b, w, h, d, r] of [['pipes', 40, -6, 6.0, 0.9, 1.4, 0.3], ['lumber', 50, 4, 6.0, 0.6, 1.2, -0.2], ['generator', 26, 2, 2.4, 1.5, 1.6, 0], ['blocks', 14, 20, 3.6, 1.1, 1.2, 0], ['forms', 36, -19, 4.8, 1.3, 1.1, 0], ['bags', 48, 14, 1.2, 1.0, 1.2, 0.4]]) siteStack(ctx, kind, a, b, w, h, d, r);
+  excavator(ctx, 31.5, -12.5, -0.5);
+  cones(ctx, [[28, -22], [31, -22], [22, 22.5], [35, 22.5], [9, 10], [9, 14], [63, -10], [63, -6], [41, 1], [44, -2]]);
+  // trench with a plywood cover and caution tape on pickets beside the excavator
+  { const tb = B.v('paint', true); const P = (a, b, y) => { const p = G(a, b); return [p[0], y, p[1]]; }; const m = G(38, -11.5); B.v('wood').box(m[0], 0.03, m[1], 2.4, 0.05, 1.3, ROT + 0.2, 0.4); B.v('wood').box(m[0] + 0.5, 0.07, m[1] + 0.9, 2.4, 0.05, 1.2, ROT - 0.1, 0.4);
+    const pk = [[35.5, -14.5], [41.5, -14.5], [41.5, -9], [35.5, -9]]; for (const [a, b] of pk) { const p = G(a, b); tb.setColor(0.75, 0.75, 0.74).cyl(p[0], 0, p[1], 0.02, 0.02, 1.1, 5, 1, true); } tb.setColor(0.95, 0.8, 0.05); for (let k = 0; k < 3; k++) { const A = P(...pk[k], 0.95), Bq = P(...pk[k + 1], 0.95); quadFacing(tb, A, Bq, [Bq[0], 0.87, Bq[2]], [A[0], 0.87, A[2]], [0, 0, 1]); quadFacing(tb, Bq, A, [A[0], 0.87, A[2]], [Bq[0], 0.87, Bq[2]], [0, 0, 1]); } tb.setColor(1, 1, 1); }
   { // octagonal pavilion: eight posts, low tiled roof (solid: you can stand on it)
     const p = G(55.5, -11.5), R = 4.3, eave = 2.9, rise = 1.5; const sh = B.v('shingles', true); sh.setColor(1.6, 1.5, 1.4);
     for (let k = 0; k < 8; k++) { const a0 = k / 8 * Math.PI * 2, a1 = (k + 1) / 8 * Math.PI * 2; const A = [p[0] + Math.cos(a0) * R, eave, p[1] + Math.sin(a0) * R], Bq = [p[0] + Math.cos(a1) * R, eave, p[1] + Math.sin(a1) * R], T = [p[0], eave + rise, p[1]];
@@ -141,7 +202,7 @@ function construction(ctx) {
   // contractor's staging yard north of the gyms: containers, skips, plant, barriers on the campus side
   for (const [a, b, r, col] of [[-6.5, -118, Math.PI / 2, [0.25, 0.27, 0.28]], [-22, -121, Math.PI / 2, [0.5, 0.12, 0.1]], [-39, -120, Math.PI / 2, [0.78, 0.74, 0.62]], [-30, -86, 0, [0.12, 0.25, 0.42]], [-6, -62, Math.PI / 2, [0.82, 0.8, 0.74]]]) { const p = G(a, b); propKit.container(ctx, p[0], p[1], ROT + r, col); }
   for (const [a, b, r] of [[-46, -104, 0.2], [-14, -100, -0.3]]) { const p = G(a, b); propKit.dumpster(ctx, p[0], p[1], ROT + r); }
-  mound(ctx, -24, -103, 4.4, 1.7, 9); mound(ctx, -60, -98, 3.2, 1.2, 10); mound(ctx, -18, -54, 2.8, 1.1, 11);
+  mound(ctx, -24, -103, 4.4, 1.7, 9); mound(ctx, -60, -98, 3.2, 1.2, 10, 'gravel'); mound(ctx, -18, -54, 2.8, 1.1, 11);
   for (const [a, b] of [[-70, -78.5], [-62, -78.5], [-12, -77.5], [-4, -77.5]]) { const p = G(a, b); propKit.barrier(ctx, p[0], p[1], ROT, 3.4); }
   { const p = G(-50, -124); propKit.portaPotty(ctx, p[0], p[1], ROT); }
 }
@@ -187,6 +248,37 @@ function palms(ctx, list) {
   }
 }
 
+// Italian cypresses: the dark columns of every older Los Angeles garden (and of Brown Hall's front). Static geometry,
+// trunk-like collision up the middle (same footprint as the generic conifers they replace).
+function cypresses(ctx, list) {
+  const { B, playBounds: pb } = ctx; const lv = B.v('hamCypress', true); const rnd = mulberry32(4411);
+  for (const [x, z, hIn] of list) {
+    const h = hIn || 8 + rnd() * 5, r = 0.55 + rnd() * 0.2 + h * 0.014, g = 0.8 + rnd() * 0.3, lean = (rnd() - 0.5) * 0.25;
+    B.v('wood').cyl(x, 0, z, 0.14, 0.12, 0.6, 6, 1, false); lv.setColor(0.82 * g, 1.0 * g, 0.78 * g);
+    lv.cyl(x, 0.4, z, r * 0.62, r, h * 0.2, 9, 0.5, false).cyl(x, 0.4 + h * 0.2, z, r, r * 0.88, h * 0.36, 9, 0.5, false); lv.tube([x, 0.4 + h * 0.56, z], [x + lean, h, z + lean * 0.6], r * 0.88, 9, 0.5); lv.cyl(x + lean, h - 0.02, z + lean * 0.6, r * 0.5, 0.05, 1.2, 9, 0.5, true);
+    if (x > pb.minX - 25 && x < pb.maxX + 25 && z > pb.minZ - 25 && z < pb.maxZ + 25) { B.c('wood').cyl(x, 0, z, 0.36, 0.3, Math.min(h, 9), 7, 1, true); (ctx.trunks || (ctx.trunks = [])).push([x, z, 0.36]); }
+  }
+  lv.setColor(1, 1, 1);
+}
+// jacarandas (Cattaraugus Ave is lined with them): forked grey trunk, wide open crown, lavender bloom over the leaves
+function jacarandas(ctx, list) {
+  const { B, M, T } = ctx;
+  if (!M.hamJacaranda) { const S = 128, c = makeCanvas(S, S), g = c.getContext('2d'); const rnd = mulberry32(8); g.clearRect(0, 0, S, S);
+    for (let k = 0; k < 1500; k++) { const v = rnd(); g.fillStyle = v < 0.5 ? `rgba(${132 + rnd() * 40 | 0},${110 + rnd() * 30 | 0},${190 + rnd() * 40 | 0},0.95)` : v < 0.85 ? `rgba(${70 + rnd() * 30 | 0},${104 + rnd() * 30 | 0},${52 + rnd() * 20 | 0},0.95)` : 'rgba(40,60,34,0.95)'; const r = 2 + rnd() * 4; g.beginPath(); g.ellipse(rnd() * S, rnd() * S, r * 1.5, r, rnd() * 3, 0, 7); g.fill(); }
+    M.hamJacaranda = new THREE.MeshStandardMaterial({ map: canvasTexture(c, { aniso: T.aniso }), alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.9 }); }
+  // crowns go into one mesh of their own, named like the tree system's ("trees:"): foliage, not a surface to stand on
+  const bark = B.v('wood'); const rnd = mulberry32(606); const pos = [], uvs = []; const lv = { tri: (a, b, c, ta, tb, tc) => { pos.push(...a, ...b, ...c); uvs.push(...ta, ...tb, ...tc); } };
+  for (const [x, z] of list) {
+    const h = 6.5 + rnd() * 2.5, f = 2.2 + rnd() * 0.6; bark.cyl(x, 0, z, 0.26, 0.2, f, 7, 0.5, false); const tips = [];
+    for (let k = 0; k < 4; k++) { const an = k / 4 * Math.PI * 2 + rnd() * 0.8, d = 1.6 + rnd() * 1.4, t = [x + Math.cos(an) * d, h - 1.6 + rnd() * 0.8, z + Math.sin(an) * d]; bark.tube([x, f - 0.1, z], t, 0.1, 5, 0.5); tips.push(t); }
+    for (const t of [...tips, [x, h - 0.6, z]]) for (let k = 0; k < 3; k++) { const cx = t[0] + (rnd() - 0.5) * 1.6, cy = t[1] + 0.3 + rnd() * 0.7, cz = t[2] + (rnd() - 0.5) * 1.6, R = 1.7 + rnd() * 0.9, N = 7; const top = [cx, cy + R * 0.42, cz];
+      for (let i = 0; i < N; i++) { const a0 = i / N * Math.PI * 2, a1 = (i + 1) / N * Math.PI * 2; const A = [cx + Math.cos(a0) * R, cy - 0.15 + Math.sin(a0 * 3) * 0.2, cz + Math.sin(a0) * R], Bq = [cx + Math.cos(a1) * R, cy - 0.15 + Math.sin(a1 * 3) * 0.2, cz + Math.sin(a1) * R]; lv.tri(A, Bq, top, [Math.cos(a0) * 0.5 + 0.5, Math.sin(a0) * 0.5 + 0.5], [Math.cos(a1) * 0.5 + 0.5, Math.sin(a1) * 0.5 + 0.5], [0.5, 0.5]); } }
+    B.c('wood').cyl(x, 0, z, 0.3, 0.24, 4.5, 7, 1, true); (ctx.trunks || (ctx.trunks = [])).push([x, z, 0.3]);
+  }
+  if (pos.length) { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, M.hamJacaranda); m.name = 'trees:jacaranda'; m.castShadow = true; m.receiveShadow = false; m.matrixAutoUpdate = false; ctx.scene.add(m); }
+}
+
 // ------------------------------------------------------------------------------------------ Robertson Blvd frontage
 function frontage(ctx) {
   const { B } = ctx;
@@ -223,13 +315,20 @@ function frontage(ctx) {
   for (const [a, b, len, r] of [[-120, 97, 7, 0], [-100, 84, 6, Math.PI / 2], [-131, 91, 5, Math.PI / 2], [-92, 104, 6, 0]]) { const p = G(a, b); B.solidBox('concrete', 'concrete', p[0], 0.4, p[1], len, 0.8, 1.2, ROT + r, 1 / 3); ctx.shrubs.push([p[0], 0.8, p[1], len - 0.8, 0.6, ROT + r]); }
   { const p = G(-146, 92); B.solidBox('whitePanel', 'concrete', p[0], 1.3, p[1], 2.6, 2.6, 2.6, ROT); B.v('paint', true).setColor(0.07, 0.36, 0.17).box(p[0], 2.72, p[1], 3.0, 0.24, 3.0, ROT); B.v('paint', true).setColor(1, 1, 1); B.c('metal').box(p[0], 2.72, p[1], 3.0, 0.24, 3.0, ROT); propKit.registerProp(ctx, 'booth', p[0], p[1], ROT, 3.0, 3.0, 2.85); }
   for (const [a, b, r] of [[-108, 78, 0], [-118, 78, 0], [-76, 76, Math.PI / 2]]) { const p = G(a, b); propKit.bench(ctx, p[0], p[1], ROT + r); }
+  // more cover on the open north and west sides of the red base (the blue base has the fig lawn's walls and trees):
+  // the stadium's brick name wall, the athletics store container beside it and the spirit-wear kiosk to the west
+  { const p = G(-121, 84), L = 5.6, rot = ROT; B.solidBox('brick', 'brick', p[0], 0.95, p[1], L, 1.9, 0.6, rot, 1 / 2.2); B.v('limestone').box(p[0], 1.96, p[1], L + 0.2, 0.12, 0.76, rot, 1 / 3); propKit.registerProp(ctx, 'nameWall', p[0], p[1], rot, L, 0.6, 2.0);
+    const tex = text(ctx, ['AL MICHAELS FIELD', 'HOME OF THE YANKEES'], { w: 1280, h: 320, font: 104, color: '#f3f1e8', bg: '#16613a', family: 'Georgia, "Times New Roman", serif' }); const c = Math.cos(rot), sn = Math.sin(rot);
+    for (const sd of [-1, 1]) { const ax = p[0] + sd * (L / 2 - 0.3) * c + sd * 0.301 * sn, az = p[1] - sd * (L / 2 - 0.3) * sn + sd * 0.301 * c, bx = p[0] - sd * (L / 2 - 0.3) * c + sd * 0.301 * sn, bz = p[1] + sd * (L / 2 - 0.3) * sn + sd * 0.301 * c; let F = edgeFrame(ax, az, bx, bz); if ((F.nx * sd * sn + F.nz * sd * c) < 0) F = edgeFrame(bx, bz, ax, az); wallDecal(ctx, tex, F, F.L / 2, 1.05, 4.6, 1.15, 0.012, { opaque: true }); } }
+  { const p = G(-109, 84.2); propKit.container(ctx, p[0], p[1], ROT, [0.03, 0.13, 0.07]); }
+  { const p = G(-123.5, 90); B.solidBox('whitePanel', 'concrete', p[0], 1.25, p[1], 2.8, 2.5, 2.4, ROT); B.v('paint', true).setColor(0.07, 0.36, 0.17).box(p[0], 2.62, p[1], 3.3, 0.24, 2.9, ROT); B.v('paint', true).setColor(0.05, 0.06, 0.06).box(p[0] + UX * 1.41, 1.5, p[1] + UZ * 1.41, 0.03, 1.0, 1.8, ROT); B.v('paint', true).setColor(1, 1, 1); B.c('metal').box(p[0], 2.62, p[1], 3.3, 0.24, 2.9, ROT); propKit.registerProp(ctx, 'booth', p[0], p[1], ROT, 3.3, 2.9, 2.75); }
   { const p = G(-66, 96); propKit.utilityBox(ctx, p[0], p[1], ROT); const q = G(70, 46.5); propKit.utilityBox(ctx, q[0], q[1], ROT); const d = G(118, 46.5); propKit.dumpster(ctx, d[0], d[1], ROT); const d2 = G(4, -84); propKit.dumpster(ctx, d2[0], d2[1], ROT + Math.PI / 2, [0.1, 0.16, 0.3]); }
   // campus fence on the other three sides (chain-link with a windscreen), gates where the real ones are
   fence(ctx, [G(-158.8, -131), G(-158.8, 128)], { h: 2.4, screen: 2.0, every: 3, gaps: [[30, 35], [188, 196], [226, 232]] });               // Canfield Ave
   fence(ctx, [G(-158.8, -133.6), G(7, -133.6)], { h: 2.4, every: 3, gaps: [[44, 50], [118, 126]] });                                         // Cattaraugus Ave (west half)
   fence(ctx, [G(-80, 163.7), G(46.8, 163.7), G(46.8, 87)], { h: 2.2, every: 3, gaps: [[14, 22], [96, 104], [150, 158], [178, 186]] });          // Kincardine Ave + Livonia Ave
   fence(ctx, [G(66, 68.2), G(177, 68.2)], { h: 2.2, black: true, every: 3, gaps: [[30, 38], [82, 90]] });                                    // Kincardine Ave (east)
-  palms(ctx, [...[-120, -98, -74, -50, -18, 6, 30, 58, 96, 128].map((b) => R(b, 11.0)), ...[-110, -62, -6, 44, 112].map((b) => R(b, -11.0)), ...[[147, -131], [112, -131.5], [-30, -131.6], [-72, -131.6], [-161.5, 70], [-161.5, 110], [168, 2], [40, 84.6], [-8, 84.6], [58.6, 100], [58.6, 140]].map(([a, b]) => G(a, b))]);
+  palms(ctx, [...[-120, -98, -74, -50, -18, 6, 30, 58, 96, 128].map((b) => R(b, 11.0)), ...[-110, -62, -6, 44, 112].map((b) => R(b, -11.0)), ...[[147, -131], [112, -131.5], [-30, -131.6], [-72, -131.6], [-161.5, 70], [-161.5, 110], [168, 2], [40, 84.6], [-8, 84.6], [58.6, 100], [58.6, 140]].map(([a, b]) => G(a, b)), ...((ctx.yardTrees || {}).palm || []).map(([x, z]) => [x, z, 9 + ((x * 7 + z * 3) % 5 + 5) % 5])]);
 }
 
 // ------------------------------------------------------------------------------------------ vehicles + paint
@@ -395,6 +494,11 @@ function boundary(ctx) {
 }
 
 export function buildGrounds(ctx) {
+  // Los Angeles has no spruces: every conifer of the generic tree pass becomes an Italian cypress (same spot, same
+  // trunk collision), except the one that stood on Brown Hall's entrance axis; two tall ones flank the entrance instead
+  { const gen = ctx.gen; gen._conifers = gen._conifers || (gen.trees || []).filter((t) => t[2] === 1); gen.trees = (gen.trees || []).filter((t) => t[2] !== 1);
+    const yt = ctx.yardTrees || {}; const list = gen._conifers.filter((t) => Math.hypot(t[0] - 161.3, t[1] - 3.3) > 2).map((t) => [t[0], t[1], 7 + t[3] * 4.5]);
+    cypresses(ctx, [...list, [...G(146.2, -51.6), 11.5], [...G(146.2, -29.2), 11.5], ...(yt.cypress || []).map(([x, z]) => [x, z, 0])]); jacarandas(ctx, yt.jacaranda || []); }
   field(ctx);
   courts(ctx);
   construction(ctx);

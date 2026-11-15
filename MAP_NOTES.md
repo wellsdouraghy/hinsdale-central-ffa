@@ -230,6 +230,9 @@ What each check does (and what to fix when it fails):
 - **Signs blocked by geometry in front:** a sign can pass "not over windows" and still be unreadable because
   pilasters, downpipes or a wall step cross it (Hamilton: "H MILTON", "PAT CONCERT HALL"). Keep the sign band clear
   (stop pilasters below the frieze, route pipes off the band) and read every sign in a screenshot at eye level.
+- **A frieze sign needs the frieze:** stop pilasters at an architrave under the name band (Brown Hall) or give the
+  name its own projecting stone band proud of pilasters and pipes (concert hall); a decal 2 cm off a wall loses to
+  anything 10 cm proud of it.
 - **Canvas axes on painted courts/fields:** paintedQuad expects X = the b extent; drawing the canvas with X = a
   rotates the paint 90 degrees (Hamilton tennis deck). Check paint against the nets/goals and the satellite.
 - **Species and local style:** use the region's trees (Italian cypress, palms, oaks) and house styles (LA stucco vs
@@ -294,5 +297,50 @@ outside the bounds + terraces inside) until its builder adopts the terrain. Prov
   views you need (`streetview?size=640x640&location=..&heading=..&pitch=..&fov=..`); keep requests in the hundreds
   per campus (free trial credit). Never print or commit the key; cache images under the campus tools/data folder
   only if they are not committed (add to .gitignore) since Street View imagery may not be redistributed.
+- **Street View pass, as done for Hamilton (use it as the recipe):** `tools/streetview.py plan` (free metadata: one
+  pano per *main* building = the largest footprint of each county parcel, found from the nearest named street; sheds
+  and garages inherit from their parcel) -> `fetch` (one 640 px view per main building, heading / fov / pitch computed
+  from the footprint: 147 images for 226 buildings) -> read the images in contact sheets of 12 with the OSM / gen
+  heights printed on each tile -> type one line per building into `tools/data/facades_src.json` ("storeys wall colour
+  roof roofColour | features") -> `tools/facades.py` writes `src/campuses/<id>/facades.json` (imported by town.js)
+  and prints every building whose Street View storey count disagrees with the measured height. What it showed:
+  - *3D-tiles roof classes are wrong for low-pitched roofs.* 70 of 226 buildings flipped roof kind: nearly every
+    1940s LA bungalow has a 3-in-12 hip or gable that the height spread (< 1.1 m) called "flat". Roof kind comes from
+    the street, the tiles only give heights.
+  - *The view is of the lot, not of the footprint.* A rear unit gets the front house's picture, a rebuilt lot shows a
+    house the old footprint does not have. Resolve storeys with the measured height and the county height tag when
+    they both disagree with the picture; keep the colours.
+  - *Street View colours are lit paint, not albedo.* Converting them with gamma 2.2 made navy and grey houses
+    near-black and oversaturated: lift (gamma ~1.75) and desaturate ~10 %; roofs need more lift than walls.
+  - *About 1 in 7 facades is hidden* (hedges, street trees, blur): mark them (`hidden`) so the guess is visible in the
+    data, and take the period style of the neighbours.
+  - Comparison sheets (Street View | game from the same pano position, heading and fov) are the QA artefact; they
+    contain Google imagery, so they live in a gitignored folder (`dev/shots/*/streetview-compare/`).
+- **Rows of shops are party walls:** OSM footprints of a shop row share edges (and overlap by a vertex). Test every
+  wall for a neighbour 0.9 m outside it at three points before putting anything on it (dado, service door, downpipe,
+  windows): "stray dressing" on Hamilton was the side-wall kit drawn on walls that stood against the next shop, and a
+  gabled "house" in the row was a shop whose pent roof the tiles had read as pitched.
+- **Front yards:** the fence / hedge line is wherever the lawn starts behind the sidewalk, not a fixed offset from
+  the centre line (first try: 11 of 55 fences placed). Probe a few offsets and take the one with the most grass;
+  dedupe when two buildings of a parcel share a frontage; keep fences low (<= 1.6 m) and solid.
+- **Distant landmarks vs the scene fog:** FogExp2 at 0.00085 is opaque beyond ~2.5 km, so a skyline 3.5 km away
+  dissolves and the horizon-haze shell is drawn over it. Unlit material with `fog: false`, its own light haze mixed
+  into the vertex colours, `transparent` + a high `renderOrder` so it draws after the haze shell. At true size a
+  170 m tower 3.5 km away is 2.8 deg tall and never clears the trees round a field: landmarks that every photo of
+  the place shows need to be drawn larger / nearer than life (Hamilton's Century City: 1.9x, 3 km).
+- **Hand-built tree crowns** (palms, cypresses, jacarandas) are static geometry, so the map check sees them: wide
+  near-flat crown triangles fail visualSolid as "canopy without collision". Put crowns in their own mesh named
+  `trees:<species>` (skipped like the instanced trees); trunks get collision + `ctx.trunks` as usual. The generic
+  tree pass has one conifer (a spruce): filter `gen.trees` kind 1 in the builder and plant the regional species at
+  the same spots (same trunk collision, so nav and spawns do not move).
+- **Baked ground classes under street trees:** a sidewalk hidden by tree crowns in the satellite photo is classed as
+  lawn. Patch the baked files along the road line (mask, macro tone and class grid together:
+  src/campuses/hamilton/tools/sidewalk_fix.py) instead of laying geometry over grass.
+- **Stockpiles and site clutter:** flat-shaded cones with random vertex heights read as rocks or tents; keep gravel
+  and sand piles nearly regular (5 % jitter), darker than you think, and replace coloured boxes with things that
+  have a silhouette (pipes on bearers, banded lumber, block pallets, a generator, an excavator, a site cabin with
+  the contractor's board). Keep the old footprints so gameplay does not move.
+- **Signs on small props:** a three-line board 1.5 m wide gives 4 cm letters (map check: >= 12 cm). Size the board
+  from the text, not from the prop.
 - **Elevation in the 3D-tiles origin:** set origin.height to the ellipsoid height of the main ground level and
   pick tileRegistration spots on flat open ground at that level.

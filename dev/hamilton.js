@@ -1,5 +1,5 @@
-// Free-fly viewer for the Hamilton High campus (copy of dev/world.js with ?campus=, default marin).
-//   ?cam=x,y,z,yawDeg,pitchDeg  &q=low|medium|high  &gkey=GOOGLE_KEY or &tiles=1 (uses VITE_GOOGLE_TILES_KEY)  &col=1 (show collision)  &hud=0
+// Free-fly viewer for the Hamilton High campus (copy of dev/world.js with ?campus=, default hamilton).
+//   ?cam=x,y,z,yawDeg,pitchDeg  &q=low|medium|high  &shot=PORT (screenshot receiver, default 5197)  &gkey=GOOGLE_KEY or &tiles=1 (uses VITE_GOOGLE_TILES_KEY)  &col=1 (show collision)  &hud=0
 // WASD + mouse (click to lock), Space/C up/down, Shift fast. Exposes window.__world, __camera, __scene, __renderer.
 import * as THREE from 'three';
 import { createWorld } from '../src/world/index.js';
@@ -113,13 +113,16 @@ renderer.setAnimationLoop(() => {
   }
 });
 
-// Dev helper: save the current view to a local receiver (python script on :5199) -> dev/shots/<name>.jpg
+// Dev helper: save the current view to a local receiver: a small python http server that writes each POST body to
+// <its folder>/<name>.jpg. Port 5197 by default; several agents work on this machine at once (Marin and the shared
+// viewers post to :5199), so give your own receiver a free port and pass it as &shot=PORT.
+const SHOT_PORT = qs.get('shot') || '5197';
 window.__shot = async (name, cam, frames = 8) => {
   if (cam) setCam(cam);
   for (let i = 0; i < frames; i++) { for (const b of ctfBits) b.update(0.016); world.update(0.016, camera); world.render(null, null); await new Promise((r) => setTimeout(r, 30)); }
   world.update(0.016, camera); world.render(null, null);
   const blob = await new Promise((r) => renderer.domElement.toBlob(r, 'image/jpeg', 0.9));
-  await fetch('http://127.0.0.1:5197/' + name, { method: 'POST', body: blob });
+  await fetch(`http://127.0.0.1:${SHOT_PORT}/` + name, { method: 'POST', body: blob });
   return name + ' ' + blob.size;
 };
 

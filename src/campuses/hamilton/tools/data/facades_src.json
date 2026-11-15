@@ -1,0 +1,1644 @@
+{
+"_about": "Street View readings per building (Hamilton High surroundings). read = \"storeys wall colour roof roofColour | features\": wall s stucco, w wood siding, b brick, c concrete block; roof hip / gable / flat / tile (clay tile); features: k=kind, fence=, palm, cypress, jacaranda, chimney, garage, balcony, porch, awning, sign=, accent=, base=, hidden (facade hidden by planting: period guess), modern, mural, pent (tiled pent roof over the shopfront). Buildings without a view of their own inherit from `parent` (main building of the parcel). Made with tools/streetview.py; edit by hand, then run tools/facades.py.",
+"buildings": {
+"424965249": {
+"read": "1 s cream hip grey | hidden",
+"pano": "betC6WPmOb2fWdjkNhlvTg",
+"date": "2022-08",
+"heading": 271.4,
+"fov": 84,
+"pitch": 6,
+"street": "Bagley Avenue"
+},
+"424965636": {
+"read": "1 s white hip dkgrey | k=garage,fence=block",
+"pano": "rJGl2yuAfAnbNYFCZoCS_w",
+"date": "2022-08",
+"heading": 297.0,
+"fov": 64,
+"pitch": 3,
+"street": "Bagley Avenue"
+},
+"424965284": {
+"read": "1 s cream hip grey | fence=vinyl",
+"pano": "88EI8SrRjl7E-xS_4dmieg",
+"date": "2022-08",
+"heading": 98.7,
+"fov": 106,
+"pitch": 6,
+"street": "Bagley Avenue"
+},
+"424965309": {
+"read": "1 w teal gable grey | fence=hedge",
+"pano": "betC6WPmOb2fWdjkNhlvTg",
+"date": "2022-08",
+"heading": 124.6,
+"fov": 78,
+"pitch": 5,
+"street": "Bagley Avenue"
+},
+"424965388": {
+"read": "1 w ltblue gable tan | chimney",
+"pano": "M5CAGoYnQihPC6n7tigSjw",
+"date": "2022-08",
+"heading": 89.9,
+"fov": 78,
+"pitch": 5,
+"street": "Bagley Avenue"
+},
+"424965191": {
+"read": "1 s taupe hip dkgrey |",
+"pano": "fY7mzuV2qttxckYlrMszzw",
+"date": "2024-05",
+"heading": 107.0,
+"fov": 83,
+"pitch": 4,
+"street": "Bagley Avenue"
+},
+"425417820": {
+"read": "1 s white hip brown | fence=wood,palm",
+"pano": "vY7UWxtNnM_aIc5tWhVG5g",
+"date": "2022-08",
+"heading": 114.3,
+"fov": 50,
+"pitch": 4,
+"street": "Bagley Avenue"
+},
+"424974956": {
+"read": "2 s white tile clay | awning,chimney",
+"pano": "-I0t9zFKgo2EFP07wCP_BA",
+"date": "2025-10",
+"heading": 24.2,
+"fov": 50,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424974433": {
+"read": "2 s yellow hip brown | fence=iron",
+"pano": "DZs_8mNpSwD2nJD9x017qA",
+"date": "2025-10",
+"heading": 13.5,
+"fov": 50,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424975061": {
+"read": "2 s cream hip grey | hidden,fence=hedge,jacaranda",
+"pano": "67I7FUOGZ3pOyMEr4zORKA",
+"date": "2025-10",
+"heading": 12.7,
+"fov": 50,
+"pitch": 7,
+"street": "Cattaraugus Avenue"
+},
+"424975011": {
+"read": "2 w navy gable brown | fence=picket",
+"pano": "w7giYoQ8_jr4KsPsJo4-oA",
+"date": "2025-10",
+"heading": 13.0,
+"fov": 50,
+"pitch": 7,
+"street": "Cattaraugus Avenue"
+},
+"424965299": {
+"read": "1 s peach hip brown |",
+"pano": "YiOXhxDGbWvnTBG7GyicWw",
+"date": "2025-10",
+"heading": 16.4,
+"fov": 63,
+"pitch": 5,
+"street": "Cattaraugus Avenue"
+},
+"424965352": {
+"read": "1 w white gable grey | hidden",
+"pano": "Vw3PxaaaifVehof5aV-mvA",
+"date": "2025-10",
+"heading": 5.1,
+"fov": 60,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424965278": {
+"read": "1 s ltgrey hip grey | fence=wood,chimney",
+"pano": "X3Hp4XGb8gfeRG3tu6E41g",
+"date": "2022-08",
+"heading": 30.4,
+"fov": 63,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424965283": {
+"read": "1 s white hip grey |",
+"pano": "8ApRbIns2ToduxlQvB-FcQ",
+"date": "2025-10",
+"heading": 20.1,
+"fov": 61,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424975038": {
+"read": "3 s cream flat white | k=dingbat,accent=blue,palm",
+"pano": "Eg2fuJFduYm2X1-x8bEcLw",
+"date": "2025-10",
+"heading": 19.9,
+"fov": 93,
+"pitch": 11,
+"street": "Cattaraugus Avenue"
+},
+"424974825": {
+"read": "1 s white hip grey | hidden,fence=brick,cypress,palm",
+"pano": "1zGaeaWrMd_nrytmTOvIPQ",
+"date": "2025-10",
+"heading": 15.3,
+"fov": 57,
+"pitch": 5,
+"street": "Cattaraugus Avenue"
+},
+"424974706": {
+"read": "2 s charcoal flat dkgrey | modern,garage,accent=white",
+"pano": "ETxQxL_UD6LD3QURX1AuPQ",
+"date": "2025-10",
+"heading": 23.5,
+"fov": 53,
+"pitch": 3,
+"street": "Cattaraugus Avenue"
+},
+"424974920": {
+"read": "1 s white flat white | accent=teal,fence=hedge",
+"pano": "geaFhtyBKgyDxP7525Ev6Q",
+"date": "2025-10",
+"heading": 31.0,
+"fov": 59,
+"pitch": 3,
+"street": "Cattaraugus Avenue"
+},
+"424974636": {
+"read": "1 s terracotta hip brown | chimney",
+"pano": "lU_gxLLemXDlDWvtpqdcKA",
+"date": "2025-10",
+"heading": 37.6,
+"fov": 61,
+"pitch": 4,
+"street": "Cattaraugus Avenue"
+},
+"424974635": {
+"read": "1 s white tile clay | awning",
+"pano": "L5sO2t9imBDzARfUs9Gexw",
+"date": "2025-10",
+"heading": 2.8,
+"fov": 55,
+"pitch": 5,
+"street": "Cattaraugus Avenue"
+},
+"424974788": {
+"read": "1 s yellow hip tan | fence=iron",
+"pano": "DZs_8mNpSwD2nJD9x017qA",
+"date": "2025-10",
+"heading": 10.8,
+"fov": 54,
+"pitch": 4,
+"street": "Cattaraugus Avenue"
+},
+"424975056": {
+"read": "1 s cream hip grey | hidden",
+"pano": "Ge4r0vFWjf0FPEuHvA-hNA",
+"date": "2025-10",
+"heading": 18.4,
+"fov": 52,
+"pitch": 3,
+"street": "Cattaraugus Avenue"
+},
+"424974661": {
+"read": "1 s white tile clay | jacaranda",
+"pano": "JKDhw8VTnsavbdnFmrRr5w",
+"date": "2025-10",
+"heading": 28.7,
+"fov": 57,
+"pitch": 4,
+"street": "Cattaraugus Avenue"
+},
+"424974388": {
+"read": "1 s taupe gable grey | jacaranda",
+"pano": "tcN-UlQ1kmGeexmyW2rlmg",
+"date": "2025-10",
+"heading": 4.6,
+"fov": 55,
+"pitch": 8,
+"street": "Cattaraugus Avenue"
+},
+"424974375": {
+"read": "1 s cream hip grey | hidden,fence=hedge,jacaranda",
+"pano": "67I7FUOGZ3pOyMEr4zORKA",
+"date": "2025-10",
+"heading": 12.2,
+"fov": 60,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424974654": {
+"read": "1 w navy gable grey | porch,jacaranda",
+"pano": "sTNDPeEQ_hWYupLgCRUhKA",
+"date": "2025-10",
+"heading": 14.9,
+"fov": 62,
+"pitch": 5,
+"street": "Cattaraugus Avenue"
+},
+"424975064": {
+"read": "2 s cream flat white | k=apt,accent=white",
+"pano": "2akJyYlZSocxDKucA2nV-w",
+"date": "2025-10",
+"heading": 21.0,
+"fov": 63,
+"pitch": 7,
+"street": "Cattaraugus Avenue"
+},
+"424974632": {
+"read": "1 w bluegrey hip grey | fence=picket",
+"pano": "ujRIZjmPZVfDdr7G9wXB-A",
+"date": "2025-10",
+"heading": 25.2,
+"fov": 53,
+"pitch": 5,
+"street": "Cattaraugus Avenue"
+},
+"424974624": {
+"read": "2 s peach gable brown | balcony,fence=picket",
+"pano": "ntdShYNBEVslkQM0K02wnw",
+"date": "2025-10",
+"heading": 28.6,
+"fov": 58,
+"pitch": 8,
+"street": "Cattaraugus Avenue"
+},
+"424975065": {
+"read": "1 w navy gable brown | fence=picket",
+"pano": "w7giYoQ8_jr4KsPsJo4-oA",
+"date": "2025-10",
+"heading": 8.9,
+"fov": 56,
+"pitch": 4,
+"street": "Cattaraugus Avenue"
+},
+"424974615": {
+"read": "2 s cream hip grey | k=apt,hidden,fence=wood",
+"pano": "M7K3fjuDNFi9VH6z4BQ0gg",
+"date": "2025-10",
+"heading": 21.9,
+"fov": 53,
+"pitch": 7,
+"street": "Cattaraugus Avenue"
+},
+"424974962": {
+"read": "1 s cream flat white | k=shop,sign=CLEANERS",
+"pano": "jTXkvbSWE778QVEqMeRiLQ",
+"date": "2025-10",
+"heading": 21.6,
+"fov": 108,
+"pitch": 7,
+"street": "Cattaraugus Avenue"
+},
+"424965617": {
+"read": "1 s cream hip grey |",
+"pano": "banLiboD8VwSAuC3lIUJqw",
+"date": "2025-10",
+"heading": 198.0,
+"fov": 60,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424965293": {
+"read": "1 s cream hip grey | hidden",
+"pano": "xMB7K4hoFxD03C_JxajNQQ",
+"date": "2025-10",
+"heading": 181.7,
+"fov": 63,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424965179": {
+"read": "1 s cream gable grey | chimney,fence=vinyl",
+"pano": "Xg9Fx53jMMC1ClN9uNcVRQ",
+"date": "2025-10",
+"heading": 197.2,
+"fov": 60,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424965196": {
+"read": "1 s white hip grey | chimney",
+"pano": "YiOXhxDGbWvnTBG7GyicWw",
+"date": "2025-10",
+"heading": 190.2,
+"fov": 62,
+"pitch": 6,
+"street": "Cattaraugus Avenue"
+},
+"424975054": {
+"read": "2 s charcoal flat dkgrey | k=shop,modern",
+"pano": "huYeAMpJz1ji8gj5IIp8vA",
+"date": "2022-08",
+"heading": 30.8,
+"fov": 110,
+"pitch": 18,
+"street": "Hargis Street"
+},
+"424975012": {
+"read": "1 s white tile clay | arch",
+"pano": "wQJFe5k4ILeWtQCUcHfE7Q",
+"date": "2024-05",
+"heading": 179.4,
+"fov": 68,
+"pitch": 4,
+"street": "Hargis Street"
+},
+"424974408": {
+"read": "1 w olive hip brown | hidden",
+"pano": "OHGfmKz7HGg_NmYw602g9A",
+"date": "2024-05",
+"heading": 187.1,
+"fov": 57,
+"pitch": 6,
+"street": "Hargis Street"
+},
+"424974498": {
+"read": "1 s ltgrey hip grey |",
+"pano": "1hsfwEK0uop1aPySDXZuIg",
+"date": "2024-05",
+"heading": 180.7,
+"fov": 54,
+"pitch": 5,
+"street": "Hargis Street"
+},
+"424974597": {
+"read": "1 s white tile clay | arch,cypress",
+"pano": "LRFowTsGIH4yw0daIAvu9Q",
+"date": "2017-12",
+"heading": 205.3,
+"fov": 56,
+"pitch": 4,
+"street": "Hargis Street"
+},
+"424974629": {
+"read": "1 s white tile clay | blurred",
+"pano": "j7kzZstj5o8e0yFXMsbbcw",
+"date": "2024-05",
+"heading": 203.7,
+"fov": 58,
+"pitch": 5,
+"street": "Hargis Street"
+},
+"424975089": {
+"read": "1 w navy hip grey | cypress,palm",
+"pano": "c03oC9Kv6CMt55cmsFR-jw",
+"date": "2024-05",
+"heading": 195.0,
+"fov": 58,
+"pitch": 4,
+"street": "Hargis Street"
+},
+"424974976": {
+"read": "1 s grey hip grey | fence=hedge,palm",
+"pano": "uj1BamWekvrbos_vtTXfUQ",
+"date": "2024-05",
+"heading": 188.1,
+"fov": 56,
+"pitch": 7,
+"street": "Hargis Street"
+},
+"424974751": {
+"read": "1 s taupe hip grey | fence=wood",
+"pano": "jOQR6ymVXoOpSvdTLGHssw",
+"date": "2024-05",
+"heading": 181.5,
+"fov": 58,
+"pitch": 6,
+"street": "Hargis Street"
+},
+"424974607": {
+"read": "1 s tan tile clay |",
+"pano": "pTGNr7udIBgaB8w776IQ0g",
+"date": "2024-05",
+"heading": 202.6,
+"fov": 63,
+"pitch": 6,
+"street": "Hargis Street"
+},
+"424975031": {
+"read": "1 s cream gable brown | palm,fence=hedge",
+"pano": "pkrrpnU-xa8aOek1cjLGBA",
+"date": "2024-05",
+"heading": 189.1,
+"fov": 63,
+"pitch": 6,
+"street": "Hargis Street"
+},
+"424974697": {
+"read": "1 s cream hip grey | fence=hedge",
+"pano": "A98tnKex3ohginv2yuLaJg",
+"date": "2011-04",
+"heading": 177.8,
+"fov": 64,
+"pitch": 5,
+"street": "Hargis Street"
+},
+"424974601": {
+"read": "1 s peach hip grey | fence=hedge",
+"pano": "8bEbqywTEWUYKDEMvASFwg",
+"date": "2009-06",
+"heading": 191.0,
+"fov": 57,
+"pitch": 5,
+"street": "Hargis Street"
+},
+"424974595": {
+"read": "1 s charcoal flat dkgrey | k=shop,accent=blue",
+"pano": "huYeAMpJz1ji8gj5IIp8vA",
+"date": "2022-08",
+"heading": 183.0,
+"fov": 110,
+"pitch": 5,
+"street": "Hargis Street"
+},
+"424974732": {
+"read": "2 s charcoal flat dkgrey | k=shop,accent=blue",
+"pano": "huYeAMpJz1ji8gj5IIp8vA",
+"date": "2022-08",
+"heading": 180.0,
+"fov": 97,
+"pitch": 9,
+"street": "Hargis Street"
+},
+"424974714": {
+"read": "2 s white flat white | k=apt,base=red",
+"pano": "Fo7RNHkNuyfYCF7QTORthA",
+"date": "2025-10",
+"heading": 21.4,
+"fov": 110,
+"pitch": 26,
+"street": "Hargis Street"
+},
+"424974833": {
+"read": "1 s white flat white | k=garage,construction",
+"pano": "A119LF0R3ASjDE3RJ9DhSA",
+"date": "2022-08",
+"heading": 197.3,
+"fov": 50,
+"pitch": 4,
+"street": "Hargis Street"
+},
+"424974836": {
+"read": "1 s white hip grey | k=garage,construction",
+"pano": "OXX5-vdXDR3qyMgYr0pWmg",
+"date": "2022-08",
+"heading": 193.4,
+"fov": 50,
+"pitch": 3,
+"street": "Hargis Street"
+},
+"424974821": {
+"read": "1 s cream tile clay | arch,chimney",
+"pano": "awNsR4O0wyCfJGhOEN19QA",
+"date": "2024-05",
+"heading": 190.4,
+"fov": 50,
+"pitch": 4,
+"street": "Hargis Street"
+},
+"424974986": {
+"read": "1 w white gable dkgrey | k=garage,modern",
+"pano": "R3K8IiwspItRUz860rYvjg",
+"date": "2024-05",
+"heading": 189.6,
+"fov": 50,
+"pitch": 4,
+"street": "Hargis Street"
+},
+"424975015": {
+"read": "1 s tan tile clay | cypress",
+"pano": "KsvjSRx0KaNif5v8s5DwEw",
+"date": "2024-05",
+"heading": 181.9,
+"fov": 56,
+"pitch": 4,
+"street": "Hargis Street"
+},
+"424974639": {
+"read": "2 s white flat dkgrey | k=apt,fence=iron",
+"pano": "Fo7RNHkNuyfYCF7QTORthA",
+"date": "2025-10",
+"heading": 184.1,
+"fov": 110,
+"pitch": 10,
+"street": "Hargis Street"
+},
+"424940945": {
+"read": "1 s grey hip grey | fence=iron",
+"pano": "ZDHMNIV9OGKDAfpkMg739g",
+"date": "2022-08",
+"heading": 192.8,
+"fov": 83,
+"pitch": 7,
+"street": "Helms Place"
+},
+"424965195": {
+"read": "1 s white hip grey | chimney,palm",
+"pano": "be6YCp44CRdrBLDqLJXshA",
+"date": "2024-06",
+"heading": 26.2,
+"fov": 63,
+"pitch": 4,
+"street": "Kincardine Avenue"
+},
+"424965379": {
+"read": "1 s taupe hip dkgrey | chimney,porch",
+"pano": "8vkfzBSGDDdJ0ghNGxLOMQ",
+"date": "2024-06",
+"heading": 9.4,
+"fov": 65,
+"pitch": 4,
+"street": "Kincardine Avenue"
+},
+"424965329": {
+"read": "1 w bluegrey hip grey |",
+"pano": "I9qPh6dZ53v0hOl9PlNZ0w",
+"date": "2024-06",
+"heading": 28.8,
+"fov": 63,
+"pitch": 5,
+"street": "Kincardine Avenue"
+},
+"424965624": {
+"read": "1 s cream hip dkgrey | chimney",
+"pano": "NFQ79VsQdMCKO3c8NQ66TQ",
+"date": "2024-06",
+"heading": 14.2,
+"fov": 61,
+"pitch": 5,
+"street": "Kincardine Avenue"
+},
+"390179818": {
+"read": "2 s charcoal flat dkgrey | modern,fence=hedge",
+"pano": "be6YCp44CRdrBLDqLJXshA",
+"date": "2024-06",
+"heading": 205.5,
+"fov": 110,
+"pitch": 13,
+"street": "Kincardine Avenue"
+},
+"425417819": {
+"read": "1 s charcoal flat dkgrey | k=garage",
+"pano": "IkGYetztM_yJWUBUlJ_JpA",
+"date": "2024-06",
+"heading": 199.5,
+"fov": 50,
+"pitch": 4,
+"street": "Kincardine Avenue"
+},
+"391094134": {
+"read": "1 s tan hip brown | k=garage",
+"pano": "NFQ79VsQdMCKO3c8NQ66TQ",
+"date": "2024-06",
+"heading": 205.7,
+"fov": 50,
+"pitch": 3,
+"street": "Kincardine Avenue"
+},
+"391094124": {
+"read": "1 s tan flat white | k=garage",
+"pano": "NFQ79VsQdMCKO3c8NQ66TQ",
+"date": "2024-06",
+"heading": 203.8,
+"fov": 50,
+"pitch": 3,
+"street": "Kincardine Avenue"
+},
+"424941015": {
+"read": "3 s sand flat brown | k=apt,balcony,garage,accent=brown",
+"pano": "wIsdXJPFQOMPQgPm7eKSKQ",
+"date": "2024-06",
+"heading": 198.7,
+"fov": 110,
+"pitch": 28,
+"street": "Kincardine Avenue"
+},
+"424940967": {
+"read": "2 s sand flat brown | k=apt,balcony,accent=brown",
+"pano": "wIsdXJPFQOMPQgPm7eKSKQ",
+"date": "2024-06",
+"heading": 207.4,
+"fov": 96,
+"pitch": 8,
+"street": "Kincardine Avenue"
+},
+"424941117": {
+"read": "1 s white flat white | k=gas,sign=SHELL,accent=yellow",
+"pano": "DKWDEI-bkv9CLfZKv_p5rA",
+"date": "2024-06",
+"heading": 186.5,
+"fov": 72,
+"pitch": 6,
+"street": "Kincardine Avenue"
+},
+"424940963": {
+"read": "2 s tan flat brown | k=apt,palm,fence=iron",
+"pano": "gmn6sJMEn2lmC25kTjxr0g",
+"date": "2024-06",
+"heading": 200.1,
+"fov": 110,
+"pitch": 10,
+"street": "Kincardine Avenue"
+},
+"424941075": {
+"read": "1 s white flat white | k=garage",
+"pano": "25hDBudG-KwRCjpmBGErKQ",
+"date": "2024-06",
+"heading": 175.9,
+"fov": 65,
+"pitch": 3,
+"street": "Kincardine Avenue"
+},
+"6315008": {
+"read": "2 s beige flat white | k=apt,palm,fence=hedge",
+"pano": "x7oBimOc58Luqb_pxUPj_Q",
+"date": "2024-06",
+"heading": 198.4,
+"fov": 110,
+"pitch": 7,
+"street": "Kincardine Avenue"
+},
+"424941014": {
+"read": "2 s beige flat brown | k=apt",
+"pano": "2dB6iATH5bHme8eWaewLEQ",
+"date": "2024-06",
+"heading": 201.7,
+"fov": 110,
+"pitch": 14,
+"street": "Kincardine Avenue"
+},
+"424940943": {
+"read": "2 s white hip grey | k=apt,cypress,fence=hedge",
+"pano": "4JQ_AZbXzpnZsHJq0hvZ2g",
+"date": "2024-06",
+"heading": 194.1,
+"fov": 110,
+"pitch": 12,
+"street": "Kincardine Avenue"
+},
+"424965168": {
+"read": "1 w bluegrey hip grey | chimney",
+"pano": "l1cq0tf7q5egrBt-H84nJA",
+"date": "2022-08",
+"heading": 25.8,
+"fov": 62,
+"pitch": 6,
+"street": "Kramerwood Place"
+},
+"424965316": {
+"read": "1 s grey hip brown | chimney,porch",
+"pano": "tNWRX7Aj6lHITM9WAF1E5A",
+"date": "2022-08",
+"heading": 11.7,
+"fov": 63,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424965349": {
+"read": "1 s cream gable grey | chimney",
+"pano": "KDOiGx2PcMY04jrh8uzP0g",
+"date": "2022-08",
+"heading": 31.6,
+"fov": 62,
+"pitch": 6,
+"street": "Kramerwood Place"
+},
+"424965312": {
+"read": "1 s tan hip brown | chimney,cypress,palm",
+"pano": "oxovJG-HBYgT5eN6kwhWpw",
+"date": "2022-08",
+"heading": 16.6,
+"fov": 59,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424965204": {
+"read": "1 s white hip dkgrey | chimney,fence=picket",
+"pano": "l1cq0tf7q5egrBt-H84nJA",
+"date": "2022-08",
+"heading": 190.5,
+"fov": 64,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424965633": {
+"read": "1 s cream hip ltgrey | accent=teal,fence=picket",
+"pano": "tNWRX7Aj6lHITM9WAF1E5A",
+"date": "2022-08",
+"heading": 205.6,
+"fov": 65,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424965181": {
+"read": "1 s cream hip grey | hidden",
+"pano": "KDOiGx2PcMY04jrh8uzP0g",
+"date": "2022-08",
+"heading": 184.1,
+"fov": 65,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424965169": {
+"read": "1 s yellow hip tan | chimney",
+"pano": "oxovJG-HBYgT5eN6kwhWpw",
+"date": "2022-08",
+"heading": 200.6,
+"fov": 66,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424941116": {
+"read": "1 s white flat white | k=shop,sign=STAR AUTO SMOG CHECK,awning=red",
+"pano": "24LirMHJbpb3tFTbY2N3PQ",
+"date": "2025-10",
+"heading": 42.2,
+"fov": 80,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424940950": {
+"read": "1 s grey hip grey | fence=block",
+"pano": "jpyZnWCPBCR4ulLEqBrqxw",
+"date": "2014-10",
+"heading": 4.2,
+"fov": 78,
+"pitch": 6,
+"street": "Kramerwood Place"
+},
+"424940986": {
+"read": "1 s cream hip brown | fence=brick",
+"pano": "19QYJnj8Bq8hkKg_8ujx6A",
+"date": "2014-02",
+"heading": 24.3,
+"fov": 70,
+"pitch": 10,
+"street": "Kramerwood Place"
+},
+"424941046": {
+"read": "2 c grey flat dkgrey | k=shop,accent=red,blank",
+"pano": "wfbrz4SZbuIE1LVqM7QVEQ",
+"date": "2014-10",
+"heading": 224.7,
+"fov": 74,
+"pitch": 7,
+"street": "Kramerwood Place"
+},
+"424940952": {
+"read": "1 s white hip brown | fence=iron",
+"pano": "jpyZnWCPBCR4ulLEqBrqxw",
+"date": "2014-10",
+"heading": 230.2,
+"fov": 70,
+"pitch": 9,
+"street": "Kramerwood Place"
+},
+"424940971": {
+"read": "1 w bluegrey hip grey |",
+"pano": "19QYJnj8Bq8hkKg_8ujx6A",
+"date": "2014-02",
+"heading": 205.0,
+"fov": 75,
+"pitch": 7,
+"street": "Kramerwood Place"
+},
+"424940959": {
+"read": "1 s cream gable brown | fence=iron,palm",
+"pano": "blGEA2V3C6b6-twm6HVTMQ",
+"date": "2014-02",
+"heading": 188.4,
+"fov": 64,
+"pitch": 10,
+"street": "Kramerwood Place"
+},
+"424941095": {
+"read": "1 s cream gable brown | fence=iron,palm",
+"pano": "h58FqTG8nS7nQILptF6N8w",
+"date": "2014-02",
+"heading": 198.4,
+"fov": 50,
+"pitch": 5,
+"street": "Kramerwood Place"
+},
+"424940975": {
+"read": "2 s white flat white | k=apt,hidden",
+"pano": "RMoFBQ1LGikvIyg6tckG2A",
+"date": "2024-06",
+"heading": 268.7,
+"fov": 65,
+"pitch": 7,
+"street": "Livonia Avenue"
+},
+"424941004": {
+"read": "3 s white flat white | k=apt,palm,jacaranda",
+"pano": "xI1FLYmYFdDC0stKcWfUlg",
+"date": "2024-06",
+"heading": 103.1,
+"fov": 107,
+"pitch": 14,
+"street": "Livonia Avenue"
+},
+"424941123": {
+"read": "2 s cream flat white | k=apt,fence=block",
+"pano": "TqEW1iJbT947DaIWZcUVGg",
+"date": "2024-06",
+"heading": 110.0,
+"fov": 70,
+"pitch": 6,
+"street": "Livonia Avenue"
+},
+"424940960": {
+"read": "1 s cream hip grey | k=apt,hidden,fence=hedge",
+"pano": "l13TbdoybN9BM-vFW7tkCA",
+"date": "2024-06",
+"heading": 108.7,
+"fov": 61,
+"pitch": 6,
+"street": "Livonia Avenue"
+},
+"424941101": {
+"read": "1 s ltgrey flat white | k=shop,sign=CAR CARE CENTER,accent=orange,bays",
+"pano": "WxIGPvxzXP_DawH5Bs7C0A",
+"date": "2025-10",
+"heading": 278.4,
+"fov": 110,
+"pitch": 2,
+"street": "Robertson Place"
+},
+"424940980": {
+"read": "1 s cream hip grey | hidden,fence=block",
+"pano": "SookcqOjRqmDNSOuhYUENQ",
+"date": "2025-10",
+"heading": 136.5,
+"fov": 78,
+"pitch": 9,
+"street": "Robertson Place"
+},
+"424965325": {
+"read": "1 w blue gable grey | fence=vinyl",
+"pano": "o_FEonxauRZLn7RUngXE0A",
+"date": "2025-10",
+"heading": 293.9,
+"fov": 88,
+"pitch": 5,
+"street": "South Canfield Avenue"
+},
+"424965306": {
+"read": "1 s cream hip grey | hidden,fence=wood",
+"pano": "GRAjErEr1WZNKcOITbMu3w",
+"date": "2025-10",
+"heading": 294.0,
+"fov": 105,
+"pitch": 5,
+"street": "South Canfield Avenue"
+},
+"391094139": {
+"read": "1 s white hip brown | fence=hedge,chimney",
+"pano": "XSkFh6MBCwB5C1X_HQ1u8g",
+"date": "2025-10",
+"heading": 275.7,
+"fov": 66,
+"pitch": 5,
+"street": "South Canfield Avenue"
+},
+"391094149": {
+"read": "1 s white hip grey |",
+"pano": "yfNUYGDNzTKAKneiazZWlg",
+"date": "2025-10",
+"heading": 293.5,
+"fov": 66,
+"pitch": 5,
+"street": "South Canfield Avenue"
+},
+"391094128": {
+"read": "1 s white gable grey | k=garage",
+"pano": "O4eFzDqtseexspZTBRt7eA",
+"date": "2025-10",
+"heading": 295.5,
+"fov": 50,
+"pitch": 4,
+"street": "South Canfield Avenue"
+},
+"391094138": {
+"read": "1 s yellow hip brown | accent=white",
+"pano": "O4eFzDqtseexspZTBRt7eA",
+"date": "2025-10",
+"heading": 276.7,
+"fov": 65,
+"pitch": 7,
+"street": "South Canfield Avenue"
+},
+"391094142": {
+"read": "1 s cream hip tan |",
+"pano": "xO6FjYywViIXZ3Ei-3QMtg",
+"date": "2025-10",
+"heading": 292.4,
+"fov": 66,
+"pitch": 6,
+"street": "South Canfield Avenue"
+},
+"391094136": {
+"read": "1 s grey hip grey |",
+"pano": "F3DD8xxWUXkz_H9-H4DIWQ",
+"date": "2025-10",
+"heading": 274.7,
+"fov": 65,
+"pitch": 8,
+"street": "South Canfield Avenue"
+},
+"391094143": {
+"read": "1 s ltgrey hip tan |",
+"pano": "x5NR-sygUqlqvQ6WMwHwiA",
+"date": "2025-10",
+"heading": 290.4,
+"fov": 68,
+"pitch": 5,
+"street": "South Canfield Avenue"
+},
+"391094140": {
+"read": "1 s charcoal hip dkgrey |",
+"pano": "XIvYfeGwMbI-WQEFVr8New",
+"date": "2025-10",
+"heading": 275.3,
+"fov": 64,
+"pitch": 7,
+"street": "South Canfield Avenue"
+},
+"391094148": {
+"read": "1 s charcoal hip dkgrey | hidden,palm",
+"pano": "CKTMN2adBeh_mEbUKIzonA",
+"date": "2025-10",
+"heading": 297.5,
+"fov": 67,
+"pitch": 5,
+"street": "South Canfield Avenue"
+},
+"391092880": {
+"read": "3 s beige hip brown | k=apt,balcony,garage",
+"pano": "kRxsh1gtG4a0gyBf4rLNHw",
+"date": "2025-10",
+"heading": 283.5,
+"fov": 80,
+"pitch": 11,
+"street": "South Canfield Avenue"
+},
+"391092876": {
+"read": "2 s white flat white | k=apt,balcony",
+"pano": "bh2IRGqVLEeT2By19j4JJw",
+"date": "2025-10",
+"heading": 266.0,
+"fov": 73,
+"pitch": 6,
+"street": "South Canfield Avenue"
+},
+"424965097": {
+"read": "1 s pink hip grey |",
+"pano": "WgXTHLEEN7cAAMEK0sgQzA",
+"date": "2025-10",
+"heading": 286.6,
+"fov": 89,
+"pitch": 7,
+"street": "South Canfield Avenue"
+},
+"424965093": {
+"read": "1 s peach hip brown |",
+"pano": "_l5ywfbYKadHnPeRLzIoqA",
+"date": "2025-10",
+"heading": 270.3,
+"fov": 101,
+"pitch": 6,
+"street": "South Canfield Avenue"
+},
+"424965475": {
+"read": "1 s tan flat white | k=garage",
+"pano": "CrL8rdqQvr6aQ79VEY01qQ",
+"date": "2025-10",
+"heading": 314.1,
+"fov": 50,
+"pitch": 2,
+"street": "South Canfield Avenue"
+},
+"424965211": {
+"read": "1 s white gable grey | fence=hedge",
+"pano": "1rNSJZWzdRGZHGcah99vcQ",
+"date": "2025-10",
+"heading": 260.5,
+"fov": 90,
+"pitch": 6,
+"street": "South Canfield Avenue"
+},
+"424974525": {
+"read": "1 s ltgrey flat clay | fence=hedge",
+"pano": "LumfCDic9d5jjBbe9b4myA",
+"date": "2025-10",
+"heading": 100.0,
+"fov": 84,
+"pitch": 7,
+"street": "South Canfield Avenue"
+},
+"424941113": {
+"read": "2 b salmon flat white | k=civic",
+"pano": "F3DD8xxWUXkz_H9-H4DIWQ",
+"date": "2025-10",
+"heading": 106.0,
+"fov": 74,
+"pitch": 7,
+"street": "South Canfield Avenue"
+},
+"424940947": {
+"read": "2 s white flat white | k=apt",
+"pano": "5k9Li40yJelArBlx8cGoMQ",
+"date": "2025-10",
+"heading": 105.3,
+"fov": 70,
+"pitch": 6,
+"street": "South Canfield Avenue"
+},
+"424940946": {
+"read": "2 s white flat white | k=apt,fence=hedge",
+"pano": "jSID1bhHAn3Y0WCkJszw8w",
+"date": "2025-10",
+"heading": 126.4,
+"fov": 66,
+"pitch": 7,
+"street": "South Canfield Avenue"
+},
+"424940944": {
+"read": "2 b red flat white | k=apt,accent=white,fence=iron,palm",
+"pano": "RGLFG2m4892Y0MH4Af-DCw",
+"date": "2025-10",
+"heading": 105.6,
+"fov": 70,
+"pitch": 6,
+"street": "South Canfield Avenue"
+},
+"424941002": {
+"read": "3 s bluegrey tile clay | k=apt,balcony,palm,accent=white",
+"pano": "h06GBByOJmgLtxA2g0DMFQ",
+"date": "2025-10",
+"heading": 124.2,
+"fov": 71,
+"pitch": 12,
+"street": "South Canfield Avenue"
+},
+"424941121": {
+"read": "2 s white flat white | k=apt,hidden",
+"pano": "LtbiY7YqJZ3UhdcjrsWrLw",
+"date": "2025-10",
+"heading": 109.9,
+"fov": 72,
+"pitch": 6,
+"street": "South Canfield Avenue"
+},
+"424974975": {
+"read": "1 s white flat white | k=garage",
+"pano": "KQed_WiUXGfZ3hBKIPTbiA",
+"date": "2019-03",
+"heading": 117.7,
+"fov": 55,
+"pitch": 3,
+"street": "South Canfield Avenue"
+},
+"424940988": {
+"read": "3 s white flat dkgrey | k=apt,balcony,accent=charcoal",
+"pano": "zGATl_ID0kkIV48ObUWCaw",
+"date": "2025-10",
+"heading": 272.5,
+"fov": 79,
+"pitch": 11,
+"street": "South Durango Avenue"
+},
+"424940985": {
+"read": "3 s yellow tile clay | k=apt",
+"pano": "S_rJ9-IVHZqfCZ1lN0eVXg",
+"date": "2025-10",
+"heading": 295.3,
+"fov": 82,
+"pitch": 14,
+"street": "South Durango Avenue"
+},
+"424941114": {
+"read": "2 s yellow flat brown | k=apt,accent=brown",
+"pano": "l_voKm0LMvBbLpezbJ6Bdg",
+"date": "2025-10",
+"heading": 314.9,
+"fov": 76,
+"pitch": 7,
+"street": "South Durango Avenue"
+},
+"424940949": {
+"read": "2 s white flat white | k=apt,fence=picket",
+"pano": "Id0sRhCBpG43zJki8XSY8A",
+"date": "2025-10",
+"heading": 105.1,
+"fov": 74,
+"pitch": 7,
+"street": "South Durango Avenue"
+},
+"424941062": {
+"read": "2 s olive hip dkgrey | k=apt,accent=teal",
+"pano": "S_rJ9-IVHZqfCZ1lN0eVXg",
+"date": "2025-10",
+"heading": 100.7,
+"fov": 78,
+"pitch": 8,
+"street": "South Durango Avenue"
+},
+"424940955": {
+"read": "2 s beige gable brown | k=apt,garage,base=brick",
+"pano": "zGATl_ID0kkIV48ObUWCaw",
+"date": "2025-10",
+"heading": 125.3,
+"fov": 71,
+"pitch": 7,
+"street": "South Durango Avenue"
+},
+"424941097": {
+"read": "2 s ivy flat white | k=shop,mural,blank",
+"pano": "4Y3H1piLryTAy2kIORwP2g",
+"date": "2025-09",
+"heading": 291.5,
+"fov": 50,
+"pitch": 6,
+"street": "South Robertson Boulevard"
+},
+"424975040": {
+"read": "1 s white flat white | k=shop,mural",
+"pano": "RRBWF0PBm2_QfGwpRhxbnA",
+"date": "2025-10",
+"heading": 268.6,
+"fov": 69,
+"pitch": 4,
+"street": "South Robertson Boulevard"
+},
+"424974361": {
+"read": "1 s white flat white | k=shop",
+"pano": "r8XHoMe4VOTo_roy8nN76w",
+"date": "2025-10",
+"heading": 292.0,
+"fov": 63,
+"pitch": 4,
+"street": "South Robertson Boulevard"
+},
+"424974873": {
+"read": "1 s white flat white | k=shop,sign=ROYAL NAILS",
+"pano": "r94XpW89vQDGjtY9fduCbQ",
+"date": "2025-10",
+"heading": 285.7,
+"fov": 94,
+"pitch": 5,
+"street": "South Robertson Boulevard"
+},
+"424974557": {
+"read": "1 s terracotta flat clay | k=shop,pent",
+"pano": "GSF3pRw1xsWICAabWpyzxg",
+"date": "2025-10",
+"heading": 267.8,
+"fov": 91,
+"pitch": 10,
+"street": "South Robertson Boulevard"
+},
+"424974943": {
+"read": "1 s white flat white | k=shop",
+"pano": "nefwUtpT3nLZCmw-DOBjXA",
+"date": "2025-10",
+"heading": 262.9,
+"fov": 60,
+"pitch": 3,
+"street": "South Robertson Boulevard"
+},
+"424975055": {
+"read": "2 s grey flat white | k=apt,fence=picket",
+"pano": "2RZ0ZJuwPXc41y-5FrH-Kw",
+"date": "2025-10",
+"heading": 261.0,
+"fov": 73,
+"pitch": 6,
+"street": "South Robertson Boulevard"
+},
+"424974371": {
+"read": "1 s white flat brown | k=shop,sign=PILATES ON ROBERTSON,base=blue,pent",
+"pano": "_iJEbCKjJ9WQ7zWEw4hBVw",
+"date": "2025-10",
+"heading": 111.1,
+"fov": 82,
+"pitch": 5,
+"street": "South Robertson Boulevard"
+},
+"424974998": {
+"read": "1 s cream flat white | k=shop,sign=CREATIVE DESIGN,base=green,accent=orange",
+"pano": "GtLorghRbXlBkGBbrqxggQ",
+"date": "2025-10",
+"heading": 111.9,
+"fov": 56,
+"pitch": 5,
+"street": "South Robertson Boulevard"
+},
+"424974916": {
+"read": "2 s white flat white | k=shop,modern",
+"pano": "6N7gsKQ3dS_-V2NVIsiiqw",
+"date": "2025-10",
+"heading": 112.8,
+"fov": 82,
+"pitch": 12,
+"street": "South Robertson Boulevard"
+},
+"424975051": {
+"read": "1 s grey flat dkgrey | k=shop,sign=DANESHRAD LAW,modern",
+"pano": "GSF3pRw1xsWICAabWpyzxg",
+"date": "2025-10",
+"heading": 116.0,
+"fov": 56,
+"pitch": 3,
+"street": "South Robertson Boulevard"
+},
+"424974841": {
+"read": "1 s white flat white | k=shop,sign=PAST PRESENT FUTURE,accent=red",
+"pano": "nefwUtpT3nLZCmw-DOBjXA",
+"date": "2025-10",
+"heading": 104.5,
+"fov": 58,
+"pitch": 4,
+"street": "South Robertson Boulevard"
+},
+"424975002": {
+"read": "1 s white flat white | k=shop,grilles",
+"pano": "2RZ0ZJuwPXc41y-5FrH-Kw",
+"date": "2025-10",
+"heading": 88.7,
+"fov": 56,
+"pitch": 3,
+"street": "South Robertson Boulevard"
+},
+"424974496": {
+"read": "1 s bluegrey flat white | k=shop,fence=iron",
+"pano": "v-3RrQZWuSJCmStR1uzjTQ",
+"date": "2025-10",
+"heading": 106.7,
+"fov": 78,
+"pitch": 4,
+"street": "South Robertson Boulevard"
+},
+"424940964": {
+"read": "1 s cream flat white | k=apt,hidden,fence=hedge,palm",
+"pano": "63Q3fha_dervT9Y6Yf0egg",
+"date": "2025-10",
+"heading": 97.7,
+"fov": 50,
+"pitch": 5,
+"street": "South Robertson Boulevard"
+},
+"424941078": {
+"read": "1 s cream flat white | k=apt,hidden,fence=hedge,palm",
+"pano": "UWigkEOBXyiaSSPWbSG5aw",
+"date": "2025-10",
+"heading": 109.1,
+"fov": 50,
+"pitch": 5,
+"street": "South Robertson Boulevard"
+},
+"424941096": {
+"read": "1 s cream flat white | k=apt,hidden,fence=hedge,palm",
+"pano": "UWigkEOBXyiaSSPWbSG5aw",
+"date": "2025-10",
+"heading": 111.7,
+"fov": 50,
+"pitch": 4,
+"street": "South Robertson Boulevard"
+},
+"424941023": {
+"read": "5 c white flat white | k=parking",
+"pano": "aA_kJE3MlvNTpBLlKwPL1A",
+"date": "2025-09",
+"heading": 112.6,
+"fov": 110,
+"pitch": 16,
+"street": "South Robertson Boulevard"
+},
+"390179843": {
+"parent": "390179818",
+"street": "Kincardine Avenue"
+},
+"391094126": {
+"parent": "391094140",
+"street": "South Canfield Avenue"
+},
+"391094127": {
+"parent": "391094142",
+"street": "South Canfield Avenue"
+},
+"391094130": {
+"parent": "391094143",
+"street": "South Canfield Avenue"
+},
+"391094131": {
+"parent": "391094138",
+"street": "South Canfield Avenue"
+},
+"391094135": {
+"parent": "391094136",
+"street": "South Canfield Avenue"
+},
+"391094137": {
+"parent": "391094149",
+"street": "South Canfield Avenue"
+},
+"425417822": {
+"parent": "391094148",
+"street": "South Canfield Avenue"
+},
+"424940941": {
+"parent": "424940959",
+"street": "Kramerwood Place"
+},
+"424941044": {
+"parent": "424940943",
+"street": "Kincardine Avenue"
+},
+"424940948": {
+"parent": "424940945",
+"street": "Helms Place"
+},
+"424941025": {
+"parent": "424940950",
+"street": "Kramerwood Place"
+},
+"424941042": {
+"parent": "424940952",
+"street": "Kramerwood Place"
+},
+"424941063": {
+"parent": "424940952",
+"street": "Kramerwood Place"
+},
+"424941033": {
+"parent": "424941096",
+"street": "Kramerwood Place"
+},
+"424941051": {
+"parent": "424941096",
+"street": "Kramerwood Place"
+},
+"424941059": {
+"parent": "424941096",
+"street": "South Robertson Boulevard"
+},
+"424941037": {
+"parent": "424941096",
+"street": "Kramerwood Place"
+},
+"424941118": {
+"parent": "424941096",
+"street": "South Robertson Boulevard"
+},
+"424941088": {
+"parent": "424941096",
+"street": "Kramerwood Place"
+},
+"424941110": {
+"parent": "424941096",
+"street": "Kramerwood Place"
+},
+"424941094": {
+"parent": "424940967",
+"street": "Kincardine Avenue"
+},
+"424941029": {
+"parent": "424940975",
+"street": "Kincardine Avenue"
+},
+"424941109": {
+"parent": "424940980",
+"street": "Robertson Place"
+},
+"424940998": {
+"parent": "424941101",
+"street": "Robertson Place"
+},
+"424941043": {
+"parent": "424941004",
+"street": "Livonia Avenue"
+},
+"424941122": {
+"parent": "424941004",
+"street": "Livonia Avenue"
+},
+"424941079": {
+"parent": "424941114",
+"street": "South Durango Avenue"
+},
+"424965076": {
+"parent": "424965329",
+"street": "Kincardine Avenue"
+},
+"424965406": {
+"parent": "424965093",
+"street": "South Canfield Avenue"
+},
+"424965096": {
+"parent": "424965624",
+"street": "South Canfield Avenue"
+},
+"424965622": {
+"parent": "424965097",
+"street": "South Canfield Avenue"
+},
+"424965153": {
+"parent": "424965633",
+"street": "Kramerwood Place"
+},
+"424965479": {
+"parent": "424965633",
+"street": "Kramerwood Place"
+},
+"424965486": {
+"parent": "424965168",
+"street": "Kramerwood Place"
+},
+"424965424": {
+"parent": "424965169",
+"street": "South Canfield Avenue"
+},
+"424965549": {
+"parent": "424965179",
+"street": "Cattaraugus Avenue"
+},
+"424965446": {
+"parent": "424965181",
+"street": "Kramerwood Place"
+},
+"424965521": {
+"parent": "424965191",
+"street": "Bagley Avenue"
+},
+"424965615": {
+"parent": "424965195",
+"street": "Bagley Avenue"
+},
+"424965537": {
+"parent": "424965196",
+"street": "South Canfield Avenue"
+},
+"424965626": {
+"parent": "424965211",
+"street": "South Canfield Avenue"
+},
+"424965413": {
+"parent": "424965249",
+"street": "Bagley Avenue"
+},
+"424965459": {
+"parent": "424965278",
+"street": "Cattaraugus Avenue"
+},
+"424965544": {
+"parent": "424965283",
+"street": "South Canfield Avenue"
+},
+"424965498": {
+"parent": "424965293",
+"street": "Cattaraugus Avenue"
+},
+"424965510": {
+"parent": "424965306",
+"street": "South Canfield Avenue"
+},
+"424965473": {
+"parent": "424965309",
+"street": "Bagley Avenue"
+},
+"424965579": {
+"parent": "424965312",
+"street": "South Canfield Avenue"
+},
+"424965501": {
+"parent": "424965316",
+"street": "Kramerwood Place"
+},
+"424965529": {
+"parent": "424965325",
+"street": "South Canfield Avenue"
+},
+"424965483": {
+"parent": "424965388",
+"street": "Bagley Avenue"
+},
+"424965490": {
+"parent": "424965617",
+"street": "Cattaraugus Avenue"
+},
+"424975039": {
+"parent": "424974388",
+"street": "Cattaraugus Avenue"
+},
+"424974866": {
+"parent": "424974408",
+"street": "Hargis Street"
+},
+"424974973": {
+"parent": "424974408",
+"street": "Hargis Street"
+},
+"424974858": {
+"parent": "424974498",
+"street": "Hargis Street"
+},
+"424974883": {
+"parent": "424974498",
+"street": "Hargis Street"
+},
+"424975052": {
+"parent": "424974525",
+"street": "South Canfield Avenue"
+},
+"424974915": {
+"parent": "424974597",
+"street": "Hargis Street"
+},
+"424974811": {
+"parent": "424974601",
+"street": "Hargis Street"
+},
+"424974797": {
+"parent": "424974607",
+"street": "Hargis Street"
+},
+"424974995": {
+"parent": "424974615",
+"street": "South Robertson Boulevard"
+},
+"424975081": {
+"parent": "424974629",
+"street": "Hargis Street"
+},
+"424974930": {
+"parent": "424974632",
+"street": "Cattaraugus Avenue"
+},
+"424974957": {
+"parent": "424974654",
+"street": "Cattaraugus Avenue"
+},
+"424975024": {
+"parent": "424974661",
+"street": "Cattaraugus Avenue"
+},
+"424974862": {
+"parent": "424974697",
+"street": "Hargis Street"
+},
+"424974919": {
+"parent": "424974751",
+"street": "Hargis Street"
+},
+"424974823": {
+"parent": "424975015",
+"street": "Hargis Street"
+},
+"424975037": {
+"parent": "424974825",
+"street": "Cattaraugus Avenue"
+},
+"424974894": {
+"parent": "424974833",
+"street": "South Canfield Avenue"
+},
+"424974839": {
+"parent": "424975064",
+"street": "Hargis Street"
+},
+"424974903": {
+"parent": "424975056",
+"street": "Cattaraugus Avenue"
+},
+"424974857": {
+"parent": "424975056",
+"street": "Cattaraugus Avenue"
+},
+"424974908": {
+"parent": "424975089",
+"street": "Hargis Street"
+},
+"424975030": {
+"parent": "424974920",
+"street": "Hargis Street"
+},
+"424974929": {
+"parent": "424974976",
+"street": "Hargis Street"
+},
+"424974931": {
+"parent": "424975012",
+"street": "Hargis Street"
+}
+}
+}

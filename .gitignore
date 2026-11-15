@@ -6,3 +6,4 @@ dist
 
 # Street View reference imagery (not redistributable)
 src/campuses/*/tools/data/streetview/
+dev/shots/*/streetview-compare/

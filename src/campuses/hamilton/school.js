@@ -47,7 +47,7 @@ const sign = (ctx, lines, o) => ctx.M.textDecal(lines, { align: 'center', weight
 // ============================================================================================ Brown Hall
 function brownHall(ctx, raw) {
   const { B } = ctx; const ring = simplify(raw, 0.8); const eave = 12.2; const fr = frame(136.0, 7.2, 100.3);   // u south, v west (front = -v, Robertson Blvd)
-  storeyWalls(ctx, ring, eave, { key: 'brick', storeys: 3, bay: 3.7, winW: 2.1, winH: 2.25, sill: 1.05, doors: false, piers: true });
+  storeyWalls(ctx, ring, eave, { key: 'brick', storeys: 3, bay: 3.7, winW: 2.1, winH: 2.25, sill: 1.05, doors: false, piers: true, arcadeTop: true });   // round-arched top storey, as in the photos
   B.c('brick').prism(ring, 0, eave, 1, true); B.v('concrete').poly(ring, null, eave - 0.03, (x, z) => [x / 3, z / 3]);
   (ctx.buildingRings = ctx.buildingRings || []).push(ring);
   hipRoof(ctx, fr.box(-51.3, 46.8, -10.4, 12.2), eave, 4.9, { tint: CLAY, overhang: 0.75 });
@@ -63,9 +63,13 @@ function brownHall(ctx, raw) {
       fbox(fm, F, c - w2 - 0.16, c - w2, y0, y1, out, out + 0.04, 1, 0, 'fs'); fbox(fm, F, c + w2, c + w2 + 0.16, y0, y1, out, out + 0.04, 1, 0, 'fs'); fbox(fm, F, c - 0.04, c + 0.04, y0, y1 + w2 * 0.9, out, out + 0.03, 1, 0, 'fs'); fbox(fm, F, c - w2, c + w2, y1 - 0.04, y1 + 0.04, out, out + 0.03, 1, 0, 'ftb');
     };
     for (let k = 0; k < 5; k++) { const c = L / 2 + (k - 2) * 3.6; arch(c, 1.05, 5.6, 9.6, 0.17); fbox(ls, F, c - 1.45, c + 1.45, 5.3, 5.5, 0.16, 0.34, 1 / 3, 0, 'fstb'); }
-    for (let k = 0; k < 6; k++) { const c = L / 2 + (k - 2.5) * 3.6; fbox(ls, F, c - 0.32, c + 0.32, 4.85, eave + 0.45, 0.16, 0.3, 1 / 3, 0, 'fs'); }   // pilasters between the windows
+    // pilasters between the windows carry an architrave at 11.0 m; above it the frieze is one clear plane for the name
+    // (they used to run on up to the cornice, 12 cm proud of the lettering, and cut it into "ALEX NDER H MILTO")
+    const fz = eave - 1.2;
+    for (let k = 0; k < 6; k++) { const c = L / 2 + (k - 2.5) * 3.6; fbox(ls, F, c - 0.32, c + 0.32, 4.85, fz - 0.22, 0.16, 0.3, 1 / 3, 0, 'fs'); fbox(ls, F, c - 0.4, c + 0.4, fz - 0.22, fz, 0.16, 0.34, 1 / 3, 0, 'fstb'); }
+    fbox(ls, F, -0.1, L + 0.1, fz, fz + 0.16, 0.16, 0.38, 1 / 3, 0, 'fstb');
     for (let k = 0; k < 3; k++) arch(L / 2 + (k - 1) * 4.4, 1.25, 1.25, 3.3, 0.17);
-    wallDecal(ctx, sign(ctx, ['ALEXANDER HAMILTON HIGH SCHOOL'], { w: 2048, h: 128, font: 92, color: '#4a3524', family: 'Georgia, "Times New Roman", serif' }), F, L / 2, eave - 0.45, 16.5, 1.0, 0.18);
+    wallDecal(ctx, sign(ctx, ['ALEXANDER HAMILTON HIGH SCHOOL'], { w: 2048, h: 128, font: 92, color: '#4a3524', family: 'Georgia, "Times New Roman", serif' }), F, L / 2, eave - 0.42, 16.5, 1.0, 0.175);
     // entrance terrace and stairs down to the lawn: the collision is one smooth ramp (no risers to snag on)
     const py = 1.2, dep = 4.2, sw = 15; const st = B.v('concrete'), col = B.c('concrete');
     fbox(st, F, L / 2 - sw / 2 - 1.2, L / 2 + sw / 2 + 1.2, 0, py, 0.16, dep, 1 / 3, 0, 'fst'); { const c = F.P(L / 2, py / 2, dep / 2); col.box(c[0], c[1], c[2], sw + 2.4, py, dep, F.rotY); }
@@ -74,18 +78,27 @@ function brownHall(ctx, raw) {
     for (const s of [-1, 1]) { const u = L / 2 + s * (sw / 2 + 0.6); fbox(B.v('limestone'), F, u - 0.6, u + 0.6, 0, py + 0.75, dep, dep + 3.0, 1 / 3, 0, 'fst'); const c = F.P(u, (py + 0.75) / 2, dep + 1.5); col.box(c[0], c[1], c[2], 1.2, py + 0.75, 3.0, F.rotY);
       const l = F.P(u, 0, dep + 2.4); B.v('blackMetal').cyl(l[0], py + 0.75, l[2], 0.06, 0.05, 2.1, 8, 1, false); B.v('lightEmit').cyl(l[0], py + 2.85, l[2], 0.2, 0.2, 0.36, 10, 1, true); }
   }
-  // bell tower: brick shaft out of the roof, arched belfry, cast-stone cornice, octagonal drum and the copper cupola
-  { const c = fr.W(-2.0, -0.5); const top = 22.4; const br = B.v('brick', true); br.setColor(...BRICK_TINT); br.box(c[0], (eave + 2 + top) / 2, c[1], 6.4, top - eave - 2, 6.4, fr.rotY, 1 / 2.2); br.setColor(1, 1, 1);
-    B.c('brick').box(c[0], (eave + top) / 2, c[1], 6.4, top - eave, 6.4, fr.rotY);
-    const ls = B.v('limestone'); ls.box(c[0], top + 0.3, c[1], 7.3, 0.6, 7.3, fr.rotY, 1 / 3); B.c('concrete').box(c[0], top + 0.3, c[1], 7.3, 0.6, 7.3, fr.rotY);
-    const r4 = fr.rect(-2.0 - 3.2, -2.0 + 3.2, -0.5 - 3.2, -0.5 + 3.2);
+  // bell tower (photos): square brick shaft out of the roof, a cream cast-stone belfry with two round-arched openings a
+  // side between corner pilasters, a cornice, an octagonal drum and a small verdigris copper dome with a finial.
+  // Solid exactly as drawn (anyone dropped on it slides / walks off).
+  { const c = fr.W(-2.0, -0.5); const sTop = 18.0, bTop = 22.6, w = 6.2; const br = B.v('brick', true); br.setColor(...BRICK_TINT); br.box(c[0], (eave + 2 + sTop) / 2, c[1], w, sTop - eave - 2, w, fr.rotY, 1 / 2.2); br.setColor(1, 1, 1);
+    const ls = B.v('limestone'), dk = B.v('blackMetal'), col = B.c('concrete');
+    B.c('brick').box(c[0], (eave + sTop) / 2, c[1], w, sTop - eave, w, fr.rotY);
+    ls.box(c[0], sTop + 0.18, c[1], w + 0.7, 0.36, w + 0.7, fr.rotY, 1 / 3); col.box(c[0], sTop + 0.18, c[1], w + 0.7, 0.36, w + 0.7, fr.rotY);                 // string course under the belfry
+    ls.box(c[0], (sTop + 0.36 + bTop) / 2, c[1], w - 0.3, bTop - sTop - 0.36, w - 0.3, fr.rotY, 1 / 3); col.box(c[0], (sTop + 0.36 + bTop) / 2, c[1], w - 0.3, bTop - sTop - 0.36, w - 0.3, fr.rotY);
+    const hb = (w - 0.3) / 2; const r4 = fr.rect(-2.0 - hb, -2.0 + hb, -0.5 - hb, -0.5 + hb);
     for (let i = 0; i < 4; i++) { const a = r4[i], b = r4[(i + 1) % 4]; let F = edgeFrame(a[0], a[1], b[0], b[1]); if ((F.nx * ((a[0] + b[0]) / 2 - c[0]) + F.nz * ((a[1] + b[1]) / 2 - c[1])) < 0) F = edgeFrame(b[0], b[1], a[0], a[1]);
-      for (const du of [-1.35, 1.35]) { wallRect(B.v('blackMetal'), F, F.L / 2 + du - 0.75, F.L / 2 + du + 0.75, 18.5, 20.6, 0.02); const N = 6; for (let k = 0; k < N; k++) { const a0 = Math.PI * k / N, a1 = Math.PI * (k + 1) / N; B.v('blackMetal').tri(F.P(F.L / 2 + du, 20.6, 0.02), F.P(F.L / 2 + du + Math.cos(a0) * 0.75, 20.6 + Math.sin(a0) * 0.75, 0.02), F.P(F.L / 2 + du + Math.cos(a1) * 0.75, 20.6 + Math.sin(a1) * 0.75, 0.02)); }
-        fbox(ls, F, F.L / 2 + du - 0.95, F.L / 2 + du + 0.95, 18.2, 18.45, 0, 0.12, 1 / 3, 0, 'fstb'); } }
-    ls.cyl(c[0], top + 0.6, c[1], 2.7, 2.7, 1.5, 8, 1 / 3, true); B.c('concrete').box(c[0], top + 1.35, c[1], 4.6, 1.5, 4.6, fr.rotY);
-    const cu = B.v('paint', true); cu.setColor(0.2, 0.44, 0.36); cu.cyl(c[0], top + 2.1, c[1], 2.85, 1.2, 1.5, 8, 1, false).cyl(c[0], top + 3.6, c[1], 1.2, 0.16, 1.9, 8, 1, false); cu.setColor(0.55, 0.5, 0.3).cyl(c[0], top + 5.5, c[1], 0.06, 0.03, 1.4, 6, 1, true); cu.setColor(1, 1, 1);
-    // the cupola is solid exactly as drawn (anyone dropped on it slides / walks off)
-    B.c('metal').cyl(c[0], top + 2.1, c[1], 2.85, 1.2, 1.5, 8, 1, false).cyl(c[0], top + 3.6, c[1], 1.2, 0.16, 1.9, 8, 1, true);
+      for (const du of [-1.3, 1.3]) { const uc = F.L / 2 + du, r = 0.78, y0 = sTop + 0.9, y1 = 20.9;       // arched opening: dark recess, moulded archivolt, sill
+        wallRect(dk, F, uc - r, uc + r, y0, y1, 0.012); const N = 8; for (let k = 0; k < N; k++) { const a0 = Math.PI * k / N, a1 = Math.PI * (k + 1) / N; const p = (an, rr, o) => F.P(uc + Math.cos(an) * rr, y1 + Math.sin(an) * rr, o); dk.tri(F.P(uc, y1, 0.012), p(a0, r, 0.012), p(a1, r, 0.012)); quadFacing(ls, p(a0, r, 0.06), p(a0, r + 0.16, 0.06), p(a1, r + 0.16, 0.06), p(a1, r, 0.06), [F.nx, 0, F.nz]); }
+        fbox(ls, F, uc - r - 0.18, uc + r + 0.18, y0 - 0.2, y0, 0, 0.14, 1 / 3, 0, 'fstb'); fbox(ls, F, uc - 0.05, uc + 0.05, y0, y0 + 0.95, 0.012, 0.07, 1, 0, 'fs'); fbox(ls, F, uc - r, uc + r, y0 + 0.9, y0 + 0.98, 0.012, 0.07, 1, 0, 'ftb'); }
+      for (const u of [0.32, F.L / 2, F.L - 0.32]) fbox(ls, F, u - 0.3, u + 0.3, sTop + 0.36, bTop - 0.3, 0, 0.1, 1 / 3, 0, 'fs');   // corner + centre pilasters
+    }
+    ls.box(c[0], bTop + 0.1, c[1], w + 0.2, 0.2, w + 0.2, fr.rotY, 1 / 3).box(c[0], bTop + 0.35, c[1], w + 0.8, 0.3, w + 0.8, fr.rotY, 1 / 3); col.box(c[0], bTop + 0.25, c[1], w + 0.8, 0.5, w + 0.8, fr.rotY);   // cornice
+    ls.cyl(c[0], bTop + 0.5, c[1], 2.05, 2.05, 1.2, 8, 1 / 3, true); col.box(c[0], bTop + 1.1, c[1], 3.6, 1.2, 3.6, fr.rotY);                                       // octagonal drum
+    const cu = B.v('paint', true); cu.setColor(0.2, 0.44, 0.36); const R = 2.15; let py = bTop + 1.7, pr = R;
+    cu.cyl(c[0], bTop + 1.7 - 0.12, c[1], R + 0.12, R + 0.12, 0.12, 12, 1, true);
+    for (let k = 1; k <= 5; k++) { const an = k / 5 * Math.PI / 2 * 0.94; const ny = bTop + 1.7 + Math.sin(an) * R * 0.82, nr = Math.max(0.22, Math.cos(an) * R); cu.cyl(c[0], py, c[1], pr, nr, ny - py, 12, 1, k === 5); B.c('metal').cyl(c[0], py, c[1], pr, nr, ny - py, 12, 1, k === 5); py = ny; pr = nr; }
+    cu.cyl(c[0], py, c[1], 0.3, 0.2, 0.5, 8, 1, true); cu.setColor(0.55, 0.5, 0.3).cyl(c[0], py + 0.5, c[1], 0.05, 0.025, 1.3, 6, 1, true); cu.setColor(1, 1, 1);
   }
 }
 
@@ -123,7 +136,9 @@ function pattizHall(ctx, raw) {
     for (let k = 0; k < 3; k++) { const c = L / 2 + (k - 1) * 4.0; fbox(B.v('frame'), F, c - 1.25, c + 1.25, 0, 2.9, 0.14, 0.2, 1, 0, 'fst'); wallRect(B.v('glassInt'), F, c - 1.1, c + 1.1, 0.25, 2.3, 0.205, [k + 1, 0.1, k, 0.9]); fbox(B.v('frame'), F, c - 0.04, c + 0.04, 0, 2.35, 0.205, 0.23, 1, 0, 'fs'); wallRect(B.v('glassInt'), F, c - 0.9, c + 0.9, 4.3, 6.4, 0.145, [k + 5, 2, k + 4, 3]); fbox(B.v('frame'), F, c - 1.0, c + 1.0, 4.2, 6.5, 0.14, 0.16, 1, 0, 'fstb'); }
     fbox(B.v('whitePanel'), F, L / 2 - 7.2, L / 2 + 7.2, 3.3, 3.75, 0, 2.6, 1, 0, 'fstb'); { const c = F.P(L / 2, 3.52, 1.3); B.c('metal').box(c[0], c[1], c[2], 14.4, 0.45, 2.6, F.rotY); }
     for (const du of [-6.6, 6.6]) { const p = F.P(L / 2 + du, 0, 2.3); B.v('frame').box(p[0], 1.65, p[2], 0.25, 3.3, 0.25, F.rotY); B.c('metal').box(p[0], 1.65, p[2], 0.3, 3.3, 0.3, F.rotY); }
-    wallDecal(ctx, sign(ctx, ['NORMAN J. PATTIZ CONCERT HALL'], { w: 2048, h: 128, font: 88, color: '#3b2c20', family: 'Georgia, "Times New Roman", serif' }), F, L / 2, 8.1, 12.4, 0.78, 0.03);
+    // the name stands on its own cast-stone band: one plane, proud of the wall's pilasters and the downpipe (both used to cross the letters)
+    { const bw = Math.min(L - 0.6, 14.4), sw = Math.min(12.4, bw - 1.2); fbox(ls, F, L / 2 - bw / 2, L / 2 + bw / 2, 7.2, 8.95, 0, 0.42, 1 / 3, 0, 'fstb'); fbox(ls, F, L / 2 - bw / 2 - 0.12, L / 2 + bw / 2 + 0.12, 8.95, 9.13, 0, 0.5, 1 / 3, 0, 'fstb');
+      wallDecal(ctx, sign(ctx, ['NORMAN J. PATTIZ CONCERT HALL'], { w: 2048, h: 128, font: 88, color: '#3b2c20', family: 'Georgia, "Times New Roman", serif' }), F, L / 2, 8.08, sw, sw * 0.0629, 0.435); }
   }
   ladderOn(ctx, r, (nx, nz) => nz > 0.8, 0.3, b.roofY, h + 0.03);
   ctx.roofSpots.push([...o.W(8, 0), b.roofY]);
@@ -171,10 +186,10 @@ function raisedFence(ctx, a, b, y0, h, gaps = []) {
 }
 function tennisDeck(ctx) {
   const { B, quality } = ctx; const a0 = -153.5, a1 = -83, b0 = 129, b1 = 162, deck = 4.8, par = 0.45; const ring = ensureCCW(GR(a0, b0, a1, b1));
-  const conc = B.v('concrete'), dark = B.v('blackMetal');
+  const conc = B.v('concrete'), dark = B.v('blackMetal'); const stu = B.v('stucco', true); stu.setColor(...TAN);   // the deck is tan stucco over the concrete frame
   for (let i = 0; i < 4; i++) {
     const a = ring[i], b = ring[(i + 1) % 4]; const F = edgeFrame(a[0], a[1], b[0], b[1]); const L = F.L;
-    wallRect(conc, F, 0, L, 0, deck + par, 0, [0, 0, L / 3, (deck + par) / 3]); fbox(conc, F, -0.05, L + 0.05, 3.9, deck + par, 0, 0.12, 1 / 3, 0, 'fstb');
+    wallRect(stu, F, 0, L, 0, deck + par, 0, [0, 0, L * 0.45, (deck + par) * 0.45]); fbox(stu, F, -0.05, L + 0.05, 3.9, deck + par, 0, 0.12, 0.45, 0, 'fstb');
     const nb = Math.round(L / 8.2); for (let k = 0; k < nb; k++) { const u0 = 0.6 + k * (L - 1.2) / nb + 0.35, u1 = 0.6 + (k + 1) * (L - 1.2) / nb - 0.35; wallRect(dark, F, u0, u1, 1.15, 3.5, 0.012); fbox(B.v('galv'), F, u0, u1, 1.9, 1.98, 0.012, 0.05, 1, 0, 'ftb'); fbox(B.v('galv'), F, u0, u1, 2.6, 2.68, 0.012, 0.05, 1, 0, 'ftb'); }
     quadFacing(conc, F.P(0, deck + par, 0), F.P(L, deck + par, 0), F.P(L, deck + par, -0.3), F.P(0, deck + par, -0.3), [0, 1, 0]); quadFacing(conc, F.P(0, deck, -0.3), F.P(L, deck, -0.3), F.P(L, deck + par, -0.3), F.P(0, deck + par, -0.3), [-F.nx, 0, -F.nz]);
     const pc = F.P(L / 2, deck + par / 2, -0.15); B.c('concrete').box(pc[0], pc[1], pc[2], L, par, 0.3, F.rotY);
@@ -185,12 +200,12 @@ function tennisDeck(ctx) {
   B.c('concrete').prism(ring, 0, deck, 1, false); B.c('concrete').poly(ring, null, deck);
   (ctx.buildingRings = ctx.buildingRings || []).push(ring);
   // four courts painted on the deck (green courts on a red-brown surround), nets as low solid mesh
-  const ppm = quality === 'low' ? 8 : 12, W = Math.round((a1 - a0) * ppm), H = Math.round((b1 - b0) * ppm); const c = makeCanvas(W, H), g = c.getContext('2d');
+  const ppm = quality === 'low' ? 8 : 12, W = Math.round((b1 - b0) * ppm), H = Math.round((a1 - a0) * ppm); const c = makeCanvas(W, H), g = c.getContext('2d');   // canvas X runs grid south (b), Y grid west (a1 - a): the convention of paintedQuad / the field
   g.fillStyle = '#8a4a3c'; g.fillRect(0, 0, W, H); g.strokeStyle = '#ece9e0'; g.lineWidth = Math.max(1.5, 0.06 * ppm);
   for (const ac of [-140.3, -125.8, -111.2, -96.4]) {
-    const X = (a) => (a - a0) * ppm, Y = (b) => (b - b0) * ppm, bc = 145.6; g.fillStyle = '#3d6f4d'; g.fillRect(X(ac - 5.485), Y(bc - 11.885), 10.97 * ppm, 23.77 * ppm);
-    g.strokeRect(X(ac - 5.485), Y(bc - 11.885), 10.97 * ppm, 23.77 * ppm); g.strokeRect(X(ac - 4.115), Y(bc - 11.885), 8.23 * ppm, 23.77 * ppm); g.strokeRect(X(ac - 4.115), Y(bc - 6.4), 8.23 * ppm, 12.8 * ppm);
-    g.beginPath(); g.moveTo(X(ac), Y(bc - 6.4)); g.lineTo(X(ac), Y(bc + 6.4)); g.stroke();
+    const X = (b) => (b - b0) * ppm, Y = (a) => (a1 - a) * ppm, bc = 145.6; g.fillStyle = '#3d6f4d'; g.fillRect(X(bc - 11.885), Y(ac + 5.485), 23.77 * ppm, 10.97 * ppm);
+    g.strokeRect(X(bc - 11.885), Y(ac + 5.485), 23.77 * ppm, 10.97 * ppm); g.strokeRect(X(bc - 11.885), Y(ac + 4.115), 23.77 * ppm, 8.23 * ppm); g.strokeRect(X(bc - 6.4), Y(ac + 4.115), 12.8 * ppm, 8.23 * ppm);
+    g.beginPath(); g.moveTo(X(bc - 6.4), Y(ac)); g.lineTo(X(bc + 6.4), Y(ac)); g.stroke();
     const n0 = G(ac - 6.4, bc), n1 = G(ac + 6.4, bc); B.v('net').quad([n0[0], deck + 0.02, n0[1]], [n0[0], deck + 1.0, n0[1]], [n1[0], deck + 1.0, n1[1]], [n1[0], deck + 0.02, n1[1]], [0, 0], [0, 1], [12, 1], [12, 0]); B.v('net').quad([n1[0], deck + 0.02, n1[1]], [n1[0], deck + 1.0, n1[1]], [n0[0], deck + 1.0, n0[1]], [n0[0], deck + 0.02, n0[1]], [0, 0], [0, 1], [12, 1], [12, 0]);
     for (const n of [n0, n1]) B.v('blackMetal').cyl(n[0], deck, n[1], 0.05, 0.05, 1.07, 6, 1, true);
     const m = G(ac, bc); B.c('metal:mesh').box(m[0], deck + 0.5, m[1], 12.8, 1.0, 0.08, ROT);
@@ -203,10 +218,13 @@ function tennisDeck(ctx) {
     const E = P(aR - w / 2, b0 + 0.1, deck), Fq = P(aR + w / 2, b0 + 0.1, deck); quadFacing(conc, D, C, Fq, E, [0, 1, 0]); quadFacing(B.c('concrete'), D, C, Fq, E, [0, 1, 0]);   // landing level with the deck
     // solid side wall under the outer edge of the ramp + landing (triangle + rectangle), kerb on top
     const o0 = P(aR + w / 2, bBot, 0), o1 = P(aR + w / 2, bTop, 0), o2 = P(aR + w / 2, bTop, deck), o3 = P(aR + w / 2, b0 + 0.1, 0), o4 = P(aR + w / 2, b0 + 0.1, deck);
-    for (const bk of [conc, B.c('concrete')]) { bk.tri(o0, o1, o2).tri(o1, o0, o2); bk.quad(o1, o3, o4, o2).quad(o3, o1, o2, o4); }
-    { const n0 = P(aR - w / 2, b0 + 0.1, 0), n1 = P(aR - w / 2, b0 + 0.1, deck); for (const bk of [conc, B.c('concrete')]) bk.quad(o3, n0, n1, o4).quad(n0, o3, o4, n1); }
+    // (texture coordinates in wall metres: without them the stucco smeared along the whole ramp)
+    { const uvw = (p) => [Math.hypot(p[0] - o0[0], p[2] - o0[2]) * 0.45, p[1] * 0.45]; const T3 = (bk, a, b, c, uv) => (uv ? bk.tri(a, b, c, uvw(a), uvw(b), uvw(c)) : bk.tri(a, b, c)); const Q4 = (bk, a, b, c, d, uv) => (uv ? bk.quad(a, b, c, d, uvw(a), uvw(b), uvw(c), uvw(d)) : bk.quad(a, b, c, d));
+      const n0 = P(aR - w / 2, b0 + 0.1, 0), n1 = P(aR - w / 2, b0 + 0.1, deck);
+      for (const [bk, uv] of [[stu, true], [B.c('concrete'), false]]) { T3(bk, o0, o1, o2, uv); T3(bk, o1, o0, o2, uv); Q4(bk, o1, o3, o4, o2, uv); Q4(bk, o3, o1, o2, o4, uv); Q4(bk, o3, n0, n1, o4, uv); Q4(bk, n0, o3, o4, n1, uv); } }
     for (const [p, q] of [[o0, o2], [o2, o4]]) { const kb = B.v('concrete'); const d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]]; const len = Math.hypot(d[0], d[2]); const m = new THREE.Matrix4().compose(new THREE.Vector3((p[0] + q[0]) / 2, (p[1] + q[1]) / 2 + 0.45, (p[2] + q[2]) / 2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(d[0], d[2]), 0, 'YXZ')).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.atan2(d[1], len), 0, 0))), new THREE.Vector3(0.25, 0.9, Math.hypot(len, d[1]))); kb.boxM(m, 1 / 3); B.c('concrete').boxM(m); }
     const lp = G((a0 + a1) / 2 + 20, b0 - 0.02); wallLadder(ctx, lp[0], lp[1], Math.sin(ANG), -Math.cos(ANG), deck, deck + par); }
+  stu.setColor(1, 1, 1);
   // floodlight masts at the corners (grapple poles)
   for (const [a, b] of [[a0 + 0.4, b0 + 0.4], [a1 - 0.4, b0 + 0.4], [a0 + 0.4, b1 - 0.4], [a1 - 0.4, b1 - 0.4], [(a0 + a1) / 2, b0 + 0.4], [(a0 + a1) / 2, b1 - 0.4]]) { const p = G(a, b); B.v('galv').cyl(p[0], deck, p[1], 0.09, 0.06, 6.2, 8, 1, true); B.v('lightEmit').box(p[0], deck + 6.25, p[1], 0.9, 0.22, 0.4, ROT); B.c('metal').box(p[0], deck + 3.1, p[1], 0.25, 6.2, 0.25); ctx.grapplePoles.push({ x: p[0], z: p[1], y0: deck + 0.5, y1: deck + 6.2, r: 0.09 }); }
 }

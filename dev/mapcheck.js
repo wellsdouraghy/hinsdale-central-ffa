@@ -649,7 +649,7 @@ async function checkVisualSolid() {
   const vis = scene.getObjectByName('world-visuals');
   const cells = new Map(); let tris = 0, sampled = 0;
   const a = V(), b = V(), c = V(), n = V(), p = V(), e1 = V(), e2 = V();
-  const SKIPNAMES = /^(decal|stall-paint|shrubs|static:net|static:chainlink|static:windscreen|static:lightEmit|ground)$/;   // (ground: the terrain mesh is its own collision)   // see-through / not walkable-looking
+  const SKIPNAMES = /^(decal|stall-paint|shrubs|static:net|static:chainlink|static:windscreen|static:lightEmit|ground)$|^trees:/;   // (trees:* = hand-built tree crowns, e.g. Hamilton's jacarandas: foliage like the instanced trees)   // (ground: the terrain mesh is its own collision)   // see-through / not walkable-looking
   const meshes = [];
   vis.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && o.visible && !SKIPNAMES.test(o.name) && o.geometry?.attributes?.position) meshes.push(o); });
   let lastYield = performance.now();
@@ -737,7 +737,7 @@ async function checkVisualSolid() {
 //     things standing in the attic are stepped over. A ray that gets out unseen is a hole: missing gable / hip end,
 //     slit between the gable wall and the rakes, gap between roof planes or between roof and wall top, no soffit.
 function buildVisual() {
-  const vis = scene.getObjectByName('world-visuals') || scene; const SKIPV = /^(decal|stall-paint|shrubs|ground|ground-skirt|static:(groundDecal|wallDecal|net|chainlink|windscreen|lightEmit))$|^terrain:/;
+  const vis = scene.getObjectByName('world-visuals') || scene; const SKIPV = /^(decal|stall-paint|shrubs|ground|ground-skirt|static:(groundDecal|wallDecal|net|chainlink|windscreen|lightEmit))$|^terrain:|^trees:/;
   const meshes = []; let n = 0;
   vis.traverse((o) => {
     if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || !o.visible || SKIPV.test(o.name) || !o.geometry?.attributes?.position) return;

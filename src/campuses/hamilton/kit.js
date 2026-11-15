@@ -26,9 +26,9 @@ export const CLAY_DARK = [3.0, 1.5, 1.0];
 // ------------------------------------------------------------------------------------------ materials
 function solarTexture(aniso) {
   const W = 256, H = 256, c = makeCanvas(W, H), g = c.getContext('2d');
-  g.fillStyle = '#0c1524'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#2c3848'; g.fillRect(0, 0, W, H);   // grey-blue modules (as in the aerial photo), light frames
   for (let j = 0; j < 4; j++) for (let i = 0; i < 2; i++) {
-    const x = i * 128 + 4, y = j * 64 + 3; const gr = g.createLinearGradient(x, y, x + 120, y + 58); gr.addColorStop(0, '#16284a'); gr.addColorStop(1, '#0d1a33');
+    const x = i * 128 + 4, y = j * 64 + 3; const gr = g.createLinearGradient(x, y, x + 120, y + 58); gr.addColorStop(0, '#4a5d78'); gr.addColorStop(1, '#3a4a62');
     g.fillStyle = gr; g.fillRect(x, y, 120, 58);
     g.strokeStyle = 'rgba(150,170,200,0.22)'; g.lineWidth = 1; for (let k = 1; k < 6; k++) { g.beginPath(); g.moveTo(x + k * 20, y); g.lineTo(x + k * 20, y + 58); g.stroke(); }
     g.beginPath(); g.moveTo(x, y + 29); g.lineTo(x + 120, y + 29); g.stroke();
@@ -57,6 +57,27 @@ function storefrontTexture(aniso) {
   return canvasTexture(c, { aniso });
 }
 
+function sidingTexture(aniso) {
+  // painted clapboard, one tile = 2.2 m: 12 laps with a shadow line under each board (tinted per house)
+  const S = 256, c = makeCanvas(S, S), g = c.getContext('2d'); const rnd = mulberry32(12); g.fillStyle = '#f0f0ee'; g.fillRect(0, 0, S, S); const n = 12, lh = S / n;
+  for (let j = 0; j < n; j++) { const y = j * lh; const gr = g.createLinearGradient(0, y, 0, y + lh); gr.addColorStop(0, 'rgba(255,255,255,0.16)'); gr.addColorStop(0.8, 'rgba(0,0,0,0.05)'); gr.addColorStop(1, 'rgba(0,0,0,0.42)'); g.fillStyle = gr; g.fillRect(0, y, S, lh);
+    for (let k = 0; k < 3; k++) { g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(rnd() * S, y, 1, lh); } }
+  return canvasTexture(c, { aniso });
+}
+function blockTexture(aniso) {
+  // concrete masonry, one tile = 2.2 m: 5 x 10 blocks (0.44 x 0.22 m), running bond, struck joints
+  const S = 256, c = makeCanvas(S, S), g = c.getContext('2d'); const rnd = mulberry32(19); g.fillStyle = '#8f8f8c'; g.fillRect(0, 0, S, S); const bw = S / 5, bh = S / 10;
+  for (let j = 0; j < 10; j++) for (let i = -1; i < 5; i++) { const x = i * bw + (j % 2 ? bw / 2 : 0), y = j * bh; const v = 214 + Math.floor(rnd() * 26); g.fillStyle = `rgb(${v},${v},${v - 3})`; for (const ox of [0, S]) g.fillRect(x + ox + 1.5, y + 1.5, bw - 3, bh - 3); }
+  for (let k = 0; k < 1500; k++) { const v = rnd() < 0.5 ? 255 : 70; g.fillStyle = `rgba(${v},${v},${v},${0.04 + rnd() * 0.05})`; g.fillRect(rnd() * S, rnd() * S, 2, 2); }
+  return canvasTexture(c, { aniso });
+}
+function cypressTexture(aniso) {
+  // Italian cypress foliage: dense dark sprays running upward
+  const S = 128, c = makeCanvas(S, S), g = c.getContext('2d'); const rnd = mulberry32(5); g.fillStyle = '#22361f'; g.fillRect(0, 0, S, S);
+  for (let k = 0; k < 900; k++) { const x = rnd() * S, y = rnd() * S, l = 6 + rnd() * 12; const v = rnd(); g.strokeStyle = v < 0.5 ? `rgba(14,26,14,${0.5 + rnd() * 0.4})` : `rgba(${58 + rnd() * 26 | 0},${88 + rnd() * 30 | 0},${48 + rnd() * 16 | 0},${0.5 + rnd() * 0.4})`; g.lineWidth = 1 + rnd() * 1.6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 5, y - l); g.stroke(); }
+  return canvasTexture(c, { aniso });
+}
+
 function paverTexture(aniso) {
   // courtyard paving, one tile = 2.4 m: 0.6 m buff concrete pavers in a running bond, slightly different tones, dark joints
   const S = 512, c = makeCanvas(S, S), g = c.getContext('2d'); const rnd = mulberry32(31); const n = 4, w = S / n;
@@ -74,9 +95,13 @@ export function addMaterials(ctx) {
   const std = (o) => new THREE.MeshStandardMaterial(o);
   M.stucco = std({ map: stuccoTexture(T.aniso), normalMap: ctx.quality === 'low' ? null : T.concreteNormal, vertexColors: true, roughness: 0.93 });
   M.stucco.normalScale.set(0.22, 0.22); M.stucco.color.setRGB(0.88, 0.85, 0.79);   // warm it and keep sunlit stucco off pure white
-  M.solar = std({ map: solarTexture(T.aniso), roughness: 0.18, metalness: 0.75, envMapIntensity: 1.3 });
+  M.solar = std({ map: solarTexture(T.aniso), roughness: 0.3, metalness: 0.45, envMapIntensity: 1.0 });
   M.storefront = std({ map: storefrontTexture(T.aniso), roughness: 0.35, metalness: 0.4, envMapIntensity: 1.2 });
   M.hamPaver = std({ map: paverTexture(T.aniso), normalMap: ctx.quality === 'low' ? null : T.concreteNormal, roughness: 0.88 }); M.hamPaver.normalScale.set(0.35, 0.35); M.hamPaver.color.setRGB(0.8, 0.79, 0.76);
+  M.hamSiding = std({ map: sidingTexture(T.aniso), vertexColors: true, roughness: 0.8 });
+  M.hamBlock = std({ map: blockTexture(T.aniso), normalMap: ctx.quality === 'low' ? null : T.concreteNormal, vertexColors: true, roughness: 0.95 }); M.hamBlock.normalScale.set(0.3, 0.3);
+  M.hamDirt = std({ map: T.concreteColor, normalMap: ctx.quality === 'low' ? null : T.concreteNormal, vertexColors: true, roughness: 1 });   // spoil heaps, gravel and sand stockpiles (tinted per pile)
+  M.hamCypress = std({ map: cypressTexture(T.aniso), vertexColors: true, roughness: 0.95 });
   M.roofSat.color.setScalar(0.74);   // LA cool roofs are near-white in the imagery: keep them off the top of the tone curve
   M.trimGreen = std({ color: 0x1f6b3f, roughness: 0.6, metalness: 0.05 });
   M.awning = std({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
@@ -297,7 +322,8 @@ export function wallDecal(ctx, tex, F, uC, yC, w, h, out = 0.03, opts = {}) {
 // ------------------------------------------------------------------------------------------ multi-storey walls
 // Walls around a ring with `storeys` rows of framed windows, a base course, storey bands, sills and a cornice.
 // opts: key ('brick' | 'stucco'), tint, storeys, bay, winW, winH, sill, trim, frame, parapet (flat roof: coping +
-// solid parapet, roof deck at h - 0.4), plainEdges [i...], doors (false = none), piers (true = pilasters between bays).
+// solid parapet, roof deck at h - 0.4), plainEdges [i...], doors (false = none), piers (true = pilasters between bays),
+// arcadeTop (round-headed windows on the top storey).
 // Visual only apart from the parapet and door canopies: the caller adds the building's collision prism.
 export function storeyWalls(ctx, ringIn, h, o = {}) {
   const { B } = ctx; const ring = ensureCCW(ringIn); const key = o.key || 'brick'; const tint = o.tint || (key === 'brick' ? BRICK_TINT : [0.74, 0.67, 0.5]);
@@ -310,6 +336,14 @@ export function storeyWalls(ctx, ringIn, h, o = {}) {
     if (w2 > 0.7) fbox(fr, F, c - 0.03, c + 0.03, y0, y1, 0.056, 0.078, 1, 0, 'fs');
     const ty = y0 + (y1 - y0) * 0.64; fbox(fr, F, c - w2, c + w2, ty - 0.025, ty + 0.025, 0.056, 0.078, 1, 0, 'ftb');
     fbox(trim, F, c - w2 - 0.14, c + w2 + 0.14, y0 - 0.2, y0 - 0.06, 0, 0.1, 1 / 3, 0, 'fstb');
+  };
+  // round head over a window (the arcaded top storey of Brown Hall's wings): glazed fan + cast-stone archivolt and imposts
+  const archHead = (F, c, w2, y1) => {
+    const N = 7, r2 = w2 + 0.2;
+    for (let k = 0; k < N; k++) { const a0 = Math.PI * k / N, a1 = Math.PI * (k + 1) / N; const p = (a, r, o) => F.P(c + Math.cos(a) * r, y1 + 0.06 + Math.sin(a) * r, o);
+      gl.tri(F.P(c, y1 + 0.06, 0.056), p(a0, w2, 0.056), p(a1, w2, 0.056), [gi + 0.5, 2], [gi + 0.5 + Math.cos(a0) * 0.5, 2 + Math.sin(a0) * 0.5], [gi + 0.5 + Math.cos(a1) * 0.5, 2 + Math.sin(a1) * 0.5]);
+      quadFacing(trim, p(a0, w2, 0.09), p(a0, r2, 0.09), p(a1, r2, 0.09), p(a1, w2, 0.09), [F.nx, 0, F.nz]); }
+    for (const sd of [-1, 1]) fbox(trim, F, c + sd * (w2 + 0.1) - 0.16, c + sd * (w2 + 0.1) + 0.16, y1 - 0.02, y1 + 0.12, 0, 0.12, 1 / 3, 0, 'fstb');
   };
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
@@ -339,7 +373,8 @@ export function storeyWalls(ctx, ringIn, h, o = {}) {
             fbox(fr, F, c - 0.04, c + 0.04, 0, 2.2, 0.076, 0.1, 1, 0, 'fs'); fbox(fr, F, c - 1.1, c + 1.1, 2.1, 2.2, 0.076, 0.1, 1, 0, 'ftb'); fbox(fr, F, c - 1.1, c + 1.1, 0, 0.3, 0.076, 0.09, 1, 0, 'ft');
             fbox(trim, F, c - 1.9, c + 1.9, 2.95, 3.2, 0, 1.5, 1 / 3, 0, 'fstb'); fbox(B.v('lightEmit'), F, c - 0.3, c + 0.3, 2.92, 2.95, 0.5, 0.9, 1, 0, 'fsb');
             const cc = F.P(c, 3.075, 0.75); B.c('concrete').box(cc[0], cc[1], cc[2], 3.8, 0.25, 1.5, F.rotY);
-          } else win(F, c, w2, y0, y1);
+          } else if (o.arcadeTop && s === n - 1) { const ya = Math.min(y1, top - w2 - 0.5); win(F, c, w2, y0, ya); archHead(F, c, w2, ya); }
+          else win(F, c, w2, y0, y1);
         }
       }
     }

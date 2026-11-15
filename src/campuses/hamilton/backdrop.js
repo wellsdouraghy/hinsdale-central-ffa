@@ -70,12 +70,36 @@ export function buildBackdrop(ctx) {
     blocks.forEach(([x, z, v, w], k) => { const big = w < 0.3; dummy.position.set(x, -0.1, z); dummy.scale.set(big ? 24 + v * 26 : 10 + v * 9, big ? 6 + w * 16 : 4.2 + w * 3.4, big ? 14 + ((v * 7) % 1) * 16 : 8 + ((v * 5) % 1) * 7); dummy.rotation.set(0, -ANG + (((v * 3) % 1) < 0.5 ? 0 : Math.PI / 2), 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const c = tones[Math.floor(((v * 11) % 1) * tones.length)]; col.setRGB(c[0], c[1], c[2]); im.setColorAt(k, col); });
     im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); add(im, 'backdrop:blocks');
   }
-  // ---- Century City (2.3 km west, 2.7 km north of the school): the tower cluster on the north-west skyline
+  // ---- Century City (2.3 km west, 2.7 km north of the school): the tower cluster that stands over the north-west
+  // skyline in every photo taken from the field. Unlit and outside the scene fog (the exponential fog is opaque at
+  // 3.5 km: the towers used to dissolve into it), with its own light aerial haze mixed into the colours; dark glass and
+  // pale stone towers of different heights and shapes (the twin triangular Century Plaza Towers, slabs, stepped tops),
+  // drawn nearly twice life size and a little nearer (3 km): at true size the tallest tower stands 2.8 degrees over the
+  // horizon and never clears the trees round the field, while every photo of the school has the cluster over the stands.
   {
-    const T = [[0, 0, 44, 174, 44], [70, -30, 38, 160, 38], [-80, 60, 46, 150, 34], [150, 40, 40, 132, 40], [-170, -40, 36, 125, 36], [40, 130, 52, 112, 30], [230, -70, 34, 118, 34], [-250, 80, 40, 98, 40], [120, -150, 30, 140, 30], [-60, -160, 36, 108, 36], [310, 60, 40, 84, 30], [-330, -60, 34, 92, 34], [200, 170, 46, 76, 28], [-140, 190, 40, 70, 30], [20, -260, 30, 88, 30], [390, -120, 30, 96, 30]];
-    const im = new THREE.InstancedMesh(boxGeo(), new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.3, vertexColors: true }), T.length);
-    T.forEach(([dx, dz, w, h, d], k) => { dummy.position.set(-2340 + dx, 0, -2660 + dz); dummy.scale.set(w, h, d); dummy.rotation.set(0, 0.35 + (k % 3) * 0.2, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const v = 0.36 + (k % 5) * 0.035; col.setRGB(v * 0.9, v * 0.98, v * 1.1); im.setColorAt(k, col); });
-    im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); add(im, 'backdrop:skyline');
+    const pos = [], cl = []; const hz = [0.6, 0.66, 0.74], mixH = 0.14; const K = 1.9, KW = 1.45, CX = -2000, CZ = -2280; const r3 = mulberry32(2029);
+    const quadc = (a, b, c, d, col) => { for (const p of [a, b, c, a, c, d]) pos.push(...p); for (let k = 0; k < 6; k++) cl.push(col[0] * (1 - mixH) + hz[0] * mixH, col[1] * (1 - mixH) + hz[1] * mixH, col[2] * (1 - mixH) + hz[2] * mixH); };
+    // prism with n sides: lit side faces the campus (south-east), window bands as alternating strips
+    const prism = (cx, cz, w, d, y0, y1, rot, base, n = 4) => {
+      const pts = []; for (let k = 0; k < n; k++) { const a = rot + (k + 0.5) / n * Math.PI * 2; const sx = n === 4 ? Math.SQRT2 : 1.15; pts.push([cx + Math.cos(a) * w / 2 * sx, cz + Math.sin(a) * d / 2 * sx]); }
+      for (let k = 0; k < n; k++) { const a = pts[k], b = pts[(k + 1) % n]; const nx = (b[1] - a[1]), nz = -(b[0] - a[0]); const l = Math.hypot(nx, nz) || 1; const lit = 0.72 + 0.4 * Math.max(0, (nx * 0.55 + nz * 0.83) / l) + 0.12 * Math.max(0, (nx * -0.8 + nz * 0.3) / l);
+        const bands = Math.max(2, Math.round((y1 - y0) / 22)); for (let j = 0; j < bands; j++) { const ya = y0 + (y1 - y0) * j / bands, yb = y0 + (y1 - y0) * (j + 1) / bands, sh = lit * (j % 2 ? 0.9 : 1.04); const gh = Math.max(0, 1 - (ya + yb) / 2 / 70) * 0.4;   // the feet of the towers stand in the ground haze
+          quadc([a[0], ya, a[1]], [b[0], ya, b[1]], [b[0], yb, b[1]], [a[0], yb, a[1]], [base[0] * sh * (1 - gh) + hz[0] * gh, base[1] * sh * (1 - gh) + hz[1] * gh, base[2] * sh * (1 - gh) + hz[2] * gh]); } }
+      for (let k = 1; k < n - 1; k++) { const c = [base[0] * 1.1, base[1] * 1.1, base[2] * 1.1]; for (const p of [pts[0], pts[k], pts[k + 1]]) pos.push(p[0], y1, p[1]); for (let q = 0; q < 3; q++) cl.push(c[0] * (1 - mixH) + hz[0] * mixH, c[1] * (1 - mixH) + hz[1] * mixH, c[2] * (1 - mixH) + hz[2] * mixH); }
+    };
+    const GLASS = [0.12, 0.16, 0.22], BRONZE = [0.2, 0.17, 0.14], STONE = [0.5, 0.48, 0.44], STEEL = [0.26, 0.3, 0.35], BLACK = [0.07, 0.08, 0.1], PALE = [0.58, 0.6, 0.62];
+    // [dx, dz, w, d, height, tint, sides, stepped]
+    const T = [[0, 0, 46, 46, 174, STEEL, 3, 0], [72, -26, 46, 46, 174, STEEL, 3, 0], [-92, 58, 44, 34, 150, BRONZE, 4, 1], [150, 44, 42, 42, 150, GLASS, 4, 1], [-176, -38, 38, 38, 163, GLASS, 4, 0], [36, 132, 56, 30, 120, STONE, 4, 0],
+      [236, -66, 36, 36, 146, BLACK, 4, 1], [-256, 84, 42, 40, 100, PALE, 4, 0], [118, -150, 30, 30, 146, GLASS, 4, 0], [-58, -164, 38, 36, 112, STONE, 4, 1], [312, 62, 44, 30, 88, BRONZE, 4, 0], [-332, -56, 36, 36, 96, STEEL, 4, 0],
+      [202, 172, 48, 28, 80, PALE, 4, 0], [-142, 192, 42, 30, 74, STONE, 4, 0], [22, -262, 30, 30, 92, GLASS, 4, 1], [392, -118, 30, 30, 118, BLACK, 4, 0], [-30, 70, 34, 34, 132, GLASS, 4, 0], [270, 150, 30, 46, 64, STONE, 4, 0], [-210, 150, 60, 26, 58, PALE, 4, 0], [96, 80, 28, 28, 104, BRONZE, 4, 0]];
+    T.forEach(([dx0, dz0, w0, d0, h, tint, n, step], k) => { const dx = dx0 * KW, dz = dz0 * KW, w = w0 * KW, d = d0 * KW; const cx = CX + dx, cz = CZ + dz, rot = 0.32 + (k % 3) * 0.21, v = 0.9 + r3() * 0.25, base = [tint[0] * v, tint[1] * v, tint[2] * v]; const H = h * K;
+      if (step) { prism(cx, cz, w, d, 0, H * 0.84, rot, base, n); prism(cx, cz, w * 0.7, d * 0.7, H * 0.84, H * 0.95, rot, base, n); prism(cx, cz, w * 0.3, d * 0.3, H * 0.95, H, rot, [base[0] * 0.8, base[1] * 0.8, base[2] * 0.8], n); }
+      else { prism(cx, cz, w, d, 0, H, rot, base, n); if (k % 4 === 0) prism(cx + w * 0.15, cz, w * 0.25, d * 0.25, H, H + 9, rot, [base[0] * 0.7, base[1] * 0.7, base[2] * 0.7], 4); } });
+    // the low-rise blocks at their feet (Westfield, hotels, Fox lot stages)
+    for (let k = 0; k < 26; k++) prism(CX + (r3() - 0.5) * 1300, CZ + (r3() - 0.5) * 800, 50 + r3() * 70, 40 + r3() * 50, 0, (18 + r3() * 34) * K, 0.32 + r3(), [[0.44, 0.43, 0.4], [0.3, 0.32, 0.34], [0.5, 0.5, 0.5]][k % 3], 4);
+    const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3)); geo.computeBoundingSphere();
+    // drawn after the sky's horizon-haze band (which is a transparent shell in front of it), so the towers stay dark
+    const sk = add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false, side: THREE.DoubleSide, transparent: true })), 'backdrop:skyline'); sk.renderOrder = 6;
   }
   // ---- ridges on the horizon: the Santa Monica Mountains across the north, the Baldwin Hills to the south-east
   {
