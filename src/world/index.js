@@ -66,7 +66,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
 
   progress(0.05, 'Loading sky');
   const post = createPost({ renderer, scene, camera, quality });
-  const sky = await createSky({ renderer, scene, quality });
+  const sky = await createSky({ renderer, scene, quality, opts: campus.sky });
 
   progress(0.12, 'Loading textures');
   const T = await loadTextures(renderer, quality, (f) => progress(0.12 + f * 0.28, 'Loading textures'), { groundMacro: F.groundMacro, groundMask: F.groundMask, roofs: F.roofs });
@@ -90,7 +90,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   }
 
   progress(0.42, 'Building terrain');
-  const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality });
+  const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality, opts: campus.ground });
   const ctx = { campus, data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: { ...campus.playBounds }, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
 
   progress(0.48, 'Building campus'); await tick();

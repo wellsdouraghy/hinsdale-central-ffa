@@ -4,6 +4,8 @@ import { buildLandmarks } from '../../world/landmarks.js';
 import { buildProps } from '../../world/props.js';
 
 export function build(ctx, progress = () => {}) {
+  // the white field-house membrane photographs at ~0.95 albedo and clips to pure white in the sun: bring it into range
+  if (ctx.M.roofSat?.userData.roofWhite) ctx.M.roofSat.userData.roofWhite.value = 0.5;
   progress(0.48, 'Building school');
   buildSchool(ctx);
   progress(0.56, 'Building neighbourhood');

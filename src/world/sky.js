@@ -17,7 +17,9 @@ export const SHADOW_PRESETS = {
   high: { dynamic: true, mapSize: 4096, range: 62, bakeMap: 4096, bakeRT: 4096 },
 };
 
-export async function createSky({ renderer, scene, quality }) {
+// opts (campus descriptor `sky: { ... }`, optional): horizonHaze: 0..1 adds a soft haze band on the horizon so far ground
+// fog and the HDRI sky meet without a hard line (matters on flat campuses seen from the air; off by default).
+export async function createSky({ renderer, scene, quality, opts = {} }) {
   const preset = SHADOW_PRESETS[quality] || SHADOW_PRESETS.high;
   // ---- environment
   let envTex = null;
@@ -124,8 +126,22 @@ export async function createSky({ renderer, scene, quality }) {
     return rt;
   }
 
+  // ---- optional horizon haze band (camera-centred open cylinder, vertex alpha, drawn behind everything)
+  let haze = null;
+  if (opts && opts.horizonHaze > 0) {
+    const R = 5400, SEG = 48, rings = [[-500, 1], [0, 1], [70, 0.86], [170, 0.6], [300, 0.34], [470, 0.14], [700, 0]];
+    const pos = [], col = [], idx = [];
+    for (const [y, a] of rings) for (let i = 0; i <= SEG; i++) { const t = (i / SEG) * Math.PI * 2; pos.push(Math.cos(t) * R, y, Math.sin(t) * R); col.push(1, 1, 1, a * Math.min(1, opts.horizonHaze)); }
+    for (let r = 0; r < rings.length - 1; r++) for (let i = 0; i < SEG; i++) { const a = r * (SEG + 1) + i, b = a + SEG + 1; idx.push(a, a + 1, b, a + 1, b + 1, b); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4)); g.setIndex(idx);
+    haze = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: HAZE_COLOR, vertexColors: true, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+    haze.name = 'sky-horizon-haze'; haze.frustumCulled = false; haze.renderOrder = -10; haze.castShadow = false; haze.receiveShadow = false;
+    scene.add(haze);
+  }
+
   const _fwd = new THREE.Vector3(), _c = new THREE.Vector3();
   function update(camera) {
+    if (haze) { haze.position.copy(camera.position); haze.updateMatrixWorld(); }
     if (!preset.dynamic) return;
     const R = preset.range;
     camera.getWorldDirection(_fwd); _fwd.y = 0; if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1); _fwd.normalize();
@@ -141,7 +157,7 @@ export async function createSky({ renderer, scene, quality }) {
   }
 
   setDynamicShadow();
-  return { sun, envTex, sunDirection, shadowUniforms, bakeShadowMask, update, preset, dispose() { if (envTex) envTex.dispose(); } };
+  return { sun, envTex, sunDirection, shadowUniforms, bakeShadowMask, update, preset, dispose() { if (envTex) envTex.dispose(); if (haze) { scene.remove(haze); haze.geometry.dispose(); haze.material.dispose(); } } };
 }
 
 // Adds the baked far-shadow lookup to any (roughly ground level, lit) MeshStandard/Lambert material.

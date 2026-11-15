@@ -29,6 +29,10 @@ export default {
   },
   sat: { minX: -394.85, maxX: 394.85, minZ: -305.44, maxZ: 305.44 },
   playBounds: { minX: -222, maxX: 292, minZ: -212, maxZ: 214 },
+  // Visual-only extras (see src/world/ground.js, sky.js): the woods carry on to the horizon from the air, a soft haze band
+  // hides the fog/sky seam, and smeared satellite paint on asphalt is smoothed up close.
+  ground: { canopy: { y: 9, inset: 6, lit: [0.062, 0.128, 0.03] }, asphaltDeblur: 1 },
+  sky: { horizonHaze: 1 },
   // red = Dickinson Field stadium (west end), blue = east ball fields across the east street (~395 m apart)
   ctf: { red: [-154, -88], blue: [241, -95] },
   practiceHeli: { x: -154, z: -98, yaw: 0 },

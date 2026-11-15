@@ -206,9 +206,19 @@ export function buildProps(ctx) {
   const color = () => CAR_COLORS[Math.floor(rnd() * CAR_COLORS.length)];
   let nCars = 0;
   const car = (x, z, heading) => { placeCar(ctx, pick(), x, z, heading + (rnd() - 0.5) * 0.05, color()); nCars++; };
+  // painted stall lines (visual only): 10 cm quads just above the asphalt, merged into one mesh after placement
+  const stripePos = [];
+  const stripe = (cx, cz, dx, dz, half, w = 0.05) => {
+    const ax = cx - dx * half, az = cz - dz * half, bx = cx + dx * half, bz = cz + dz * half, px = -dz * w, pz = dx * w, y = 0.016;
+    const q = [[ax - px, az - pz], [ax + px, az + pz], [bx + px, bz + pz], [bx - px, bz - pz]];
+    // face up regardless of direction
+    const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
+    for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) stripePos.push(q[k][0], y, q[k][1]);
+  };
   // row of perpendicular stalls from (x0,z0) to (x1,z1); cars face +/- the row normal
   const stalls = (x0, z0, x1, z1, fill, flip = false, pitch = 2.75) => {
     const L = Math.hypot(x1 - x0, z1 - z0), n = Math.floor(L / pitch); const tx = (x1 - x0) / L, tz = (z1 - z0) / L;
+    for (let i = 0; i <= n; i++) stripe(x0 + tx * i * pitch, z0 + tz * i * pitch, -tz, tx, 2.65);
     const base = Math.atan2(-tz, tx) + Math.PI / 2 + (flip ? Math.PI : 0);
     for (let i = 0; i < n; i++) { const f = typeof fill === 'function' ? fill(x0 + tx * (i + 0.5) * pitch, z0 + tz * (i + 0.5) * pitch) : fill; if (rnd() < f) car(x0 + tx * (i + 0.5) * pitch + (rnd() - 0.5) * 0.2, z0 + tz * (i + 0.5) * pitch + (rnd() - 0.5) * 0.2, base + (rnd() < 0.15 ? Math.PI : 0)); }
   };
@@ -240,6 +250,20 @@ export function buildProps(ctx) {
   kerb([[-219.6, -178], [-219.3, -40]], 0.4, 6.5, true); kerb([[-218.6, 30], [-218.2, 180]], 0.3, 6.5, true);
   kerb([[-190, 209.2], [170, 207.6]], 0.22, 6.5); kerb([[197.2, 80], [198.2, 190]], 0.3, 6.5); kerb([[196.2, -150], [196.8, -40]], 0.25, 6.5, true);
   for (const [x, z, h] of [[-170, -204.6, 0], [-96, -204.4, 0], [-20, -203.8, 0], [66, -203.5, 0], [120, -203.2, 0], [-130, -197.6, Math.PI], [10, -197.0, Math.PI], [95, -196.4, Math.PI], [240, -201.5, 0], [-213.5, -110, Math.PI / 2], [-213.2, 95, Math.PI / 2], [-209.8, 20, -Math.PI / 2], [190.6, 60, -Math.PI / 2], [187.4, -90, Math.PI / 2]]) car(x, z, h);
+  if (stripePos.length) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(stripePos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(stripePos.length).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+    const mat = new THREE.MeshStandardMaterial({ color: 0xd9d8d0, roughness: 0.85, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    // worn paint; fades out with distance (the satellite ground already carries the far look, and 10 cm lines would shimmer)
+    const wear = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  { float sd = length(vWPos - cameraPosition); vec2 sp = vWPos.xz * 3.1;
+    float sw = fract(sin(dot(floor(sp * 6.0), vec2(12.9898, 78.233))) * 43758.5453) * 0.35 + fract(sin(dot(floor(sp), vec2(39.3468, 11.135))) * 24634.6345) * 0.4;
+    diffuseColor.a *= (0.5 + 0.5 * smoothstep(0.1, 0.55, sw + 0.25)) * (1.0 - smoothstep(55.0, 140.0, sd)); }`); };
+    wear.key = 'stallPaint';
+    ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms, wear);
+    const mesh = new THREE.Mesh(g, mat); mesh.name = 'stall-paint'; mesh.receiveShadow = true; mesh.castShadow = false; mesh.matrixAutoUpdate = false; mesh.renderOrder = 1;
+    ctx.scene.add(mesh);
+  }
   // residential streets outside the play area (scenery)
   for (const r of ctx.data.roads) {
     if (r.tags.highway !== 'residential') continue;

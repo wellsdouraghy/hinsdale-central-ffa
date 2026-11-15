@@ -260,7 +260,21 @@ function addOverlay(ctx, canvas, x0, z0, x1, z1, opts = {}) {
   const nrm = ctx.T.asphaltNormal.clone(); nrm.needsUpdate = true; nrm.wrapS = nrm.wrapT = THREE.RepeatWrapping; nrm.repeat.set((x1 - x0) / (opts.nScale || 0.8), (z1 - z0) / (opts.nScale || 0.8));
   const mat = new THREE.MeshStandardMaterial({ map: tex, normalMap: ctx.quality === 'low' ? null : nrm, roughness: opts.rough || 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   mat.normalScale.set(0.55, 0.55);
-  ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms);
+  // synthetic turf up close: fibre / infill grain finer than the painted canvas can hold (fades where it would alias)
+  let fibre = null;
+  if (opts.fibre && ctx.quality !== 'low') {
+    fibre = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('void main() {', `float tfHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float tfNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(tfHash(i), tfHash(i + vec2(1, 0)), f.x), mix(tfHash(i + vec2(0, 1)), tfHash(i + vec2(1, 1)), f.x), f.y); }
+void main() {`).replace('#include <map_fragment>', `#include <map_fragment>
+  { vec2 tp = vWPos.xz; float tfw = max(fwidth(tp.x), fwidth(tp.y)) * 95.0;
+    float tw = (1.0 - smoothstep(5.0, 26.0, length(vWPos - cameraPosition))) * (1.0 - smoothstep(0.3, 1.0, tfw));
+    float fib = tfNoise(tp * vec2(95.0, 34.0)) * 0.4 + tfNoise(tp * vec2(31.0, 88.0) + 13.0) * 0.35 + tfNoise(tp * 14.0 + 5.0) * 0.25;
+    float crumb = step(0.93, tfHash(floor(tp * 120.0)));
+    diffuseColor.rgb *= mix(1.0, (0.7 + 0.62 * fib) * (1.0 - 0.3 * crumb), tw); }`); };
+    fibre.key = 'turfFibre';
+  }
+  ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms, fibre);
   const g = new THREE.BufferGeometry(); const y = opts.y || 0.012;
   g.setAttribute('position', new THREE.Float32BufferAttribute([x0, y, z1, x1, y, z1, x1, y, z0, x0, y, z1, x1, y, z0, x0, y, z0], 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
@@ -294,7 +308,7 @@ export function buildLandmarks(ctx) {
     g.fillStyle = '#d9dad6'; g.fillRect(px(fcx - hw - 4), pz(fcz - 22.5), 2.8 * ppm, 45 * ppm); g.fillRect(px(fcx + hw + 1.2), pz(fcz - 22.5), 2.8 * ppm, 45 * ppm);
     drawFootballField(g, ppm, px(fcx), pz(fcz), { endColor: '#d8452f', endText: ['HINSDALE', 'CENTRAL'], logo: true, soccer: '#e8c832' });
     turfNoise(g, W, H, 34, 11);
-    addOverlay(ctx, c, x0, z0, x1, z1, { y: 0.016, nScale: 0.5 });
+    addOverlay(ctx, c, x0, z0, x1, z1, { y: 0.016, nScale: 0.5, fibre: true });
     goalPost(ctx, fcx, fcz - 60 * YD, 1); goalPost(ctx, fcx, fcz + 60 * YD, -1);
 
     // home stand (west), press box on top: aluminium planks on 24 in row spacing
@@ -360,7 +374,7 @@ export function buildLandmarks(ctx) {
     g.strokeRect(sx - 24.6 * ppm, sy - 53 * ppm, 49.2 * ppm, 106 * ppm); g.beginPath(); g.arc(sx, sy, 9.15 * ppm, 0, Math.PI * 2); g.stroke();
     for (const s of [-1, 1]) { g.strokeRect(sx - 20.15 * ppm, s > 0 ? sy + 36.5 * ppm : sy - 53 * ppm, 40.3 * ppm, 16.5 * ppm); g.strokeRect(sx - 9.15 * ppm, s > 0 ? sy + 47.5 * ppm : sy - 53 * ppm, 18.3 * ppm, 5.5 * ppm); }
     turfNoise(g, W, H, 34, 12);
-    addOverlay(ctx, c, x0, z0, x1, z1);
+    addOverlay(ctx, c, x0, z0, x1, z1, { fibre: true });
     goalPost(ctx, fcx, fcz - 60 * YD, 1); goalPost(ctx, fcx, fcz + 60 * YD, -1);
     soccerGoal(ctx, fcx - 12, -19.6, Math.PI); soccerGoal(ctx, fcx + 13, 94.2, 0);
     // small bleachers + sheds west of the turf (visible in the imagery)

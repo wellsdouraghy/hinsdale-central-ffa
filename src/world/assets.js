@@ -306,10 +306,11 @@ export function createMaterials(T, quality) {
   M.roofSat = std({ map: T.roofs, roughness: 0.92, metalness: 0 });
   M.roofSat.color.setRGB(1.06, 1.0, 0.9);
   {
-    const uni = { uRoofD: { value: T.concreteColor }, uRoofN: { value: T.asphaltNormal } };
+    const uni = { uRoofD: { value: T.concreteColor }, uRoofN: { value: T.asphaltNormal }, uRoofWhite: { value: 1 } };
+    M.roofSat.userData.roofWhite = uni.uRoofWhite;   // albedo scale for bright membrane roofs (1 = as photographed); a campus builder may lower it
     withWorld(M.roofSat, {
       key: 'roofDetail',
-      pars: 'uniform sampler2D uRoofD; uniform sampler2D uRoofN; vec3 gRoofN;',
+      pars: 'uniform sampler2D uRoofD; uniform sampler2D uRoofN; uniform float uRoofWhite; vec3 gRoofN;',
       map: `#include <map_fragment>
   { float dist = length(vWPos - cameraPosition); float nearW = 1.0 - smoothstep(25.0, 90.0, dist);
     float lum = dot(diffuseColor.rgb, vec3(0.333));
@@ -325,6 +326,7 @@ export function createMaterials(T, quality) {
     detail *= 1.0 - seam * mix(0.12, 0.3, white);
     float pond = smoothstep(0.55, 0.8, wNoise(vWPos.xz * 0.16)) * 0.14;     // water staining
     diffuseColor.rgb *= mix(1.0, detail * (1.0 - pond), nearW);
+    diffuseColor.rgb *= mix(1.0, uRoofWhite, white);
     vec3 n1 = texture2D(uRoofN, vWPos.xz / 1.1).xyz * 2.0 - 1.0;
     gRoofN = normalize(vec3(n1.x * mix(0.9, 0.2, white) * nearW, 1.0, n1.y * mix(0.9, 0.2, white) * nearW)); }`,
     });
