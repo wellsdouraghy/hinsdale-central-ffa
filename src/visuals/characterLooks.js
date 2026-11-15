@@ -13,6 +13,15 @@
 // character faces), +x towards the character's LEFT hand. The character is 1.8 m to the top of the skull bone.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { activeCampus } from '../campuses/index.js';
+
+// Varsity chest letters as block strokes [dx, dy, w, h] around the letter centre (metres).
+const LETTER_STROKES = {
+  H: [[-0.03, 0, 0.026, 0.1], [0.03, 0, 0.026, 0.1], [0, 0, 0.06, 0.026]],
+  L: [[-0.024, 0, 0.026, 0.1], [0.006, -0.037, 0.086, 0.026]],
+  M: [[-0.033, 0, 0.022, 0.1], [0.033, 0, 0.022, 0.1], [0, 0.037, 0.088, 0.026], [0, 0.012, 0.02, 0.05]],
+  B: [[-0.028, 0, 0.024, 0.1], [0.002, 0.037, 0.06, 0.026], [0.002, 0, 0.056, 0.022], [0.002, -0.037, 0.06, 0.026], [0.03, 0.019, 0.022, 0.036], [0.03, -0.019, 0.022, 0.036]],
+};
 
 export const LOOKS = [
   { id: 'infantry', name: 'Modern Infantry', description: 'Multi-terrain camouflage fatigues, plate carrier with magazine pouches, ballistic helmet with NVG mount, team armband and helmet band.' },
@@ -619,13 +628,14 @@ function kneePads(G, { color, o = POLY }) {
         const b = an.measure(['fore'], -9, 9, 0.58, 0.64);
         ring(sd > 0 ? 'LeftForeArm' : 'RightForeArm', [0.615 * sd, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2], [(b.maxY - b.minY) / 2 * 1.08 + 0.004, 0.06, (b.maxZ - b.minZ) / 2 * 1.08 + 0.004], [0, 0, PI / 2], true);
       }
-      // chenille letter on the left chest: H (Red Devils) / L (Lions)
+      // chenille letter on the left chest: the campus's team letters (Hinsdale: H Red Devils / L Lions)
       const isBlue = G.team.b > G.team.r, lx = 0.095, ly = 1.455, lz = 0.134;
       const stroke = (dx, dy, w, h) => {
         G.add(rbox(w + 0.014, h + 0.014, 0.008, 0.003), { bone: 'Spine2', at: [lx + dx, ly + dy, lz], rot: [-0.12, 0.25, 0], color: 0x111111, ...knit });
         G.add(rbox(w, h, 0.012, 0.004), { bone: 'Spine2', at: [lx + dx, ly + dy, lz + 0.0015], rot: [-0.12, 0.25, 0], color: cream, ...knit });
       };
-      if (isBlue) { stroke(-0.024, 0, 0.026, 0.1); stroke(0.006, -0.037, 0.086, 0.026); } else { stroke(-0.03, 0, 0.026, 0.1); stroke(0.03, 0, 0.026, 0.1); stroke(0, 0, 0.06, 0.026); }
+      const letter = (activeCampus().letters || { red: 'H', blue: 'L' })[isBlue ? 'blue' : 'red'];
+      for (const st of LETTER_STROKES[letter] || LETTER_STROKES.H) stroke(...st);
       // snap placket
       for (let i = 0; i < 4; i++) G.add(sph(8, 6), { bone: i < 2 ? 'Spine2' : 'Spine1', at: [0, 1.5 - i * 0.055, 0.128 + i * 0.004], scale: [0.008, 0.008, 0.004], color: 0xcfcfcf, rough: 0.3, metal: 0.9 });
       // light chest rig, slung low

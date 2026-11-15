@@ -106,6 +106,7 @@ export async function createClientNet({ code, name, onStatus }) {
     mode: 'client', isHost: false, roomCode: code, peer,
     localId: welcome.id,
     lobby: welcome.t === 'lobbyWelcome' ? welcome.lobby : null,
+    campus: welcome.campus || welcome.lobby?.settings?.campus || null,   // the host's campus (fixed for the room)
     /** Mid-match join: the first message was already a match welcome (session created below, before queued data). */
     initialSession: null,
     onLobby: null, onCountdown: null, onMatchStart: null, onToLobby: null, onDisconnect: null, onNotice: null,

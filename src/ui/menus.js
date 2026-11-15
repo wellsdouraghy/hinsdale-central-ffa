@@ -4,6 +4,7 @@ import { ordinal } from './hud.js';
 import { IS_MAC } from '../game/settings.js';
 import { CLASSES, CLASS_LOOKS, classOf } from '../game/classes.js';
 import { SAT } from './minimap.js';
+import { TEAM_NAMES } from '../game/ctf.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,13 +35,13 @@ const TIPS = [
 
 // Witty but short loading stages, by overall progress.
 const STAGES = [
-  [0, 'Unlocking the doors'], [0.12, 'Laying turf'], [0.26, 'Raising the water tower'], [0.4, 'Painting the end zones'],
+  [0, 'Unlocking the doors'], [0.12, 'Laying turf'], [0.26, 'Raising the flagpole'], [0.4, 'Painting the end zones'],
   [0.54, 'Planting the oaks'], [0.68, 'Parking the buses'], [0.8, 'Stocking the lockers'], [0.92, 'Waking up the bots'],
 ];
 const MODE_INFO = {
   ffa: { name: 'Free-for-all', sub: 'Every player for themselves', rules: ['First to the kill limit or 10:00', 'One attack helicopter is hidden on campus', 'Shots reveal you on the enemy minimap'] },
-  tdm: { name: 'Team Deathmatch', sub: 'Red Devils vs Lions', rules: ['Team kills score; first to the limit wins', 'One attack helicopter is hidden on campus', 'No friendly fire'] },
-  ctf: { name: 'Capture the Flag', sub: 'Red Devils vs Lions', rules: ['Steal their flag, bring it to your base', 'Your flag must be home to score', 'Touch your dropped flag to return it'] },
+  tdm: { name: 'Team Deathmatch', get sub() { return `${TEAM_NAMES.red} vs ${TEAM_NAMES.blue}`; }, rules: ['Team kills score; first to the limit wins', 'One attack helicopter is hidden on campus', 'No friendly fire'] },
+  ctf: { name: 'Capture the Flag', get sub() { return `${TEAM_NAMES.red} vs ${TEAM_NAMES.blue}`; }, rules: ['Steal their flag, bring it to your base', 'Your flag must be home to score', 'Touch your dropped flag to return it'] },
   practice: { name: 'Practice', sub: 'Solo range', rules: ['Target dummies, optional bots', 'No time limit', 'Try the grapple, dash and the helicopter'] },
 };
 const LOOK_SWATCH = { infantry: ['#4d5a3a', '#6b7350', '#2a2f22'], specops: ['#20242a', '#3b424b', '#111317'], heavy: ['#3e4247', '#6d7178', '#c23a3a'], desert: ['#b59a6a', '#8c7550', '#e1d2a8'], varsity: ['#c8262d', '#f1f1f1', '#1b1b1b'] };
@@ -72,8 +73,7 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
   let settingsReturn = null;
 
   // Background imagery for title / loading.
-  document.querySelectorAll('.title-bg').forEach((b) => { b.style.backgroundImage = 'url(./assets/satellite/campus_z19.jpg)'; });
-  $('ld-map').style.backgroundImage = 'url(./assets/satellite/campus_z19.jpg)';
+  // (set per campus by ui/branding.js)
 
   // ---------- front end: main menu (vertical, keyboard + mouse), player card, credits ----------
   const playGroup = $('fe-play-group');

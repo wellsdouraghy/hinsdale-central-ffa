@@ -710,3 +710,30 @@ details.fe-card[open] summary b { visibility: hidden; }
 .pw-err { margin: 0; min-height: 18px; font-size: 13px; color: var(--accent-2); }
 .pw-box.shake { animation: pwShake .35s; }
 @keyframes pwShake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
+
+/* ---------- campus select ---------- */
+.cs-screen { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; overflow: auto; background: #07080a; }
+.cs-bg { position: fixed; inset: 0; background: radial-gradient(ellipse at 50% 30%, rgba(227,36,43,0.16), transparent 60%), repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 4px); pointer-events: none; }
+.cs-wrap { position: relative; width: min(1100px, calc(100vw - 32px)); padding: 48px 0; text-align: center; }
+.cs-kicker { font: 700 13px var(--font); letter-spacing: .4em; text-transform: uppercase; color: var(--muted); }
+.cs-title { margin: 6px 0 4px; font: 800 clamp(44px, 7vw, 92px)/0.95 "Barlow Condensed", var(--font); letter-spacing: .02em; text-transform: uppercase; color: #f4f1ea; }
+.cs-title span { color: var(--red); }
+.cs-sub { margin: 10px 0 30px; font-size: 15px; letter-spacing: .24em; text-transform: uppercase; color: var(--text); }
+.cs-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 340px)); gap: 20px; justify-content: center; }
+.cs-card { position: relative; display: flex; flex-direction: column; text-align: left; padding: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel-solid); color: var(--text); cursor: pointer; overflow: hidden; font-family: inherit; transition: transform .12s, border-color .15s, box-shadow .15s; }
+.cs-card:hover, .cs-card:focus-visible, .cs-card.pad-focus { transform: translateY(-3px); border-color: var(--cs-accent, var(--red)); box-shadow: 0 10px 34px rgba(0,0,0,0.5), 0 0 0 1px var(--cs-accent, var(--red)); outline: none; }
+.cs-card .cs-img { height: 170px; background-size: cover; background-position: center; filter: saturate(0.9) contrast(1.05); }
+.cs-card .cs-emb { position: absolute; top: 122px; left: 16px; width: 58px; height: 65px; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.6)); }
+.cs-card .cs-body { padding: 26px 18px 18px 18px; }
+.cs-card .cs-name { font: 800 30px/1 "Barlow Condensed", var(--font); text-transform: uppercase; letter-spacing: .03em; }
+.cs-card .cs-city { margin-top: 4px; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.cs-card .cs-teams { margin-top: 12px; font-size: 13px; color: var(--text); }
+.cs-card .cs-teams b { color: var(--cs-accent, var(--red)); }
+.cs-card .cs-teams b + b { color: #4d8bff; }
+.cs-card .cs-blurb { margin-top: 8px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.cs-card .cs-last { position: absolute; top: 12px; right: 12px; padding: 3px 8px; border-radius: 4px; background: rgba(0,0,0,0.65); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--gold); }
+.cs-card.soon { cursor: default; opacity: .55; }
+.cs-note { margin-top: 28px; font-size: 11px; color: var(--muted); }
+.cs-emb .lm-horn, .cs-emb .lm-inner { fill: var(--cs-accent, var(--red)); }
+.cs-emb .lm-shield { fill: #0c0c0e; stroke: var(--cs-accent, var(--red)); stroke-width: 3; }
+.cs-emb .lm-fork { fill: #fff; }

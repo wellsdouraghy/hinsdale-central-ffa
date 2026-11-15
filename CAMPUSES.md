@@ -1,0 +1,64 @@
+# Campus Combat: multi-campus contract
+
+One game, many campuses. Gameplay, networking, UI and the generic world pipeline are shared; each campus supplies
+data + a builder for its own buildings and landmarks. A game update reaches every campus automatically.
+
+Flow: password -> "Welcome to Campus Combat · choose your campus" -> that campus's branded title screen (same menus,
+modes, lobby) -> match. The host's campus travels with the room, so joiners load the same map.
+
+## Layout
+
+```
+src/campuses/index.js            registry: CAMPUSES (ordered list), getCampus(id), DEFAULT_CAMPUS
+src/campuses/<id>/campus.js      descriptor (default export, plain data + loadWorld)
+src/campuses/<id>/world.js       campus builder (export function build(ctx))
+src/campuses/<id>/tools/         offline data scripts for this campus (python/node, run by hand)
+public/campuses/<id>/            this campus's data + baked assets (Hinsdale keeps its existing paths)
+```
+
+## Descriptor (`src/campuses/<id>/campus.js`)
+
+```js
+export default {
+  id: 'marin',                       // url/room id, lowercase
+  name: 'Marin Academy',             // full name (loading screen, credits)
+  wordmark: ['Marin', 'Academy'],    // title logo: small top line, big main line
+  city: 'San Rafael, CA',
+  legal: 'Fan-made campus game. Not affiliated with Marin Academy.',
+  brand: { accent: '#d22630', accent2: '#ff4b55', dark: '#0b0b0d' },   // menu accent colors
+  teams: { red: 'Wildcats', blue: 'Bulls' },   // player-facing names; ids stay red/blue, colors stay red/blue
+  origin: { lat, lon, height },      // local frame origin (x east, z south, metres); height = ellipsoid m for 3D tiles
+  tileRegistration: [[x, z], ...],   // open flat spots for 3D-tiles ground registration (see src/world/tiles.js)
+  files: {                           // all relative to the site root
+    campus: 'campuses/marin/campus.json',   // OSM-derived local-metre data (same shape as public/data/campus.json)
+    gen: 'campuses/marin/gen.json',
+    satellite: 'campuses/marin/satellite.jpg',      // covers `sat`
+    groundMacro: 'campuses/marin/ground_macro.jpg',
+    groundMask: 'campuses/marin/ground_mask.png',
+    roofs: 'campuses/marin/roofs.jpg',
+    surfaceClasses: 'campuses/marin/surface_classes.png',
+  },
+  sat: { minX, maxX, minZ, maxZ },   // world extent of satellite/ground images (m)
+  playBounds: { minX, maxX, minZ, maxZ },
+  ctf: { red: [x, z], blue: [x, z] },        // flag bases, far apart, open ground
+  practiceHeli: { x, z, yaw },               // helicopter parking in practice
+  heliPark: [[x, z], ...],                   // optional extra open spots good for the hidden heli
+  tour: [ { pos: [[x,y,z] x4], tgt: [[x,y,z] x4], label }, ... ],   // menu camera tour (see src/game/menuTour.js)
+  loadWorld: () => import('./world.js'),
+};
+```
+
+## Builder (`src/campuses/<id>/world.js`)
+
+`export function build(ctx)` replaces Hinsdale's `buildSchool / buildHouses / buildLandmarks / buildProps` calls.
+`ctx` is exactly what those receive today (`src/world/index.js`): `data, gen, T, M, B, scene, sky, applyBakedShadow,
+playBounds, surfaceAt, blockers, instanced, updaters, shrubs, grapplePoles, ladders, quality, campus`.
+Everything else (ground, sky, post, trees from `gen.trees`, grass, collision, spawns, nav, heli spots, shadow bake,
+3D tiles) is generic and driven by the descriptor.
+
+Reuse the shared helpers in `src/world/` (`util.js` Builder, `facade.js`, `trees.js`, `assets.js` materials, props
+helpers). Shared modules may gain backward-compatible options; never change Hinsdale's output.
+
+Rules for every campus: outdoor only (buildings solid, roofs reachable where real), collision for anything you can
+see, grapple poles registered in `ctx.grapplePoles`, ladders in `ctx.ladders`, no neighbourhood clutter outside the
+play area beyond low-detail context, same performance budget as Hinsdale (medium quality must hold 60 fps).

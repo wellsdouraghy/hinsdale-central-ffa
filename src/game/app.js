@@ -6,6 +6,8 @@ import { loadSettings, saveSettings, resolveGoogleKey, sanitizeName } from './se
 import { createAudio } from './audio.js';
 import { Input } from './input.js';
 import { GamepadInput } from './gamepad.js';
+import { CAMPUSES, getCampus, activeCampus, setActiveCampus } from '../campuses/index.js';
+import { initBranding } from '../ui/branding.js';
 import { Game } from './game.js';
 import { createHitscan } from './hitscan.js';
 import { planPractice, planCtfPractice } from './practice.js';
@@ -49,6 +51,10 @@ input.forceActive = debug;
 let pad = null;
 const hud = createHud();
 const minimap = createMinimap(document.getElementById('minimap'));
+// Campus: ?campus= (testing / links) > last choice. Joiners switch to the host's campus when they connect.
+setActiveCampus(getCampus(params.get('campus') || settings.campus).id);
+initBranding();
+
 const menus = createMenus({
   settings,
   sound: (kind) => (kind === 'hover' ? audio.uiHover() : kind === 'back' ? audio.uiBack() : audio.uiSelect()),
@@ -74,12 +80,14 @@ const lobbyUi = createLobbyUi({
   onCopy: () => copyInvite(),
 });
 
+const csEl = document.getElementById('campus-select');
 let worldCache = null;   // { key, world, scene, effects }
 const tour = createMenuTour({ camera });
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 /** Menu cinematic over the loaded campus (title + lobby); low quality / reduced motion keep the aerial still. */
 function maybeTour() {
   if (game || !worldCache || settings.quality === 'low' || reducedMotion || autostart) return;
+  if (worldCache.world.campus !== activeCampus() || !csEl.classList.contains('hidden')) return;
   tour.start(worldCache.world);
 }
 let game = null;
@@ -93,14 +101,15 @@ addEventListener('keydown', unlockAudio, { capture: true });
 // ---------- world ----------
 async function getWorld(onProgress) {
   const gkey = resolveGoogleKey(settings);
-  const key = `${settings.quality}|${gkey || ''}`;
+  const campus = activeCampus();
+  const key = `${campus.id}|${settings.quality}|${gkey || ''}`;
   if (worldCache && worldCache.key === key) { onProgress(1, 'Ready'); return worldCache; }
   if (worldCache) { worldCache.world.dispose(); worldCache = null; }
   const scene = new THREE.Scene();
   const world = await createWorld({
     renderer, scene, camera,
     settings: { quality: settings.quality, googleTilesKey: gkey },
-    onProgress,
+    onProgress, campus,
   });
   world.setSize(innerWidth, innerHeight);
   worldCache = { key, world, scene, effects: createEffects(scene) };
@@ -114,12 +123,18 @@ let worldLoading = null;
 /** Loads (or reuses) the world; every caller's onProgress hears the shared load (menu preload, loading screen, lobby). */
 const progressFns = new Set();
 let lastProgress = null;
+let worldLoadingFor = null;   // campus the running load builds
 function worldReady(onProgress) {
   if (onProgress) progressFns.add(onProgress);
-  if (!worldLoading) {
+  const campus = activeCampus();
+  if (!worldLoading || worldLoadingFor !== campus) {
+    // Nothing loading, or a load for another campus (the player switched): ours starts once that one is done.
+    const prev = worldLoading || Promise.resolve();
     lastProgress = null;
-    worldLoading = getWorld((f, label) => { lastProgress = [f, label]; for (const fn of progressFns) fn(f, label); })
-      .finally(() => { worldLoading = null; progressFns.clear(); });
+    worldLoadingFor = campus;
+    const p = prev.catch(() => {}).then(() => getWorld((f, label) => { lastProgress = [f, label]; for (const fn of progressFns) fn(f, label); }));
+    worldLoading = p;
+    p.finally(() => { if (worldLoading === p) { worldLoading = null; worldLoadingFor = null; progressFns.clear(); } }).catch(() => {});
   } else if (onProgress && lastProgress) onProgress(...lastProgress);
   return worldLoading;
 }
@@ -139,7 +154,8 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
   settings.name = sanitizeName(menus.name || settings.name);
   saveSettings(settings);
   menus.showTitleError('');
-  const titles = { practice: ['Practice range', 'Hinsdale Central'], host: ['Opening lobby', 'Hinsdale Central'], join: ['Joining room', `Room ${code}`] };
+  const cname = activeCampus().name;
+  const titles = { practice: ['Practice range', cname], host: ['Opening lobby', cname], join: ['Joining room', `Room ${code}`] };
   menus.showLoading(...titles[mode], { mode: gameMode, practice: mode === 'practice', bounds: PLAY_BOUNDS });
   let mic = null;
   try {
@@ -157,10 +173,12 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
     if (mode === 'host') {
       net = await createHostNet({
         name: settings.name, onStatus: (s) => menus.setProgress(0.3, s),
-        settings: { mode: gameMode, bots: bots?.count ?? 0, difficulty: bots?.difficulty ?? 'normal' },
+        settings: { mode: gameMode, bots: bots?.count ?? 0, difficulty: bots?.difficulty ?? 'normal', campus: activeCampus().id },
       });
     } else {
       net = await createClientNet({ code, name: settings.name, onStatus: (s) => menus.setProgress(0.3, s) });
+      // The room's campus is the host's: switch to it (the world reloads if a different campus was preloaded).
+      if (net.campus && setActiveCampus(getCampus(net.campus).id)) tour.stop();
     }
     wireNet(net);
     ensureVoice(net);
@@ -423,6 +441,46 @@ async function copyInvite() {
   catch { menus.toast(url, 6); }
 }
 menus.on('copyInvite', copyInvite);
+
+// ---------- campus select ("Welcome to Campus Combat") ----------
+function esc2(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function renderCampusCards() {
+  const wrap = document.getElementById('cs-cards');
+  wrap.innerHTML = CAMPUSES.map((c) => `
+    <button class="cs-card" data-campus-id="${c.id}" style="--cs-accent:${c.brand?.red || '#e3242b'}">
+      <div class="cs-img" style="background-image:url(./${c.thumb || c.files.satellite})"></div>
+      ${c.emblem ? `<svg class="cs-emb" viewBox="0 0 100 112" aria-hidden="true">${c.emblem}</svg>` : ''}
+      ${c.id === settings.campus ? '<span class="cs-last">Last played</span>' : ''}
+      <div class="cs-body">
+        <div class="cs-name">${esc2(c.name)}</div>
+        <div class="cs-city">${esc2(c.city)}</div>
+        <div class="cs-teams"><b>${esc2(c.teams.red)}</b> vs <b>${esc2(c.teams.blue)}</b></div>
+        ${c.blurb ? `<div class="cs-blurb">${esc2(c.blurb)}</div>` : ''}
+      </div>
+    </button>`).join('');
+  wrap.querySelectorAll('.cs-card').forEach((b) => b.addEventListener('click', () => chooseCampus(b.dataset.campusId)));
+}
+function showCampusSelect() {
+  if (game || net || starting) return;
+  tour.stop();
+  renderCampusCards();
+  csEl.classList.remove('hidden');
+  document.getElementById('title').classList.add('hidden');
+  const last = csEl.querySelector(`[data-campus-id="${settings.campus}"]`) || csEl.querySelector('.cs-card');
+  setTimeout(() => last?.focus({ preventScroll: true }), 30);
+}
+function chooseCampus(id) {
+  setActiveCampus(getCampus(id).id);
+  settings.campus = activeCampus().id;
+  saveSettings(settings);
+  csEl.classList.add('hidden');
+  menus.showTitle();
+  audio.uiSelect();
+  if (worldCache?.world.campus === activeCampus()) { menus.setWorldStatus(1); maybeTour(); return; }
+  menus.setWorldStatus(0, 'Loading campus');
+  preloadWorld();   // queues behind any load still running for the previous campus
+}
+document.getElementById('btn-campus').addEventListener('click', showCampusSelect);
 menus.on('toLobby', () => net?.isHost && net.backToLobby());
 
 input.onLockChange = (locked) => {
@@ -547,6 +605,9 @@ checkForUpdate().then((v) => { if (v) { menus.showTitleError(`A newer version ($
 
 // Menu: start loading the campus in the background (unless we go straight into a match).
 if (!autostart) setTimeout(preloadWorld, 50);
+// Welcome screen first (skipped for invite links and automation, which go straight to the title / match).
+if (!autostart && !(joinParam.length === 6)) showCampusSelect();
+else if (!autostart) menus.showTitle();
 document.getElementById('cine').classList.remove('hidden');
 
 if (autostart === 'practice') start('practice', null, autoMode, autoBots);

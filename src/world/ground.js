@@ -2,7 +2,11 @@
 import * as THREE from 'three';
 import { applyBakedShadow } from './sky.js';
 
+import { onCampusChange } from '../campuses/index.js';
+
+/** World extent of the active campus's satellite / ground images (updated in place when the campus changes). */
 export const SAT = { minX: -394.85, maxX: 394.85, minZ: -305.44, maxZ: 305.44 };
+onCampusChange((c) => Object.assign(SAT, c.sat));
 
 function avgColor(tex) {
   // mean linear-ish colour of a texture image (for normalising detail maps so they only add variation)

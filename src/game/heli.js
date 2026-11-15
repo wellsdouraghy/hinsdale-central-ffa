@@ -89,8 +89,9 @@ export class HeliRules {
 
   _spots() {
     const w = this.auth.world;
-    // Practice: always park on Dickinson Field (stadium turf, just north of midfield, nose toward the north end zone).
-    if (this.auth.practice) return [{ pos: new THREE.Vector3(-154, 0, -98), yaw: 0 }];
+    // Practice: always park at the campus's practice spot (Hinsdale: Dickinson Field turf, nose north).
+    const ph = w.practiceHeli;
+    if (this.auth.practice && ph) return [{ pos: new THREE.Vector3(ph.x, 0, ph.z), yaw: ph.yaw ?? 0 }];
     if (w.heliSpawns?.length) return w.heliSpawns.map((s) => ({ pos: s.pos, yaw: s.yaw ?? 0 }));
     return w.spawnPoints.map((p) => ({ pos: p, yaw: Math.random() * Math.PI * 2 }));
   }

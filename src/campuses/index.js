@@ -1,0 +1,31 @@
+// Campus registry (see CAMPUSES.md). One active campus at a time; shared modules read its values through the
+// mutable objects they export (SAT, PLAY_BOUNDS, TEAM_NAMES...), updated in place through onCampusChange().
+import hinsdale from './hinsdale/campus.js';
+
+export const CAMPUSES = [hinsdale];
+export const DEFAULT_CAMPUS = 'hinsdale';
+
+export function getCampus(id) {
+  return CAMPUSES.find((c) => c.id === id) || CAMPUSES.find((c) => c.id === DEFAULT_CAMPUS);
+}
+
+let active = getCampus(DEFAULT_CAMPUS);
+const listeners = new Set();
+
+export function activeCampus() { return active; }
+
+/** Switches the active campus and notifies listeners (branding, constants). Returns true if it changed. */
+export function setActiveCampus(id) {
+  const c = getCampus(id);
+  if (c === active) return false;
+  active = c;
+  for (const fn of listeners) fn(c);
+  return true;
+}
+
+/** fn(campus) now and on every change. */
+export function onCampusChange(fn) {
+  listeners.add(fn);
+  fn(active);
+  return () => listeners.delete(fn);
+}

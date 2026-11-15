@@ -1,4 +1,4 @@
-// World module: builds the Hinsdale Central campus (see CONTRACTS.md for the interface).
+// World module: builds the active campus (see CONTRACTS.md for the interface, CAMPUSES.md for campuses).
 import * as THREE from 'three';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Builder } from './util.js';
@@ -6,32 +6,35 @@ import { loadTextures, createMaterials } from './assets.js';
 import { createSky, sunDirection, applyBakedShadow } from './sky.js';
 import { createGround, SAT } from './ground.js';
 import { createPost } from './post.js';
-import { buildSchool, buildHouses } from './buildings.js';
-import { buildLandmarks } from './landmarks.js';
-import { buildProps } from './props.js';
 import { createTrees } from './trees.js';
 import { createGrass } from './grass.js';
 import { createTiles } from './tiles.js';
+import { activeCampus, onCampusChange, setActiveCampus } from '../campuses/index.js';
 import { buildCollision, computeSpawns, nearestOpenGround, spawnsNear, buildNav, pickHeliSpawns } from './collision.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+/** Active campus play area (updated in place when the campus changes). */
 export const PLAY_BOUNDS = { minX: -222, maxX: 292, minZ: -212, maxZ: 214 };
+onCampusChange((c) => Object.assign(PLAY_BOUNDS, c.playBounds));
 const BASE_ATTRIBUTION = 'Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &middot; Imagery &copy; Esri, Maxar, Earthstar Geographics';
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
-export async function createWorld({ renderer, scene, camera, settings = {}, onProgress = () => {} }) {
+export async function createWorld({ renderer, scene, camera, settings = {}, onProgress = () => {}, campus = activeCampus() }) {
+  const F = campus.files;
+  setActiveCampus(campus.id);   // shared constants (SAT, PLAY_BOUNDS, tile origin) follow the campus being built
   const quality = ['low', 'medium', 'high'].includes(settings.quality) ? settings.quality : 'high';
   const progress = (f, label) => { try { onProgress(Math.min(1, f), label); } catch (e) { /* ignore */ } };
   const root = new THREE.Group(); root.name = 'world'; scene.add(root);
   const customVisuals = new THREE.Group(); customVisuals.name = 'world-visuals'; root.add(customVisuals);
 
   progress(0.02, 'Loading campus data');
-  const [data, gen] = await Promise.all([
-    fetch('./data/campus.json').then((r) => r.json()),
-    fetch('./assets/world/gen.json').then((r) => r.json()),
+  const [data, gen, builder] = await Promise.all([
+    fetch('./' + F.campus).then((r) => r.json()),
+    fetch('./' + F.gen).then((r) => r.json()),
+    campus.loadWorld(),
   ]);
 
   progress(0.05, 'Loading sky');
@@ -39,7 +42,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const sky = await createSky({ renderer, scene, quality });
 
   progress(0.12, 'Loading textures');
-  const T = await loadTextures(renderer, quality, (f) => progress(0.12 + f * 0.28, 'Loading textures'));
+  const T = await loadTextures(renderer, quality, (f) => progress(0.12 + f * 0.28, 'Loading textures'), { groundMacro: F.groundMacro, groundMask: F.groundMask, roofs: F.roofs });
   const M = createMaterials(T, quality);
   await tick();
 
@@ -47,7 +50,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const classNames = ['grass', 'asphalt', 'concrete', 'rubber', 'dirt'];
   let classMap = null;
   try {
-    const img = await new THREE.ImageLoader().loadAsync('./assets/world/surface_classes.png');
+    const img = await new THREE.ImageLoader().loadAsync('./' + F.surfaceClasses);
     const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
     const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(img, 0, 0);
     classMap = { w: img.width, h: img.height, d: g.getImageData(0, 0, img.width, img.height).data };
@@ -61,16 +64,10 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
 
   progress(0.42, 'Building terrain');
   const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality });
-  const ctx = { data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: PLAY_BOUNDS, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
+  const ctx = { campus, data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: { ...campus.playBounds }, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
 
-  progress(0.48, 'Building school'); await tick();
-  buildSchool(ctx);
-  progress(0.56, 'Building neighbourhood'); await tick();
-  buildHouses(ctx);
-  progress(0.62, 'Building stadium and fields'); await tick();
-  buildLandmarks(ctx);
-  progress(0.7, 'Placing vehicles and props'); await tick();
-  buildProps(ctx);
+  progress(0.48, 'Building campus'); await tick();
+  await builder.build(ctx, progress);
 
   // merge the static geometry: one mesh per material
   progress(0.76, 'Merging geometry'); await tick();
@@ -92,8 +89,8 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const collisionGroup = new THREE.Group(); collisionGroup.name = 'world-collision'; collisionGroup.visible = false; root.add(collisionGroup);
   const collisionMeshes = buildCollision(ctx, collisionGroup);
   const spawnPoints = computeSpawns(ctx, collisionMeshes);
-  // capture-the-flag: red = Dickinson Field stadium (west end), blue = east ball fields across the east street (~395 m apart); team spawns 25-70 m from their base
-  const ctfBases = { red: nearestOpenGround(ctx, -154, -88), blue: nearestOpenGround(ctx, 241, -95) };
+  // capture-the-flag bases from the campus descriptor (far apart, open ground); team spawns 25-70 m from their base
+  const ctfBases = { red: nearestOpenGround(ctx, ...campus.ctf.red), blue: nearestOpenGround(ctx, ...campus.ctf.blue) };
   const ctfSpawns = { red: spawnsNear(ctx, ctfBases.red, 25, 70, 10, ctfBases.blue), blue: spawnsNear(ctx, ctfBases.blue, 25, 70, 10, ctfBases.red) };
   // bot navigation grid + helicopter parking spots (see CONTRACTS.md round 6)
   const nav = buildNav(ctx, collisionMeshes, [...spawnPoints, ctfBases.red, ctfBases.blue, ...ctfSpawns.red, ...ctfSpawns.blue]);
@@ -120,7 +117,10 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     ctfSpawns,
     grapplePoles: ctx.grapplePoles,   // [{ x, z, y0, y1, r }] thin vertical poles for grapple aim assist
     ladders: ctx.ladders,             // [{ x, z, nx, nz, y0, y1, exitY }] climbable ladders
-    playBounds: { ...PLAY_BOUNDS },
+    playBounds: { ...campus.playBounds },
+    campus,
+    tour: campus.tour || [],
+    practiceHeli: campus.practiceHeli || null,
     sunDirection: sunDirection.clone(),
     get attributionHTML() { return attributionHTML; },
     // ---- optional extras (see CONTRACTS.md change log)

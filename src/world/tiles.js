@@ -4,11 +4,15 @@ import { TilesRenderer } from '3d-tiles-renderer';
 import { GoogleCloudAuthPlugin, ReorientationPlugin, TileCompressionPlugin, TilesFadePlugin, UpdateOnChangePlugin, GLTFExtensionsPlugin, UnloadTilesPlugin } from '3d-tiles-renderer/plugins';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
-export const ORIGIN = { lat: 41.78725, lon: -87.93375 };
+import { onCampusChange } from '../campuses/index.js';
+
+/** Active campus origin + flat ground spots for registering the tile ground to y = 0 (updated in place). */
+export const ORIGIN = { lat: 41.78725, lon: -87.93375, height: 187.9 };
 const ERROR_TARGET = { low: 22, medium: 12, high: 7 };
 const GOOGLE_LOGO = '<img src="https://www.gstatic.com/images/branding/googlelogo/1x/googlelogo_light_color_68x28dp.png" alt="Google" style="height:16px;vertical-align:middle;margin-right:6px">';
 // open, flat spots (x, z) used to register the tile ground to y = 0
-const GROUND_PROBES = [[-150, 60], [-160, 90], [245, 30], [262, 48], [60, 150], [85, 140], [-60, 160], [240, -70], [-153, -100], [-59, 37], [150, 150], [-216, 0], [0, -203]];
+const GROUND_PROBES = [];
+onCampusChange((c) => { Object.assign(ORIGIN, c.origin); GROUND_PROBES.length = 0; GROUND_PROBES.push(...(c.tileRegistration || [[0, 0]])); });
 const scrub = (s) => String(s).replace(/key=[^&\s"']+/gi, 'key=***').replace(/session=[^&\s"']+/gi, 'session=***');
 
 export function createTiles({ renderer, scene, camera, key, quality, customVisuals, sky }) {
@@ -28,7 +32,7 @@ export function createTiles({ renderer, scene, camera, key, quality, customVisua
     tiles.registerPlugin(new UnloadTilesPlugin());
     tiles.registerPlugin(new TilesFadePlugin({ fadeDuration: 250 }));
     // initial height guess (ellipsoid height of the campus ~ 188 m); refined by ground probes below
-    tiles.registerPlugin(new ReorientationPlugin({ lat: ORIGIN.lat * THREE.MathUtils.DEG2RAD, lon: ORIGIN.lon * THREE.MathUtils.DEG2RAD, height: 187.9, recenter: true }));
+    tiles.registerPlugin(new ReorientationPlugin({ lat: ORIGIN.lat * THREE.MathUtils.DEG2RAD, lon: ORIGIN.lon * THREE.MathUtils.DEG2RAD, height: ORIGIN.height ?? 0, recenter: true }));
     tiles.errorTarget = ERROR_TARGET[quality] || 10;
     tiles.lruCache.minBytesSize = (quality === 'low' ? 0.15 : 0.3) * 2 ** 30;
     tiles.lruCache.maxBytesSize = (quality === 'low' ? 0.22 : 0.45) * 2 ** 30;

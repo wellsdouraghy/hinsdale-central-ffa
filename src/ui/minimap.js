@@ -1,10 +1,14 @@
 // Rotating minimap drawn from the satellite image (player-centered, heading up).
+import { onCampusChange } from '../campuses/index.js';
+
+let satPromise = null;
+/** Active campus satellite image and its world extent (updated in place when the campus changes). */
 export const SAT = { url: './assets/satellite/campus_z19.jpg', minX: -394.85, maxX: 394.85, minZ: -305.44, maxZ: 305.44 };
+onCampusChange((c) => { const url = './' + c.files.satellite; if (url !== SAT.url) satPromise = null; Object.assign(SAT, c.sat, { url }); });
 /** Map colors relative to the viewer (never team colors): teammates green arrows, enemies red dots. */
 export const MAP_ALLY = '#46e37a';
 export const MAP_ENEMY = '#ff3b3b';
 
-let satPromise = null;
 /** The campus satellite image (north up: image top = -z), loaded once and shared by the minimap and the strike laptop. */
 export function loadSatellite() {
   if (!satPromise) {

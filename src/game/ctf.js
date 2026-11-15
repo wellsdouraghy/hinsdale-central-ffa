@@ -1,5 +1,6 @@
 // Capture the Flag: shared constants/helpers + host-side flag rules (used by Authority).
 import * as THREE from 'three';
+import { onCampusChange } from '../campuses/index.js';
 
 export const CTF = {
   capLimit: 3,
@@ -16,6 +17,7 @@ export const TEAM_COLORS = { red: 0xe0242c, blue: 0x2a6bff };
 export const TEAM_CSS = { red: '#ff4d55', blue: '#4d8bff' };
 // Player-facing team names (internal ids stay 'red' / 'blue'). Both are plural: "Lions have your flag".
 export const TEAM_NAMES = { red: 'Red Devils', blue: 'Lions' };
+onCampusChange((c) => Object.assign(TEAM_NAMES, c.teams));
 export const otherTeam = (t) => (t === 'red' ? 'blue' : 'red');
 
 const DEFAULT_BASES = { red: [-150, 0, -99], blue: [7, 0, 128] };

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Hinsdale Central FFA</title>
-  <meta name="description" content="Browser free-for-all shooter on the Hinsdale Central High School campus. Play with friends via room codes." />
+  <title>Campus Combat</title>
+  <meta name="description" content="Campus Combat: browser shooter on real school campuses. Play with friends via room codes." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='none' stroke='%23e0393e' stroke-width='3'/%3E%3Cpath d='M16 2v8M16 22v8M2 16h8M22 16h8' stroke='%23e0393e' stroke-width='3'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -24,12 +24,23 @@
     </div>
 
     <!-- ================= TITLE ================= -->
-    <section id="title" class="screen fe-screen">
+    <section id="campus-select" class="screen cs-screen hidden">
+      <div class="cs-bg"></div>
+      <div class="cs-wrap">
+        <div class="cs-kicker">Welcome to</div>
+        <h1 class="cs-title">Campus <span>Combat</span></h1>
+        <p class="cs-sub">Choose your campus</p>
+        <div class="cs-cards" id="cs-cards"></div>
+        <p class="cs-note">Fan-made. Not affiliated with any school.</p>
+      </div>
+    </section>
+
+    <section id="title" class="screen fe-screen hidden">
       <div class="title-bg kb"></div>
       <div class="fe">
         <div class="fe-left">
           <header class="logo">
-            <svg class="logo-mark" viewBox="0 0 100 112" aria-hidden="true">
+            <svg class="logo-mark" viewBox="0 0 100 112" aria-hidden="true" data-campus="emblem">
               <path class="lm-horn" d="M22 34C12 24 9 12 14 0c4 12 12 19 24 23z" />
               <path class="lm-horn" d="M78 34C88 24 91 12 86 0c-4 12-12 19-24 23z" />
               <path class="lm-shield" d="M50 16 86 30 82 66c-4 20-17 34-32 44C35 100 22 86 18 66L14 30z" />
@@ -37,8 +48,8 @@
               <path class="lm-fork" d="M48 46h4v44h-4zM34 40l5 4v10c0 6 5 9 11 9s11-3 11-9V44l5-4v14c0 10-7 15-16 15s-16-5-16-15zM50 30l5 12h-10z" />
             </svg>
             <div class="logo-type">
-              <div class="logo-kicker"><span>Red Devils</span><i></i><span>Campus Combat</span></div>
-              <h1 class="logo-word"><span class="lw-top">Hinsdale</span><span class="lw-main">Central</span></h1>
+              <div class="logo-kicker"><span data-team-name="red">Red Devils</span><i></i><span>Campus Combat</span></div>
+              <h1 class="logo-word"><span class="lw-top" data-campus="word0">Hinsdale</span><span class="lw-main" data-campus="word1">Central</span></h1>
               <div class="logo-tags"><span>FFA</span><span>Team DM</span><span>CTF</span><span class="hot">Bots</span></div>
             </div>
           </header>
@@ -58,6 +69,7 @@
             <button class="fe-item" id="btn-classes"><span class="fe-idx">02</span><span class="fe-lbl">Classes</span><span class="fe-hint">Loadouts &amp; outfits</span></button>
             <button class="fe-item" id="btn-settings"><span class="fe-idx">03</span><span class="fe-lbl">Settings</span><span class="fe-hint">Controls, video, audio</span></button>
             <button class="fe-item" id="btn-credits"><span class="fe-idx">04</span><span class="fe-lbl">Credits</span><span class="fe-hint">Who &amp; what made this</span></button>
+            <button class="fe-item" id="btn-campus"><span class="fe-idx">05</span><span class="fe-lbl">Campus</span><span class="fe-hint">Switch to another school</span></button>
           </nav>
           <div id="title-error" class="error-msg" role="alert"></div>
         </div>
@@ -73,13 +85,13 @@
             </div>
           </div>
           <div class="fe-card fe-news">
-            <div class="fe-card-h"><span>What&rsquo;s new</span><b id="fe-build">Build 11</b></div>
+            <div class="fe-card-h"><span>What&rsquo;s new</span><b id="fe-build">Build 12</b></div>
             <ul class="news">
+              <li><b>Campus Combat</b>Pick your school: every campus gets the same game and every update.</li>
+              <li><b>Xbox controller</b>Plug in a pad and play, menus included. Rumble and look settings.</li>
+              <li><b>Collaterals</b>Sniper rounds go through up to three players. Double and triple kill callouts.</li>
               <li><b>Airstrike laptop</b>Flip it open with 4, mark the run on the campus map, three jets carpet the line.</li>
-              <li><b>Finishers</b>Every melee kill plays one of five third-person finisher scenes.</li>
-              <li><b>Class outfits</b>Infantry, spec ops, heavy, desert and varsity kits per class.</li>
-              <li><b>Attack helicopter</b>Hidden on campus in FFA and TDM. Bots fly it if they find it.</li>
-              <li><b>Pre-match lobby</b>Teams, bots and settings before you drop in.</li>
+              <li><b>Attack helicopter</b>Hidden on campus in FFA and TDM. Land it, bail out, crash it into people.</li>
             </ul>
           </div>
           <details class="fe-card fe-controls">
@@ -89,9 +101,9 @@
         </div>
 
         <footer class="fe-foot">
-          <span class="fe-ver"><b>HC</b> Build 11 &middot; Season 1</span>
+          <span class="fe-ver"><b data-campus="short">HC</b> Build 12 &middot; Season 1</span>
           <span class="fe-world" id="fe-world"><i></i><span id="fe-world-txt">Loading campus</span></span>
-          <span class="fe-legal">Fan-made campus game. Not affiliated with Hinsdale Central High School or District 86.</span>
+          <span class="fe-legal" data-campus="legal">Fan-made campus game. Not affiliated with Hinsdale Central High School or District 86.</span>
         </footer>
       </div>
     </section>
@@ -100,14 +112,14 @@
     <section id="credits" class="overlay hidden">
       <div class="panel credits-panel">
         <div class="end-kicker">Credits</div>
-        <h2>Hinsdale Central</h2>
+        <h2 data-campus="name">Hinsdale Central</h2>
         <div class="credits-grid">
           <div><h4>Made by</h4><p>A small crew of friends and a few tireless AI builders: gameplay, world and visuals were built from scratch.</p></div>
           <div><h4>Campus</h4><p>Map data &copy; OpenStreetMap contributors (ODbL). Aerial imagery &copy; Esri, Maxar, Earthstar Geographics. Optional 3D scan &copy; Google.</p></div>
           <div><h4>Art &amp; audio</h4><p>Weapons, effects, outfits, jets and helicopter are procedural and original. All sound is synthesized live with Web Audio. Soldier base model: Mixamo via three.js examples. Sky: Poly Haven (CC0). Textures: ambientCG &amp; Poly Haven (CC0).</p></div>
           <div><h4>Tech</h4><p>three.js, three-mesh-bvh, postprocessing, n8ao, 3d-tiles-renderer, PeerJS. Fonts: Barlow Condensed &amp; Inter (OFL).</p></div>
         </div>
-        <p class="credits-legal">Fan-made. Not affiliated with Hinsdale Central High School or District 86. Full list in CREDITS.md.</p>
+        <p class="credits-legal"><span data-campus="legal">Fan-made. Not affiliated with Hinsdale Central High School or District 86.</span> Full list in CREDITS.md.</p>
         <div class="set-actions"><button id="btn-credits-close" class="btn primary">Close</button></div>
       </div>
     </section>
@@ -208,9 +220,9 @@
       </div>
 
       <div id="timer-wrap">
-        <div id="ctf-red" class="ctf-team red hidden"><div class="ctf-score"><span class="ctf-name">Red Devils</span><b id="ctf-red-score">0</b></div><div class="ctf-flag" id="ctf-red-flag">Home</div></div>
+        <div id="ctf-red" class="ctf-team red hidden"><div class="ctf-score"><span class="ctf-name" data-team-name="red">Red Devils</span><b id="ctf-red-score">0</b></div><div class="ctf-flag" id="ctf-red-flag">Home</div></div>
         <div class="timer-col"><div id="timer">10:00</div><div id="timer-sub">First to 30</div></div>
-        <div id="ctf-blue" class="ctf-team blue hidden"><div class="ctf-score"><b id="ctf-blue-score">0</b><span class="ctf-name">Lions</span></div><div class="ctf-flag" id="ctf-blue-flag">Home</div></div>
+        <div id="ctf-blue" class="ctf-team blue hidden"><div class="ctf-score"><b id="ctf-blue-score">0</b><span class="ctf-name" data-team-name="blue">Lions</span></div><div class="ctf-flag" id="ctf-blue-flag">Home</div></div>
       </div>
       <div id="markers"></div>
       <div id="speakers"></div>
@@ -332,11 +344,11 @@
           </button>
           <button class="mode-card" data-mode="tdm">
             <div class="mc-name">Team Deathmatch</div>
-            <div class="mc-desc">Red Devils vs Lions. First team to 50 kills or 10 minutes.</div>
+            <div class="mc-desc"><span data-team-name="red">Red Devils</span> vs <span data-team-name="blue">Lions</span>. First team to 50 kills or 10 minutes.</div>
           </button>
           <button class="mode-card" data-mode="ctf">
             <div class="mc-name">Capture the Flag</div>
-            <div class="mc-desc">Red Devils vs Lions. Steal the enemy flag from their base and bring it home. First to 3 captures or 12 minutes.</div>
+            <div class="mc-desc"><span data-team-name="red">Red Devils</span> vs <span data-team-name="blue">Lions</span>. Steal the enemy flag from their base and bring it home. First to 3 captures or 12 minutes.</div>
           </button>
         </div>
         <div class="bot-setup">

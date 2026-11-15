@@ -22,7 +22,7 @@ export function showMobileGate() {
     <div class="mg-box">
       <div class="mg-mark" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="21"/><path d="M32 4v16M32 44v16M4 32h16M44 32h16"/><circle cx="32" cy="32" r="3" class="dot"/></svg></div>
       <div class="mg-kicker">Campus Operations</div>
-      <h1>Hinsdale Central <span>FFA</span></h1>
+      <h1>Campus <span>Combat</span></h1>
       <p class="mg-lead">Please continue on desktop</p>
       <p class="mg-sub">This game needs a keyboard and mouse. Open this link on a laptop or desktop computer:</p>
       <div class="mg-url"><code></code><button type="button">Copy link</button></div>

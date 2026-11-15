@@ -55,6 +55,7 @@ export async function createHostNet({ name, onStatus, settings }) {
     s.botsRed = clampInt(s.botsRed, 0, MATCH.maxPlayers - 1);
     s.botsBlue = clampInt(s.botsBlue, 0, MATCH.maxPlayers - 1);
     s.difficulty = ['easy', 'normal', 'hard'].includes(s.difficulty) ? s.difficulty : 'normal';
+    s.campus = typeof s.campus === 'string' ? s.campus : 'hinsdale';   // fixed for the room's lifetime
     s.scoreLimit = Math.max(1, Math.min(200, Math.round(Number(s.scoreLimit) || DEFAULT_LIMITS[s.mode])));
     return s;
   }
@@ -139,8 +140,8 @@ export async function createHostNet({ name, onStatus, settings }) {
       const m = members.get(id);
       match.authority.addPlayer(id, nm, { pid: conn.peer, team: m.team });
       match.authority.trimBots(m.team);
-      send(conn, match.authority.welcomeFor(id));
-    } else send(conn, { t: 'lobbyWelcome', id, lobby: lobbyState() });
+      send(conn, { ...match.authority.welcomeFor(id), campus: lobby.settings.campus });
+    } else send(conn, { t: 'lobbyWelcome', id, lobby: lobbyState(), campus: lobby.settings.campus });
     pushLobby();
   }
 
@@ -166,7 +167,7 @@ export async function createHostNet({ name, onStatus, settings }) {
         }
         return;
       case 'joinMatch':
-        if (match) send(c?.ev, match.authority.welcomeFor(id));
+        if (match) send(c?.ev, { ...match.authority.welcomeFor(id), campus: lobby.settings.campus });
         return;
       case 'stFallback': if (c) { c.relayEv = true; console.info('[host] relaying states to', id, 'on the reliable channel'); } return;
       case 'st': if (c) c.lastSt = now(); break;

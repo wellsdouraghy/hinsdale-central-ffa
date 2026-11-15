@@ -4,7 +4,8 @@ import { makeCanvas, canvasTexture, mulberry32 } from './util.js';
 
 const BASE = './assets/world/';
 
-export async function loadTextures(renderer, quality, onProgress) {
+/** files: the campus's per-site images ({ groundMacro, groundMask, roofs } relative to the site root). */
+export async function loadTextures(renderer, quality, onProgress, files = {}) {
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
   const aniso = quality === 'low' ? Math.min(2, maxAniso) : Math.min(quality === 'high' ? 16 : 8, maxAniso);
   const loader = new THREE.TextureLoader();
@@ -21,7 +22,7 @@ export async function loadTextures(renderer, quality, onProgress) {
   const keys = Object.keys(list); let done = 0; const out = {};
   await Promise.all(keys.map(async (k) => {
     const [file, srgb, repeat] = list[k];
-    const t = await loader.loadAsync(BASE + file);
+    const t = await loader.loadAsync(files[k] ? './' + files[k] : BASE + file);
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = aniso;

@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   padSens: 1.0,            // controller look speed multiplier
   padInvert: false,        // controller: invert vertical look
   controlsRev: 2,          // bump to migrate old saved control defaults
+  campus: 'hinsdale',     // last chosen campus (see src/campuses)
   mode: 'ffa',             // last chosen game mode for Host / Practice: 'ffa' | 'ctf'
 });
 
@@ -59,6 +60,7 @@ export function loadSettings() {
   // rev 2: Shift is the default sprint key again for everyone (Ctrl stays available in Settings)
   if (stored && !(stored.controlsRev >= 2)) { s.sprintKey = 'shift'; s.controlsRev = 2; saveSettings(s); }
   if (!['ffa', 'ctf', 'tdm'].includes(s.mode)) s.mode = 'ffa';
+  if (typeof s.campus !== 'string' || !/^[a-z0-9-]{1,32}$/.test(s.campus)) s.campus = 'hinsdale';
   s.botCount = Math.max(0, Math.min(11, Math.round(Number(s.botCount) || 0)));
   if (!['easy', 'normal', 'hard'].includes(s.botDiff)) s.botDiff = 'normal';
   return s;

@@ -1,11 +1,12 @@
 // Pre-match lobby screen (DOM only): room code, live settings (host-editable), players per team with mic / ping /
 // ready, bot slots, team moves (click or drag), countdown overlay. Emits intents through handlers.
+import { TEAM_NAMES } from '../game/ctf.js';
+
 const $ = (id) => document.getElementById(id);
-const TEAM_NAMES = { red: 'Red Devils', blue: 'Lions' };
 const MODE_DESC = {
-  ffa: 'Every player for themselves. One attack helicopter is hidden somewhere on campus.',
-  tdm: 'Red Devils vs Lions. Kills score for your team. One attack helicopter is hidden somewhere on campus.',
-  ctf: 'Red Devils vs Lions. Steal the enemy flag and bring it to your base.',
+  ffa: () => 'Every player for themselves. One attack helicopter is hidden somewhere on campus.',
+  tdm: () => `${TEAM_NAMES.red} vs ${TEAM_NAMES.blue}. Kills score for your team. One attack helicopter is hidden somewhere on campus.`,
+  ctf: () => `${TEAM_NAMES.red} vs ${TEAM_NAMES.blue}. Steal the enemy flag and bring it to your base.`,
 };
 const LIMIT_UNIT = { ffa: 'kills', tdm: 'team kills', ctf: 'captures' };
 
@@ -108,7 +109,7 @@ export function createLobbyUi(h) {
     if (document.activeElement !== el.bots) { el.bots.value = s.bots; el.botsO.textContent = s.bots; }
     if (document.activeElement !== el.limit) el.limit.value = s.scoreLimit;
     el.unit.textContent = LIMIT_UNIT[s.mode];
-    el.desc.textContent = MODE_DESC[s.mode];
+    el.desc.textContent = MODE_DESC[s.mode]();
     el.settings.classList.toggle('readonly', !ctx.isHost);
     el.hostOnly.textContent = ctx.isHost ? '' : 'Set by the host';
     el.balance.classList.toggle('hidden', !(ctx.isHost && s.mode !== 'ffa'));
