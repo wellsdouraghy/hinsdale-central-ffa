@@ -66,3 +66,33 @@ helpers). Shared modules may gain backward-compatible options; never change Hins
 Rules for every campus: outdoor only (buildings solid, roofs reachable where real), collision for anything you can
 see, grapple poles registered in `ctx.grapplePoles`, ladders in `ctx.ladders`, no neighbourhood clutter outside the
 play area beyond low-detail context, same performance budget as Hinsdale (medium quality must hold 60 fps).
+
+## Water (`src/world/water.js`)
+
+Shared pools / ponds / fountains for any campus. **Visual only**: it adds no collision and changes no gameplay; the
+walk surface stays the flat ground, players cross at deck height. The surface is one flat mesh just above the ground
+plane and everything under it is faked in the shader (rippling procedural normal, fresnel sky reflection from the
+scene environment, refracted pool floor with tiles / lane lines / walls / darker deep end, caustics on medium+high,
+depth tint, baked far shadows). Around it the module builds a stone coping lip, gutter and waterline band, and for
+competition pools lane ropes, backstroke flags and grab-rail ladders. Cost: one draw call + one small rope mesh per body.
+
+Declare it in the descriptor and call `addCampusWater(ctx)` at the end of the campus builder:
+
+```js
+water: [
+  { kind: 'pool',                                   // 'pool' | 'pond' | 'fountain'
+    rect: { cx, cz, w, d, angle },                  // rectangle (w along local x rotated by angle = atan2(z, x), d across)
+    // or outline: [[x, z], ...]                    // any simple polygon (ponds, round fountains)
+    level: 0.05,                                    // y of the visible surface; keep it a few cm above the ground plane
+    depth: [1.2, 3.8], deepEnd: 1,                  // visual depth (m) shallow -> deep along the long axis; -1 flips the deep end
+    lanes: { count: 14, along: 'short' },           // lane lines + ropes; 'long' (default) or 'short' axis; `true` = auto
+    ladders: 4, flags: true, ropes: true,           // pool furniture (all optional)
+    coping: { w: 0.5, h: 0.11 },                    // or false; copingMaterial: 'limestone' (any material key)
+    tint: [r, g, b], floor: [r, g, b] },            // optional colour overrides (linear)
+],
+```
+
+or call `addWater(ctx, opts)` directly from the builder (same options; returns `{ mesh, ring, level, toWorld }`).
+Ponds get a muddy green-brown tint and a soft transparent shoreline; fountains a shallow tiled basin with livelier
+ripples. Solid things next to the water (starting blocks, deck walls, bleachers) stay the campus builder's job, since
+they need collision. Low quality drops the caustics and the fine tile detail; nothing else changes.

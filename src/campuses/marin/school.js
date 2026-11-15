@@ -229,24 +229,17 @@ function aquaticCenter(ctx) {
   // pool house along Mission Ave (changing rooms / office), white flat roof
   const house = rect(58.6, 45.6, 33.5, 9.4);
   flatBuilding(ctx, house, 4.6, 'maLow', { roof: 'white' });
-  // the 25 yd x 40 m pool (OSM outline): water surface flush with the deck, lane lines, coping, starting blocks
-  const pc = [53.1, 75.6], pw = 24.6, pl = 37.4;
-  const W = 512, H = Math.round(W * pl / pw), c = makeCanvas(W, H), g = c.getContext('2d');
-  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#3fb4de'); gr.addColorStop(1, '#2a93c8'); g.fillStyle = gr; g.fillRect(0, 0, W, H);
-  const rnd = mulberry32(8); for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(255,255,255,${0.03 + rnd() * 0.05})`; g.beginPath(); g.ellipse(rnd() * W, rnd() * H, 6 + rnd() * 16, 2 + rnd() * 4, rnd() * 3, 0, 7); g.fill(); }
-  const lanes = 10; for (let i = 0; i < lanes; i++) { const x = (i + 0.5) * W / lanes; g.fillStyle = 'rgba(12,30,70,0.75)'; g.fillRect(x - 4, 26, 8, H - 52); g.fillRect(x - 14, 26, 28, 7); g.fillRect(x - 14, H - 33, 28, 7); }
-  for (let i = 1; i < lanes; i++) { const x = i * W / lanes; for (let y = 6; y < H - 6; y += 12) { g.fillStyle = (Math.floor(y / 12) % 2) ? '#f2f2ee' : (i % 2 ? '#d83a2e' : '#2a50c8'); g.fillRect(x - 2, y, 4, 10); } }
-  paintedQuad(ctx, c, pc[0], pc[1], pw, pl, ANG + Math.PI / 2, { y: 0.05, rough: 0.08, nScale: 1.6, nStrength: 0.9, offset: -4 });
-  const ring = rect(pc[0], pc[1], pw, pl);
-  for (let i = 0; i < 4; i++) { const a = ring[i], b = ring[(i + 1) % 4]; const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); B.v('whitePanel').box(m[0], 0.06, m[1], L + 0.5, 0.12, 0.5, Math.atan2(-(b[1] - a[1]), b[0] - a[0])); }
-  for (let i = 0; i < lanes; i++) for (const sgn of [-1, 1]) { const p = gp(pc[0], pc[1], -pw / 2 + (i + 0.5) * pw / lanes, sgn * (pl / 2 + 0.55)); B.v('whitePanel').box(p[0], 0.35, p[1], 0.55, 0.7, 0.6, ROT); B.v('panelGray').box(p[0], 0.72, p[1], 0.62, 0.06, 0.7, ROT); B.c('concrete').box(p[0], 0.37, p[1], 0.6, 0.75, 0.65, ROT); }
+  // The pool itself is the shared water feature (descriptor `water`, see src/world/water.js): 25 yd lanes running
+  // east-west, starting blocks along the east deck as in the imagery. Only the blocks are built (and solid) here.
+  const pc = [53.1, 75.6]; const wc = [53.5, 73.6], pw = 23.6, pl = 33.6, lanes = 14;
+  for (let i = 0; i < lanes; i++) { const p = gp(wc[0], wc[1], pw / 2 + 0.62, -pl / 2 + (i + 0.5) * pl / lanes); B.v('whitePanel').box(p[0], 0.4, p[1], 0.6, 0.58, 0.55, ROT); B.v('panelGray').box(p[0], 0.72, p[1], 0.7, 0.06, 0.62, ROT); B.c('concrete').box(p[0], 0.37, p[1], 0.65, 0.75, 0.6, ROT); }
   // deck enclosure: stucco wall toward 5th Ave and Cottage side, bleachers on the east deck, shade canopy, scoreboard
   const wall = (a0, b0, a1, b1, h = 2.3) => { const p = gp(pc[0], pc[1], (a0 + a1) / 2, (b0 + b1) / 2); const L = Math.hypot(a1 - a0, b1 - b0); const rot = ROT + (Math.abs(b1 - b0) > Math.abs(a1 - a0) ? Math.PI / 2 : 0); B.v('stucco', true).setColor(0.92, 0.88, 0.76).box(p[0], h / 2, p[1], L, h, 0.25, rot, 0.45); B.v('whitePanel').box(p[0], h + 0.04, p[1], L + 0.1, 0.08, 0.36, rot); B.c('concrete').box(p[0], h / 2, p[1], L, h, 0.25, rot); };
   wall(-17.2, 24.4, 6, 24.4); wall(10, 24.4, 18.6, 24.4);          // south (5th Ave) with a gate gap
   wall(-17.2, -18.4, -17.2, 4); wall(-17.2, 8.5, -17.2, 24.4);     // west (toward the Library) with a gate gap
   wall(18.6, -24, 18.6, -8); wall(18.6, -3.5, 18.6, 24.4);         // east (toward the car park)
   B.v('stucco', true).setColor(1, 1, 1);
-  const bl = gp(pc[0], pc[1], 14.6, 13); bleachers(ctx, { x: bl[0], z: bl[1], dir: Math.atan2(UX, UZ), len: 26, rows: 4, run: 0.66, rise: 0.3, frontH: 0 });
+  const bl = gp(pc[0], pc[1], -13.9, -19); bleachers(ctx, { x: bl[0], z: bl[1], dir: Math.atan2(-UX, -UZ), len: 21, rows: 4, run: 0.66, rise: 0.3, frontH: 0 });   // west deck, facing the blocks
   { // scoreboard at the south end
     const p = gp(pc[0], pc[1], -9, 23.6); const pt = B.v('paint', true); pt.setColor(0.04, 0.04, 0.05); pt.box(p[0], 4.1, p[1], 5.2, 2.2, 0.25, ROT); pt.setColor(0.62, 0.07, 0.06).box(p[0], 5.4, p[1], 5.2, 0.4, 0.27, ROT);
     for (const k of [-2.2, 2.2]) { const q = gp(pc[0], pc[1], -9 + k, 23.6); B.v('galv').cyl(q[0], 0, q[1], 0.07, 0.07, 3.0, 6, 1, false); }

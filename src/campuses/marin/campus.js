@@ -27,6 +27,11 @@ export default {
   ctf: { red: [92, -8], blue: [-141, 131] },
   practiceHeli: { x: 62, z: -22, yaw: -1.45 },
   spawnCenter: [-10, 20],
+  // Water features (visual only, see src/world/water.js). Aquatic centre: 25 yd x ~34 m competition pool on the street
+  // grid (rotated 7.2 deg), fourteen 25 yd lanes running east-west, deep end to the south.
+  water: [
+    { kind: 'pool', rect: { cx: 53.5, cz: 73.6, w: 23.6, d: 33.6, angle: 0.12566 }, depth: [1.2, 3.8], deepEnd: 1, lanes: { count: 14, along: 'short' }, ladders: 4 },
+  ],
   // hidden-helicopter candidates [x, y, z]: y = 0 ground, y = roof deck height on flat roofs (validated at load)
   heliPark: [
     [108, 0, -30], [62, 0, -22], [76, 0, -74], [12, 0, -140], [-86, 0, -44], [-20, 0, -5], [84, 0, 58], [-141, 0, 131],
