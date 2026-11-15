@@ -208,5 +208,13 @@ bounds plus solid terraces/ramps inside. For a genuinely hilly or coastal campus
 - **Water / coast:** src/world/water.js is visual only (pool/pond/fountain). A coastline or bay needs a large
   water plane with shoreline foam, a solid "no walking into the sea" boundary (or shallow-water slowdown), and the
   haze/horizon tuned for open water.
+- **Building heights on sloped sites (Marin player report: "some of the buildings you rendered are not two story"):**
+  never measure height as roof minus one campus-wide ground level. Measure each building against the ground
+  around its OWN footprint (lowest/eave-side ground sample within a few metres outside the footprint), cross-check
+  the storey count against street-level imagery and OSM `building:levels`, then place it on the real terrain. On a
+  flat-ground map, a hillside building must keep its true height, not inherit the slope.
+- **Street-level imagery for facades:** surrounding buildings must not be procedural guesses. Sample each building
+  in the play area from street-level imagery (Google Street View Static API or Mapillary) for colour, material,
+  storeys, windows, storefronts and signage.
 - **Elevation in the 3D-tiles origin:** set origin.height to the ellipsoid height of the main ground level and
   pick tileRegistration spots on flat open ground at that level.
