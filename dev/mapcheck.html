@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <base href="../" />
+  <title>Map check</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; background: #111316; color: #e6e6e6; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+    header { padding: 10px 14px; border-bottom: 1px solid #2a2d33; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+    header h1 { font-size: 15px; margin: 0; }
+    #verdict { font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #333; }
+    #verdict.pass { background: #1f6f3a; } #verdict.fail { background: #8a1f1f; } #verdict.warn { background: #7a5a10; }
+    main { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(320px, 1fr); gap: 12px; padding: 12px 14px; }
+    @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+    #log, #summary { white-space: pre-wrap; background: #181b20; border: 1px solid #2a2d33; border-radius: 6px; padding: 10px; margin: 0; overflow: auto; }
+    #log { max-height: 220px; color: #9aa3ad; }
+    #summary { max-height: 70vh; }
+    .pass { color: #6fd38f; } .fail { color: #ff6b6b; } .warn { color: #f0c05a; } .skip { color: #888; }
+    canvas#map { width: 100%; height: auto; border: 1px solid #2a2d33; border-radius: 6px; background: #000; image-rendering: auto; }
+    a { color: #8cc4ff; }
+    #legend { font-size: 11px; color: #aab; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Map check</h1><span id="campus"></span><span id="verdict">running…</span><span id="status"></span>
+    <span id="links"></span>
+  </header>
+  <main>
+    <section>
+      <pre id="summary"></pre>
+      <pre id="log"></pre>
+    </section>
+    <section>
+      <canvas id="map"></canvas>
+      <div id="legend">red X trapped roof point · orange X trapped drop/crease · ladders green/red · spawns cyan (FFA) / red / blue, failing = white ring ·
+        heli circles (8 m) green/red · magenta visible-but-not-solid · yellow prop overlap · gold sign issue · orange line open street edge ·
+        purple bot stuck</div>
+    </section>
+  </main>
+  <script type="module" src="dev/mapcheck.js"></script>
+</body>
+</html>

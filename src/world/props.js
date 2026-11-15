@@ -4,6 +4,10 @@ import * as THREE from 'three';
 import { mulberry32 } from './util.js';
 import { bleachers } from './landmarks.js';
 
+// Optional prop registry for the map check (dev/mapcheck.html): footprint boxes of placed props, in Bucket.box terms
+// (centre, size along local x / z, rotY). Purely informational: nothing in the game reads it.
+export function registerProp(ctx, kind, x, z, rot, sx, sz, h) { (ctx.props || (ctx.props = [])).push({ kind, x, z, rot, sx, sz, h }); }
+
 // ------------------------------------------------------------------------------------------ cars
 const CAR_TYPES = {
   sedan: {
@@ -120,6 +124,7 @@ function placeCar(ctx, tpl, x, z, heading, color) {
   p.setColor(0.5, 0.02, 0.02); p.box(...Wp(rear[0] - 0.02, rear[1] - 0.08, -t.W * 0.34), 0.06, 0.12, 0.36, heading).box(...Wp(rear[0] - 0.02, rear[1] - 0.08, t.W * 0.34), 0.06, 0.12, 0.36, heading);
   p.setColor(0.85, 0.85, 0.8); p.box(...Wp(rear[0] - 0.045, rear[1] - 0.26, 0), 0.02, 0.13, 0.32, heading);
   B.c('metal').box(x, t.cab.belt / 2 + 0.1, z, t.L, t.cab.belt, t.W, heading);
+  registerProp(ctx, 'car', x, z, heading, t.L, t.W, t.H);
   const cm = Wp((t.cab.rr + t.cab.rf) / 2, 0, 0); B.c('glass').box(cm[0], (t.cab.belt + t.H) / 2 + 0.05, cm[2], (t.cab.xf - t.cab.xr) * 0.82, t.H - t.cab.belt, t.W * 0.84, heading);
 }
 
@@ -143,6 +148,7 @@ function placeBus(ctx, x, z, heading) {
   for (const wx of [-3.6, 3.9]) for (const sd of [-1, 1]) { B.v('rubber').tube(Wp(wx, 0.5, sd * 0.85), Wp(wx, 0.5, sd * 1.24), 0.5, 12); p.setColor(...K).box(...Wp(wx, 0.5, sd * 1.245), 0.9, 0.9, 0.01, heading); p.setColor(0.9, 0.62, 0.05).box(...Wp(wx, 0.5, sd * 1.25), 0.42, 0.42, 0.012, heading); }
   p.setColor(...K).box(...Wp(-1, 0.62, 0), 9.2, 0.3, 2.3, heading);
   B.c('metal').box(...Wp(-1.0, 1.6, 0), 9.4, 3.1, 2.44, heading); B.c('metal').box(...Wp(4.55, 1.0, 0), 1.9, 1.9, 2.3, heading);
+  { const bc = Wp(-0.3, 0, 0); registerProp(ctx, 'bus', bc[0], bc[2], heading, 10.8, 2.44, 3.2); }
 }
 
 // ------------------------------------------------------------------------------------------ small props
@@ -151,6 +157,7 @@ function dumpster(ctx, x, z, rot, col = [0.1, 0.25, 0.16]) {
   p.setColor(...col).box(x, 0.72, z, 2.0, 1.25, 1.3, rot); p.setColor(0.04, 0.04, 0.04).box(x, 1.4, z, 2.06, 0.1, 1.36, rot);
   p.setColor(col[0] * 0.6, col[1] * 0.6, col[2] * 0.6).box(x, 0.72, z, 2.08, 0.1, 1.38, rot);
   B.c('metal').box(x, 0.72, z, 2.0, 1.45, 1.3, rot);
+  registerProp(ctx, 'dumpster', x, z, rot, 2.0, 1.3, 1.45);
 }
 function container(ctx, x, z, rot, col) {
   const { B } = ctx; const g = B.v('paint', true); const c = Math.cos(rot), s = Math.sin(rot);
@@ -159,39 +166,45 @@ function container(ctx, x, z, rot, col) {
   for (let u = -2.8; u <= 2.81; u += 0.35) for (const sd of [-1, 1]) g.box(x + u * c + sd * 1.235 * s, 1.3, z - u * s + sd * 1.235 * c, 0.12, 2.4, 0.03, rot);
   B.v('galv').box(x + 3.04 * c, 1.3, z - 3.04 * s, 0.04, 2.3, 0.05, rot).box(x + 3.04 * c + 0.5 * s, 1.3, z - 3.04 * s + 0.5 * c, 0.04, 2.3, 0.05, rot).box(x + 3.04 * c - 0.5 * s, 1.3, z - 3.04 * s - 0.5 * c, 0.04, 2.3, 0.05, rot);
   B.c('metal').box(x, 1.3, z, 6.06, 2.6, 2.44, rot);
+  registerProp(ctx, 'container', x, z, rot, 6.06, 2.44, 2.6);
 }
 function barrier(ctx, x, z, rot, len = 3.0) {
   const { B } = ctx;
   B.v('concrete').box(x, 0.2, z, len, 0.4, 0.6, rot, 1 / 3).box(x, 0.62, z, len, 0.45, 0.3, rot, 1 / 3);
   B.c('concrete').box(x, 0.42, z, len, 0.85, 0.5, rot);
+  registerProp(ctx, 'barrier', x, z, rot, len, 0.6, 0.85);
 }
 function bench(ctx, x, z, rot) {
   const { B } = ctx; const c = Math.cos(rot), s = Math.sin(rot);
   B.v('wood').box(x, 0.45, z, 1.8, 0.06, 0.45, rot, 0.5).box(x - 0.2 * s, 0.75, z - 0.2 * c, 1.8, 0.35, 0.05, rot, 0.5);
   B.v('blackMetal').box(x - 0.8 * c, 0.22, z + 0.8 * s, 0.06, 0.45, 0.45, rot).box(x + 0.8 * c, 0.22, z - 0.8 * s, 0.06, 0.45, 0.45, rot);
   B.c('wood').box(x, 0.45, z, 1.8, 0.9, 0.5, rot);
+  registerProp(ctx, 'bench', x, z, rot, 1.8, 0.5, 0.9);
 }
 function picnicTable(ctx, x, z, rot) {
   const { B } = ctx; const c = Math.cos(rot), s = Math.sin(rot);
   B.v('wood').box(x, 0.75, z, 1.9, 0.05, 0.8, rot, 0.5).box(x + 0.65 * s, 0.45, z + 0.65 * c, 1.9, 0.05, 0.28, rot, 0.5).box(x - 0.65 * s, 0.45, z - 0.65 * c, 1.9, 0.05, 0.28, rot, 0.5);
   B.v('galv').box(x - 0.7 * c, 0.37, z + 0.7 * s, 0.06, 0.74, 1.5, rot).box(x + 0.7 * c, 0.37, z - 0.7 * s, 0.06, 0.74, 1.5, rot);
   B.c('wood').box(x, 0.4, z, 1.9, 0.8, 1.6, rot);
+  registerProp(ctx, 'picnicTable', x, z, rot, 1.9, 1.6, 0.8);
 }
-function trashCan(ctx, x, z) { const { B } = ctx; B.v('blackMetal').cyl(x, 0, z, 0.3, 0.33, 0.95, 10, 1, true); B.c('metal').box(x, 0.5, z, 0.6, 1.0, 0.6); }
-function utilityBox(ctx, x, z, rot) { const { B } = ctx; B.v('paint', true).setColor(0.16, 0.26, 0.19).box(x, 0.75, z, 1.6, 1.4, 1.3, rot); B.v('concrete').box(x, 0.06, z, 2.0, 0.12, 1.7, rot, 1 / 3); B.c('metal').box(x, 0.75, z, 1.6, 1.5, 1.3, rot); }
-function portaPotty(ctx, x, z, rot) { const { B } = ctx; const p = B.v('paint', true); p.setColor(0.1, 0.3, 0.55).box(x, 1.12, z, 1.15, 2.25, 1.15, rot); p.setColor(0.85, 0.85, 0.82).box(x, 2.3, z, 1.25, 0.12, 1.25, rot); B.c('metal').box(x, 1.15, z, 1.15, 2.3, 1.15, rot); }
-function pad(ctx, x, z, rot, w, d, h, col) { const { B } = ctx; B.v('paint', true).setColor(...col).box(x, h / 2, z, w, h, d, rot); B.c('rubber').box(x, h / 2, z, w, h, d, rot); }
+function trashCan(ctx, x, z) { const { B } = ctx; B.v('blackMetal').cyl(x, 0, z, 0.3, 0.33, 0.95, 10, 1, true); B.c('metal').box(x, 0.5, z, 0.6, 1.0, 0.6); registerProp(ctx, 'trashCan', x, z, 0, 0.6, 0.6, 1.0); }
+function utilityBox(ctx, x, z, rot) { const { B } = ctx; B.v('paint', true).setColor(0.16, 0.26, 0.19).box(x, 0.75, z, 1.6, 1.4, 1.3, rot); B.v('concrete').box(x, 0.06, z, 2.0, 0.12, 1.7, rot, 1 / 3); B.c('metal').box(x, 0.75, z, 1.6, 1.5, 1.3, rot); registerProp(ctx, 'utilityBox', x, z, rot, 1.6, 1.3, 1.5); }
+function portaPotty(ctx, x, z, rot) { const { B } = ctx; const p = B.v('paint', true); p.setColor(0.1, 0.3, 0.55).box(x, 1.12, z, 1.15, 2.25, 1.15, rot); p.setColor(0.85, 0.85, 0.82).box(x, 2.3, z, 1.25, 0.12, 1.25, rot); B.c('metal').box(x, 1.15, z, 1.15, 2.3, 1.15, rot); registerProp(ctx, 'portaPotty', x, z, rot, 1.15, 1.15, 2.3); }
+function pad(ctx, x, z, rot, w, d, h, col) { const { B } = ctx; B.v('paint', true).setColor(...col).box(x, h / 2, z, w, h, d, rot); B.c('rubber').box(x, h / 2, z, w, h, d, rot); registerProp(ctx, 'pad', x, z, rot, w, d, h); }
 function sled(ctx, x, z, rot) {
   // football blocking sled: steel frame with upright pads
   const { B } = ctx; const c = Math.cos(rot), s = Math.sin(rot); const p = B.v('paint', true);
   B.v('galv').box(x, 0.12, z, 4.2, 0.12, 1.4, rot);
   for (const u of [-1.6, -0.55, 0.55, 1.6]) { p.setColor(0.62, 0.07, 0.06).box(x + u * c + 0.5 * s, 0.95, z - u * s + 0.5 * c, 0.6, 1.3, 0.35, rot); B.v('galv').box(x + u * c + 0.1 * s, 0.6, z - u * s + 0.1 * c, 0.08, 1.0, 0.08, rot); }
   B.c('metal').box(x + 0.3 * s, 0.8, z + 0.3 * c, 4.2, 1.6, 0.9, rot);
+  registerProp(ctx, 'sled', x + 0.3 * s, z + 0.3 * c, rot, 4.2, 0.9, 1.6);
 }
 function tarpRoller(ctx, x, z, rot, len = 11) {
   const { B } = ctx; const c = Math.cos(rot), s = Math.sin(rot);
   B.v('paint', true).setColor(0.75, 0.76, 0.78).tube([x - len / 2 * c, 0.55, z + len / 2 * s], [x + len / 2 * c, 0.55, z - len / 2 * s], 0.55, 14);
   B.c('rubber').box(x, 0.55, z, len, 1.1, 1.1, rot);
+  registerProp(ctx, 'tarpRoller', x, z, rot, len, 1.1, 1.1);
 }
 function filmTower(ctx, x, z) {
   const { B } = ctx; const g = B.v('galv');
@@ -200,11 +213,13 @@ function filmTower(ctx, x, z) {
   B.v('aluminum').box(x, 5.5, z, 2.4, 0.08, 2.4); g.box(x, 6.05, z - 1.15, 2.4, 1.0, 0.04).box(x, 6.05, z + 1.15, 2.4, 1.0, 0.04).box(x - 1.15, 6.05, z, 0.04, 1.0, 2.4).box(x + 1.15, 6.05, z, 0.04, 1.0, 2.4);
   B.v('paint', true).setColor(0.62, 0.07, 0.06).box(x, 1.0, z - 1.16, 2.3, 1.9, 0.03).box(x, 1.0, z + 1.16, 2.3, 1.9, 0.03).box(x - 1.16, 1.0, z, 0.03, 1.9, 2.3);
   B.c('metal').box(x, 1.0, z, 2.4, 2.0, 2.4); B.c('metal').box(x, 5.9, z, 2.4, 1.3, 2.4);
+  registerProp(ctx, 'filmTower', x, z, 0, 2.4, 2.4, 6.6);
 }
 function bikeRack(ctx, x, z, rot) {
   const { B } = ctx; const c = Math.cos(rot), s = Math.sin(rot); const g = B.v('galv');
   for (let u = -1.6; u <= 1.61; u += 0.8) { const px = x + u * c, pz = z - u * s; g.tube([px - 0.25 * s, 0, pz - 0.25 * c], [px - 0.25 * s, 0.85, pz - 0.25 * c], 0.025, 5).tube([px + 0.25 * s, 0, pz + 0.25 * c], [px + 0.25 * s, 0.85, pz + 0.25 * c], 0.025, 5).tube([px - 0.25 * s, 0.85, pz - 0.25 * c], [px + 0.25 * s, 0.85, pz + 0.25 * c], 0.025, 5); }
   B.c('metal').box(x, 0.45, z, 3.6, 0.9, 0.6, rot);
+  registerProp(ctx, 'bikeRack', x, z, rot, 3.6, 0.6, 0.9);
 }
 
 // ------------------------------------------------------------------------------------------ placement
@@ -385,4 +400,4 @@ export function buildProps(ctx) {
 }
 
 // Shared prop kit for other campuses (see src/campuses/*/world.js). Hinsdale's own placement above is unchanged.
-export const propKit = { CAR_TYPES, CAR_COLORS, buildCarTemplate, placeCar, placeBus, dumpster, container, barrier, bench, picnicTable, trashCan, utilityBox, portaPotty, bikeRack };
+export const propKit = { CAR_TYPES, CAR_COLORS, buildCarTemplate, placeCar, placeBus, dumpster, container, barrier, bench, picnicTable, trashCan, utilityBox, portaPotty, bikeRack, registerProp };

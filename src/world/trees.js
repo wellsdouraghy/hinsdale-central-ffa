@@ -259,6 +259,7 @@ export function createTrees(ctx) {
     if (x > pb.minX - 25 && x < pb.maxX + 25 && z > pb.minZ - 25 && z < pb.maxZ + 25) {
       const tr = variants[vi].trunkR * sc * 1.05;
       B.c('wood').cyl(x, 0, z, tr, tr * 0.8, vi === 3 ? 9 : 4.5, 7, 1, true);
+      (ctx.trunks || (ctx.trunks = [])).push([x, z, tr]);   // map check: prop vs trunk overlaps
     }
   }
   const chunkList = [];

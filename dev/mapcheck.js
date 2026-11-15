@@ -1,0 +1,820 @@
+// Map check: automated validator for a campus map (see MAP_NOTES.md "Map check (required before QA)").
+//   dev/mapcheck.html?campus=hinsdale|marin  [&only=escape,ladders,...] [&skip=bots] [&grid=2.5] [&q=low] [&bots=8] [&botTime=60]
+// Loads the real world (src/world/index.js) and runs every check against the real collision and the real player
+// controller (src/game/player.js). Result: window.__mapcheck (JSON report), a readable summary, and a top-down image.
+// Deterministic: fixed sample grids, fixed probe orders, seeded Math.random + virtual clock for the bot run.
+import * as THREE from 'three';
+import { MeshBVH } from 'three-mesh-bvh';
+import { createWorld } from '../src/world/index.js';
+import { getCampus } from '../src/campuses/index.js';
+import { PlayerController, STAND } from '../src/game/player.js';
+import { mulberry32 } from '../src/world/util.js';
+
+const VERSION = 1;
+const qs = new URLSearchParams(location.search);
+const num = (k, d) => (qs.has(k) && Number.isFinite(+qs.get(k)) ? +qs.get(k) : d);
+const CAMPUS = getCampus(qs.get('campus') || 'hinsdale');
+const ONLY = qs.get('only') ? new Set(qs.get('only').split(',')) : null;
+const SKIP = new Set((qs.get('skip') || '').split(',').filter(Boolean));
+const enabled = (id) => (!ONLY || ONLY.has(id)) && !SKIP.has(id);
+
+// ---------------------------------------------------------------------------------------------- thresholds
+export const TH = {
+  // 1 escapability
+  escapeGrid: num('grid', 2.5),      // m between downward sample rays over the play area
+  escapeMinY: 0.6,                   // surfaces above this are "elevated" (kerbs / low steps are not)
+  escapeTime: 7,                     // s per attempt (one direction)
+  interiorCeil: 15, roofSkin: 3.2,   // a trapped surface with collision < 15 m above every sample is covered: a sealed interior (press box,
+                                     // room) or a roof void (ceiling <= 3.2 m). Covered = unreachable from the sky, so it is listed as info here;
+                                     // whether a player can get INTO it is what the roofVoids check (wall jumps, mantles, grapples) tests
+  escapeBudget: num('escapeBudget', 110),  // s wall clock; samples not reached are reported as "unchecked"
+  dropHeight: 2.0,                   // m above the surface for crease / slope drop tests
+  dropSpacing: 3,                    // m: at most one drop test per cell of this size (and height metre)
+  // 1b roof voids (dev/trap-sweep.js): tests per sweep
+  voidTests: { wall: num('voidWall', 800), sloped: num('voidSloped', 150), grapple: num('voidGrapple', 250) },
+  // 2 ladders
+  ladderTime: 14,
+  // 3 spawns
+  spawnWallFail: 0.4, spawnWallWarn: 1.2,   // horizontal clearance from any solid at 0.5 / 1.3 m (m): capsule 0.35 + 5 cm
+  spawnPropGap: 0.6,                         // capsule radius + margin from a registered prop footprint (m)
+  spawnMin: 24, ctfSpawnMin: 8, ctfSpawnRange: [25, 70],
+  ctfBaseDist: [150, 420],                   // warn outside (m)
+  // 4 helicopter spots
+  heliClear: 8.0, heliClearWarn: 8.5,        // disc radius free of colliders between deck+0.3 and +3.4 m
+  heliTreeClear: 10.5,                       // tree trunk distance (canopy is not collision)
+  heliMin: 12,
+  // 5 visible-but-not-solid
+  visMinY: 1.0, visMaxY: 80, visPatchArea: 2.0, visCellsMin: 3, visMinWidth: 0.45, shrubMaxH: 1.1,
+  // 6 props
+  propOverlap: 0.05,                         // penetration depth (m) that counts as clipping
+  trunkWarn: 0.6,                            // prop edge closer than this to a trunk surface (m) = warn
+  // 7 signs
+  signShrinkWarn: 0.6, signAspectWarn: 0.2, signWindowFrac: 0.15, signMinCap: 0.12,
+  // 8 boundary
+  boundaryStep: 3, boundaryStreetWarn: 6,
+  // 9 bots
+  botCount: num('bots', 8), botTime: num('botTime', 60), botStuck: 12, botMoveRadius: 2.0,
+};
+
+// ---------------------------------------------------------------------------------------------- page
+const $ = (id) => document.getElementById(id);
+const logLines = [];
+function log(s) { logLines.push(s); $('log').textContent = logLines.slice(-60).join('\n'); console.log('[mapcheck] ' + s); }
+// yield via MessageChannel: setTimeout is throttled to >= 1 s in hidden / background tabs
+const tick = () => new Promise((r) => { const ch = new MessageChannel(); ch.port1.onmessage = () => r(); ch.port2.postMessage(0); });
+const r1 = (v) => Math.round(v * 10) / 10, r2 = (v) => Math.round(v * 100) / 100;
+const P3 = (v) => [r1(v.x), r2(v.y), r1(v.z)];
+$('campus').textContent = CAMPUS.name + ' (' + CAMPUS.id + ')';
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const DOWN = V(0, -1, 0), UP = V(0, 1, 0);
+const DT = 1 / 60;
+
+const report = { version: VERSION, campus: CAMPUS.id, started: new Date().toISOString(), thresholds: TH, checks: {}, pass: null, durationS: null };
+window.__mapcheck = report; window.__mapcheckDone = false;
+const marks = [];   // debug image: { kind, x, z, ... }
+
+// ---------------------------------------------------------------------------------------------- world
+const t0 = performance.now();
+const renderer = new THREE.WebGLRenderer({ antialias: false });
+renderer.setSize(320, 180);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, 16 / 9, 0.1, 3000);
+log('loading world…');
+const world = await createWorld({ renderer, scene, camera, campus: CAMPUS, settings: { quality: qs.get('q') || 'low' }, onProgress: (f, l) => { $('status').textContent = Math.round(f * 100) + '% ' + l; } });
+scene.updateMatrixWorld(true);
+window.__world = world; window.__scene = scene; window.THREE = THREE;
+const PB = world.playBounds;
+const REG = world.registry || { props: [], trunks: [], shrubs: [] };
+log(`world loaded in ${((performance.now() - t0) / 1000).toFixed(1)} s: ${world.collisionMeshes.length} collision meshes, ${REG.props.length} props, ${REG.trunks.length} trunks, ${world.ladders.length} ladders`);
+
+// One merged BVH over every non-ground collider (fences included): fast rays and shape queries.
+function buildSolid() {
+  const meshes = world.collisionMeshes.filter((m) => !m.userData.isGround);
+  let n = 0; for (const m of meshes) n += m.geometry.attributes.position.count;
+  const pos = new Float32Array(n * 3); const triSurf = new Uint8Array(n / 3); const names = [];
+  let o = 0;
+  for (const m of meshes) {
+    const a = m.geometry.attributes.position.array; pos.set(a, o * 3);
+    const si = names.push(m.userData.surface + (m.userData.bulletPassthrough ? ':mesh' : '')) - 1;
+    triSurf.fill(si, o / 3, (o + a.length / 3) / 3); o += a.length / 3;
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const bvh = new MeshBVH(g);
+  const ray = new THREE.Ray();
+  const surfOf = (h) => names[triSurf[Math.floor(h.face.a / 3)]];
+  return {
+    bvh, surfOf,
+    first(o, d, far) { ray.origin.copy(o); ray.direction.copy(d); return bvh.raycastFirst(ray, THREE.DoubleSide, 0, far); },
+    all(o, d, far) { ray.origin.copy(o); ray.direction.copy(d); return bvh.raycast(ray, THREE.DoubleSide, 0, far).sort((a, b) => a.distance - b.distance); },
+    /** min distance from segment a-b to any triangle (within maxR), ignoring triangle points below yMin. */
+    segDist(a, b, maxR, yMin = -Infinity) {
+      const seg = new THREE.Line3(a, b); const box = new THREE.Box3().setFromPoints([a, b]).expandByScalar(maxR);
+      let best = maxR, at = null; const p1 = V(), p2 = V();
+      bvh.shapecast({
+        intersectsBounds: (bb) => bb.intersectsBox(box),
+        intersectsTriangle: (tri) => { const d = tri.closestPointToSegment(seg, p1, p2); if (d < best && p1.y > yMin) { best = d; at = p1.clone(); } return false; },
+      });
+      return { d: best, at };
+    },
+  };
+}
+const S = buildSolid();
+const navOK = (x, z) => (world.navSample ? world.navSample(x, z) : true);
+const nearWalk = (x, z) => { if (navOK(x, z)) return true; for (const r of [1.5, 3]) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; if (navOK(x + Math.cos(a) * r, z + Math.sin(a) * r)) return true; } return false; };
+const inPB = (x, z, m = 0) => x >= PB.minX + m && x <= PB.maxX - m && z >= PB.minZ + m && z <= PB.maxZ - m;
+
+// The map must work without the controller's stuck safety net (player._stuckWatch pops a wedged capsule free): off here.
+const noUnstuck = (c) => { c._stuckWatch = () => {}; return c; };
+function status(fails, warns) { return fails ? 'fail' : warns ? 'warn' : 'pass'; }
+function finishCheck(id, res) { report.checks[id] = res; renderSummary(); }
+
+// ============================================================================================== 1 escapability
+// Elevated surfaces are sampled with downward rays on a grid. Flat samples are grouped into regions (grid neighbours at
+// the same height with no wall between them: the player can walk between them), and each region must be escapable
+// from a few of its edge samples. Sloped samples and crease / slope drop tests are run one by one. A start point is
+// escapable if the real controller reaches walkable ground (or a surface already proven escapable) with walk + jump +
+// double jump + mantle; failures get a second-level search from where the first attempts ended before being reported.
+async function checkEscape() {
+  const tStart = performance.now(); const g = TH.escapeGrid; const gx0 = PB.minX + g / 2, gz0 = PB.minZ + g / 2;
+  const ctrl = noUnstuck(new PlayerController(world)); const push = V();
+  const samples = []; let columns = 0; const cols = new Map();
+  for (let ix = 0, x = gx0; x < PB.maxX; ix++, x += g) for (let iz = 0, z = gz0; z < PB.maxZ; iz++, z += g) {
+    columns++;
+    const hits = S.all(V(x, 150, z), DOWN, 150 - 0.3);
+    let above = Infinity;
+    for (const h of hits) {
+      const y = h.point.y, ny = Math.abs(h.face.normal.y);
+      const room = above - y; above = y;
+      if (y < TH.escapeMinY || ny < 0.45 || room < STAND.height + 0.05) continue;
+      const s = { x, y, z, ny, ix, iz, ceil: room, kind: ny < 0.97 ? 'slope' : 'roof' };
+      s.n = h.face.normal.clone(); if (s.n.y < 0) s.n.negate();
+      samples.push(s);
+      { const k = ix * 4096 + iz; let l = cols.get(k); if (!l) cols.set(k, l = []); l.push(s); }
+    }
+  }
+  // regions (union-find): flat samples join flat neighbours within 0.5 m height; sloped samples join neighbours on the same
+  // roof plane (normals within ~18 deg); never through a wall (rays at 0.5 / 1.3 m above the surface between them)
+  const flat = samples.filter((s) => s.kind === 'roof');
+  samples.forEach((s, i) => { s.id = i; });
+  const par = samples.map((_, i) => i); const find = (i) => { while (par[i] !== i) i = par[i] = par[par[i]]; return i; };
+  const _d = V();
+  for (const s of samples) {
+    s.nb = 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const t of cols.get((s.ix + dx) * 4096 + s.iz + dz) || []) {
+        if (t.kind !== s.kind) continue;
+        if (s.kind === 'roof' ? Math.abs(t.y - s.y) > 0.5 : (s.n.dot(t.n) < 0.95 || Math.abs(t.y - s.y) > 2 * g)) continue;
+        let blocked = false;
+        for (const up of [0.5, 1.3]) { _d.set(t.x - s.x, t.y - s.y, t.z - s.z); const L = _d.length(); if (S.first(V(s.x, s.y + up, s.z), _d.normalize(), L)) { blocked = true; break; } }
+        if (blocked) continue;
+        s.nb++; par[find(s.id)] = find(t.id);
+      }
+    }
+  }
+  const regMap = new Map(); for (const s of samples) { const r = find(s.id); let l = regMap.get(r); if (!l) regMap.set(r, l = []); l.push(s); }
+  const regions = [...regMap.values()].map((list) => ({ list, y: Math.min(...list.map((s) => s.y)), slope: list[0].kind === 'slope' })).sort((a, b) => a.y - b.y || a.list[0].x - b.list[0].x || a.list[0].z - b.list[0].z);
+  // crease / slope drop tests: next to walls and parapets, and onto every sloped sample
+  const dropKeys = new Set(); const drops = [];
+  const addDrop = (x, y, z, kind, ceil) => { const k = Math.round(x / TH.dropSpacing) + ',' + Math.round(z / TH.dropSpacing) + ',' + Math.round(y); if (dropKeys.has(k)) return; dropKeys.add(k); drops.push({ x, y: y + TH.dropHeight, z, base: y, kind, ceil, drop: true }); };
+  for (const s of samples) {
+    if (s.kind === 'slope') addDrop(s.x, s.y, s.z, 'slope-drop', s.ceil);
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const h = S.first(V(s.x, s.y + 0.8, s.z), V(dx, 0, dz), 1.25);
+      if (h) addDrop(h.point.x - dx * 0.45, s.y, h.point.z - dz * 0.45, 'crease-drop', s.ceil);
+    }
+  }
+  const singles = drops.slice().sort((a, b) => (a.base ?? a.y) - (b.base ?? b.y) || a.x - b.x || a.z - b.z);
+  log(`escape: ${columns} columns, ${samples.length} elevated samples (${samples.length - flat.length} sloped) in ${regions.length} regions (${regions.filter((r) => r.slope).length} sloped), ${drops.length} drop tests`);
+
+  const memo = new Set();
+  const key = (x, y, z) => (Math.floor(x) + 4096) * 67108864 + (Math.floor(z) + 4096) * 4096 + Math.round(y * 2) + 2048;
+  let steps = 0;
+  const lowerDirs = (x, y, z) => {   // 8 directions, the one with the nearest lower surface first
+    const sc = [];
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4, dx = Math.cos(a), dz = Math.sin(a); let best = 99;
+      for (let d = 2; d <= 24; d += 2) { const h = S.first(V(x + dx * d, y + 1.5, z + dz * d), DOWN, 60); if ((h ? h.point.y : 0) < y - 1) { best = d; break; } }
+      sc.push([best, a]);
+    }
+    return sc.sort((p, q) => p[0] - q[0]).map((p) => p[1]);
+  };
+  function attempt(start, ang, mode, drop) {
+    const dx = Math.cos(ang), dz = Math.sin(ang);
+    ctrl.teleport(start, Math.atan2(-dx, -dz));     // forward = (-sin yaw, -cos yaw) = (dx, dz)
+    if (drop) ctrl.grounded = false;
+    const traj = []; let blockedT = 0, jumped = false, doubled = false; let minY = start.y, maxD = 0;
+    for (let t = 0; t < TH.escapeTime; t += DT) {
+      let jump = false;
+      if (ctrl.grounded) {
+        jumped = false; doubled = false;
+        if (ctrl.horizontalSpeed() < 1.2) blockedT += DT; else blockedT = 0;
+        if (blockedT > 0.15 || (mode === 2 && t > 0.1)) { jump = true; jumped = true; blockedT = 0; }
+      } else if (jumped && !doubled && ctrl.velocity.y < 0.8 && ctrl.airJumps > 0) { jump = true; doubled = true; }
+      ctrl.update(DT, { forward: 1, strafe: mode === 2 ? Math.sin(t * 5) * 0.7 : 0, jump, crouchToggle: false, sprint: true });
+      ctrl.events.length = 0; steps++;
+      const p = ctrl.position;
+      if (p.y < minY) minY = p.y; const dd = Math.hypot(p.x - start.x, p.z - start.z); if (dd > maxD) maxD = dd;
+      if (p.y < -5) return { ok: false, fell: true, traj, minY, maxD, last: p.clone() };
+      if (ctrl.grounded) {
+        if ((steps & 3) === 0 || !traj.length) traj.push(p.clone());
+        if ((p.y < 0.35 && nearWalk(p.x, p.z)) || memo.has(key(p.x, p.y, p.z))) return { ok: true, traj };
+      }
+    }
+    return { ok: false, traj, minY, maxD, last: ctrl.position.clone(), onGround: ctrl.position.y < 0.35 && ctrl.grounded };
+  }
+  const prove = (traj, start) => { for (const p of traj) memo.add(key(p.x, p.y, p.z)); if (start) memo.add(key(start.x, start.y, start.z)); };
+  // one start point: up to 16 attempts, then a second level from the farthest places those attempts reached
+  function tryEscape(x, y, z, drop, deep = true, flatStart = false) {
+    const start = V(x, drop ? y : y + 0.02, z);
+    ctrl._resolve(start, STAND.height, push);
+    // not a place a player can stand: deep in geometry, or (on flat ground) pushed sideways = inside a pipe / column / wall
+    if (push.length() > 0.3 || (flatStart && Math.hypot(push.x, push.z) > 0.05)) return { status: 'nofit' };
+    start.add(push);
+    const ends = []; let worst = null;
+    for (const mode of [1, 2]) {
+      const dirs = lowerDirs(x, drop ? y - TH.dropHeight : y, z);
+      for (const a of mode === 1 ? dirs : dirs.map((d) => d + Math.PI / 8)) {
+        const r = attempt(start, a, mode, drop);
+        if (r.ok) { prove(r.traj, drop ? null : start); return { status: 'ok' }; }
+        if (r.fell) return { status: 'fell', last: r.last };
+        if (!worst || r.maxD > worst.maxD) worst = r;
+        if (r.traj.length) ends.push(r.traj[r.traj.length - 1]);
+      }
+      if (!deep) break;
+    }
+    if (deep) {
+      const picks = [];
+      for (const e of ends.sort((p, q) => q.distanceTo(start) - p.distanceTo(start))) { if (e.distanceTo(start) > 1.5 && picks.every((p) => p.distanceTo(e) > 2)) picks.push(e); if (picks.length >= 6) break; }
+      for (const e of picks) {
+        const r = tryEscape(e.x, e.y, e.z, false, false);
+        if (r.status === 'ok') { memo.add(key(start.x, start.y, start.z)); return { status: 'ok' }; }
+      }
+    }
+    return { status: 'trapped', maxD: worst.maxD, minY: worst.minY, last: worst.last, onGround: worst.onGround };
+  }
+  const trapped = [], fell = [], interiors = []; let nofit = 0, tested = 0, unchecked = 0, lastYield = performance.now();
+  const yieldMaybe = async (what) => { if (performance.now() - lastYield > 250) { lastYield = performance.now(); $('status').textContent = what; await tick(); } };
+  const overBudget = () => (performance.now() - tStart) / 1000 > TH.escapeBudget;
+  // flat regions, low to high (a roof that drops onto a lower proven roof succeeds at once)
+  for (const [ri, R] of regions.entries()) {
+    if (overBudget()) { unchecked += R.list.length; continue; }
+    const cx = R.list.reduce((a, s) => a + s.x, 0) / R.list.length, cz = R.list.reduce((a, s) => a + s.z, 0) / R.list.length;
+    const edge = R.list.filter((s) => s.nb < 4).sort((a, b) => Math.atan2(a.z - cz, a.x - cx) - Math.atan2(b.z - cz, b.x - cx));
+    const reps = []; const pool = edge.length ? edge : R.list; const nRep = Math.min(pool.length, 3);
+    for (let k = 0; k < nRep; k++) reps.push(pool[Math.floor(k * pool.length / nRep)]);
+    let ok = false, res = null;
+    for (const s of reps) { tested++; res = tryEscape(s.x, s.y, s.z, false, s === reps[reps.length - 1], !R.slope); if (res.status === 'ok') { ok = true; break; } if (res.status === 'fell') { fell.push({ s, r: res }); break; } }
+    if (ok && R.slope) { for (const s of R.list) memo.add(key(s.x, s.y, s.z)); }
+    else if (ok) { for (const s of R.list) for (let a = -g / 2; a <= g / 2 + 1e-6; a += 0.5) for (let b = -g / 2; b <= g / 2 + 1e-6; b += 0.5) memo.add(key(s.x + a, s.y, s.z + b)); }
+    else if (res && res.status === 'trapped') (R.list.every((q) => q.ceil < TH.interiorCeil) ? interiors : trapped).push({ s: reps[reps.length - 1], r: res, region: R, kind: R.slope ? 'slope' : 'region' });
+    else if (res && res.status === 'nofit') nofit++;
+    await yieldMaybe(`escape regions ${ri + 1}/${regions.length} trapped ${trapped.length}`);
+  }
+  for (const [i, s] of singles.entries()) {
+    if (overBudget()) { unchecked++; continue; }
+    if (memo.has(key(s.x, s.base ?? s.y, s.z)) && !s.drop) continue;
+    tested++;
+    const r = tryEscape(s.x, s.y, s.z, !!s.drop, true, !s.drop && s.ny >= 0.97);
+    if (r.status === 'nofit') nofit++; else if (r.status === 'trapped') (s.ceil < TH.interiorCeil ? interiors : trapped).push({ s, r, kind: s.kind }); else if (r.status === 'fell') fell.push({ s, r });
+    await yieldMaybe(`escape singles ${i + 1}/${singles.length} trapped ${trapped.length}`);
+  }
+  // cluster trapped starts (3 m, 1.5 m height)
+  const clusters = [];
+  for (const t of trapped) {
+    const y = t.s.base ?? t.s.y;
+    let c = clusters.find((c) => Math.hypot(c.x - t.s.x, c.z - t.s.z) < 3 + c.r && Math.abs(c.y - y) < 1.5);
+    if (!c) { c = { x: t.s.x, y, z: t.s.z, r: 0, n: 0, kinds: new Set(), pts: [], area: 0 }; clusters.push(c); }
+    c.n++; c.kinds.add(t.kind); c.pts.push(t); c.r = Math.max(c.r, Math.hypot(c.x - t.s.x, c.z - t.s.z));
+    if (t.region) c.area += t.region.list.length * g * g;
+  }
+  const failures = clusters.map((c) => {
+    const t = c.pts[0];
+    return {
+      at: [r1(c.x), r2(c.y), r1(c.z)], starts: c.n, kinds: [...c.kinds], regionAreaM2: c.area ? Math.round(c.area) : undefined,
+      surfaceNy: r2(t.s.ny ?? 1), bestTravel: r1(t.r.maxD), lowestY: r2(t.r.minY), endedAt: P3(t.r.last),
+      note: (t.s.ceil ?? 99) <= TH.roofSkin ? 'under a roof skin (roof void / attic): ceiling ' + r1(t.s.ceil) + ' m above' : t.r.onGround ? 'reaches ground level but a sealed pocket (not connected to the walk area)' : (t.r.maxD < 2 ? 'cannot move (wedged / embedded)' : 'confined: cannot get off this surface'),
+    };
+  });
+  for (const f of failures) marks.push({ kind: f.kinds.includes('region') || f.kinds.includes('slope') ? 'trap' : 'trapDrop', x: f.at[0], z: f.at[2] });
+  for (const f of fell) marks.push({ kind: 'fell', x: f.s.x, z: f.s.z });
+  const res = {
+    status: status(failures.length + fell.length, unchecked),
+    what: 'Real player controller placed on every elevated surface (flat regions, slopes) and dropped from ' + TH.dropHeight + ' m into creases / onto slopes must reach walkable ground or an already-proven surface with walk + jump + double jump + mantle (16 directions x ' + TH.escapeTime + ' s, then a second-level search). Falling below y = -5 = a hole in the collision.',
+    counts: { columns, samples: samples.length, regions: regions.length, slopeRegions: regions.filter((r) => r.slope).length, sloped: samples.length - flat.length, dropTests: drops.length, startsTested: tested, noFit: nofit, trappedStarts: trapped.length, trappedClusters: failures.length, sealedInteriors: interiors.length, fellThrough: fell.length, unchecked, simSteps: steps },
+    failures, sealedInteriors: interiors.slice(0, 20).map((t) => ({ at: [r1(t.s.x), r2(t.s.base ?? t.s.y), r1(t.s.z)], kind: t.kind, type: t.s.ceil <= TH.roofSkin ? 'roof void' : 'interior', areaM2: t.region ? Math.round(t.region.list.length * g * g) : undefined, ceiling: r1(t.s.ceil) })), fellThrough: fell.slice(0, 20).map((f) => ({ start: [r1(f.s.x), r2(f.s.y), r1(f.s.z)], last: P3(f.r.last) })),
+    seconds: r1((performance.now() - tStart) / 1000),
+  };
+  log(`escape: ${res.status} trapped clusters ${failures.length} (starts ${trapped.length}), fell ${fell.length}, unchecked ${unchecked}, ${steps} steps, ${res.seconds} s`);
+  finishCheck('escape', res);
+}
+
+// ============================================================================================== 1b roof voids
+// Ways INTO a roof void (the hidden space under a pitched roof skin): reuses the roof-trap harness dev/trap-sweep.js
+// (0.5 m top-surface scan; wall jumps / double jumps / mantles from the ground and from roofs at every building wall;
+// walking, jumping, sprinting and dropping around on pitched roofs at 60 / 30 / 20 fps; grappling onto pitched roofs
+// and eaves). A run that ends with roof geometry > 0.9 m above the player's head height, from where tryLeave() cannot
+// get back out (walk + jump + double jump), is a failure. The harness drives a stand-in window.__game with the real
+// controller (stuck safety net off).
+async function checkRoofVoids() {
+  const tStart = performance.now();
+  const player = noUnstuck(new PlayerController(world)); player.teleport(V(0, 0, 0));
+  window.__game = { world, player };
+  const TS = await import('./trap-sweep.js');
+  for (let r = TS.scan(400); !r.done; r = TS.scan(400)) { $('status').textContent = `roof voids: scan ${r.row}/${r.of}`; await tick(); }
+  const n = TH.voidTests; const out = {}; const bad = [];
+  const step = async (label, fn) => { $('status').textContent = 'roof voids: ' + label; await tick(); const t = performance.now(); const r = fn(); out[label] = { ...r, seconds: r1((performance.now() - t) / 1000) }; return r; };
+  const a = await step('wallJumpGround', () => TS.wallJump(n.wall, 11, -1, 0.6));
+  const b = await step('wallJumpRoof', () => TS.wallJump(n.wall, 5, 2.0, 12));
+  for (const x of a.bad) bad.push({ test: 'wall jump from the ground', ...x });
+  for (const x of b.bad) bad.push({ test: 'wall jump from a roof', ...x });
+  out.wallJumpGround = { tested: a.tested, climbed: a.climbed, inside: a.bad.length }; out.wallJumpRoof = { tested: b.tested, climbed: b.climbed, inside: b.bad.length };
+  const pts = TS.slopedPoints(n.sloped, 5);
+  for (const [label, dt, mode] of [['walk60', 1 / 60, 'walk'], ['jump60', 1 / 60, 'jump'], ['sprint30', 1 / 30, 'sprint'], ['drop20', 1 / 20, 'drop']]) {
+    const r = await step(label, () => ({ bad: TS.roofWalk(pts, dt, 4, mode) }));
+    // the harness's 'stuck' = no motion for 1.5 s with random headings (a corner can do that): confirm with tryLeave
+    r.bad = r.bad.filter((x) => x.kind !== 'stuck' || !TS.tryLeave(x.at[0], x.at[1] - 0.08, x.at[2], 8).ok);
+    for (const x of r.bad) bad.push({ test: 'pitched roof ' + label, ...x });
+    out[label] = { points: pts.length, bad: r.bad.length };
+  }
+  const g = await step('grapple', () => TS.grappleTest(n.grapple, 31));
+  for (const x of g.ex) bad.push({ test: 'grapple onto a pitched roof', ...x });
+  out.grapple = { tested: g.tested, arrived: g.arrived, inside: g.inside };
+  const sub = (window.__sweep?.sub || []).length;
+  delete window.__game;
+  for (const x of bad) marks.push({ kind: 'trap', x: x.at[0], z: x.at[2] });
+  const fails = out.wallJumpGround.inside + out.wallJumpRoof.inside + out.grapple.inside + ['walk60', 'jump60', 'sprint30', 'drop20'].reduce((s2, k) => s2 + out[k].bad, 0);
+  const res = {
+    status: status(fails, 0),
+    what: 'Ways into roof voids (dev/trap-sweep.js with the real controller): wall jumps + double jumps + mantles from the ground and from roofs at building walls, walking / jumping / sprinting / dropping on pitched roofs (60, 30, 20 fps), grapples onto pitched roofs. Fail = the run ends under a roof skin (roof > 0.9 m above) or stuck on a roof, and walk + jump + double jump cannot get out.',
+    counts: { pitchedPoints: pts.length, voidCellsUnderRoofs: sub, ...Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.inside ?? v.bad ?? 0])) },
+    tests: out, failures: bad.slice(0, 40), seconds: r1((performance.now() - tStart) / 1000),
+  };
+  log(`roof voids: ${res.status} ${fails} runs ended inside a roof / stuck (${res.seconds} s)`);
+  finishCheck('roofVoids', res);
+}
+
+// ============================================================================================== 2 ladders
+async function checkLadders() {
+  const out = []; let fails = 0;
+  for (const [i, L] of world.ladders.entries()) {
+    const ctrl = noUnstuck(new PlayerController(world));
+    const sx = L.x + L.nx * 1.3, sz = L.z + L.nz * 1.3;
+    const fl = S.first(V(sx, L.y0 + 1.5, sz), DOWN, L.y0 + 1.5); const fy = fl ? fl.point.y : 0;
+    ctrl.teleport(V(sx, fy + 0.02, sz), Math.atan2(L.nx, L.nz));
+    let grabs = 0, exitT = null, t = 0, onLadder = false, topY = -1;
+    for (; t < TH.ladderTime; t += DT) {
+      const fwd = exitT === null || t < exitT + 1.0 ? 1 : 0;
+      ctrl.update(DT, { forward: fwd, strafe: 0, jump: false, crouchToggle: false, sprint: false });
+      for (const e of ctrl.events) if (e === 'ladder') grabs++;
+      ctrl.events.length = 0;
+      if (onLadder && !ctrl.ladder && ctrl.position.y > L.y1 - 0.5 && exitT === null) exitT = t;
+      onLadder = !!ctrl.ladder; topY = Math.max(topY, ctrl.position.y);
+      if (exitT !== null && t > exitT + 2.5) break;
+    }
+    const p = ctrl.position;
+    const ok = grabs === 1 && exitT !== null && ctrl.grounded && p.y >= L.y1 - 0.6;
+    if (!ok) fails++;
+    const reason = ok ? null : grabs === 0 ? 'never grabbed (approach blocked?)' : grabs > 1 ? `regrabbed ${grabs}x: falls off the top (parapet / lip above exitY?)` : exitT === null ? 'never reached the top' : 'did not stay on the deck';
+    out.push({ i, at: [r1(L.x), r1(L.z)], y1: r2(L.y1), exitY: r2(L.exitY ?? L.y1), grabs, climbS: exitT === null ? null : r1(exitT), end: P3(p), grounded: ctrl.grounded, ok, reason });
+    marks.push({ kind: ok ? 'ladderOk' : 'ladderBad', x: L.x, z: L.z });
+  }
+  const res = { status: status(fails, 0), what: 'Scripted climb of every ladder (real controller, forward held from 1.3 m out, released 1 s after the exit): one grab and ending grounded on the deck = pass.', counts: { ladders: out.length, failing: fails }, failures: out.filter((l) => !l.ok), ladders: out };
+  log(`ladders: ${res.status} ${out.length - fails}/${out.length} ok`);
+  finishCheck('ladders', res);
+}
+
+// ============================================================================================== 3 spawns / nav / CTF
+function obbDist(px, pz, p) {   // distance from a point to a registered prop footprint (0 inside)
+  const c = Math.cos(p.rot), s = Math.sin(p.rot); const dx = px - p.x, dz = pz - p.z;
+  const lx = dx * c - dz * s, lz = dx * s + dz * c;   // inverse of Bucket.box rotation
+  const ex = Math.max(0, Math.abs(lx) - p.sx / 2), ez = Math.max(0, Math.abs(lz) - p.sz / 2);
+  return Math.hypot(ex, ez);
+}
+async function checkSpawns() {
+  const ctrl = new PlayerController(world); const push = V();
+  const sb = CAMPUS.spawnBounds;
+  const issues = []; let warns = 0;
+  const testPoint = (p, group, i) => {
+    const errs = [], wrn = [];
+    if (!inPB(p.x, p.z, 1)) errs.push('outside playBounds');
+    if (group === 'ffa' && sb && !(p.x >= sb.minX && p.x <= sb.maxX && p.z >= sb.minZ && p.z <= sb.maxZ)) errs.push('outside spawnBounds');
+    if (Math.abs(p.y - (world.groundY ? world.groundY(p.x, p.z) : 0)) > 0.1) errs.push('not at ground level (y=' + r2(p.y) + ')');
+    if (S.first(V(p.x, p.y + 2, p.z), UP, 100)) errs.push('no clear sky (roof / canopy above)');
+    ctrl._resolve(V(p.x, p.y + 0.02, p.z), STAND.height, push); if (push.length() > 0.02) errs.push('capsule overlaps geometry (' + r2(push.length()) + ' m)');
+    let wall = Infinity;
+    for (const y of [0.5, 1.3]) for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; const h = S.first(V(p.x, p.y + y, p.z), V(Math.cos(a), 0, Math.sin(a)), 3); if (h && h.distance < wall) wall = h.distance; }
+    if (wall < TH.spawnWallFail) errs.push('wall ' + r2(wall) + ' m away'); else if (wall < TH.spawnWallWarn) wrn.push('wall ' + r2(wall) + ' m away');
+    const prop = REG.props.reduce((b, q) => Math.min(b, obbDist(p.x, p.z, q)), Infinity);
+    if (prop < TH.spawnPropGap) errs.push('on / against a prop (' + r2(prop) + ' m)');
+    if (!navOK(p.x, p.z)) (nearWalk(p.x, p.z) ? wrn : errs).push(nearWalk(p.x, p.z) ? 'not on a nav walk cell (one is within 3 m)' : 'no nav walk cell within 3 m');
+    if (errs.length || wrn.length) issues.push({ group, i, at: P3(p), errors: errs, warnings: wrn });
+    if (wrn.length && !errs.length) warns++;
+    marks.push({ kind: 'spawn', group, bad: errs.length > 0, x: p.x, z: p.z });
+    return errs.length === 0;
+  };
+  let bad = 0;
+  world.spawnPoints.forEach((p, i) => { if (!testPoint(p, 'ffa', i)) bad++; });
+  const cs = world.ctfSpawns || { red: [], blue: [] };
+  for (const team of ['red', 'blue']) (cs[team] || []).forEach((p, i) => { if (!testPoint(p, team, i)) bad++; });
+  const ng = world.navGrid || {};
+  const bases = world.ctfBases;
+  const general = [];
+  if (world.spawnPoints.length < TH.spawnMin) general.push(`only ${world.spawnPoints.length} FFA spawns (< ${TH.spawnMin})`);
+  for (const team of ['red', 'blue']) if ((cs[team] || []).length < TH.ctfSpawnMin) general.push(`only ${(cs[team] || []).length} ${team} CTF spawns (< ${TH.ctfSpawnMin})`);
+  if (ng.unreachable) general.push(`navGrid.unreachable = ${ng.unreachable}`);
+  const baseInfo = {};
+  let baseDist = null, navPath = null; const wrnGeneral = [];
+  if (bases) {
+    for (const team of ['red', 'blue']) {
+      const b = bases[team]; const own = cs[team] || [], other = cs[team === 'red' ? 'blue' : 'red'] || [];
+      // cover around the base: fraction of 16 directions blocked within 30 m at chest height
+      let blocked = 0; for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; if (S.first(V(b.x, 1.3, b.z), V(Math.cos(a), 0, Math.sin(a)), 30)) blocked++; }
+      const dists = own.map((p) => Math.hypot(p.x - b.x, p.z - b.z));
+      const outOfRange = dists.filter((d) => d < TH.ctfSpawnRange[0] - 1 || d > TH.ctfSpawnRange[1] + 1).length;
+      const wrongSide = own.filter((p) => { const ob = bases[team === 'red' ? 'blue' : 'red']; return Math.hypot(p.x - ob.x, p.z - ob.z) < Math.hypot(p.x - b.x, p.z - b.z); }).length;
+      baseInfo[team] = { at: P3(b), onWalkCell: navOK(b.x, b.z), cover30m: blocked / 16, teamSpawns: own.length, spawnsOutOfRange: outOfRange, spawnsNearerEnemyBase: wrongSide };
+      if (!navOK(b.x, b.z)) general.push(`${team} CTF base is not on a walk cell`);
+      if (wrongSide) general.push(`${wrongSide} ${team} spawns are nearer the enemy base`);
+      if (outOfRange) wrnGeneral.push(`${outOfRange} ${team} spawns outside ${TH.ctfSpawnRange.join('-')} m of their base`);
+      marks.push({ kind: 'base', team, x: b.x, z: b.z });
+      void other;
+    }
+    baseDist = Math.hypot(bases.red.x - bases.blue.x, bases.red.z - bases.blue.z);
+    if (baseDist < TH.ctfBaseDist[0] || baseDist > TH.ctfBaseDist[1]) wrnGeneral.push(`bases ${Math.round(baseDist)} m apart (guide ${TH.ctfBaseDist.join('-')} m)`);
+    // walking distance between the bases on the nav grid (BFS, 4-neighbour)
+    if (ng.walk) {
+      const idx = (x, z) => { const i = Math.floor((x - ng.x0) / ng.cell), j = Math.floor((z - ng.z0) / ng.cell); return i < 0 || j < 0 || i >= ng.nx || j >= ng.nz ? -1 : j * ng.nx + i; };
+      const a = idx(bases.red.x, bases.red.z), b = idx(bases.blue.x, bases.blue.z);
+      if (a >= 0 && b >= 0 && ng.walk[a] && ng.walk[b]) {
+        const dist = new Int32Array(ng.walk.length).fill(-1); const q = [a]; dist[a] = 0;
+        for (let h = 0; h < q.length && dist[b] < 0; h++) { const k = q[h], i = k % ng.nx; for (const n of [k - 1, k + 1, k - ng.nx, k + ng.nx]) { if (n < 0 || n >= ng.walk.length || (n === k - 1 && i === 0) || (n === k + 1 && i === ng.nx - 1) || !ng.walk[n] || dist[n] >= 0) continue; dist[n] = dist[k] + 1; q.push(n); } }
+        navPath = dist[b] >= 0 ? Math.round(dist[b] * ng.cell) : null;
+        if (navPath === null) general.push('no nav path between the CTF bases');
+      } else general.push('CTF base outside the nav walk area');
+    }
+  }
+  const fails = bad + general.length;
+  const res = {
+    status: status(fails, warns + wrnGeneral.length),
+    what: 'Every FFA / CTF spawn: inside playBounds (FFA: spawnBounds), at ground level, open sky, capsule fits, >= ' + TH.spawnWallFail + ' m from walls (warn < ' + TH.spawnWallWarn + '), not on a prop, on a nav walk cell. Nav unreachable = 0, CTF bases on walk cells, connected, sensible distance.',
+    counts: { ffa: world.spawnPoints.length, ctfRed: (cs.red || []).length, ctfBlue: (cs.blue || []).length, failingSpawns: bad, navWalkable: ng.walkableCells ?? null, navUnreachable: ng.unreachable ?? null, baseDistance: baseDist === null ? null : Math.round(baseDist), baseNavPath: navPath },
+    errors: general, warnings: wrnGeneral, bases: baseInfo, failures: issues,
+  };
+  log(`spawns: ${res.status} (${bad} failing spawns, ${general.length} general errors)`);
+  finishCheck('spawns', res);
+}
+
+// ============================================================================================== 4 helicopter spots
+async function checkHeli() {
+  const out = []; let fails = 0, warns = 0;
+  const spots = world.heliSpawns || [];
+  for (const [i, h] of spots.entries()) {
+    const { x, y, z } = h.pos; const errs = [], wrn = [];
+    const disc = S.segDist(V(x, y + 0.5, z), V(x, y + 3.4, z), TH.heliClearWarn + 0.5, y + 0.3);
+    if (disc.d < TH.heliClear) errs.push(`collider ${r2(disc.d)} m from the rotor axis at ${P3(disc.at)}`);
+    else if (disc.d < TH.heliClearWarn) wrn.push(`collider ${r2(disc.d)} m from the rotor axis`);
+    const tree = REG.trunks.reduce((b, t) => Math.min(b, Math.hypot(t[0] - x, t[1] - z)), Infinity);
+    if (tree < TH.heliTreeClear) errs.push(`tree ${r1(tree)} m away (canopy in the rotor)`);
+    if (S.first(V(x, y + 0.6, z), UP, 80)) errs.push('no open sky above');
+    if (h.roof || y > 0.5) {
+      const c = Math.cos(h.yaw || 0), s = Math.sin(h.yaw || 0);
+      for (const [lx, lz] of [[0, 0], [-1.2, -2], [1.2, -2], [-1.2, 2], [1.2, 2]]) {
+        const px = x + lx * c + lz * s, pz = z - lx * s + lz * c;
+        if (!S.first(V(px, y + 1, pz), DOWN, 1.4)) { errs.push(`no deck under skid point (${r1(lx)}, ${r1(lz)})`); break; }
+      }
+    }
+    if (!inPB(x, z, 6)) errs.push('within 6 m of the play-area edge');
+    if (errs.length) fails++; else if (wrn.length) warns++;
+    out.push({ i, at: P3(h.pos), roof: !!h.roof, clearance: r2(disc.d), treeDist: r1(tree), errors: errs, warnings: wrn });
+    marks.push({ kind: 'heli', bad: errs.length > 0, x, z });
+  }
+  const general = spots.length < TH.heliMin ? [`only ${spots.length} helicopter spots (< ${TH.heliMin})`] : [];
+  const res = { status: status(fails, warns + general.length), what: `Each heli spot: nothing solid within ${TH.heliClear} m of the rotor axis between deck+0.3 m and +3.4 m (warn < ${TH.heliClearWarn}), tree trunks >= ${TH.heliTreeClear} m, open sky, roof spots have deck under all skid points.`, counts: { spots: spots.length, roof: spots.filter((h) => h.roof).length, failing: fails, warning: warns }, warnings: general, failures: out.filter((o) => o.errors.length || o.warnings.length), spots: out };
+  log(`heli: ${res.status} ${spots.length - fails}/${spots.length} ok`);
+  finishCheck('heli', res);
+}
+
+// ============================================================================================== 5 visible but not solid
+async function checkVisualSolid() {
+  const vis = scene.getObjectByName('world-visuals');
+  const cells = new Map(); let tris = 0, sampled = 0;
+  const a = V(), b = V(), c = V(), n = V(), p = V(), e1 = V(), e2 = V();
+  const SKIPNAMES = /^(decal|stall-paint|shrubs|static:net|static:chainlink|static:windscreen|static:lightEmit)$/;   // see-through / not walkable-looking
+  const meshes = [];
+  vis.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && o.visible && !SKIPNAMES.test(o.name) && o.geometry?.attributes?.position) meshes.push(o); });
+  let lastYield = performance.now();
+  for (const m of meshes) {
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    if (mats.every((mt) => !mt || mt.visible === false || (mt.transparent && mt.opacity < 0.2))) continue;
+    const dbl = mats.some((mt) => mt && mt.side === THREE.DoubleSide);
+    const key = m.name.startsWith('static:') ? m.name.slice(7) : (m.name || 'mesh');
+    const pos = m.geometry.attributes.position, idx = m.geometry.index; const mw = m.matrixWorld;
+    const nT = (idx ? idx.count : pos.count) / 3;
+    for (let t = 0; t < nT; t++) {
+      const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
+      a.fromBufferAttribute(pos, i0).applyMatrix4(mw); b.fromBufferAttribute(pos, i1).applyMatrix4(mw); c.fromBufferAttribute(pos, i2).applyMatrix4(mw);
+      const ymax = Math.max(a.y, b.y, c.y); if (ymax < TH.visMinY || Math.min(a.y, b.y, c.y) > TH.visMaxY) continue;
+      e1.subVectors(b, a); e2.subVectors(c, a); n.crossVectors(e1, e2); const area2 = n.length(); if (area2 < 0.04) continue; n.divideScalar(area2);
+      const ny = dbl ? Math.abs(n.y) : n.y; if (ny < 0.7) continue;
+      const L = Math.max(e1.length(), e2.length(), b.distanceTo(c)); if (area2 / L < TH.visMinWidth) continue;   // triangle altitude: sills, copings, rails are too narrow to stand on
+      const cx = (a.x + b.x + c.x) / 3, cz = (a.z + b.z + c.z) / 3; if (!inPB(cx, cz, -2)) continue;
+      tris++;
+      const k = Math.max(1, Math.ceil(L / 1.2)); const area = area2 / 2;
+      for (let i = 0; i < k; i++) for (let j = 0; j < k - i; j++) {
+        for (const up of [0, 1]) {
+          if (up && j === k - i - 1) continue;
+          const u = up ? (i + 2 / 3) / k : (i + 1 / 3) / k, v = up ? (j + 2 / 3) / k : (j + 1 / 3) / k;
+          p.copy(a).addScaledVector(e1, u).addScaledVector(e2, v);
+          if (p.y < TH.visMinY || !inPB(p.x, p.z)) continue;
+          sampled++;
+          const h = S.first(V(p.x, p.y + 0.3, p.z), DOWN, 0.9);
+          if (h) continue;
+          let lip = false; for (let k = 0; k < 8 && !lip; k++) { const an = k * Math.PI / 4; if (S.first(V(p.x, p.y - 0.3, p.z), V(Math.cos(an), 0, Math.sin(an)), TH.visMinWidth)) lip = true; }
+          if (lip) continue;   // overhanging lip / coping edge right next to a solid wall: not a separate standable surface
+          const hu = S.first(V(p.x, p.y + 0.05, p.z), UP, 30);
+          if (hu && hu.face.normal.y > 0.2) continue;   // inside a closed solid (hit its top from below)
+          const ck = Math.floor(p.x) + ',' + Math.floor(p.z) + ',' + Math.round(p.y * 2);
+          let cell = cells.get(ck); if (!cell) { cell = { x: Math.floor(p.x), z: Math.floor(p.z), yq: Math.round(p.y * 2), area: 0, ys: 0, n: 0, keys: new Set(), p: [r1(p.x), r2(p.y), r1(p.z)] }; cells.set(ck, cell); }
+          cell.area += area / (k * k); cell.ys += p.y; cell.n++; cell.keys.add(key);
+        }
+      }
+      if (performance.now() - lastYield > 250) { lastYield = performance.now(); $('status').textContent = `visual/solid ${key}`; await tick(); }
+    }
+  }
+  // patches: 8-connected cells with |dy| <= 0.5 m
+  const seen = new Set(); const patches = [];
+  for (const [ck, cell] of cells) {
+    if (seen.has(ck)) continue; seen.add(ck);
+    const q = [cell]; const pt = { area: 0, n: 0, ys: 0, minX: 1e9, maxX: -1e9, minZ: 1e9, maxZ: -1e9, keys: new Set(), cells: 0, ex: [] };
+    for (let h = 0; h < q.length; h++) {
+      const cc = q[h]; pt.area += cc.area; pt.n += cc.n; pt.ys += cc.ys; pt.cells++; for (const k of cc.keys) pt.keys.add(k); if (pt.ex.length < 3) pt.ex.push(cc.p);
+      pt.minX = Math.min(pt.minX, cc.x); pt.maxX = Math.max(pt.maxX, cc.x + 1); pt.minZ = Math.min(pt.minZ, cc.z); pt.maxZ = Math.max(pt.maxZ, cc.z + 1);
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (let dy = -1; dy <= 1; dy++) {
+        const k2 = (cc.x + dx) + ',' + (cc.z + dz) + ',' + (cc.yq + dy); if (seen.has(k2)) continue; const c2 = cells.get(k2); if (!c2) continue; seen.add(k2); q.push(c2);
+      }
+    }
+    patches.push(pt);
+  }
+  const big = patches.filter((pt) => pt.area >= TH.visPatchArea && pt.cells >= TH.visCellsMin).sort((p, q) => q.area - p.area);
+  const failures = big.map((pt) => ({ center: [r1((pt.minX + pt.maxX) / 2), r2(pt.ys / pt.n), r1((pt.minZ + pt.maxZ) / 2)], area: r1(pt.area), bbox: [pt.minX, pt.minZ, pt.maxX, pt.maxZ], materials: [...pt.keys], examples: pt.ex }));
+  for (const f of failures) marks.push({ kind: 'vis', x0: f.bbox[0], z0: f.bbox[1], x1: f.bbox[2], z1: f.bbox[3] });
+  // hedges / shrubs taller than eye-blocking height with nothing solid under them
+  const shrubs = [];
+  for (const sh of REG.shrubs || []) {
+    const [x, y, z, len, h, rot] = sh; const top = y + h; if (top <= TH.shrubMaxH) continue;
+    const hit = S.first(V(x, top + 0.3, z), DOWN, top + 0.3 - 0.3);
+    if (!hit) { shrubs.push({ at: [r1(x), r2(top), r1(z)], len: r1(len), height: r2(top), rot: r2(rot) }); marks.push({ kind: 'vis', x0: x - 1, z0: z - 1, x1: x + 1, z1: z + 1 }); }
+  }
+  const res = {
+    status: status(failures.length + shrubs.length, 0),
+    what: `Upward-facing visual faces above ${TH.visMinY} m inside the play area with no collision within 0.6 m below (and not buried in a solid); patches >= ${TH.visPatchArea} m2 fail. Shrubs/hedges taller than ${TH.shrubMaxH} m without collision fail.`,
+    counts: { upTriangles: tris, samples: sampled, patches: patches.length, failingPatches: failures.length, failingAreaM2: r1(failures.reduce((s, f) => s + f.area, 0)), tallShrubs: shrubs.length, smallPatchesIgnored: patches.length - big.length },
+    failures: failures.slice(0, 60), tallShrubs: shrubs.slice(0, 40),
+  };
+  log(`visual-not-solid: ${res.status} ${failures.length} patches (${res.counts.failingAreaM2} m2), ${shrubs.length} tall shrubs`);
+  finishCheck('visualSolid', res);
+}
+
+// ============================================================================================== 6 prop overlaps
+function obbCorners(p) { const c = Math.cos(p.rot), s = Math.sin(p.rot); return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, w]) => { const lx = u * p.sx / 2, lz = w * p.sz / 2; return [p.x + lx * c + lz * s, p.z - lx * s + lz * c]; }); }
+function obbOverlap(A, B) {   // SAT penetration depth (> 0 overlapping)
+  const ca = obbCorners(A), cb = obbCorners(B); let depth = Infinity;
+  for (const P of [A, B]) {
+    const c = Math.cos(P.rot), s = Math.sin(P.rot);
+    for (const [ax, az] of [[c, -s], [s, c]]) {
+      const pa = ca.map((q) => q[0] * ax + q[1] * az), pb = cb.map((q) => q[0] * ax + q[1] * az);
+      const o = Math.min(Math.max(...pa), Math.max(...pb)) - Math.max(Math.min(...pa), Math.min(...pb));
+      if (o <= 0) return 0; depth = Math.min(depth, o);
+    }
+  }
+  return depth;
+}
+async function checkProps() {
+  const props = REG.props.filter((p) => inPB(p.x, p.z, -30));
+  const overlaps = [], trunks = [], near = [];
+  for (let i = 0; i < props.length; i++) {
+    const A = props[i]; const ra = Math.hypot(A.sx, A.sz) / 2;
+    for (let j = i + 1; j < props.length; j++) {
+      const B = props[j]; if (Math.hypot(A.x - B.x, A.z - B.z) > ra + Math.hypot(B.sx, B.sz) / 2) continue;
+      const d = obbOverlap(A, B);
+      if (d > TH.propOverlap) overlaps.push({ a: A.kind, b: B.kind, at: [r1((A.x + B.x) / 2), r1((A.z + B.z) / 2)], depth: r2(d) });
+    }
+    for (const [tx, tz, tr] of REG.trunks) {
+      if (Math.hypot(A.x - tx, A.z - tz) > ra + tr + TH.trunkWarn) continue;
+      const d = obbDist(tx, tz, A) - tr;
+      if (d < 0) trunks.push({ prop: A.kind, at: [r1(A.x), r1(A.z)], trunk: [r1(tx), r1(tz)], penetration: r2(-d) });
+      else if (d < TH.trunkWarn) near.push({ prop: A.kind, at: [r1(A.x), r1(A.z)], trunk: [r1(tx), r1(tz)], gap: r2(d) });
+    }
+  }
+  for (const o of overlaps) marks.push({ kind: 'prop', x: o.at[0], z: o.at[1] });
+  for (const o of trunks) marks.push({ kind: 'prop', x: o.at[0], z: o.at[1] });
+  const byKind = {}; for (const p of props) byKind[p.kind] = (byKind[p.kind] || 0) + 1;
+  const res = {
+    status: status(overlaps.length + trunks.length, near.length), what: `Registered prop footprints (src/world/props.js registerProp) must not intersect each other (> ${TH.propOverlap} m) or a tree trunk; within ${TH.trunkWarn} m of a trunk = warn.`,
+    counts: { props: props.length, byKind, overlaps: overlaps.length, trunkHits: trunks.length, nearTrunk: near.length }, failures: overlaps.concat(trunks).slice(0, 80), nearTrunk: near.slice(0, 40),
+  };
+  if (!REG.props.length) { res.status = 'warn'; res.note = 'no props registered (builder places props without src/world/props.js helpers)'; }
+  log(`props: ${res.status} ${overlaps.length} overlaps, ${trunks.length} on trunks, ${near.length} near trunks`);
+  finishCheck('props', res);
+}
+
+// ============================================================================================== 7 signs
+async function checkSigns() {
+  const vis = scene.getObjectByName('world-visuals');
+  const decals = []; vis.traverse((o) => { if (o.isMesh && o.material?.map?.userData?.textFit) decals.push(o); });
+  // window-ish visual meshes get a temporary BVH
+  const WIN = /^(glass|glassInt|curtainGlass|storefront|frame|frameAlu|louver|frost|carGlass)$/;
+  const wins = []; vis.traverse((o) => { if (o.isMesh && o.name.startsWith('static:') && WIN.test(o.name.slice(7))) wins.push(o); });
+  const winBVH = wins.map((m) => ({ key: m.name.slice(7), bvh: new MeshBVH(m.geometry) }));
+  const ray = new THREE.Ray();
+  const out = []; let fails = 0, warns = 0;
+  for (const m of decals) {
+    const fit = m.material.map.userData.textFit; const pos = m.geometry.attributes.position; m.updateWorldMatrix(true, false);
+    const P = (i) => V().fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld);
+    // world-space texture axes from the first triangle's uvs: dP/du (text width) and dP/dv (text height)
+    const uv = m.geometry.attributes.uv; const q0 = P(0), q1 = P(1), q2 = P(2);
+    const du1 = uv.getX(1) - uv.getX(0), dv1 = uv.getY(1) - uv.getY(0), du2 = uv.getX(2) - uv.getX(0), dv2 = uv.getY(2) - uv.getY(0);
+    const det = du1 * dv2 - du2 * dv1 || 1e-9; const e1 = V().subVectors(q1, q0), e2 = V().subVectors(q2, q0);
+    const wv = e1.clone().multiplyScalar(dv2 / det).addScaledVector(e2, -dv1 / det);   // dP/du over the full 0..1 range
+    const hv = e2.clone().multiplyScalar(du1 / det).addScaledVector(e1, -du2 / det);   // dP/dv
+    const w = wv.length(), h = hv.length();
+    const p0 = q0.clone().addScaledVector(wv, -uv.getX(0)).addScaledVector(hv, -uv.getY(0));   // world point of uv (0, 0)
+    const nrm = V().crossVectors(wv, hv).normalize();   // the side the text reads from
+    const flat = Math.abs(nrm.y) > 0.7;                  // ground lettering (fields, courts): no wall / window tests
+    const errs = [], wrn = [];
+    if (fit.overflowX) errs.push(`text wider than its canvas (${fit.widest} > ${fit.room} px)`);
+    if (fit.overflowY) errs.push(`font ${fit.finalFont}px taller than its line band (${Math.round(fit.h / fit.lines.length)} px)`);
+    if (fit.shrink < TH.signShrinkWarn) wrn.push(`text shrunk to ${Math.round(fit.shrink * 100)}% to fit`);
+    const aspC = fit.w / fit.h, aspQ = w / Math.max(h, 1e-6); const dist = aspQ / aspC;
+    if (Math.abs(dist - 1) > TH.signAspectWarn) wrn.push(`stretched ${r2(dist)}x (canvas ${r2(aspC)} vs decal ${r2(aspQ)})`);
+    const capH = (fit.finalFont * 0.72 / fit.h) * h; if (capH < TH.signMinCap) wrn.push(`letters ${Math.round(capH * 100)} cm tall`);
+    // sample grid on the decal: what is behind it?
+    let onWin = 0, unbacked = 0, nS = 0; const winKeys = new Set();
+    if (!flat) for (let i = 0; i < 9; i++) for (let j = 0; j < 3; j++) {
+      const u = (i + 0.5) / 9, v = (j + 0.5) / 3; const q = V().copy(p0).addScaledVector(wv, u).addScaledVector(hv, v); nS++;
+      const o = q.clone().addScaledVector(nrm, 0.3); const dir = nrm.clone().negate();
+      const back = S.first(o, dir, 1.0); const backD = back ? back.distance : Infinity; if (!back || backD > 0.3 + 0.6) unbacked++;
+      ray.origin.copy(o); ray.direction.copy(dir);
+      for (const W of winBVH) { const hh = W.bvh.raycastFirst(ray, THREE.DoubleSide, 0, Math.min(1.0, (backD === Infinity ? 0.6 : backD) + 0.35)); if (hh && hh.distance > 0.27) { onWin++; winKeys.add(W.key); break; } }
+    }
+    if (nS && onWin / nS > TH.signWindowFrac) errs.push(`over windows (${Math.round(onWin / nS * 100)}% of the sign: ${[...winKeys].join(', ')})`);
+    if (nS && unbacked / nS > 0.3) wrn.push(`not backed by a wall (${Math.round(unbacked / nS * 100)}%)`);
+    if (errs.length) fails++; else if (wrn.length) warns++;
+    const c = V().copy(p0).addScaledVector(wv, 0.5).addScaledVector(hv, 0.5);
+    out.push({ text: fit.lines.join(' / '), at: P3(c), size: [r2(w), r2(h)], flat, errors: errs, warnings: wrn });
+    if (errs.length || wrn.length) marks.push({ kind: 'sign', bad: errs.length > 0, x: c.x, z: c.z });
+  }
+  const res = { status: status(fails, warns), what: 'Every textDecal sign: text fits its canvas (no overflow), not shrunk below ' + TH.signShrinkWarn * 100 + '% (warn), not stretched > ' + TH.signAspectWarn * 100 + '% (warn), letters >= ' + TH.signMinCap * 100 + ' cm (warn), not over windows (> ' + TH.signWindowFrac * 100 + '% of samples hit glass / frames behind it), backed by a wall.', counts: { signs: decals.length, failing: fails, warning: warns }, failures: out.filter((o) => o.errors.length || o.warnings.length), signs: out };
+  log(`signs: ${res.status} ${decals.length} signs, ${fails} failing, ${warns} warnings`);
+  finishCheck('signs', res);
+}
+
+// ============================================================================================== 8 boundary
+async function checkBoundary() {
+  const edges = [
+    { name: 'north', a: [PB.minX, PB.minZ], b: [PB.maxX, PB.minZ], n: [0, 1] },
+    { name: 'south', a: [PB.minX, PB.maxZ], b: [PB.maxX, PB.maxZ], n: [0, -1] },
+    { name: 'west', a: [PB.minX, PB.minZ], b: [PB.minX, PB.maxZ], n: [1, 0] },
+    { name: 'east', a: [PB.maxX, PB.minZ], b: [PB.maxX, PB.maxZ], n: [-1, 0] },
+  ];
+  const segs = []; let reachable = 0, open = 0;
+  for (const E of edges) {
+    const L = Math.hypot(E.b[0] - E.a[0], E.b[1] - E.a[1]); const tx = (E.b[0] - E.a[0]) / L, tz = (E.b[1] - E.a[1]) / L;
+    let cur = null;
+    const flush = () => { if (cur) { segs.push(cur); cur = null; } };
+    for (let d = TH.boundaryStep / 2; d < L; d += TH.boundaryStep) {
+      const x = E.a[0] + tx * d, z = E.a[1] + tz * d;
+      const ix = x + E.n[0] * 2.5, iz = z + E.n[1] * 2.5;
+      if (!nearWalk(ix, iz)) { flush(); continue; }
+      reachable++;
+      let barrier = false;
+      for (const y of [0.5, 1.0, 1.6]) if (S.first(V(x + E.n[0] * 3, y, z + E.n[1] * 3), V(-E.n[0], 0, -E.n[1]), 5)) { barrier = true; break; }
+      if (!barrier) barrier = REG.trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 4);
+      if (barrier) { flush(); continue; }
+      open++;
+      const surf = world.surfaceAt ? world.surfaceAt(x + E.n[0], z + E.n[1]) : 'grass';
+      if (!cur || cur.edge !== E.name) cur = { edge: E.name, from: [r1(x), r1(z)], to: [r1(x), r1(z)], len: 0, surf: {} };
+      cur.to = [r1(x), r1(z)]; cur.len += TH.boundaryStep; cur.surf[surf] = (cur.surf[surf] || 0) + 1;
+    }
+    flush();
+  }
+  for (const s of segs) { const tot = Object.values(s.surf).reduce((a, b) => a + b, 0); s.street = (s.surf.asphalt || 0) / tot >= 0.5; s.main = Object.entries(s.surf).sort((a, b) => b[1] - a[1])[0][0]; }
+  const street = segs.filter((s) => s.street && s.len >= TH.boundaryStreetWarn);
+  for (const s of segs) marks.push({ kind: 'edge', street: s.street, x0: s.from[0], z0: s.from[1], x1: s.to[0], z1: s.to[1] });
+  const res = {
+    status: street.length ? 'warn' : 'pass', what: `Play-area edge sampled every ${TH.boundaryStep} m where the player can walk up to it: no collider (fence, wall, barrier) within 3 m inside / 2 m outside at 0.5-1.6 m and no tree trunk within 4 m = open edge (invisible wall). Open edges on asphalt >= ${TH.boundaryStreetWarn} m = "stopped mid-street" warning. Flag only, never fails.`,
+    counts: { reachablePoints: reachable, openPoints: open, openSegments: segs.length, streetSegments: street.length, streetMetres: street.reduce((a, s) => a + s.len, 0) },
+    failures: street.map((s) => ({ edge: s.edge, from: s.from, to: s.to, len: s.len, surface: s.main })), otherOpen: segs.filter((s) => !street.includes(s)).map((s) => ({ edge: s.edge, from: s.from, to: s.to, len: s.len, surface: s.main })).slice(0, 40),
+  };
+  log(`boundary: ${res.status} ${street.length} open street segments (${res.counts.streetMetres} m), ${segs.length} open segments total`);
+  finishCheck('boundary', res);
+}
+
+// ============================================================================================== 9 bots
+async function checkBots() {
+  const realNow = performance.now.bind(performance), realRandom = Math.random;
+  let vt = realNow(); const rng = mulberry32(1234);
+  performance.now = () => vt; Math.random = rng;
+  const events = [], stats = [];
+  try {
+    const { Authority } = await import('../src/game/authority.js');
+    const auth = new Authority({ world, mode: 'ffa', out: () => {} });
+    auth.bots.configure({ count: TH.botCount, difficulty: 'normal' });
+    const trackers = [];
+    for (const b of auth.bots.brains.values()) {
+      if (!b.ctrl) continue;
+      const tr = { b, intent: 0, anchor: b.ctrl.position.clone(), intentT: 0, reported: null, dist: 0, last: b.ctrl.position.clone(), maxStill: 0, deaths: 0 };
+      const orig = b.ctrl.update.bind(b.ctrl);
+      b.ctrl.update = (dt, input, opts) => { tr.intent = Math.hypot(input.forward || 0, input.strafe || 0); return orig(dt, input, opts); };
+      trackers.push(tr);
+    }
+    const steps = Math.round(TH.botTime / DT); let lastYield = realNow();
+    for (let s = 0; s < steps; s++) {
+      vt += DT * 1000;
+      auth.update(DT);
+      for (const tr of trackers) {
+        const b = tr.b, p = b.ctrl.position;
+        const jump = p.distanceTo(tr.last); if (jump > 5) { tr.anchor.copy(p); tr.intentT = 0; tr.reported = null; } else tr.dist += jump; tr.last.copy(p);
+        if (!b.p.alive || b.p.inHeli || b.pilot) { tr.anchor.copy(p); tr.intentT = 0; tr.reported = null; tr.intent = 0; continue; }
+        if (Math.hypot(p.x - tr.anchor.x, p.z - tr.anchor.z) > TH.botMoveRadius || Math.abs(p.y - tr.anchor.y) > 1.5) { tr.anchor.copy(p); tr.intentT = 0; tr.reported = null; continue; }
+        const busy = b.visible || b.mob?.state === 'perch';
+        if (tr.intent > 0.3 && !busy) tr.intentT += DT;
+        tr.maxStill = Math.max(tr.maxStill, tr.intentT);
+        if (tr.intentT > TH.botStuck && !tr.reported) { tr.reported = { bot: b.p.name, at: P3(p), t: r1(s * DT), mobState: b.mob?.state || null, goal: b.goal ? P3(b.goal) : null, onRoof: p.y > 0.6 }; events.push(tr.reported); marks.push({ kind: 'bot', x: p.x, z: p.z }); }
+        if (tr.reported) tr.reported.stuckFor = r1(tr.intentT);
+      }
+      if (realNow() - lastYield > 250) { lastYield = realNow(); $('status').textContent = `bots ${r1(s * DT)} / ${TH.botTime} s`; await tick(); }
+    }
+    for (const tr of trackers) stats.push({ bot: tr.b.p.name, cls: tr.b.p.cls, kills: tr.b.p.kills, deaths: tr.b.p.deaths, travelled: Math.round(tr.dist), longestStillWithIntent: r1(tr.maxStill), unstuckPops: tr.b.ctrl._stuck?.count || 0 });
+  } finally { performance.now = realNow; Math.random = realRandom; }
+  const pops = stats.reduce((a, b2) => a + b2.unstuckPops, 0);
+  const res = { status: status(0, events.length + pops), what: `${TH.botCount} normal bots, FFA, ${TH.botTime} s (seeded, virtual clock): any bot within ${TH.botMoveRadius} m of the same spot for > ${TH.botStuck} s while trying to move (not fighting, not perched) is logged. The controller's stuck safety net firing (unstuckPops) is also a warning: a bot got wedged somewhere. Warn only.`, counts: { bots: stats.length, stuckEvents: events.length, unstuckPops: pops }, failures: events, bots: stats };
+  log(`bots: ${res.status} ${events.length} stuck events`);
+  finishCheck('bots', res);
+}
+
+// ---------------------------------------------------------------------------------------------- summary + image
+function renderSummary() {
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'visualSolid', 'props', 'signs', 'boundary', 'bots'];
+  const lines = [];
+  for (const id of order) {
+    const c = report.checks[id]; if (!c) continue;
+    lines.push(`<span class="${c.status}">${c.status.toUpperCase().padEnd(5)}</span> ${id.padEnd(12)} ${Object.entries(c.counts || {}).filter(([, v]) => typeof v !== 'object' || v === null).map(([k, v]) => k + '=' + v).join('  ')}`);
+    const fl = (c.errors || []).concat(c.warnings || []).map((e) => '      - ' + e);
+    for (const f of (c.failures || []).slice(0, 8)) fl.push('      · ' + JSON.stringify(f));
+    if ((c.failures || []).length > 8) fl.push(`      … ${c.failures.length - 8} more in the JSON`);
+    lines.push(...fl.map((l) => l.replace(/</g, '&lt;')));
+  }
+  $('summary').innerHTML = lines.join('\n');
+}
+async function drawMap() {
+  const s = 2; const W = Math.round((PB.maxX - PB.minX) * s), H = Math.round((PB.maxZ - PB.minZ) * s);
+  const cv = $('map'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  const X = (x) => (x - PB.minX) * s, Z = (z) => (z - PB.minZ) * s;
+  try {
+    const img = new Image(); await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = './' + CAMPUS.files.satellite; });   // (decode() can stall in a hidden tab)
+    const sat = CAMPUS.sat; const sx = img.width / (sat.maxX - sat.minX), sz = img.height / (sat.maxZ - sat.minZ);
+    g.globalAlpha = 0.55; g.drawImage(img, (PB.minX - sat.minX) * sx, (PB.minZ - sat.minZ) * sz, (PB.maxX - PB.minX) * sx, (PB.maxZ - PB.minZ) * sz, 0, 0, W, H); g.globalAlpha = 1;
+  } catch (e) { g.fillStyle = '#222'; g.fillRect(0, 0, W, H); }
+  const X8 = (x, z, col, r = 5, lw = 2) => { g.strokeStyle = col; g.lineWidth = lw; g.beginPath(); g.moveTo(X(x) - r, Z(z) - r); g.lineTo(X(x) + r, Z(z) + r); g.moveTo(X(x) + r, Z(z) - r); g.lineTo(X(x) - r, Z(z) + r); g.stroke(); };
+  for (const m of marks) {
+    if (m.kind === 'vis') { g.fillStyle = 'rgba(255,0,255,0.55)'; g.fillRect(X(m.x0), Z(m.z0), (m.x1 - m.x0) * s, (m.z1 - m.z0) * s); }
+    else if (m.kind === 'edge') { g.strokeStyle = m.street ? '#ff8800' : 'rgba(255,200,120,0.6)'; g.lineWidth = m.street ? 5 : 2; g.beginPath(); g.moveTo(X(m.x0), Z(m.z0)); g.lineTo(X(m.x1), Z(m.z1)); g.stroke(); }
+  }
+  for (const m of marks) {
+    if (m.kind === 'trap') X8(m.x, m.z, '#ff2020', 7, 3);
+    else if (m.kind === 'trapDrop') X8(m.x, m.z, '#ff9020', 6, 3);
+    else if (m.kind === 'fell') X8(m.x, m.z, '#ffffff', 6, 2);
+    else if (m.kind === 'ladderOk' || m.kind === 'ladderBad') { g.fillStyle = m.kind === 'ladderOk' ? '#3f3' : '#f33'; g.fillRect(X(m.x) - 4, Z(m.z) - 4, 8, 8); }
+    else if (m.kind === 'spawn') { g.fillStyle = m.group === 'ffa' ? '#3ff' : m.group; g.beginPath(); g.arc(X(m.x), Z(m.z), 3, 0, 7); g.fill(); if (m.bad) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(X(m.x), Z(m.z), 7, 0, 7); g.stroke(); } }
+    else if (m.kind === 'base') { g.strokeStyle = m.team; g.lineWidth = 3; g.strokeRect(X(m.x) - 8, Z(m.z) - 8, 16, 16); }
+    else if (m.kind === 'heli') { g.strokeStyle = m.bad ? '#f33' : '#3f3'; g.lineWidth = 2; g.beginPath(); g.arc(X(m.x), Z(m.z), 8 * s, 0, 7); g.stroke(); }
+    else if (m.kind === 'prop') X8(m.x, m.z, '#ffff00', 5, 2);
+    else if (m.kind === 'sign') { g.fillStyle = m.bad ? '#ffcc00' : 'rgba(255,204,0,0.5)'; g.fillRect(X(m.x) - 5, Z(m.z) - 3, 10, 6); }
+    else if (m.kind === 'bot') { g.strokeStyle = '#b060ff'; g.lineWidth = 3; g.beginPath(); g.arc(X(m.x), Z(m.z), 6, 0, 7); g.stroke(); }
+  }
+  window.__mapcheckImage = () => cv.toDataURL('image/png');
+}
+
+// ---------------------------------------------------------------------------------------------- run
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+for (const [id, fn] of CHECKS) {
+  if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
+  $('status').textContent = id + '…'; await tick();
+  const ts = performance.now();
+  try { await fn(); } catch (e) { console.error(e); report.checks[id] = { status: 'fail', error: String(e && e.stack || e) }; log(`${id}: ERROR ${e}`); renderSummary(); }
+  if (report.checks[id]) report.checks[id].seconds ??= r1((performance.now() - ts) / 1000);
+}
+const sts = Object.values(report.checks).map((c) => c.status);
+report.pass = !sts.includes('fail');
+report.verdict = sts.includes('fail') ? 'fail' : sts.includes('warn') ? 'warn' : 'pass';
+report.durationS = r1((performance.now() - t0) / 1000);
+report.summary = Object.fromEntries(Object.entries(report.checks).map(([k, c]) => [k, c.status]));
+$('verdict').textContent = report.verdict.toUpperCase() + ' (' + report.durationS + ' s)'; $('verdict').className = report.verdict;
+$('status').textContent = '';
+renderSummary();
+await drawMap();
+const blob = new Blob([JSON.stringify(report, null, 1)], { type: 'application/json' });
+$('links').innerHTML = `<a download="mapcheck-${CAMPUS.id}.json" href="${URL.createObjectURL(blob)}">report.json</a> · <a download="mapcheck-${CAMPUS.id}.png" href="${$('map').toDataURL('image/png')}">map.png</a>`;
+console.log('[mapcheck] ' + CAMPUS.id + ' ' + report.verdict + ' ' + JSON.stringify(report.summary));
+window.__mapcheckDone = true;

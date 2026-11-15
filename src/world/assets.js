@@ -155,6 +155,9 @@ function textDecal(lines, opt = {}) {
   for (let i = 0; i < 40 && widest() > room && fs > 8; i++) { fs = Math.floor(fs * 0.95); setFont(); }
   lines.forEach((l, i) => g.fillText(l, opt.align === 'center' ? W / 2 : (opt.pad || 10), (i + 0.5) * (H / lines.length) + (opt.dy || 0)));
   const t = canvasTexture(c, { repeat: false, aniso: 8 });
+  // fit record for the map check (dev/mapcheck.html): shrink factor, and whether the text still overflows the canvas
+  const reqFs = opt.font || fs, ws = widest();
+  t.userData.textFit = { lines: lines.slice(), w: W, h: H, font: reqFs, finalFont: fs, shrink: fs / reqFs, overflowX: ws > room + 0.5, overflowY: fs > (H / lines.length) * 1.02, widest: Math.round(ws), room };
   return t;
 }
 

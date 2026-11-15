@@ -16,6 +16,75 @@ after every map QA round. The contract itself is in CAMPUSES.md; this file is th
 4. Agents must use their own browser tab, `?mute=1`, and close tabs. Writing files into dev/shots triggers a Vite
    full reload: write to a scratch folder, then copy. With several agents editing at once, review against a
    `git archive`/worktree copy of HEAD served on another port.
+5. **Map check before QA (required):** the builder runs `dev/mapcheck.html` (below) and gets it clean before handing
+   the map to the independent visual QA agent. QA starts from the check's report, not from zero.
+
+## Map check (required before QA)
+
+`dev/mapcheck.html?campus=<id>&mute=1` (dev server, own tab) loads the real world and validates it with the real
+collision and the real player controller. Full run: ~2-3 min per campus (world load ~8-30 s, escape ~60-80 s, roof voids
+~20-30 s, bots ~2 s; slower in a hidden browser pane). Deterministic (fixed sample grids and probe orders; the bot run uses a seeded `Math.random` and a virtual clock).
+
+- **Output:** `window.__mapcheck` (JSON report: `verdict` pass / warn / fail, `summary`, and per check `status`,
+  `counts`, `failures` with coordinates), `window.__mapcheckDone = true` when finished, a readable summary on the page,
+  a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
+  `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
+  keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, props, signs, boundary,
+  visualSolid, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
+- **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
+  Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
+
+What each check does (and what to fix when it fails):
+
+1. **escape** (the "stuck on a roof" check). Downward rays every 2.5 m over the play area find every elevated surface
+   (> 0.6 m, normal y > 0.45, 1.85 m headroom). Flat samples are grouped into walkable regions; each region, every
+   sloped sample, and a drop test from 2 m above every crease (sample next to a wall / parapet) and every slope must
+   get the real controller to walkable ground (nav-connected, y < 0.35) or to an already-proven surface using only
+   walk + jump + double jump + mantle: 16 directions x 7 s, then a second-level search from where those attempts
+   ended. Failures are clustered: `cannot move` = wedged / embedded (slope against a parapet, gap between collision
+   boxes), `confined` = can walk but not get off, `sealed pocket` = drops into ground that is not connected to the
+   walk area (closed courtyards). Fix with a ladder, a lower wall / gap, a ramp, or by filling the crease (flat
+   collision over the gutter). `fellThrough` = the player fell below y = -5: a hole in the collision. Trapped
+   surfaces with collision < 15 m above every sample (a sealed press box, a void under a roof skin) cannot be
+   reached from the sky, so they are listed as `sealedInteriors` (info); getting INTO them is what 1b tests.
+   The controller's stuck safety net (`_stuckWatch`, which pops a wedged player free) is switched off for this and
+   the ladder test: the map has to be right without it.
+1b. **roofVoids** (ways into the hidden space under pitched roofs). Reuses dev/trap-sweep.js with the real
+   controller: 0.5 m top-surface scan, 800 wall jumps + double jumps + mantles from the ground and 800 from roofs at
+   building walls, walking / jumping / sprinting / dropping on 150 pitched-roof points at 60 / 30 / 20 fps, and 250
+   grapples onto pitched roofs and eaves. Fail = a run ends under a roof skin (roof > 0.9 m above the player) or
+   stuck on a roof, and walk + jump + double jump cannot get back out. Counts: `&voidWall=`, `&voidSloped=`,
+   `&voidGrapple=`.
+2. **ladders.** Scripted climb with the real controller, forward held from 1.3 m out, released 1 s after the exit:
+   one grab and grounded on the deck = pass. `regrabbed` = a parapet / lip above exitY throws the player back.
+3. **spawns.** Every FFA and CTF team spawn: inside playBounds (FFA also spawnBounds), at ground level, open sky above,
+   capsule fits, >= 0.4 m from any solid (warn < 1.2 m), not on a registered prop, on (or within 3 m of) a nav walk
+   cell. Also: >= 24 FFA / >= 8 per team, navGrid.unreachable = 0, both CTF bases on walk cells and connected (nav
+   path length reported), team spawns 25-70 m from their own base and never nearer the enemy base, base distance
+   (warn outside 150-420 m), cover around each base (fraction of 16 directions blocked within 30 m).
+4. **heli.** Exact shape query (not rays): nothing solid within 8 m of the rotor axis between deck + 0.3 m and
+   + 3.4 m (warn < 8.5 m), tree trunks >= 10.5 m (canopies are not collision), open sky, roof spots have deck under
+   the centre and all four skid ends, >= 12 spots. The pipeline's own 16-ray test misses small roof units between
+   rays: this check does not.
+5. **visualSolid.** Upward-facing visual triangles above 1 m inside the play area that are at least 0.45 m wide
+   (triangle altitude) and have no collision within 0.6 m below (and are not buried in a solid, and are not a lip
+   right next to a wall): patches >= 2 m2 fail. Typical hits: hip / gable roofs whose collision is a box at eave
+   height, canopies, porch roofs. Shrubs (ctx.shrubs) taller than 1.1 m with no collision under them fail too.
+   Nets, chain-link and windscreens are skipped (see-through).
+6. **props.** Props placed with the shared helpers (src/world/props.js: cars, buses, dumpsters, containers, barriers,
+   benches, tables, bins, utility boxes, porta-potties, pads, sleds, tarp rollers, film towers, bike racks) register
+   their footprint (`registerProp`; use it for any custom solid prop too). Footprints must not overlap (> 5 cm) or
+   hit a tree trunk; within 0.6 m of a trunk = warn.
+7. **signs.** Every `M.textDecal` texture records a fit (`texture.userData.textFit`). Fail: text still wider than the
+   canvas or taller than its line band; > 15% of the sign over windows (glass / frames found right behind it).
+   Warn: shrunk below 60%, stretched > 20% (canvas aspect vs decal aspect), letters < 12 cm, not backed by a wall.
+8. **boundary** (warn only). Where the player can walk up to the play-area edge, no collider within 3 m inside /
+   2 m outside and no tree trunk within 4 m = an invisible wall. Open edges >= 6 m on asphalt = "stopped
+   mid-street": dress them (fence + windscreen, barriers, tree belt).
+9. **bots** (warn only). 8 normal bots, FFA, 60 s: a bot staying within 2 m for > 12 s while trying to move (not
+   fighting, not perched) is logged with its position and goal; the controller's stuck safety net firing for a bot
+   (`unstuckPops`) is logged too.
 
 ## Recurring defects (check these every time)
 
