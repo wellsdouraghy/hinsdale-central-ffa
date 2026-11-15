@@ -1,5 +1,7 @@
 # Campus Combat: multi-campus contract
 
+> Before building or reworking a campus, read MAP_NOTES.md (lessons from previous builds and QA reviews).
+
 One game, many campuses. Gameplay, networking, UI and the generic world pipeline are shared; each campus supplies
 data + a builder for its own buildings and landmarks. A game update reaches every campus automatically.
 
