@@ -90,7 +90,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   }
 
   progress(0.42, 'Building terrain');
-  const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality, opts: campus.ground });
+  const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality, opts: campus.ground, roads: data.roads });
   const ctx = { campus, data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: { ...campus.playBounds }, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
 
   progress(0.48, 'Building campus'); await tick();

@@ -269,16 +269,17 @@ float tfNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 
 void main() {`).replace('#include <map_fragment>', `#include <map_fragment>
   { vec2 tp = vWPos.xz; float tfw = max(fwidth(tp.x), fwidth(tp.y)) * 95.0;
     float tw = (1.0 - smoothstep(5.0, 26.0, length(vWPos - cameraPosition))) * (1.0 - smoothstep(0.3, 1.0, tfw));
-    float fib = tfNoise(tp * vec2(95.0, 34.0)) * 0.4 + tfNoise(tp * vec2(31.0, 88.0) + 13.0) * 0.35 + tfNoise(tp * 14.0 + 5.0) * 0.25;
+    float fib = tfNoise(tp * vec2(95.0, 34.0)) * 0.55 + tfNoise(tp * vec2(31.0, 88.0) + 13.0) * 0.45;
     float crumb = step(0.93, tfHash(floor(tp * 120.0)));
-    diffuseColor.rgb *= mix(1.0, (0.7 + 0.62 * fib) * (1.0 - 0.3 * crumb), tw); }`); };
-    fibre.key = 'turfFibre';
+    diffuseColor.rgb *= mix(1.0, (0.82 + 0.37 * fib) * (1.0 - 0.2 * crumb), tw); }`); };
+    fibre.key = 'turfFibre2';
   }
   ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms, fibre);
   const g = new THREE.BufferGeometry(); const y = opts.y || 0.012;
   g.setAttribute('position', new THREE.Float32BufferAttribute([x0, y, z1, x1, y, z1, x1, y, z0, x0, y, z1, x1, y, z0, x0, y, z0], 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1], 2));
+  (ctx.noGrass ||= []).push({ cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, hx: Math.abs(x1 - x0) / 2, hz: Math.abs(z1 - z0) / 2, r: 0 });   // synthetic surface: no 3D grass blades
   const mesh = new THREE.Mesh(g, mat); mesh.receiveShadow = true; mesh.name = 'overlay'; mesh.matrixAutoUpdate = false;
   ctx.scene.add(mesh);
   return mesh;

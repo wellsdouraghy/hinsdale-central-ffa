@@ -134,7 +134,7 @@ export async function createSky({ renderer, scene, quality, opts = {} }) {
     for (const [y, a] of rings) for (let i = 0; i <= SEG; i++) { const t = (i / SEG) * Math.PI * 2; pos.push(Math.cos(t) * R, y, Math.sin(t) * R); col.push(1, 1, 1, a * Math.min(1, opts.horizonHaze)); }
     for (let r = 0; r < rings.length - 1; r++) for (let i = 0; i < SEG; i++) { const a = r * (SEG + 1) + i, b = a + SEG + 1; idx.push(a, a + 1, b, a + 1, b + 1, b); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4)); g.setIndex(idx);
-    haze = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: HAZE_COLOR, vertexColors: true, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+    haze = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: HAZE_COLOR, vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false, side: THREE.DoubleSide }));   // not tone-mapped: scene fog is applied after tone mapping, and the band must match fully fogged ground on every quality
     haze.name = 'sky-horizon-haze'; haze.frustumCulled = false; haze.renderOrder = -10; haze.castShadow = false; haze.receiveShadow = false;
     scene.add(haze);
   }

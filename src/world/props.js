@@ -206,14 +206,40 @@ export function buildProps(ctx) {
   const color = () => CAR_COLORS[Math.floor(rnd() * CAR_COLORS.length)];
   let nCars = 0;
   const car = (x, z, heading) => { placeCar(ctx, pick(), x, z, heading + (rnd() - 0.5) * 0.05, color()); nCars++; };
-  // painted stall lines (visual only): 10 cm quads just above the asphalt, merged into one mesh after placement
-  const stripePos = [];
-  const stripe = (cx, cz, dx, dz, half, w = 0.05) => {
-    const ax = cx - dx * half, az = cz - dz * half, bx = cx + dx * half, bz = cz + dz * half, px = -dz * w, pz = dx * w, y = 0.016;
+  // painted lines (visual only): 10 cm quads just above the asphalt, merged into one mesh after placement.
+  // Stall lines are trimmed / dropped where the ground under them is not asphalt (kerbs, concrete crossings).
+  const stripePos = [], stripeCol = [];
+  const quadLine = (ax, az, bx, bz, w, col) => {
+    const L = Math.hypot(bx - ax, bz - az) || 1, px = -(bz - az) / L * w, pz = (bx - ax) / L * w, y = 0.016;
     const q = [[ax - px, az - pz], [ax + px, az + pz], [bx + px, bz + pz], [bx - px, bz - pz]];
-    // face up regardless of direction
-    const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
-    for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) stripePos.push(q[k][0], y, q[k][1]);
+    const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;   // face up regardless of direction
+    for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) { stripePos.push(q[k][0], y, q[k][1]); stripeCol.push(col[0], col[1], col[2]); }
+  };
+  const WHITE = [0.85, 0.845, 0.815], YELLOW = [0.86, 0.62, 0.1];
+  const onAsphalt = (x, z) => ctx.surfaceAt(x, z) === 'asphalt';
+  const stripe = (cx, cz, dx, dz, half, w = 0.05) => {
+    if (!onAsphalt(cx, cz)) return;
+    const h0 = onAsphalt(cx - dx * half * 0.85, cz - dz * half * 0.85) ? half : (onAsphalt(cx - dx * half * 0.45, cz - dz * half * 0.45) ? half * 0.5 : 0);
+    const h1 = onAsphalt(cx + dx * half * 0.85, cz + dz * half * 0.85) ? half : (onAsphalt(cx + dx * half * 0.45, cz + dz * half * 0.45) ? half * 0.5 : 0);
+    if (h0 + h1 < half * 0.9) return;
+    quadLine(cx - dx * h0, cz - dz * h0, cx + dx * h1, cz + dz * h1, w, WHITE);
+  };
+  // double yellow centre line along the through streets (the photo's own paint is smoothed away up close)
+  const centreLines = () => {
+    const sat = ctx.campus.sat;
+    for (const r of ctx.data.roads) {
+      const hw = r.tags.highway; if (hw !== 'secondary' && hw !== 'tertiary') continue;
+      for (let i = 0; i < r.line.length - 1; i++) {
+        const a = r.line[i], b = r.line[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
+        for (let d = 0; d < L; d += 4) {
+          const e = Math.min(L, d + 4), mx = a[0] + tx * (d + e) / 2, mz = a[1] + tz * (d + e) / 2;
+          if (mx < sat.minX + 2 || mx > sat.maxX - 2 || mz < sat.minZ + 2 || mz > sat.maxZ - 2 || !onAsphalt(mx, mz)) continue;
+          // skip junction boxes: asphalt well to both sides means a cross street or a wide apron
+          if (onAsphalt(mx - tz * 13, mz + tx * 13) && onAsphalt(mx + tz * 13, mz - tx * 13)) continue;
+          for (const o of [-0.13, 0.13]) quadLine(a[0] + tx * d - tz * o, a[1] + tz * d + tx * o, a[0] + tx * e - tz * o, a[1] + tz * e + tx * o, 0.05, YELLOW);
+        }
+      }
+    }
   };
   // row of perpendicular stalls from (x0,z0) to (x1,z1); cars face +/- the row normal
   const stalls = (x0, z0, x1, z1, fill, flip = false, pitch = 2.75) => {
@@ -250,15 +276,21 @@ export function buildProps(ctx) {
   kerb([[-219.6, -178], [-219.3, -40]], 0.4, 6.5, true); kerb([[-218.6, 30], [-218.2, 180]], 0.3, 6.5, true);
   kerb([[-190, 209.2], [170, 207.6]], 0.22, 6.5); kerb([[197.2, 80], [198.2, 190]], 0.3, 6.5); kerb([[196.2, -150], [196.8, -40]], 0.25, 6.5, true);
   for (const [x, z, h] of [[-170, -204.6, 0], [-96, -204.4, 0], [-20, -203.8, 0], [66, -203.5, 0], [120, -203.2, 0], [-130, -197.6, Math.PI], [10, -197.0, Math.PI], [95, -196.4, Math.PI], [240, -201.5, 0], [-213.5, -110, Math.PI / 2], [-213.2, 95, Math.PI / 2], [-209.8, 20, -Math.PI / 2], [190.6, 60, -Math.PI / 2], [187.4, -90, Math.PI / 2]]) car(x, z, h);
+  centreLines();
   if (stripePos.length) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(stripePos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(stripePos.length).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
-    const mat = new THREE.MeshStandardMaterial({ color: 0xd9d8d0, roughness: 0.85, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    g.setAttribute('color', new THREE.Float32BufferAttribute(stripeCol, 3));
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.85, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     // worn paint; fades out with distance (the satellite ground already carries the far look, and 10 cm lines would shimmer)
     const wear = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   { float sd = length(vWPos - cameraPosition); vec2 sp = vWPos.xz * 3.1;
     float sw = fract(sin(dot(floor(sp * 6.0), vec2(12.9898, 78.233))) * 43758.5453) * 0.35 + fract(sin(dot(floor(sp), vec2(39.3468, 11.135))) * 24634.6345) * 0.4;
-    diffuseColor.a *= (0.5 + 0.5 * smoothstep(0.1, 0.55, sw + 0.25)) * (1.0 - smoothstep(55.0, 140.0, sd)); }`); };
+    // broad wear: whole stretches of a lot are scuffed thinner than others
+    vec2 wp = vWPos.xz * 0.11; vec2 wi = floor(wp), wf = fract(wp); wf = wf * wf * (3.0 - 2.0 * wf);
+    float h00 = fract(sin(dot(wi, vec2(127.1, 311.7))) * 43758.5453), h10 = fract(sin(dot(wi + vec2(1.0, 0.0), vec2(127.1, 311.7))) * 43758.5453), h01 = fract(sin(dot(wi + vec2(0.0, 1.0), vec2(127.1, 311.7))) * 43758.5453), h11 = fract(sin(dot(wi + vec2(1.0, 1.0), vec2(127.1, 311.7))) * 43758.5453);
+    float broad = mix(mix(h00, h10, wf.x), mix(h01, h11, wf.x), wf.y);
+    diffuseColor.a *= (0.42 + 0.58 * smoothstep(0.1, 0.55, sw + 0.25)) * mix(0.45, 1.0, smoothstep(0.2, 0.7, broad)) * (1.0 - smoothstep(55.0, 140.0, sd)); }`); };
     wear.key = 'stallPaint';
     ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms, wear);
     const mesh = new THREE.Mesh(g, mat); mesh.name = 'stall-paint'; mesh.receiveShadow = true; mesh.castShadow = false; mesh.matrixAutoUpdate = false; mesh.renderOrder = 1;

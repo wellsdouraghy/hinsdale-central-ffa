@@ -26,7 +26,11 @@ export function createGrass(ctx) {
   geo.setAttribute('aRoot', new THREE.BufferAttribute(root, 2));
   geo.setAttribute('aMisc', new THREE.BufferAttribute(misc, 2));
   geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+  // synthetic surfaces painted over the lawn (turf fields, the track oval): rounded rectangles where nothing grows
+  const NG = 8, ngRect = [], ngRad = [];
+  for (let i = 0; i < NG; i++) { const n = (ctx.noGrass || [])[i]; ngRect.push(n ? new THREE.Vector4(n.cx, n.cz, n.hx, n.hz) : new THREE.Vector4(0, 0, -1, -1)); ngRad.push(n ? n.r || 0 : 0); }
   const uniforms = {
+    uNoGrass: { value: ngRect }, uNoGrassR: { value: ngRad },
     uCam: { value: new THREE.Vector3() }, uTime: { value: 0 }, uD: { value: D },
     uMask: { value: T.groundMask }, uMacro: { value: T.groundMacro },
     uSatRect: { value: new THREE.Vector4(SAT.minX, SAT.minZ, 1 / (SAT.maxX - SAT.minX), 1 / (SAT.maxZ - SAT.minZ)) },
@@ -38,6 +42,7 @@ export function createGrass(ctx) {
       .replace('#include <common>', `#include <common>
 attribute vec2 aRoot; attribute vec2 aMisc;
 uniform vec3 uCam; uniform float uTime; uniform float uD; uniform sampler2D uMask; uniform sampler2D uMacro; uniform vec4 uSatRect;
+uniform vec4 uNoGrass[${NG}]; uniform float uNoGrassR[${NG}];
 varying vec3 vGrassCol;`)
       .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = vec3(0.0, 1.0, 0.0);')
       .replace('#include <begin_vertex>', `
@@ -47,6 +52,8 @@ varying vec3 vGrassCol;`)
   float wG = clamp(1.0 - gm.r - gm.g - gm.b - (1.0 - gm.a), 0.0, 1.0);
   float dist = length(rw - uCam.xz);
   float grow = smoothstep(0.72, 0.95, wG) * (1.0 - smoothstep(uD * 0.12, uD * 0.47, dist));
+  for (int i = 0; i < ${NG}; i++) { vec4 ng = uNoGrass[i]; if (ng.z < 0.0) continue; float rr = min(uNoGrassR[i], min(ng.z, ng.w));
+    vec2 q = abs(rw - ng.xy) - (ng.zw - rr); float sd = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - rr; grow *= smoothstep(0.0, 0.5, sd); }
   // patchy height variation
   float patchy = 0.75 + 0.5 * fract(sin(dot(floor(rw * 0.7), vec2(12.9898, 78.233))) * 43758.5453);
   vec3 transformed = vec3(position.x, position.y * grow * patchy, position.z);

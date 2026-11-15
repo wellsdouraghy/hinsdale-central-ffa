@@ -126,6 +126,7 @@ export function buildTrack(ctx, { cx, cz, R = 36.5, lanes = 8, lw = 1.22, big = 
   g.setTransform(1, 0, 0, 1, 0, 0);
   speckle(g, W, H, 46, 21);
   const q = paintedQuad(ctx, c, cx, cz, wM, hM, -Math.PI / 2, { cut: true, nScale: 0.45, nStrength: 0.75, rough: 0.86, y: 0.011, offset: -2 });
+  (ctx.noGrass ||= []).push({ cx, cz, hx: Rout + apron, hz: S / 2 + Rout + apron, r: Rout + apron });   // rubber oval: no 3D grass blades (see grass.js)
   // aluminium kerb on the inside of lane 1 along the straights and bends (low, visual only)
   const kerb = ctx.B.v('aluminum');
   for (let i = 0; i < 40; i++) {
