@@ -57,6 +57,21 @@ after every map QA round. The contract itself is in CAMPUSES.md; this file is th
   the haze band must not be tone-mapped (or the horizon shows a hard line).
 - **Turf / fine detail shaders:** keep detail anisotropic and subtle; big octaves read as blotches.
 - **Shared prop kit (cars):** dangling shards under wheel arches/bumpers (open item).
+- **Signs / text decals:** text must fit its canvas (textDecal now shrinks to fit) and sit on clear wall (brick
+  band, parapet), never over windows. Read every sign at eye level in QA ("HIGH SCHO" shipped once).
+- **Wall-mounted fixtures:** wall packs / downpipes must mount on the surface actually behind them (pilaster faces),
+  stand proud of it, and not hide half a pilaster (reads as a stray seam).
+- **Car model:** closed end caps + floor pan; wheel-arch discs clipped at the sill (shards otherwise).
+- **Ladder exits:** if neighbouring parapets leave less than a player's width, move the ladder; raising exitY won't
+  help. Test with a scripted climb (real player.update, forward held): one grab and ending on the deck = pass.
+- **Ground photo blotches** can live in ground_macro.jpg itself, not the mask: pull blotches inside car parks to
+  the mean asphalt tone (tools/macro_fix.js on Marin).
+- **Backdrop crowns:** 3-7.6 m radius, jittered 5-sided, leaf texture, ~5k instances; dense planting in the first
+  ~45 m past the photo edge. Urban sides: one tiling roof/street sheet + a few hundred low-rise roof boxes.
+- **Canopy shelf (wooded edges):** ~5.6 m cells, leaf breakup, an 85 m ring of low-poly 3D crowns on its inner edge
+  (only above y = 18), road notches with asphalt strips so streets continue into the haze.
+- **Placement changes reshuffle gameplay data** (removing overlapping cars changed the nav grid and spawns): always
+  re-validate after visual edits that touch anything solid.
 - **Stray wall decals / facade seams:** a small dark rectangle floating on a brick wall and a thin vertical seam
   beside a downpipe (Hinsdale, user report: dev/shots/user-reports/hinsdale_wall_artifact.webp). Sweep walls at eye
   level near doors, downpipes and vents for misplaced decals and z-fighting seams.
