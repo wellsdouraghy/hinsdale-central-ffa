@@ -30,7 +30,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
-- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, props, signs, boundary,
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, props, signs, boundary,
   visualSolid, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
@@ -78,6 +78,19 @@ What each check does (and what to fix when it fails):
    its 16 rays and wants 8.5 m, so a bad `heliPark` entry is dropped at load instead of failing here; what the
    campus has to guarantee is the count. Keep >= 12 entries that pass at 8.5 m: with fewer, the pipeline falls back
    to 7 m and 6 m and those spots fail this check (that is how Marin's bad spots got in).
+4b. **terrain** (campuses with a descriptor `terrain` only; flat campuses report `skip`). Every ground / roof / spawn /
+   heli / nav threshold of the other checks is measured from `world.groundY` there, so a hill is not a "roof".
+   (a) Slope pockets: terrain samples every 2.5 m that are steeper than the walk limit, or on hilly ground (> 0.5 m
+   relief within 6 m) without a nav connection, are clustered (4 m); from up to 3 starts per cluster the real
+   controller (stuck net off) must reach walkable, nav-connected ground with walk + jump + double jump (16 directions x
+   6 s). None escapes = **unwalkable slope pocket** (fail): a hollow ringed by slopes too steep to climb. Fix by easing
+   a slope (`ctx.flatten` with a ramp `y` function), a ramp / steps with collision, or filling the hollow.
+   (b) Props on slopes: each registered prop's base against the ground under its footprint corners + centre: floating
+   > 12 cm fails; ground above the base by > 50 % of the prop's height fails (> 30 % warns). Place props with
+   `propKit` / `ctx.onGround`, and on steep ground flatten a small pad first.
+   Heli (check 4) also tests ground spots on terrain: skids neither floating (> 15 cm) nor in the ground, <= 0.35 m of
+   drop under them, no hillside more than 2 m above the skids inside the 8 m rotor disc. Spawns (check 3) fail on
+   slopes over 20 deg.
 5. **visualSolid.** Upward-facing visual triangles above 1 m inside the play area that are at least 0.45 m wide
    (triangle altitude) and have no collision within 0.6 m below (and are not buried in a solid, and are not a lip
    right next to a wall): patches >= 2 m2 fail. Typical hits: hip / gable roofs whose collision is a box at eave
@@ -184,6 +197,13 @@ What each check does (and what to fix when it fails):
   (only above y = 18), road notches with asphalt strips so streets continue into the haze.
 - **Placement changes reshuffle gameplay data** (removing overlapping cars changed the nav grid and spawns): always
   re-validate after visual edits that touch anything solid.
+- **Signs blocked by geometry in front:** a sign can pass "not over windows" and still be unreadable because
+  pilasters, downpipes or a wall step cross it (Hamilton: "H MILTON", "PAT CONCERT HALL"). Keep the sign band clear
+  (stop pilasters below the frieze, route pipes off the band) and read every sign in a screenshot at eye level.
+- **Canvas axes on painted courts/fields:** paintedQuad expects X = the b extent; drawing the canvas with X = a
+  rotates the paint 90 degrees (Hamilton tennis deck). Check paint against the nets/goals and the satellite.
+- **Species and local style:** use the region's trees (Italian cypress, palms, oaks) and house styles (LA stucco vs
+  Midwest clapboard); never put a tree on a landmark's entrance axis.
 - **Stray wall decals / facade seams:** a small dark rectangle floating on a brick wall and a thin vertical seam
   beside a downpipe (Hinsdale, user report: dev/shots/user-reports/hinsdale_wall_artifact.webp). Sweep walls at eye
   level near doors, downpipes and vents for misplaced decals and z-fighting seams.
@@ -194,17 +214,40 @@ What each check does (and what to fix when it fails):
 - Bench numbers from a hidden pane on a shared machine are noisy (±50%): compare same views, repeat, and treat
   small differences as noise.
 
-## Terrain: what future campuses will need (hilly, coastal, etc.)
+## Terrain: hilly campuses (real ground heights in the play area)
 
-Today gameplay ground is **flat at y = 0 inside the play area** (groundY, nav grid, spawns, heli spots, bots,
-grenades, airstrike all assume it). Marin's real ~10 m climb was handled with a terrain *backdrop outside* the
-bounds plus solid terraces/ramps inside. For a genuinely hilly or coastal campus, plan for:
-- **Real in-bounds heightfield:** world.groundY(x, z) from 3D-tiles/USGS heights, a collision mesh for the terrain,
-  nav grid sampling height + slope limits, spawns/heli spots/CTF bases placed on sampled ground, bots using
-  groundY (botMobility already does), grenade/airstrike/heli ground queries via castWorld, minimap unaffected.
-  This is a shared-engine change (src/world/*), not campus-local: do it once, generically, with Hinsdale/Marin
-  still flat.
-- **Slopes:** max walkable slope, stairs/ramps where real, retaining walls as collision.
+The engine supports a real in-bounds heightfield (descriptor `terrain`, src/world/terrain.js; contract and builder API
+in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin's ~10 m climb is still faked (backdrop
+outside the bounds + terraces inside) until its builder adopts the terrain. Proven on the test campus
+(`?terrainTest=1`, src/campuses/terraintest.js) before any real campus uses it.
+- **Baking the heightfield.** Ground, not roofs or tree crowns:
+  - *Google 3D tiles (dev only):* cast rays straight down through the tiles on a 2-4 m grid over the satellite
+    rectangle (dev/<campus>-tiles.html already streams them in the local frame), keep the LOWEST hit per cell in a
+    5-10 m window (min filter drops buildings, cars and canopies; then a 3x3 median), subtract the main ground level
+    (`origin.height` is the ellipsoid height of y = 0), and write a 16-bit grey PNG with `scale` / `offset` (e.g.
+    1 cm steps: scale 0.01, offset -50) or a Float32 .bin into public/campuses/<id>/. Inside building footprints the
+    min filter reads the ground at the walls: fill footprints from their outline (interpolate), they get flattened anyway.
+  - *USGS 3DEP (US campuses, public domain):* 1 m DEM GeoTIFF from the National Map (or the 1/3 arc-second DEM where 1 m
+    is missing), reproject to the campus frame (x east, z south, metres from `origin`), subtract the ground level,
+    write PNG / .bin as above. 3DEP is bare earth already (no roofs / trees), but check it against the tiles: it can
+    predate grading work.
+  - Cover the whole satellite rectangle (`extent` = `sat`) so the drawn ground and the backdrop meet; when the campus
+    has its own backdrop sampler, pass it as `outside` and give `blend` 20-40 m: no seam or cliff at the edge.
+- **Flatten (descriptor `flatten` or `ctx.flatten`, BEFORE placing anything):** sports fields, courts, tracks, car parks
+  (real ones are graded nearly flat, 1-2 %), pool decks, plazas and every building footprint + 1-2 m (or use
+  `ctx.onGround(ring, fn, { plinth: true })`: level floor, plinth on the downhill side, as real buildings on slopes
+  have). Use a `y` function for a sloped car park or a ramp. Blend 3-6 m so pads meet the hill smoothly; a 0 m blend
+  makes a step the controller treats as a wall.
+- **Building heights on slopes:** measure each building against the ground around its own footprint (see the bullet
+  below), then `onGround` it with `mode: 'max'` + plinth, or flatten the footprint to the entrance level.
+- **Slope rules (gameplay):** walkable = contact normal y >= 0.7 (~45.6 deg, same as mantle / bots); the nav grid blocks
+  cells over ~42 deg; spawns / CTF points need <= 20 deg; ground heli spots <= 0.3 m of drop under the skids. Real
+  ground over ~35 deg (embankments, creek banks) reads as a wall: give it a path (`flatten` with a ramp function) or
+  retaining walls with collision where the real site has them; never leave a hollow ringed by steep banks (the map
+  check's slope-pocket test fails it).
+- **Props / decals:** `propKit` props ground themselves; your own props go through `ctx.onGround`; painted lines and
+  ground decals need `ctx.drape` (subdivided to <= 2 m) or they vanish under / float over the slope.
+- **Water:** levels are above the ground under the outline; flatten the pond / pool first; sea level is `absolute`.
 - **Water / coast:** src/world/water.js is visual only (pool/pond/fountain). A coastline or bay needs a large
   water plane with shoreline foam, a solid "no walking into the sea" boundary (or shallow-water slowdown), and the
   haze/horizon tuned for open water.
