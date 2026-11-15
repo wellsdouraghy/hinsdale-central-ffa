@@ -211,7 +211,7 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   durationSec })` (care package 0xffaa22 / airstrike 0xff3322), `createGrenade()` per live thrown frag/marker (gameplay sets
   position + rotation each frame), `createCarePackage({ team })` with `setParachute(true)` while descending from 120 m and
   `open()` on capture. A landed crate becomes a solid 1.2 x 0.9 x 0.9 box for player movement (gameplay-owned collider).
-  Entry is now `src/main.js` (mobile gate + intro) -> dynamic `import('./game/app.js')`, so phones never download the world.
+  Entry is now `src/main.js` (mobile gate) -> dynamic `import('./game/app.js')`, so phones never download the world.
 
 ### Round 6 additions (bots, team deathmatch, attack helicopter)
 - **`src/visuals/helicopter.js`** (Fable visuals, placeholder exists): `createHelicopter() -> { object3D, gunMuzzle, rocketPods[2],

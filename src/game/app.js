@@ -19,7 +19,6 @@ import { normalizeCode } from '../net/peer.js';
 import { createHud } from '../ui/hud.js';
 import { createMinimap } from '../ui/minimap.js';
 import { createMenus } from '../ui/menus.js';
-import { playIntro, introDone } from '../ui/intro.js';
 import { createMenuTour } from './menuTour.js';
 import { checkForUpdate } from '../net/version.js';
 import { getMicStream, stopStream, VoiceMesh } from '../net/voice.js';
@@ -125,7 +124,7 @@ function worldReady(onProgress) {
   return worldLoading;
 }
 
-/** Title screen: load the campus in the background right after the intro card (faster match entry + menu tour). */
+/** Title screen: load the campus in the background (faster match entry + menu tour). */
 function preloadWorld() {
   worldReady((f, label) => menus.setWorldStatus(f, label))
     .then(() => { menus.setWorldStatus(1); maybeTour(); })
@@ -142,7 +141,6 @@ async function start(mode, code = null, gameMode = 'ffa', bots = null) {
   menus.showTitleError('');
   const titles = { practice: ['Practice range', 'Hinsdale Central'], host: ['Opening lobby', 'Hinsdale Central'], join: ['Joining room', `Room ${code}`] };
   menus.showLoading(...titles[mode], { mode: gameMode, practice: mode === 'practice', bounds: PLAY_BOUNDS });
-  if (mode !== 'practice' && !autostart) playIntro(); // plays over the loading screen
   let mic = null;
   try {
     if (mode === 'practice') {
@@ -547,8 +545,8 @@ const autoBots = { count: Math.min(11, Number(params.get('bots')) || 0), difficu
 // Stale cached page? Offer a reload when the deployed build is newer than this one.
 checkForUpdate().then((v) => { if (v) { menus.showTitleError(`A newer version (${v}) is available: reload the page (Cmd+Shift+R / Ctrl+Shift+R) before playing.`); menus.toast('New version available: please reload', 8); } });
 
-// Menu: start loading the campus once the intro card is done (unless we go straight into a match).
-if (!autostart) introDone().then(() => setTimeout(preloadWorld, 50));
+// Menu: start loading the campus in the background (unless we go straight into a match).
+if (!autostart) setTimeout(preloadWorld, 50);
 document.getElementById('cine').classList.remove('hidden');
 
 if (autostart === 'practice') start('practice', null, autoMode, autoBots);

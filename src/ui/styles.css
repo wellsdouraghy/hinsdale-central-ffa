@@ -378,22 +378,6 @@ h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: .14em; text-transform: up
 #scoreboard td.cls { font-size: 11px; color: var(--muted); }
 .spk { font-size: 12px; color: #6fe3ff; }
 
-/* ---------- intro card ---------- */
-.intro-card { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(12,14,18,0.92), rgba(0,0,0,0.98)); cursor: pointer; animation: introIn .35s ease-out; }
-.intro-card.out { animation: introOut .35s ease-in forwards; }
-.intro-scan { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 3px); pointer-events: none; mix-blend-mode: screen; }
-.intro-line { display: flex; align-items: center; gap: 22px; width: min(1100px, 92vw); }
-.intro-rule { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(224,57,62,0.9), transparent); transform: scaleX(0); animation: introRule 1s .25s cubic-bezier(.2,.8,.2,1) forwards; }
-.intro-text { flex: none; max-width: 80vw; text-align: center; font: 800 clamp(16px, 2.4vw, 30px) var(--font); color: #f4f1ea; letter-spacing: .02em; opacity: 0; filter: blur(6px); text-shadow: 0 0 18px rgba(224,57,62,0.55), 0 0 2px rgba(255,255,255,0.6); animation: introText 2.2s .1s cubic-bezier(.2,.8,.2,1) forwards; }
-@keyframes introText { 0% { opacity: 0; letter-spacing: -.02em; filter: blur(8px); transform: scale(1.04); } 35% { opacity: 1; filter: blur(0); } 100% { opacity: 1; letter-spacing: .22em; transform: scale(1); filter: blur(0); } }
-@keyframes introRule { to { transform: scaleX(1); } }
-@keyframes introIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes introOut { to { opacity: 0; } }
-.intro-card.reduced, .intro-card.reduced * { animation: none !important; }
-.intro-card.reduced .intro-text { opacity: 1; filter: none; letter-spacing: .12em; }
-.intro-card.reduced .intro-rule { transform: none; }
-.intro-card.reduced { transition: opacity .4s; }
-.intro-card.reduced.out { opacity: 0; }
 
 /* ---------- mobile gate ---------- */
 .mobile-gate { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; padding: 24px; background: #0b0d10; overflow: auto; }
