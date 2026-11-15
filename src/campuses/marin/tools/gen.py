@@ -116,9 +116,10 @@ print('class fractions', [(cls == c).mean().round(3) for c in range(5)])
 # ---------------------------------------------------------------- mask (soft weights)
 # visual-only paving for the mask (ground shader + grass blades); the class grid gameplay reads keeps `cls` as it is.
 # Grid-aligned rectangles (cx, cz, w, d), rotated 7.2 deg like the street grid: the Library / Leadership Center courtyard.
-# tools/mask_fix.mjs patches an existing ground_mask.png the same way without the Python imaging stack.
+# tools/mask_fix.mjs patches an existing ground_mask.png the same way without the Python imaging stack, and also makes
+# the car parks wall-to-wall asphalt and despeckles concrete / grass blobs: RUN IT AFTER THIS SCRIPT (node src/campuses/marin/tools/mask_fix.mjs).
 mcls = cls.copy()
-for (cx, cz, w, d) in [(8.1, 60.5, 9.6, 36)]:
+for (cx, cz, w, d) in [(7.7, 60.5, 10.4, 36)]:
     ca, sa = math.cos(math.radians(7.2)), math.sin(math.radians(7.2))
     ring = [(cx + a * ca - b * sa, cz + a * sa + b * ca) for a, b in [(-w / 2, -d / 2), (w / 2, -d / 2), (w / 2, d / 2), (-w / 2, d / 2)]]
     mcls[raster(polys=[([ring], [])])] = CONC

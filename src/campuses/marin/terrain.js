@@ -27,7 +27,7 @@ export function buildTerrain(ctx) {
   for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
     const c = [[i, j], [i, j + 1], [i + 1, j + 1], [i + 1, j]];
     const any = c.some(([a, b]) => t.h[b * n + a] > 0); const inside = c.every(([a, b]) => inSat(a, b));
-    if (inside && !any) continue;                       // flat ground inside the satellite extent: the ground plane has it
+    if (!any) continue;                                 // flat: the ground plane has it inside the satellite extent, the urban sheet outside
     const dst = inside ? near : far;
     for (const k of [0, 1, 2, 0, 2, 3]) { const [a, b] = c[k]; dst.p.push(X(a), Hh(a, b), Z(b)); if (!inside) dst.c.push(...colAt(a, b)); }
   }
@@ -47,28 +47,83 @@ export function buildTerrain(ctx) {
   { const p = far.p, uv = []; for (let k = 0; k < p.length; k += 3) uv.push(p[k] / 90, p[k + 2] / 90); far.uv = uv; }
   const farMat = new THREE.MeshStandardMaterial({ vertexColors: true, map: tex, roughness: 1, metalness: 0 }); farMat.color.setRGB(2.4, 2.4, 2.4);
   mk(far, farMat, 'terrain:far');
-  // scattered tree crowns and a few hillside houses on the nearer slopes (two instanced meshes, no collision)
-  const H = terrainSampler(gen); const pb = ctx.playBounds; const dummy = new THREE.Object3D(); const col = new THREE.Color();
-  const crowns = [], houses = [];
-  for (let k = 0; k < 9000 && crowns.length < 2600; k++) {
-    const x = (rnd() - 0.5) * 2300, z = (rnd() - 0.5) * 2300; if (x > sat.minX - 10 && x < sat.maxX + 10 && z > sat.minZ - 10 && z < sat.maxZ + 10) continue;
-    const i = Math.round((x - t.x0) / t.step), j = Math.round((z - t.z0) / t.step); if (i < 1 || j < 1 || i > n - 2 || j > n - 2) continue;
-    const h = H(x, z) * edge(i, j); if (h < 2) continue; if (sm(i, j) > 0.6 && rnd() < 0.8) continue;      // keep the grass clearings open
-    crowns.push([x, h, z, 5 + rnd() * 5, rnd()]);
-    if (houses.length < 160 && h < 110 && rnd() < 0.09) houses.push([x + 9, h, z + 4, rnd()]);
+  // ---- flat land beyond the satellite photo: downtown San Rafael and the neighbourhoods carry on to the horizon as an
+  // "urban sheet" (street grid, roofs and street trees painted into one tiling texture, laid on the campus street grid)
+  // instead of a bare green plain. 8 triangles; the hills rise through it.
+  {
+    const S = 512, cv2 = makeCanvas(S, S), g2 = cv2.getContext('2d'); const r2 = mulberry32(94901); const nb = 4, bw = S / nb, st = 18;
+    g2.fillStyle = '#6d6e70'; g2.fillRect(0, 0, S, S);
+    const roofs = ['#cfccc4', '#b9b6ae', '#a8a59b', '#b3a386', '#8d8a84', '#96604c', '#d8d5cf', '#7c7b78', '#a79a8c'];
+    for (let by = 0; by < nb; by++) for (let bx = 0; bx < nb; bx++) {
+      const x0 = bx * bw + st / 2, y0 = by * bw + st / 2, w = bw - st; const leafy = r2() < 0.45;
+      g2.fillStyle = leafy ? '#5d6b4c' : '#85837c'; g2.fillRect(x0, y0, w, w);
+      g2.fillStyle = 'rgba(205,203,196,0.55)'; g2.fillRect(x0, y0, w, 2.5); g2.fillRect(x0, y0 + w - 2.5, w, 2.5); g2.fillRect(x0, y0, 2.5, w); g2.fillRect(x0 + w - 2.5, y0, 2.5, w);   // sidewalks
+      for (let k = 0, nR = leafy ? 9 : 6; k < nR; k++) { const rw = (leafy ? 12 : 22) + r2() * (leafy ? 14 : 34), rh = (leafy ? 12 : 18) + r2() * (leafy ? 12 : 26); const rx = x0 + 4 + r2() * Math.max(1, w - rw - 8), ry = y0 + 4 + r2() * Math.max(1, w - rh - 8); g2.fillStyle = 'rgba(20,22,20,0.35)'; g2.fillRect(rx + 2, ry + 2, rw, rh); g2.fillStyle = roofs[Math.floor(r2() * roofs.length)]; g2.fillRect(rx, ry, rw, rh); }
+      for (let k = 0, nT = leafy ? 30 : 9; k < nT; k++) { const tx = x0 + r2() * w, ty = y0 + r2() * w, tr = 3 + r2() * 4.5; g2.fillStyle = 'rgba(12,22,10,0.4)'; g2.beginPath(); g2.arc(tx + 1.5, ty + 1.5, tr, 0, 7); g2.fill(); g2.fillStyle = `rgb(${38 + r2() * 22 | 0},${74 + r2() * 30 | 0},${30 + r2() * 14 | 0})`; g2.beginPath(); g2.arc(tx, ty, tr, 0, 7); g2.fill(); }
+    }
+    const utex = canvasTexture(cv2, { aniso: 8 }); const TILE = 330, ca = Math.cos(0.12566), sa = Math.sin(0.12566);
+    const R = 6000, y = -0.1, x0 = sat.minX + 2, x1 = sat.maxX - 2, z0 = sat.minZ + 2, z1 = sat.maxZ - 2; const up = { p: [], uv: [] };
+    const q = (ax, az, bx, bz) => { for (const [x, z] of [[ax, az], [ax, bz], [bx, bz], [ax, az], [bx, bz], [bx, az]]) { up.p.push(x, y, z); up.uv.push((x * ca + z * sa) / TILE, (-x * sa + z * ca) / TILE); } };
+    q(-R, -R, R, z0); q(-R, z1, R, R); q(-R, z0, x0, z1); q(x1, z0, R, z1);
+    const um = new THREE.MeshStandardMaterial({ map: utex, roughness: 1, metalness: 0 }); um.color.setRGB(0.7, 0.7, 0.68);
+    mk(up, um, 'terrain:urban');
   }
-  if (crowns.length) {
-    // canopy dome: 18 smooth-shaded triangles, open underneath (never seen from below), darker toward the skirt so the
-    // massed crowns read as rounded oak / bay canopy with depth instead of flat-shaded polyhedra
-    const P = [[0, 0.86, 0]], C = [[1.08, 1.08, 1.08]]; const N = 6, da = Math.PI * 2 / N;
-    for (let k = 0; k < N; k++) { const a = k * da; P.push([Math.cos(a) * 0.82, 0.5, Math.sin(a) * 0.82]); C.push([0.95, 0.95, 0.95]); }
-    for (let k = 0; k < N; k++) { const a = (k + 0.5) * da; P.push([Math.cos(a) * 1.06, -0.42, Math.sin(a) * 1.06]); C.push([0.42, 0.42, 0.42]); }
-    const idx = []; for (let k = 0; k < N; k++) { const u0 = 1 + k, u1 = 1 + (k + 1) % N, l0 = 1 + N + k, l1 = 1 + N + (k + 1) % N; idx.push(0, u1, u0, u0, u1, l0, u1, l1, l0); }
-    const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3)); dg.setAttribute('color', new THREE.Float32BufferAttribute(C.flat(), 3));
-    dg.setAttribute('normal', new THREE.Float32BufferAttribute(P.flatMap(([x, y, z]) => { const yy = y + 0.45, l = Math.hypot(x, yy, z); return [x / l, yy / l, z / l]; }), 3)); dg.setIndex(idx);
-    const im = new THREE.InstancedMesh(dg, new THREE.MeshStandardMaterial({ roughness: 1, vertexColors: true }), crowns.length);
-    crowns.forEach(([x, y, z, r, v], k) => { const rr = r * 1.3; dummy.position.set(x, y + rr * 0.42, z); dummy.scale.set(rr, rr * (0.75 + v * 0.5), rr * (0.9 + ((v * 7) % 1) * 0.3)); dummy.rotation.set(0, v * 6, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const d = (v * 13) % 1; col.setRGB(0.026 + v * 0.03 + d * 0.012, 0.1 + v * 0.05 + d * 0.02, 0.016 + v * 0.012); im.setColorAt(k, col); });
-    im.name = 'terrain:crowns'; im.castShadow = false; im.receiveShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
+  // ---- tree crowns on the hills and among the flat-land blocks, plus a few hillside houses and low-rise roofs
+  // (instanced, no collision). Crowns are the size of the real trees; the band next to the photo edge is dense so the
+  // modelled trees do not stop on a line, farther out they thin and drop to 5 triangles each.
+  const H = terrainSampler(gen); const dummy = new THREE.Object3D(); const col = new THREE.Color();
+  const hAt = (x, z) => { const i = Math.round((x - t.x0) / t.step), j = Math.round((z - t.z0) / t.step); if (i < 1 || j < 1 || i > n - 2 || j > n - 2) return null; return { h: H(x, z) * edge(i, j), i, j }; };
+  const outside = (x, z) => Math.max(sat.minX - x, x - sat.maxX, sat.minZ - z, z - sat.maxZ);   // metres beyond the photo edge (< 0 inside)
+  const nearC = [], farC = [], houses = [], blocks = [];
+  for (let k = 0; k < 30000 && nearC.length < 2700; k++) {   // within 260 m of the photo: full domes
+    const x = sat.minX - 260 + rnd() * (sat.maxX - sat.minX + 520), z = sat.minZ - 260 + rnd() * (sat.maxZ - sat.minZ + 520); const d = outside(x, z); if (d < -1) continue;
+    const s = hAt(x, z); if (!s) continue; const hill = s.h >= 1.5;
+    if (rnd() > (d < 45 ? 1 : hill ? 0.8 : 0.16)) continue;                       // dense first row, wooded hills, sparse street trees
+    if (hill && d > 45 && sm(s.i, s.j) > 0.6 && rnd() < 0.8) continue;            // keep the grass clearings open
+    nearC.push([x, Math.max(0, s.h), z, 3.0 + rnd() * 2.6, rnd()]);
+    if (hill && houses.length < 60 && s.h < 110 && rnd() < 0.05) houses.push([x + 9, s.h, z + 4, rnd()]);
+  }
+  for (let k = 0; k < 30000 && farC.length < 2840; k++) {   // the rest of the hills
+    const x = (rnd() - 0.5) * 2400, z = (rnd() - 0.5) * 2400; if (outside(x, z) < 260) continue;
+    const s = hAt(x, z); if (!s || s.h < 2) continue; if (sm(s.i, s.j) > 0.6 && rnd() < 0.8) continue;
+    farC.push([x, s.h, z, 4.2 + rnd() * 3.4, rnd()]);
+    if (houses.length < 160 && s.h < 110 && rnd() < 0.04) houses.push([x + 9, s.h, z + 4, rnd()]);
+  }
+  for (let k = 0; k < 20000 && blocks.length < 520; k++) {  // low-rise roofs on the flat land south / west / east
+    const x = sat.minX - 420 + rnd() * (sat.maxX - sat.minX + 840), z = sat.minZ - 420 + rnd() * (sat.maxZ - sat.minZ + 840); const d = outside(x, z); if (d < 8) continue;
+    const s = hAt(x, z); if (!s || s.h > 0.3) continue; if (rnd() < d / 520) continue;
+    blocks.push([x, z, rnd(), rnd()]);
+  }
+  {
+    // leaf-clump texture so the crowns are not smooth blobs
+    const S = 64, lc = makeCanvas(S, S), lg = lc.getContext('2d'); lg.fillStyle = '#c4c4c4'; lg.fillRect(0, 0, S, S);
+    for (let k = 0; k < 260; k++) { const x = rnd() * S, y = rnd() * S, r = 1.2 + rnd() * 2.6, v = rnd() < 0.5 ? 255 : 40; lg.fillStyle = `rgba(${v},${v},${v},${0.12 + rnd() * 0.16})`; for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { lg.beginPath(); lg.arc(x + ox, y + oy, r, 0, 7); lg.fill(); } }
+    const leaf = canvasTexture(lc, { aniso: 2 });
+    const crownMesh = (list, full, name) => {
+      if (!list.length) return; const N = 5, da = Math.PI * 2 / N, jr = mulberry32(full ? 7 : 8); const P = [[0.06, full ? 0.9 : 0.62, -0.04]], C = [[1.05, 1.05, 1.05]];
+      for (let k = 0; k < N; k++) { const a = k * da + (jr() - 0.5) * 0.4, r = (full ? 0.78 : 1.0) * (0.84 + jr() * 0.32); P.push([Math.cos(a) * r, full ? 0.44 + jr() * 0.16 : -0.1, Math.sin(a) * r]); C.push(full ? [0.9, 0.9, 0.9] : [0.5, 0.5, 0.5]); }
+      if (full) for (let k = 0; k < N; k++) { const a = (k + 0.5) * da + (jr() - 0.5) * 0.4, r = 1.02 * (0.86 + jr() * 0.28); P.push([Math.cos(a) * r, -0.42 + jr() * 0.14, Math.sin(a) * r]); C.push([0.4, 0.4, 0.4]); }
+      const idx = []; for (let k = 0; k < N; k++) { const u0 = 1 + k, u1 = 1 + (k + 1) % N; idx.push(0, u1, u0); if (full) { const l0 = 1 + N + k, l1 = 1 + N + (k + 1) % N; idx.push(u0, u1, l0, u1, l1, l0); } }
+      const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3)); dg.setAttribute('color', new THREE.Float32BufferAttribute(C.flat(), 3));
+      dg.setAttribute('normal', new THREE.Float32BufferAttribute(P.flatMap(([x, y, z]) => { const yy = y + 0.45, l = Math.hypot(x, yy, z); return [x / l, yy / l, z / l]; }), 3));
+      dg.setAttribute('uv', new THREE.Float32BufferAttribute(P.flatMap(([x, y, z]) => [x * 0.9 + y * 0.35, z * 0.9 - y * 0.35]), 2)); dg.setIndex(idx);
+      const im = new THREE.InstancedMesh(dg, new THREE.MeshStandardMaterial({ roughness: 1, vertexColors: true, map: leaf }), list.length);
+      list.forEach(([x, y, z, r, v], k) => { dummy.position.set(x, y + (full ? r * 0.95 : r * 0.35), z); dummy.scale.set(r, r * (0.95 + v * 0.5), r * (0.85 + ((v * 7) % 1) * 0.3)); dummy.rotation.set(0, v * 6.283, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const d = (v * 13) % 1; col.setRGB(0.07 + v * 0.04 + d * 0.02, 0.17 + v * 0.07 + d * 0.04, 0.04 + v * 0.02); im.setColorAt(k, col); });
+      im.name = name; im.castShadow = false; im.receiveShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
+    };
+    crownMesh(nearC, true, 'terrain:crowns'); crownMesh(farC, false, 'terrain:crowns-far');
+  }
+  if (blocks.length) {
+    // roof boxes: four walls + a lighter top (10 triangles), on the street grid
+    const pos = [], cl = []; const cs = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+    const tri = (a, b, c, k) => { pos.push(...a, ...b, ...c); cl.push(k, k, k, k, k, k, k, k, k); }; const quad = (a, b, c, d, k) => { tri(a, b, c, k); tri(a, c, d, k); };
+    for (let i = 0; i < 4; i++) { const a = cs[i], b = cs[(i + 1) % 4]; quad([b[0], 0, b[1]], [a[0], 0, a[1]], [a[0], 1, a[1]], [b[0], 1, b[1]], 0.72); }
+    quad([-0.5, 1, 0.5], [0.5, 1, 0.5], [0.5, 1, -0.5], [-0.5, 1, -0.5], 1.0);
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3)); bg.computeVertexNormals();
+    const im = new THREE.InstancedMesh(bg, new THREE.MeshStandardMaterial({ roughness: 0.95, vertexColors: true }), blocks.length);
+    const tones = [[0.62, 0.6, 0.56], [0.5, 0.49, 0.47], [0.56, 0.5, 0.4], [0.7, 0.69, 0.66], [0.4, 0.4, 0.4], [0.5, 0.32, 0.25]];
+    blocks.forEach(([x, z, v, w], k) => { const big = w < 0.3; dummy.position.set(x, -0.1, z); dummy.scale.set(big ? 26 + v * 26 : 10 + v * 9, big ? 5 + w * 14 : 4.5 + w * 4, big ? 18 + ((v * 7) % 1) * 20 : 8 + ((v * 5) % 1) * 7); dummy.rotation.set(0, -0.12566 + (((v * 3) % 1) < 0.5 ? 0 : Math.PI / 2), 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const c = tones[Math.floor(((v * 11) % 1) * tones.length)]; col.setRGB(c[0], c[1], c[2]); im.setColorAt(k, col); });
+    im.name = 'terrain:blocks'; im.castShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
   }
   if (houses.length) {
     // hillside house: four walls + a hip roof (14 triangles, vertex-coloured so one instanced mesh has pale walls and

@@ -211,21 +211,44 @@ function vehicles(ctx) {
   const placed = []; let n = 0;
   const inPlay = (x, z, m = 3) => x > pb.minX + m && x < pb.maxX - m && z > pb.minZ + m && z < pb.maxZ - m;
   const keep = ctx.keepClear || [];
+  // the school buses (placed after the cars) and tree trunks: no car may overlap them. A car rejected for one of these
+  // still draws its three random numbers, so every other car keeps its place, type and colour.
+  const buses = [[...G(52, 26.9), ROT], [...G(-8, -134.5), ROT + Math.PI / 2], [...G(43, -128), ROT + Math.PI / 2]];
+  const trunks = (ctx.gen.trees || []).filter((t) => inPlay(t[0], t[1], -4));
+  const overlaps = (x, z, h, bx, bz, bh, hl, hw) => {   // oriented rectangles: car (2.3 x 0.95 half extents) vs (hl x hw) at (bx, bz, bh)
+    const R = [[x, z, h, 2.3, 0.95], [bx, bz, bh, hl, hw]];
+    for (const [, , a] of R) for (const ax of [[Math.cos(a), -Math.sin(a)], [Math.sin(a), Math.cos(a)]]) {
+      const ext = R.map(([cx, cz, hh, l, w]) => [cx * ax[0] + cz * ax[1], Math.abs(l * (Math.cos(hh) * ax[0] - Math.sin(hh) * ax[1])) + Math.abs(w * (Math.sin(hh) * ax[0] + Math.cos(hh) * ax[1]))]);
+      if (Math.abs(ext[0][0] - ext[1][0]) > ext[0][1] + ext[1][1]) return false;
+    }
+    return true;
+  };
   const car = (x, z, heading) => {
     if (!inPlay(x, z)) return; if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
     if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.5)) return;
     for (const r of ctx.buildingRings || []) if (pointInRing(x, z, r)) return;
+    if (buses.some(([bx, bz, bh]) => overlaps(x, z, heading, bx - 0.15 * Math.cos(bh), bz + 0.15 * Math.sin(bh), bh, 6.1, 1.6)) || trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 3.4 && overlaps(x, z, heading, t[0], t[1], 0, 0.15, 0.15))) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }
     propKit.placeCar(ctx, pick(), x, z, heading + (rnd() - 0.5) * 0.05, propKit.CAR_COLORS[Math.floor(rnd() * propKit.CAR_COLORS.length)]); placed.push([x, z]); n++;
   };
   // stall paint: 10 cm lines just above the asphalt, one merged mesh, worn and faded out with distance (visual only)
-  const stripes = [], seen = new Set();
+  const stripes = [], stripeCol = [], seen = new Set();
   const stall = (cx, cz, dx, dz) => {
     const key = Math.round(cx * 4) + ',' + Math.round(cz * 4); if (seen.has(key)) return; seen.add(key);
     const h = 2.45, w = 0.05, y = 0.017; const a = [cx - dx * h, cz - dz * h], b = [cx + dx * h, cz + dz * h], px = -dz * w, pz = dx * w;
     const q = [[a[0] - px, a[1] - pz], [a[0] + px, a[1] + pz], [b[0] + px, b[1] + pz], [b[0] - px, b[1] - pz]];
     const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
-    for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) stripes.push(q[k][0], y, q[k][1]);
+    for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) { stripes.push(q[k][0], y, q[k][1]); stripeCol.push(0.84, 0.835, 0.8); }
   };
+  // Mission Avenue's double yellow centre line (the satellite paint is smoothed away up close)
+  for (const r of data.roads) {
+    if (r.tags.name !== 'Mission Avenue') continue;
+    for (let i = 0; i < r.line.length - 1; i++) {
+      const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5 || !inPlay((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, -30)) continue; const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
+      for (const o of [-0.11, 0.11]) { const q = [[a[0] + nx * (o - 0.05), a[1] + nz * (o - 0.05)], [a[0] + nx * (o + 0.05), a[1] + nz * (o + 0.05)], [b[0] + nx * (o + 0.05), b[1] + nz * (o + 0.05)], [b[0] + nx * (o - 0.05), b[1] + nz * (o - 0.05)]];
+        const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
+        for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) { stripes.push(q[k][0], 0.017, q[k][1]); stripeCol.push(0.8, 0.6, 0.08); } }
+    }
+  }
   // car parks (OSM amenity=parking): rows of stalls along the long axis, alternating with aisles
   for (const a of data.areas) {
     if (a.tags.amenity !== 'parking') continue; const ring = ensureCCW(a.outer[0]); const o = minAreaOBB(ring); if (!o) continue;
@@ -265,11 +288,12 @@ function vehicles(ctx) {
     const hw = r.tags.highway; if (hw !== 'tertiary' && hw !== 'secondary' && hw !== 'primary') continue;
     for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 30) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; if (rnd() < 0.55) { const d = 10 + rnd() * (L - 20), sd = rnd() < 0.5 ? 1 : -1; car(a[0] + tx * d - tz * sd * 1.7, a[1] + tz * d + tx * sd * 1.7, Math.atan2(-tz, tx) + (sd > 0 ? 0 : Math.PI)); } }
   }
-  { const p = G(52, 26.9); propKit.placeBus(ctx, p[0], p[1], ROT); const q = G(-8, -134.5); propKit.placeBus(ctx, q[0], q[1], ROT + Math.PI / 2); const s = G(43, -128); propKit.placeBus(ctx, s[0], s[1], ROT + Math.PI / 2); }
+  for (const [bx, bz, bh] of buses) propKit.placeBus(ctx, bx, bz, bh);
   if (stripes.length) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(stripes, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(stripes.length).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
-    const mat = new THREE.MeshStandardMaterial({ color: 0xd6d5cc, roughness: 0.85, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    g.setAttribute('color', new THREE.Float32BufferAttribute(stripeCol, 3));
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
     const wear = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
   { float sd = length(vWPos - cameraPosition); vec2 sp = vWPos.xz * 3.1;
     float sw = fract(sin(dot(floor(sp * 6.0), vec2(12.9898, 78.233))) * 43758.5453) * 0.35 + fract(sin(dot(floor(sp), vec2(39.3468, 11.135))) * 24634.6345) * 0.4;
@@ -278,7 +302,7 @@ function vehicles(ctx) {
     ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms, wear);
     const mesh = new THREE.Mesh(g, mat); mesh.name = 'stall-paint'; mesh.receiveShadow = true; mesh.castShadow = false; mesh.matrixAutoUpdate = false; mesh.renderOrder = 1; ctx.scene.add(mesh);
   }
-  ctx.stats = { cars: n, stallLines: stripes.length / 18 };
+  ctx.stats = { cars: n, paintLines: stripes.length / 18 };
 }
 
 // ------------------------------------------------------------------------------------------ streets

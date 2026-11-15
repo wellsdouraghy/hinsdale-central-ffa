@@ -214,8 +214,8 @@ function leadershipCenter(ctx) {
   { const wr = wellRoof(ctx, boxFromRect(29.9, 60.4, 12.9, 42.4), 9.4, 2.3, 3.3, { overhang: 0.8 }); const a = gp(29.9, 60.4, 0, -6.5); solarRows(ctx, a[0], a[1], 4.8, 20, wr.deck, 8); const r2 = mulberry32(13); for (const b of [9, 14.5]) { const p = gp(29.9, 60.4, 0, b); roofUnit(ctx, p[0], wr.deck, p[1], ROT + Math.PI / 2, r2); } }
   hipBuilding(ctx, rect(18.9, 58.6, 9.6, 34.6), 8.9, 'maMission', { rise: 2.2, overhang: 0.7, roofs: [boxFromRect(18.9, 58.6, 9.6, 34.6)] });
   // courtyard between the two: paved patio, pergola on the Mission Ave side, cafe tables
-  const pv = B.v('maPaver'); const c = rect(8.1, 60.5, 9.6, 36), y = 0.03;
-  pv.quad([c[3][0], y, c[3][1]], [c[2][0], y, c[2][1]], [c[1][0], y, c[1][1]], [c[0][0], y, c[0][1]], [0, 0], [4, 0], [4, 15], [0, 15]);
+  const pv = B.v('maPaver'); const c = rect(7.7, 60.5, 10.4, 36), y = 0.03;   // wall to wall between the two buildings
+  pv.quad([c[3][0], y, c[3][1]], [c[2][0], y, c[2][1]], [c[1][0], y, c[1][1]], [c[0][0], y, c[0][1]], [0, 0], [4.333, 0], [4.333, 15], [0, 15]);
   for (let i = 0; i < 4; i++) for (const b of [-21.5, -18.2]) { const p = gp(8.1, 60.5, -4.4 + i * 2.93, b); B.v('wood').box(p[0], 1.55, p[1], 0.22, 3.1, 0.22, ROT, 0.5); B.c('wood').box(p[0], 1.55, p[1], 0.3, 3.1, 0.3, ROT); }
   for (const b of [-21.5, -18.2]) { const p = gp(8.1, 60.5, 0, b); B.v('wood').box(p[0], 3.2, p[1], 10.2, 0.22, 0.16, ROT, 0.5); }
   for (let a = -4.8; a <= 4.81; a += 0.8) { const p = gp(8.1, 60.5, a, -19.85); B.v('wood').box(p[0], 3.38, p[1], 0.08, 0.16, 4.4, ROT, 0.5); }
@@ -226,8 +226,9 @@ function leadershipCenter(ctx) {
   for (const [a, b, r] of [[-2.9, -6.5, Math.PI / 2], [2.9, 8.5, -Math.PI / 2], [0, 16.6, 0]]) { const p = gp(8.1, 60.5, a, b); propKit.bench(ctx, p[0], p[1], ROT + r); }
   { const p = gp(8.1, 60.5, 3.2, -15.5); propKit.trashCan(ctx, p[0], p[1]); }
   for (const [a, b] of [[-2, -8], [2.2, -2], [-1.8, 5], [2.4, 11]]) for (let k = 0; k < 3; k++) { const an = k * 2.1 + a; const p = gp(8.1, 60.5, a + Math.cos(an) * 0.95, b + Math.sin(an) * 0.95); const ca = Math.cos(an), sa = Math.sin(an), R = -an + Math.PI / 2;   // bistro chair facing its table: slatted seat + back in aluminium on a dark frame
-    B.v('aluminum').box(p[0], 0.45, p[1], 0.4, 0.035, 0.4, R).box(p[0] + ca * 0.2, 0.7, p[1] + sa * 0.2, 0.4, 0.3, 0.03, R);
-    for (const sd of [-1, 1]) B.v('blackMetal').box(p[0] - sa * sd * 0.185, 0.215, p[1] + ca * sd * 0.185, 0.03, 0.43, 0.38, R).box(p[0] + ca * 0.2 - sa * sd * 0.185, 0.66, p[1] + sa * 0.2 + ca * sd * 0.185, 0.03, 0.46, 0.03, R); }
+    B.v('paint', true).setColor(0.58, 0.59, 0.6).box(p[0], 0.45, p[1], 0.4, 0.03, 0.4, R).box(p[0] + ca * 0.2, 0.7, p[1] + sa * 0.2, 0.4, 0.28, 0.025, R);
+    for (const sd of [-1, 1]) B.v('blackMetal').box(p[0] - ca * 0.17 - sa * sd * 0.185, 0.22, p[1] - sa * 0.17 + ca * sd * 0.185, 0.025, 0.44, 0.025, R).box(p[0] + ca * 0.2 - sa * sd * 0.185, 0.44, p[1] + sa * 0.2 + ca * sd * 0.185, 0.025, 0.88, 0.025, R); }
+  B.v('paint', true).setColor(1, 1, 1);
   for (const [a, b] of [[-2, -8], [2.2, -2], [-1.8, 5], [2.4, 11]]) { const p = gp(8.1, 60.5, a, b); B.v('aluminum').cyl(p[0], 0.72, p[1], 0.55, 0.55, 0.04, 14, 1, true).cyl(p[0], 0, p[1], 0.04, 0.04, 0.72, 6, 1, false); B.c('metal').box(p[0], 0.4, p[1], 1.1, 0.8, 1.1); }
 }
 
@@ -246,7 +247,9 @@ function performingArts(ctx, rings) {
       wallDecal(ctx, signTexture([['PERFORMING ARTS CENTER', 96, '#3a2a1c', '600']], { w: 1536, h: 160 }), F, F.L / 2, 6.4, 9.6, 1.0, 0.18);
     }
   }
-  ringLadder(ctx, rings.pac, 4, 0.3, roofY);
+  // roof ladder on the long west wall. (It used to sit on the 1.2 m jog at the north-west corner, where the parapets of
+  // the two neighbouring walls closed the gap to less than a player's width: nobody could step off the top.)
+  for (let i = 0; i < r.length; i++) { const a = r[i], b = r[(i + 1) % r.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.nx < -0.9 && F.L > 15) { ringLadder(ctx, r, i, Math.abs(a[1] + (b[1] - a[1]) * 0.2 - 65) < Math.abs(a[1] + (b[1] - a[1]) * 0.8 - 65) ? 0.2 : 0.8, roofY); break; } }
   flatBuilding(ctx, rings.low, 6.6, 'maLowCream', { units: 1 });
   // Founders Hall: long two-storey white bar with a clay-tile mansard edge
   const f = flatBuilding(ctx, rings.founders, 8.6, 'maWhite', { units: 2 });
