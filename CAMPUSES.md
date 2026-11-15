@@ -26,7 +26,7 @@ export default {
   city: 'San Rafael, CA',
   legal: 'Fan-made campus game. Not affiliated with Marin Academy.',
   brand: { accent: '#d22630', accent2: '#ff4b55', dark: '#0b0b0d' },   // menu accent colors
-  teams: { red: 'Wildcats', blue: 'Bulls' },   // player-facing names; ids stay red/blue, colors stay red/blue
+  teams: { red: 'Wildcats', blue: 'Panthers' },   // home team vs its main rival (Hinsdale: Red Devils vs LT Lions); player-facing names; ids stay red/blue, colors stay red/blue
   origin: { lat, lon, height },      // local frame origin (x east, z south, metres); height = ellipsoid m for 3D tiles
   tileRegistration: [[x, z], ...],   // open flat spots for 3D-tiles ground registration (see src/world/tiles.js)
   files: {                           // all relative to the site root
