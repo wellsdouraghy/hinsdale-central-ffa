@@ -78,6 +78,31 @@ function paverTexture(aniso) {
   return canvasTexture(c, { aniso });
 }
 
+// House wall module (4.0 m x 2.9 m storey with one window) in a neutral mid grey, so the vertex colour carries the real
+// wall colour read from Street View (tint = colour / WALL_BASE); the trim is drawn brighter and stays pale.
+export const WALL_BASE = Math.pow(150 / 255, 2.2);
+export const WALL_KINDS = ['stucco', 'wood_siding', 'shingle', 'board_batten', 'brick', 'concrete'];
+function houseWall(kind, aniso, win = true) {
+  const W = 512, H = 372, c = makeCanvas(W, H), g = c.getContext('2d'); const rnd = mulberry32(31 + kind.length);
+  g.fillStyle = 'rgb(150,150,150)'; g.fillRect(0, 0, W, H);
+  if (kind === 'wood_siding') for (let y = 0; y < H; y += 16) { g.fillStyle = 'rgba(0,0,0,0.26)'; g.fillRect(0, y, W, 2); g.fillStyle = 'rgba(255,255,255,0.12)'; g.fillRect(0, y + 2, W, 3); }
+  else if (kind === 'board_batten') for (let x = 0; x < W; x += 32) { g.fillStyle = 'rgba(255,255,255,0.14)'; g.fillRect(x, 0, 6, H); g.fillStyle = 'rgba(0,0,0,0.25)'; g.fillRect(x + 6, 0, 2, H); }
+  else if (kind === 'shingle') for (let r = 0; r * 12 < H; r++) { g.fillStyle = 'rgba(0,0,0,0.3)'; g.fillRect(0, r * 12, W, 2); for (let x = (r % 2) * 9; x < W; x += 18 + Math.floor(rnd() * 6)) { g.fillStyle = `rgba(0,0,0,${0.12 + rnd() * 0.16})`; g.fillRect(x, r * 12, 1.5, 12); if (rnd() < 0.3) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},0.07)`; g.fillRect(x, r * 12 + 2, 18, 10); } } }
+  else if (kind === 'brick') for (let r = 0; r * 9.5 < H; r++) for (let k = -1; k * 28 < W; k++) { const v = (rnd() - 0.5) * 34; g.fillStyle = `rgb(${150 + v | 0},${150 + v | 0},${150 + v | 0})`; g.fillRect(k * 28 + (r % 2) * 14 + 1, r * 9.5 + 1, 26, 7.5); if (!k) { g.fillStyle = 'rgba(215,215,215,0.5)'; g.fillRect(0, r * 9.5, W, 1); } }
+  else for (let i = 0; i < 2600; i++) { g.fillStyle = `rgba(${rnd() < 0.5 ? '255,255,255' : '0,0,0'},0.04)`; g.fillRect(rnd() * W, rnd() * H, 3, 3); }
+  if (win) {
+    const wx = W * 0.32, wy = H * 0.2, ww = W * 0.36, wh = H * 0.5;
+    g.fillStyle = '#fafafa'; g.fillRect(wx - 10, wy - 10, ww + 20, wh + 20);
+    const gr = g.createLinearGradient(0, wy, 0, wy + wh); gr.addColorStop(0, '#465a6c'); gr.addColorStop(1, '#1d262d'); g.fillStyle = gr; g.fillRect(wx, wy, ww, wh);
+    g.fillStyle = 'rgba(200,198,190,0.5)'; g.fillRect(wx, wy, ww, wh * 0.26);
+    g.fillStyle = '#fafafa'; g.fillRect(wx + ww / 2 - 3, wy, 6, wh); g.fillRect(wx, wy + wh / 2 - 3, ww, 6);
+    g.fillStyle = 'rgba(0,0,0,0.28)'; g.fillRect(wx - 10, wy + wh + 10, ww + 20, 4);
+  }
+  return canvasTexture(c, { aniso });
+}
+/** Vertex-colour tint that makes a WALL_KINDS texture come out in the sRGB colour [r, g, b] (0..255). */
+export const wallTint = (rgb) => { const c = srgb(...rgb); return [c[0] / WALL_BASE, c[1] / WALL_BASE, c[2] / WALL_BASE]; };
+
 export function addMaterials(ctx) {
   const { M, T } = ctx; if (M.stucco) return;
   const std = (o) => new THREE.MeshStandardMaterial(o);
@@ -90,6 +115,8 @@ export function addMaterials(ctx) {
   M.maPaver = std({ map: paverTexture(T.aniso), normalMap: ctx.quality === 'low' ? null : T.concreteNormal, roughness: 0.88 }); M.maPaver.normalScale.set(0.35, 0.35); M.maPaver.color.setRGB(0.8, 0.79, 0.76);
   M.trimRed = std({ color: 0xb3261e, roughness: 0.6, metalness: 0.05 });
   M.awning = std({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
+  for (const k of WALL_KINDS) { M['maW_' + k] = std({ map: houseWall(k, T.aniso), vertexColors: true, roughness: k === 'stucco' ? 0.93 : 0.85 }); M['maP_' + k] = std({ map: houseWall(k, T.aniso, false), vertexColors: true, roughness: 0.9 }); }
+  M.maFrond = std({ color: 0x3f5a2a, roughness: 0.8, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
     maMission: { kind: 'class', bay: 4.3, frame: 'frame', top: 'stone', tint: [0.9, 0.79, 0.55], beds: true },       // cream stucco, bronze frames
@@ -97,6 +124,7 @@ export function addMaterials(ctx) {
     maWhite: { kind: 'class', bay: 4.6, frame: 'frame', top: 'stone', tint: [0.93, 0.92, 0.88], beds: true },
     maModern: { kind: 'modern', bay: 4.9, frame: 'frameAlu', top: 'panel', tint: [0.95, 0.95, 0.94] },
     maLow: { kind: 'lowmod', bay: 4.4, frame: 'frameAlu', top: 'panel', tint: [0.94, 0.94, 0.92], beds: true },
+    maVisArts: { kind: 'lowmod', bay: 4.4, frame: 'frameAlu', top: 'panel', tint: [0.5, 0.45, 0.3], beds: true },   // Visual Arts Center: olive-tan stucco (Street View)
     maLowCream: { kind: 'lowmod', bay: 4.4, frame: 'frame', top: 'stone', tint: [0.9, 0.81, 0.6], beds: true },
     maGym: { kind: 'gym', bay: 5.6, frame: 'frame', top: 'stone', tint: [0.94, 0.92, 0.86], clerestory: true },
     maGymPlain: { kind: 'gym', bay: 6.2, frame: 'frameAlu', top: 'panel', tint: [0.92, 0.86, 0.68] },
@@ -119,19 +147,28 @@ export const SKIN_BRICK = {};
 export function kitWalls(ctx, ringIn, h, style, opts = {}) {
   const ring = ensureCCW(ringIn); const sctx = skin(ctx, opts.skin || SKIN_STUCCO); const rnd = opts.rnd || mulberry32(Math.abs(Math.round(ring[0][0] * 13 + ring[0][1] * 7)) + 3);
   const B = ctx.B; const st = STYLES[style]; const alu = st && st.frame === 'frameAlu';
+  const base0 = ctx.terrain && B.off ? B.off.y : 0;   // the building's datum (its lowest ground: see `sited`)
   let u = 0;
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i], b = ring[(i + 1) % ring.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
-    const F = edgeFrame(a[0], a[1], b[0], b[1]);
     const plain = opts.plainEdges && opts.plainEdges.includes(i);
-    facade(sctx, F, 0, h, plain ? (opts.plainStyle || 'maPlain') : style, u, rnd);
-    if (opts.parapet) {
-      const roofY = h - 0.4;
-      quadFacing(B.v(alu ? 'frameAlu' : 'frame'), F.P(-0.1, h + 0.03, 0.13), F.P(L + 0.1, h + 0.03, 0.13), F.P(L, h + 0.03, -0.32), F.P(0, h + 0.03, -0.32), [0, 1, 0]);
-      quadFacing(B.v('concrete'), F.P(0, roofY, -0.32), F.P(L, roofY, -0.32), F.P(L, h + 0.03, -0.32), F.P(0, h + 0.03, -0.32), [-F.nx, 0, -F.nz]);
-      const pc = F.P(L / 2, (roofY + h + 0.03) / 2, -0.16); B.c('concrete').box(pc[0], pc[1], pc[2], L, h + 0.03 - roofY, 0.32, F.rotY);
+    // On a slope every wall (long walls: every 8-12 m piece of it) starts at its own ground: the facade kit lays out
+    // storeys, doors and the base course from the ground up, so a wall on the uphill side is a storey shorter instead
+    // of having its doors and windows buried in the hill.
+    for (const [p, q, dy] of wallPieces(ctx, a, b, base0, h)) {
+      const F = edgeFrame(p[0], p[1], q[0], q[1]); const hh = h - dy;
+      const run = () => {
+        facade(sctx, F, 0, hh, plain ? (opts.plainStyle || 'maPlain') : style, u, rnd);
+        if (opts.parapet) {
+          const roofY = hh - 0.4;
+          quadFacing(B.v(alu ? 'frameAlu' : 'frame'), F.P(-0.1, hh + 0.03, 0.13), F.P(F.L + 0.1, hh + 0.03, 0.13), F.P(F.L, hh + 0.03, -0.32), F.P(0, hh + 0.03, -0.32), [0, 1, 0]);
+          quadFacing(B.v('concrete'), F.P(0, roofY, -0.32), F.P(F.L, roofY, -0.32), F.P(F.L, hh + 0.03, -0.32), F.P(0, hh + 0.03, -0.32), [-F.nx, 0, -F.nz]);
+          const pc = F.P(F.L / 2, (roofY + hh + 0.03) / 2, -0.16); B.c('concrete').box(pc[0], pc[1], pc[2], F.L, hh + 0.03 - roofY, 0.32, F.rotY);
+        }
+      };
+      if (dy > 0) ctx.onGround([p[0], p[1]], run, { mode: base0 + dy }); else run();
+      u += F.L;
     }
-    u += L;
   }
   B.v('stucco', true).setColor(1, 1, 1); B.v('brick', true).setColor(1, 1, 1);
   return ring;
@@ -287,16 +324,106 @@ export function wallLadder(ctx, x, z, nx, nz, top) {
 // ladder at parameter t (0..1) of edge i of a ring
 export function ringLadder(ctx, ringIn, i, t, top) {
   const ring = ensureCCW(ringIn); const a = ring[i % ring.length], b = ring[(i + 1) % ring.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]);
-  const p = F.P(F.L * t, 0, 0.14); wallLadder(ctx, p[0], p[2], F.nx, F.nz, top);
+  const p = F.P(F.L * t, 0, 0.14);
+  if (ctx.terrain) groundLadder(ctx, p[0], p[2], F.nx, F.nz, (ctx.B.off ? ctx.B.off.y : 0) + top);   // from the ground at its foot (the wall may start higher than the building's datum)
+  else wallLadder(ctx, p[0], p[2], F.nx, F.nz, top);
 }
 // flat decal on a wall frame (text / logos): returns the mesh (added to the scene)
 export function wallDecal(ctx, tex, F, uC, yC, w, h, out = 0.03, opts = {}) {
   const g = new THREE.BufferGeometry();
-  const p = [F.P(uC - w / 2, yC - h / 2, out), F.P(uC - w / 2, yC + h / 2, out), F.P(uC + w / 2, yC + h / 2, out), F.P(uC + w / 2, yC - h / 2, out)];
+  const oy = ctx.B.off ? ctx.B.off.y : 0;   // inside ctx.onGround the decal rides on the same base as the wall
+  const p = [F.P(uC - w / 2, yC - h / 2, out), F.P(uC - w / 2, yC + h / 2, out), F.P(uC + w / 2, yC + h / 2, out), F.P(uC + w / 2, yC - h / 2, out)].map((q) => [q[0], q[1] + oy, q[2]]);
   g.setAttribute('position', new THREE.Float32BufferAttribute([...p[0], ...p[1], ...p[2], ...p[0], ...p[2], ...p[3]], 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute([1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 0], 2));
   g.computeVertexNormals();
   const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, alphaTest: opts.opaque ? 0 : 0.4, roughness: opts.rough ?? 0.6, metalness: opts.metal ?? 0.2, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
   m.receiveShadow = true; m.name = 'decal'; ctx.scene.add(m); return m;
+}
+// ------------------------------------------------------------------------------------------ terrain helpers
+// (all of them fall back to flat ground at y = 0 when the campus has no terrain)
+/** Ground heights along a ring's outline, `out` metres outside the walls: { min, max, mean }. */
+export function ringGround(ctx, ring, out = 0.5) {
+  if (!ctx.terrain) return { min: 0, max: 0, mean: 0 };
+  const r = ensureCCW(ring); let min = Infinity, max = -Infinity, sum = 0, n = 0;
+  for (let i = 0; i < r.length; i++) { const g = edgeGround(ctx, r[i], r[(i + 1) % r.length], out); if (!g.n) continue; min = Math.min(min, g.min); max = Math.max(max, g.max); sum += g.mean * g.n; n += g.n; }
+  return n ? { min, max, mean: sum / n } : { min: 0, max: 0, mean: 0 };
+}
+/** Ground along the wall a -> b of a CCW ring (sampled every ~1.5 m, `out` metres outside). */
+export function edgeGround(ctx, a, b, out = 0.5) {
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (!ctx.terrain || L < 1e-3) return { min: 0, max: 0, mean: 0, n: ctx.terrain ? 0 : 1 };
+  const nx = (b[1] - a[1]) / L, nz = -(b[0] - a[0]) / L; const k = Math.max(2, Math.ceil(L / 1.5)); let min = Infinity, max = -Infinity, sum = 0;
+  for (let i = 0; i <= k; i++) { const t = i / k; const y = ctx.groundY(a[0] + (b[0] - a[0]) * t + nx * out, a[1] + (b[1] - a[1]) * t + nz * out); min = Math.min(min, y); max = Math.max(max, y); sum += y; }
+  return { min, max, mean: sum / (k + 1), n: k + 1 };
+}
+// wall a -> b cut into pieces that each start at their own ground: [[p, q, dy], ...], dy = that piece's base above `base0`
+function wallPieces(ctx, a, b, base0, h) {
+  if (!ctx.terrain) return [[a, b, 0]];
+  const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const g = edgeGround(ctx, a, b);
+  const n = L >= 14 && g.max - g.min > 1.1 ? Math.max(1, Math.min(Math.floor(L / 8), Math.ceil((g.max - g.min) / 1.1))) : 1; const out = [];
+  for (let k = 0; k < n; k++) {
+    const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], q = [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n];
+    let dy = edgeGround(ctx, p, q).min - base0 - 0.05; dy = dy < 0.45 ? 0 : Math.min(dy, Math.max(0, h - 2.7));
+    out.push([p, q, dy]);
+  }
+  return out;
+}
+/**
+ * Stands a building on the terrain: runs fn(base, ground) with the Builder raised to `base` (default: the lowest ground
+ * on the footprint's outline, so every wall reaches the ground and the uphill walls are simply shorter; kitWalls starts
+ * each wall at its own ground), with a foundation under it. Heights inside fn are local: top = roofAbs - base.
+ */
+export function sited(ctx, ring, fn, opts = {}) {
+  if (!ctx.terrain) return fn(0, { min: 0, max: 0, mean: 0 });
+  const g = ringGround(ctx, ring); const base = opts.base ?? g.min;
+  return ctx.onGround(ensureCCW(ring), () => fn(base, g), { mode: base, plinth: { material: opts.plinth || 'concrete', surface: 'concrete', cap: false } });   // no cap: it would be a drawn floor inside the building (the roof-skin check sees it from the attic)
+}
+/** Runs fn(groundY) with the Builder on the ground at (x, z) (highest ground within r: nothing built there is buried). */
+export function atGround(ctx, x, z, fn, r = 0.4, mode = 'max') { return ctx.terrain ? ctx.onGround([x, z, r], fn, { mode }) : fn(0); }
+/** Ladder on a wall from the ground at its foot up to the absolute height `topAbs`. */
+export function groundLadder(ctx, x, z, nx, nz, topAbs) { return atGround(ctx, x + nx * 0.5, z + nz * 0.5, (g) => wallLadder(ctx, x, z, nx, nz, topAbs - g), 0.5); }
+/**
+ * Chain-link fence that follows the ground (src/world/landmarks.js `fence` is flat): posts every `every` m standing on
+ * the terrain, mesh panels between them, a mesh collision box per panel. opts as fence(): h, black, screen, every, gaps.
+ */
+export function hillFence(ctx, pts, opts = {}) {
+  const { B } = ctx; const h = opts.h || 1.8, every = opts.every || 3.0, gaps = opts.gaps || []; const gy = (x, z) => ctx.groundY(x, z) + (opts.lift || 0);
+  const mesh = B.v('chainlink'), posts = B.v(opts.black ? 'blackMetal' : 'galv'), col = B.c('metal:mesh'); let dist = 0;
+  const inGap = (d) => gaps.some(([a, b]) => d > a && d < b);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.01) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
+    const cuts = [0, L]; for (const [g0, g1] of gaps) for (const g of [g0 - dist, g1 - dist]) if (g > 0 && g < L) cuts.push(g); cuts.sort((x, y) => x - y);
+    for (let k = 0; k < cuts.length - 1; k++) {
+      const c0 = cuts[k], c1 = cuts[k + 1]; if (c1 - c0 < 0.05 || inGap(dist + (c0 + c1) / 2)) continue; const n = Math.max(1, Math.round((c1 - c0) / every));
+      for (let q = 0; q <= n; q++) { const u = c0 + (c1 - c0) * q / n, x = a[0] + tx * u, z = a[1] + tz * u; posts.cyl(x, gy(x, z) - 0.2, z, 0.035, 0.035, h + 0.24, 6, 1, true); }
+      for (let q = 0; q < n; q++) {
+        const u0 = c0 + (c1 - c0) * q / n, u1 = c0 + (c1 - c0) * (q + 1) / n; const x0 = a[0] + tx * u0, z0 = a[1] + tz * u0, x1 = a[0] + tx * u1, z1 = a[1] + tz * u1; const y0 = gy(x0, z0), y1 = gy(x1, z1);
+        mesh.quad([x0, y0 + 0.05, z0], [x0, y0 + h, z0], [x1, y1 + h, z1], [x1, y1 + 0.05, z1], [u0 * 2, 0.1], [u0 * 2, h * 2], [u1 * 2, h * 2], [u1 * 2, 0.1]);
+        if (opts.screen) B.v('windscreen').quad([x0 + tz * 0.02, y0 + 0.1, z0 - tx * 0.02], [x0 + tz * 0.02, y0 + opts.screen, z0 - tx * 0.02], [x1 + tz * 0.02, y1 + opts.screen, z1 - tx * 0.02], [x1 + tz * 0.02, y1 + 0.1, z1 - tx * 0.02], [u0 * 4, 0], [u0 * 4, opts.screen * 4], [u1 * 4, opts.screen * 4], [u1 * 4, 0]);
+        posts.tube([x0, y0 + h, z0], [x1, y1 + h, z1], 0.025, 5);
+        const lo = Math.min(y0, y1) - 0.3, hi = Math.max(y0, y1) + h; col.box((x0 + x1) / 2, (lo + hi) / 2, (z0 + z1) / 2, u1 - u0, hi - lo, 0.08, Math.atan2(-tz, tx));
+      }
+    }
+    dist += L;
+  }
+}
+/**
+ * Lays whatever fn() builds (at y = 0, flat) onto the sloping ground around (x, z): every vertex written by fn, visual
+ * and collision, is raised by the ground plane fitted through the footprint (radius r). A vertical shear, so walls stay
+ * vertical: right for cars, benches and other props up to ~12 % of grade. Returns fn's result.
+ */
+export function onSlope(ctx, x, z, r, fn) {
+  if (!ctx.terrain) return fn();
+  const B = ctx.B; const marks = []; for (const m of [B.visual, B.collision]) for (const [, bk] of m) marks.push([bk, bk.pos.length]);
+  const seenV = new Set(B.visual.keys()), seenC = new Set(B.collision.keys());
+  const prev = B.off.y; B.off.y = 0; ctx.groundDepth = (ctx.groundDepth || 0) + 1; const nP = (ctx.props || []).length; const nS = ctx.shrubs.length;
+  let out; try { out = fn(); } finally { B.off.y = prev; ctx.groundDepth--; }
+  const g = ctx.groundY, y0 = g(x, z), gx = (g(x + r, z) - g(x - r, z)) / (2 * r), gz = (g(x, z + r) - g(x, z - r)) / (2 * r);
+  const lift = (bk, from) => { const P = bk.pos; for (let k = from; k < P.length; k += 3) P[k + 1] += y0 + gx * (P[k] - x) + gz * (P[k + 2] - z); };
+  for (const [bk, from] of marks) lift(bk, from);
+  for (const [k, bk] of B.visual) if (!seenV.has(k)) lift(bk, 0);
+  for (const [k, bk] of B.collision) if (!seenC.has(k)) lift(bk, 0);
+  for (let i = nS; i < ctx.shrubs.length; i++) { const sh = ctx.shrubs[i]; sh[1] += y0 + gx * (sh[0] - x) + gz * (sh[2] - z); }
+  for (let i = nP; i < (ctx.props || []).length; i++) { const p = ctx.props[i]; p.y = ctx.terrain.minIn(p.x, p.z, Math.hypot(p.sx, p.sz) / 2); }   // map check: base = lowest ground under the prop
+  return out;
 }
 export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, signedArea, pointInRing, mulberry32, makeCanvas, canvasTexture };

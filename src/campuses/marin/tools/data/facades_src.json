@@ -1,0 +1,4890 @@
+{
+ "note": "Per-building attributes read from Google Street View (tools/streetview.py views, 2019-2025 imagery). Keys = OSM way ids. Edit here, then run tools/facades.py.",
+ "buildings": {
+  "974487530": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 3,
+   "wall": "wood_siding",
+   "col": "#7e97c2",
+   "trim": "#f4f4f0",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6f7478",
+   "windows": "regular",
+   "garage": true,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Blue Edwardian: garage level at grade, main floor above reached by side stairs on the right, attic with hip dormer; white garage door, red-brick chimney, white picket fence."
+  },
+  "974487531": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#cdb096",
+   "trim": "#e9e2d6",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6d6a66",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.75,
+   "notes": "Tan stucco bungalow raised about 1.2 m with front steps to a small gabled entry porch, attic under a front gable, window box; left part of image is blurred."
+  },
+  "974480356": {
+   "visible": "no",
+   "kind": "house",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.05,
+   "notes": "Whole building is blurred out by Street View privacy blur; nothing usable except a tall redwood at left and a bare tree behind."
+  },
+  "974480358": {
+   "visible": "no",
+   "kind": "house",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 2.5,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.15,
+   "notes": "Rear-lot building hidden behind a huge Canary palm and tall shrubs; only a long paved driveway to a dark wood carport is visible (neighbours: brown shingle house left, tan Victorian right)."
+  },
+  "974487532": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "shingle",
+   "col": "#6e5d4b",
+   "trim": "#2b2b2b",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6b4a38",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 2.5,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    },
+    {
+     "type": "conifer",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Small brown cottage under a tall steep pyramidal hip roof with an eyebrow vent, dark-framed windows, red Japanese maple in front, big clipped hedge on the right."
+  },
+  "974480362": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#e9e6d6",
+   "trim": "#ffffff",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6f7377",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0.8,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.55,
+   "notes": "Cream cottage with steep grey side-gable roof (skylights) mostly screened by a weeping birch; open carport on the left, clipped low box hedge and a vine arch at the path."
+  },
+  "974480361": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#f1f1ec",
+   "trim": "#23262a",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5b6064",
+   "windows": "regular",
+   "garage": true,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0.6,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "cypress",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    },
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "White bungalow with black window trim and dark grey cross-gable roof; garage sits lower on the left with a roof deck (red umbrella) on top; low clipped hedges, stone edging."
+  },
+  "974487534": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#ece8dc",
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "chainlink",
+    "hedge": 2.2,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.3,
+   "notes": "Almost fully hidden by a 2+ m hedge and a giant cedar; a white two-storey wall is glimpsed behind the trunk."
+  },
+  "974487533": {
+   "visible": "no",
+   "kind": "house",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.1,
+   "notes": "Hidden by a row of purple-leaf plum trees in front of a 1.8 m pale wood fence."
+  },
+  "975051791": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#d9cba8",
+   "trim": "#f2efe6",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a8377",
+   "windows": "large",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.5,
+   "notes": "House sits at the right edge of the frame: beige two-level with stucco garage level and siding upper floor, wide picture windows, brick chimney; a big leafy tree fills the image centre."
+  },
+  "975051786": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#3f4a46",
+   "trim": "#d9d6cc",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#4a4d50",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 1.8,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.45,
+   "notes": "Set well back behind a black iron driveway gate on stone pillars and a vine-covered wood fence; dark green-grey gabled house with a green garage door and an upper gable window."
+  },
+  "975051790": {
+   "visible": "no",
+   "kind": "house",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.5,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.1,
+   "notes": "Completely hidden by a young redwood and dense shrubs; only a gravel drive at the left."
+  },
+  "975051787": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#aaac96",
+   "trim": "#eeeeea",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6e7372",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Sage-grey single-storey ranch with hip roof and recessed covered entry on the left; ground drops to the right exposing a lower level; curved brick path, lawn, round shrubs."
+  },
+  "975051788": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#8f9584",
+   "trim": "#f0efe8",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8b8172",
+   "windows": "regular",
+   "garage": true,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Grey-green split level: single storey at the left with recessed entry, white garage door tucked under the right end down a ramped driveway with black iron railing; very low hip roof."
+  },
+  "975051789": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#dcd6c2",
+   "trim": "#f3f1ea",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#7a756b",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Cream single-storey house largely hidden behind a big round-crowned tree; gravel forecourt and brick steps (grey-green neighbour at right edge)."
+  },
+  "975051800": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "board_batten",
+   "col": "#d3c8a2",
+   "trim": "#f0ead8",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#8a8a86",
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 2.5,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Mid-century tan house below street level, screened by big rhododendrons and a Japanese maple; a glazed clerestory box pops above the flat roof; concrete steps lead down."
+  },
+  "975051803": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "board_batten",
+   "col": "#e8e1cb",
+   "trim": "#f4f0e2",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#9a9a94",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.5,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.6,
+   "notes": "Cream board-and-batten modern box seen across a sloping planted bank (ornamental grasses), upper floor with sliding window and a lower level below; magnolia at right, tall yucca at left."
+  },
+  "975051799": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#cdb48c",
+   "trim": "#f2f0e8",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#7a6652",
+   "windows": "few",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Only the street-level garage wing shows: tan vertical siding, low front gable, wide off-white garage door, white picket gate to a glazed sunroom entry; house drops downhill behind."
+  },
+  "975051802": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#e6ebf2",
+   "trim": "#ffffff",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#b8bcc0",
+   "windows": "large",
+   "garage": true,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Pale blue-white mid-century house perched about 3 m above the street: white 1 m retaining walls at the sidewalk, central steps up through a planted bank, glazed sunroom corner, blue front door."
+  },
+  "975051801": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a7a66",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.5,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.3,
+   "notes": "House sits below the road on the downhill side; only its brown shingle roof shows over roadside shrubs, with a long view to Mt Tamalpais."
+  },
+  "975051805": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#5c3028",
+   "trim": "#3a2420",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a6248",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 2.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Dark red-brown single-storey house set just below the road, long low gable roof with a red-brick chimney, pale green metal picket fence and gate, bamboo screen at the left."
+  },
+  "975058386": {
+   "visible": "no",
+   "kind": "house",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.5,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.1,
+   "notes": "Hidden behind a large multi-trunk live oak and bamboo at the end of a gravel drive."
+  },
+  "974487529": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#f3f1ea",
+   "trim": "#4f6f9e",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5f6468",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 1.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "White Cape Cod: ground floor plus dormered attic, blue shutters, teal door with pedimented surround, lower wing on the left, long white picket fence with square posts, clipped box shrubs."
+  },
+  "974487527": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#dfe9dc",
+   "trim": "#2f5d4a",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5c5f62",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0.6,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Small pale-green cottage with a full-width porch (white railing, dark green door and trim) under a grey side-gable roof; long driveway on the left to a rear carport, low box hedges along the path."
+  },
+  "974487528": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 3,
+   "wall": "wood_siding",
+   "col": "#c9c383",
+   "trim": "#8e3b2c",
+   "roof": "mansard",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a3f30",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 1.8,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.45,
+   "notes": "Big Victorian mostly screened by street trees and a 1.8 m hedge: yellow-green walls, dark red upper storey/roof and trim, wrap-around porch with dark railings; white globe street lamp at the kerb."
+  },
+  "974487540": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 3,
+   "wall": "stucco",
+   "col": "#ebcda6",
+   "trim": "#6f9a96",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6a6a6a",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 1.5,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Peach stucco house, two full floors plus an attic window in the steep front gable, teal window trim and bargeboards, chimney; 1.5 m clipped hedge along the sidewalk with a white gate; right part blurred."
+  },
+  "974487537": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#8b8e88",
+   "trim": "#f2f2ee",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6a6d70",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.8,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Grey gabled house with white trim barely visible above a 1.8 m clipped hedge and a large red Japanese maple; stone retaining wall at the right."
+  },
+  "974487536": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#b9a98c",
+   "trim": "#f0ede4",
+   "roof": "shed",
+   "roofMat": "membrane",
+   "roofCol": "#d8d6cf",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.45,
+   "notes": "Behind a weathered 1.8 m wood fence: tan house with a low mono-pitch roof with white fascia, stone chimney, white louvred shutters."
+  },
+  "974487538": {
+   "visible": "no",
+   "kind": "house",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.05,
+   "notes": "Small building entirely hidden by a large leafy tree and a 1.8 m dark wood fence."
+  },
+  "975051795": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#ddd4b8",
+   "trim": "#f4f2ea",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#9a6a55",
+   "windows": "large",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 1.5,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.9,
+   "notes": "1950s two-level: cream stucco garage level with wide white garage door, wide lap siding above with big picture windows, low reddish-brown hip roof, brick chimney, side deck over a green lattice gate."
+  },
+  "975051794": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#e2d291",
+   "trim": "#f5f3ec",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#55585c",
+   "windows": "large",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.9,
+   "notes": "Same model as its neighbours: white stucco garage level with dark brown wood garage door, butter-yellow lap siding upper floor with two big white-framed windows, dark hip roof, brick chimney, wood deck at left."
+  },
+  "975051793": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#e6e0cb",
+   "trim": "#f5f3ec",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#74777a",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Cream two-level: stucco garage level with white panel garage door, lap siding above with green roller shades, grey hip roof, side balcony with lattice over a white fence and gate."
+  },
+  "975051792": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#e9e3cf",
+   "trim": "#f6f4ee",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8c8778",
+   "windows": "large",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Cream two-level with garage under and a glazed corner bay upstairs, tall red-brick chimney on the side wall, steep lawn bank with concrete steps on the right, wide asphalt apron."
+  },
+  "975051798": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#5f86b8",
+   "trim": "#f2f2ee",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8b7a66",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 1.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Long low blue ranch below road level with a brown low-pitch roof and a recessed entry, behind a horizontal-slat cedar fence about 1.2 m high; big oak at the left."
+  },
+  "975058385": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#e6dcc6",
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "oak",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.25,
+   "notes": "Downhill-side house hidden by a big red Japanese maple; only a cream base wall shows (a dark brown shingled two-storey with white trim stands just right of centre and may be the neighbour)."
+  },
+  "975058384": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#c9b48e",
+   "trim": null,
+   "roof": "gable",
+   "roofMat": "membrane",
+   "roofCol": "#d9d8d2",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.8,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.35,
+   "notes": "House is below the road: only its pale low-pitch roof and a bit of tan wall show over a 1.8 m hedge; concrete driveway apron on the right."
+  },
+  "975052240": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "brick",
+   "col": "#f1f0ea",
+   "trim": "#22252a",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#b5a98f",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0.8,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.75,
+   "notes": "White single-storey ranch raised on a tall white foundation above the street, black shutters, entry stair with black iron railing, wide tan eaves; brick retaining walls and brick-edged steps up from the sidewalk."
+  },
+  "975052239": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#9a9c9c",
+   "trim": "#f2f2ee",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6f6f6c",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 1.5,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Grey two-storey with white garage door under the right end, brick chimney, deck at far right; 1 m red-brick retaining walls and brick steps with black handrail, magnolia in the raised bed."
+  },
+  "975052238": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#f1efe8",
+   "trim": "#ffffff",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#9c9684",
+   "windows": "large",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.75,
+   "notes": "White siding over a red-brick base on top of a steep lawn bank; big arched-mullion picture window, brick stair with iron rail up to the door, brick chimney at left, garage low at the right down a curving drive."
+  },
+  "975052237": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "board_batten",
+   "col": "#b4a898",
+   "trim": "#eeeeea",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6d6a64",
+   "windows": "large",
+   "garage": true,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "oak",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Taupe board-and-batten raised ranch at the end of a cul-de-sac: dark brown double garage door under the right half, white-railed stair to a dark front door, very low-pitch roof, oak woodland behind."
+  },
+  "974487521": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#8b97a3",
+   "trim": "#f1f1ee",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a8378",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 2.0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.3,
+   "notes": "Small rear building at the end of a driveway, grey-blue with a white lattice-screened porch and steps; front of lot is a 2 m clipped hedge (large brown-shingle house at left is the neighbour)."
+  },
+  "974487522": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#f3f1ea",
+   "trim": "#26282c",
+   "roof": "gable",
+   "roofMat": "clay_tile",
+   "roofCol": "#a5533c",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "White Spanish-revival two-storey with red clay tile roof, black shutters, a red-trimmed arched window, open ground-floor carport bay plus a curved metal carport canopy over a paver driveway, steps at right."
+  },
+  "974487524": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#9aa892",
+   "trim": "#f4f4f0",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6b5448",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.8,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.9,
+   "notes": "Craftsman bungalow: sage-green siding, full-width recessed porch with white square posts, brown side-gable roof with a small louvred gable dormer, straight concrete walk through a front lawn, big clipped shrubs."
+  },
+  "974487525": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#eceee9",
+   "trim": "#ffffff",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6f7370",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 2.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "White Victorian with patterned shingles, small upstairs balcony over a columned entry porch, round attic window; 2 m hedge above a white lattice fence with an arched lattice gate."
+  },
+  "974487526": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#d9cf8c",
+   "trim": "#f2f0e6",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6f7072",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 1.0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.5,
+   "notes": "Small yellow cottage set back behind a clipped hedge and a big street tree; concrete driveway on the left edged by a low white picket fence."
+  },
+  "974487542": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 3,
+   "wall": "wood_siding",
+   "col": "#7f93a8",
+   "trim": "#f4f4f0",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5a5c60",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Tall narrow 3-level house: two garage doors plus a barn-style door at street level, blue-grey lap siding, top storey in brown cedar shingle with a ribbon of windows, side steps on the right."
+  },
+  "974487541": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#4a4d55",
+   "trim": "#f4f4f0",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5c5e63",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0.6,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Charcoal Victorian with white trim, full-width covered porch on white columns, red front door, dormers in the roof; white picket fence with a low boxwood hedge in front."
+  },
+  "974487539": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#f1f1ec",
+   "trim": "#ffffff",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Mostly hidden by a street tree: white house on a tall grey raised basement, wide white stair with balustrade up to a porch; white picket fence along the sidewalk."
+  },
+  "975051796": {
+   "visible": "no",
+   "kind": "house",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [],
+   "conf": 0.05,
+   "notes": "Image is blurred out by Google over the target; only a neighbour's brick chimney and a driveway are visible."
+  },
+  "975051797": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#cfc8b0",
+   "trim": "#e9e6da",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a5a48",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": false
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Right half is blurred; two-level house with garage door at street level and a bay window above, green lattice gate and small deck between it and the cream neighbour on the left."
+  },
+  "975052245": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#e6e2b8",
+   "trim": "#f4f2e6",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6b4a3c",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.5,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "cypress",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Split level on a slope: two-storey block with double garage under the living floor on the left, one-storey wing stepping up to the right; tall clipped hedge and brick planter by the drive."
+  },
+  "975052244": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "board_batten",
+   "col": "#5f6b78",
+   "trim": "#f0f0ec",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6e7072",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Low blue-grey ranch house on a raised concrete base with steps up to a small covered entry and an orange door; rough grass front yard with clipped round shrubs."
+  },
+  "975052246": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#b5a497",
+   "trim": "#f4f2ec",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#77787a",
+   "windows": "regular",
+   "garage": true,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Two-storey taupe house with navy shutters and a blue front door under a small white portico; one-storey garage wing with white door on the right, planted front bank."
+  },
+  "975052242": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#e8dfc4",
+   "trim": "#6b4a36",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#6b4a36",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Cream stucco house perched on a bank above the street, concrete steps and an outside stair with iron rail up to the upper door, low rubble-stone retaining wall at the sidewalk, gravel drive on the right."
+  },
+  "975052243": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#e0c878",
+   "trim": "#f4f2e8",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6c6e6c",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Split level: one-storey yellow wing on the left, right end has a double garage in a brick base with a room above (tan fabric awning over its window); 1 m dark stone retaining wall along the sidewalk, red door."
+  },
+  "975052241": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#ececea",
+   "trim": "#3a3d42",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5f6164",
+   "windows": "few",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "oak",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.55,
+   "notes": "Downhill house seen from the cul-de-sac: white garage with a modern dark-framed door at street level and solar panels on the roof, grey house behind dropping away; grey fence on the right."
+  },
+  "974487520": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#5b3f30",
+   "trim": "#f0efe8",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#a8977c",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.6,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.6,
+   "notes": "Dark brown shingle cottage with a very steep front gable (upper floor in the roof) and white multi-pane windows, behind a tall clipped hedge and young street trees."
+  },
+  "974487571": {
+   "visible": "partial",
+   "kind": "apartments",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#e6e0b6",
+   "trim": "#8a8460",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5e4a3c",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 1.0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Long two-storey 1960s apartment block, cream stucco with olive trim bands, sliding glass doors and iron-railed balconies, low brown roof with deep eaves; row of large plane trees and a low wood fence along the street."
+  },
+  "974487543": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#f1ecc9",
+   "trim": "#ffffff",
+   "roof": "hip",
+   "roofMat": "clay_tile",
+   "roofCol": "#b0583c",
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "right",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Cream Spanish-style stucco house with red clay tile roof, white-railed roof deck over the lower wing, two white garage doors, white lattice screen; tall brown board fence on the left."
+  },
+  "974487544": {
+   "visible": "partial",
+   "kind": "apartments",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#4f3a2e",
+   "trim": "#e8e6de",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5a5a5c",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 2.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Large dark brown shingle two-storey house (looks divided into flats) with low roof and wide eaves, brick chimney and a wooden balcony with ladder fire escape; 2 m clipped hedge along the sidewalk."
+  },
+  "974487545": {
+   "visible": "yes",
+   "kind": "garage",
+   "lv": 1,
+   "wall": "board_batten",
+   "col": "#c9bd8a",
+   "trim": "#d8cfa0",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#6a6a66",
+   "windows": "few",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Plain one-storey garage row in tan grooved plywood with two weathered wood garage doors, flat roof, ivy on the right end."
+  },
+  "974487546": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#7fd0c4",
+   "trim": "#8a8a70",
+   "roof": "flat",
+   "roofMat": "clay_tile",
+   "roofCol": "#b5533a",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    },
+    {
+     "type": "redwood",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Turquoise stucco Spanish bungalow, flat roof behind a parapet with a red clay tile pent across the front, concrete steps up to the door; overgrown grass. (OSM church name does not fit: this is a house.)"
+  },
+  "975052248": {
+   "visible": "yes",
+   "kind": "apartments",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#cfc5a8",
+   "trim": "#b9b094",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#8a8676",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Long two-storey apartment block with the upper floor over an open four-bay carport on thin posts at street level, low roof with deep eaves, wide concrete apron and low stone retaining walls."
+  },
+  "975052247": {
+   "visible": "yes",
+   "kind": "apartments",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#8b8a62",
+   "trim": "#d8d4c0",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#7a786e",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 1.5,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.75,
+   "notes": "Olive-green two-storey 1960s apartment building with a red brick end wall, low-pitch roof, outside stair with iron rail and a carport on the right; concrete block patio wall at the sidewalk."
+  },
+  "974487551": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#7d7268",
+   "trim": "#5f574f",
+   "roof": "mansard",
+   "roofMat": "comp_shingle",
+   "roofCol": "#4a4a4e",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 0.6,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "redwood",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Taupe-brown two-storey house whose upper floor sits in a dark shingled gambrel/mansard roof with dormer windows; solid horizontal-board fence about 1.3 m high painted to match, grasses in front."
+  },
+  "974487550": {
+   "visible": "no",
+   "kind": "other",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.05,
+   "notes": "Small back building 47 m away, completely hidden by a hedge, garden trees and a big redwood trunk."
+  },
+  "974487549": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#6f7f8f",
+   "trim": "#f2f2ee",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5c5e62",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Blue-grey Victorian cottage on a raised basement, wide grey stair with white balustrade up to a covered porch, yellow front door, dormer above; rock-edged garden beds instead of lawn."
+  },
+  "974487548": {
+   "visible": "partial",
+   "kind": "church",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#c9b9a0",
+   "trim": "#f0ede4",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Beige stucco neoclassical church with stepped parapet and pediment, white multi-pane windows and columned entry; white post sign reads FIRST CHURCH OF CHRIST, SCIENTIST; purple-leaf plum and a birch in the bark-mulch forecourt."
+  },
+  "974487547": {
+   "visible": "yes",
+   "kind": "church",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#b9a48e",
+   "trim": "#8a7a68",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Plain modern flat-roofed stucco block (church Sunday School, small white plaque) with a deep recessed entry, dark red-brown double doors up three steps, ribbon window on the right."
+  },
+  "900888954": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#b9782f",
+   "trim": "#3a3028",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#5a4a3a",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.6,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Two-storey modernist office clad in orange-brown cedar shingles with continuous dark ribbon windows on both floors and a flat roof with timber fascia; shrubs and bark mulch in front."
+  },
+  "900888955": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#c4a88a",
+   "trim": "#a88a6c",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#8a7a6a",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": "PDS",
+    "signBg": "#1e6fc4",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "iron",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [],
+   "conf": 0.85,
+   "notes": "Two-storey tan stucco commercial building with flat overhanging roof, ground-floor shopfront behind thin posts, blue benches and a paved forecourt; long side wing runs back along a walkway."
+  },
+  "900888959": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#b5a98e",
+   "trim": "#8f866f",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.75,
+   "notes": "Two-storey beige stucco annex beside the church: blank end wall to the street with a long outside steel stair, open access balcony along the parking-lot side, flat roof with deep overhang."
+  },
+  "900888958": {
+   "visible": "partial",
+   "kind": "church",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#b08a5e",
+   "trim": "#8a6a48",
+   "roof": "gable",
+   "roofMat": "wood_shake",
+   "roofCol": "#8a6a48",
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "redwood",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.75,
+   "notes": "Modern A-frame church: huge steep brown shake roof sweeping down to low tan board walls, tall glazed gable peak; planted bank with rock edging, free-standing timber bell frame with green bells at the corner."
+  },
+  "974487558": {
+   "visible": "no",
+   "kind": "other",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 2.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": false
+    }
+   ],
+   "conf": 0.1,
+   "notes": "Target completely hidden behind a 2 m ivy-covered fence with a wooden gate, a street tree and a large flowering shrub."
+  },
+  "974487557": {
+   "visible": "yes",
+   "kind": "apartments",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#b9b29a",
+   "trim": "#8f8a78",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": "#6a6a66",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Two-storey mid-century block set back behind a parking lot: beige stucco with a vertical stone-veneer panel, upper balcony with railing, flat roof with deep overhang; tagged commercial but looks like flats or small offices."
+  },
+  "974487559": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "brick",
+   "col": "#7a3b30",
+   "trim": "#f0eee6",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0.8,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.55,
+   "notes": "Dark red brick house with a raised porch on white columns and concrete steps, upper floor hidden by a large tree; low rubble-stone wall with clipped hedge on top, big ivy-covered tree stump at the corner."
+  },
+  "974487556": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#d9cdb0",
+   "trim": "#f6f4ec",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6e5444",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "oak",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Cream Victorian with front gable (attic above two floors), raised porch with white turned balustrade and teal steps; huge Canary Island palm in the front garden, drive on the right, colourful planting."
+  },
+  "1430734350": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#c8402e",
+   "trim": "#f6f4ee",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6a4e3e",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Small bright red 1.5-storey cottage with white trim and a steep white-edged front gable, sitting at the back of a shared parking court behind the Victorians."
+  },
+  "974487555": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#6f8296",
+   "trim": "#f4f4f0",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.5,
+   "notes": "Blue-grey Victorian with tall front gable and louvred attic vent, raised basement with wide stair and white railings up to the porch; facade largely hidden by a maple (attic makes it read 3 levels tall)."
+  },
+  "976709691": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#cdd6dc",
+   "trim": "#ffffff",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Pale blue-white Victorian, two floors plus attic gable, side porch on white columns with a white-railed balcony above; a big pine fills the front yard, low stone edging and ground cover."
+  },
+  "974487554": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#8a5a3c",
+   "trim": "#f4f2ea",
+   "roof": "gable",
+   "roofMat": "wood_shake",
+   "roofCol": "#6e4a38",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Brown shingle Queen Anne house with a corner turret and conical roof, bay window, diamond attic window, recessed porch on white columns over a brick base; lawn and a large Japanese maple."
+  },
+  "976709690": {
+   "visible": "yes",
+   "kind": "garage",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#b9c4a6",
+   "trim": "#f2f2ec",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [],
+   "conf": 0.9,
+   "notes": "Plain pale-green stucco box right at the sidewalk: white double garage door below, one room with a wide three-pane window above, flat roof."
+  },
+  "974487553": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#b8c2a0",
+   "trim": "#f2f2ec",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#77787a",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wood",
+    "hedge": 2.0,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Pale green stucco bungalow, one main floor on a raised base with steps and iron rail, glazed sunroom corner, two chimneys; 2 m clipped hedge by the drive, small lawn."
+  },
+  "974487552": {
+   "visible": "partial",
+   "kind": "office",
+   "lv": 2,
+   "wall": "concrete",
+   "col": null,
+   "trim": null,
+   "roof": "flat",
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.25,
+   "notes": "Two-storey block almost entirely smothered in dark vines and trees; only a band of decorative concrete breeze block at ground level is visible, ground cover planting in front."
+  },
+  "975058388": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#d5dde2",
+   "trim": "#ffffff",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5a5c60",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Tall pale blue-white Victorian set well back: two floors plus attic windows in cross gables, bay window, small porches with steps; paved drive and parking court in front (likely offices or flats)."
+  },
+  "975058791": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#a8957a",
+   "trim": "#5e4636",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5e4636",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.75,
+   "notes": "Long low ranch-style building (looks like a care home or offices) with shallow brown gable roof and deep eaves, tan stucco and stone, white picket fence at the entry walk, lawn, white post sign, carport on the right."
+  },
+  "975058790": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#7a4a2c",
+   "trim": "#5a3622",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#3e4044",
+   "windows": "large",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Brown stained-wood pavilion with a tall steep pyramid roof (reads two levels high), covered side veranda, brick steps and terraced brick planters up from the sidewalk; drive to rear parking on the left."
+  },
+  "975058788": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "brick",
+   "col": "#a8553a",
+   "trim": "#2e2a28",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5e6062",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.0,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [],
+   "conf": 0.9,
+   "notes": "Storybook brick Tudor cottage: steep cross gables, two tall brick chimneys, black leaded diamond-pane windows, dark door, brick path and terrace across a neat lawn; hedge on the left boundary."
+  },
+  "975058389": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#7f9a78",
+   "trim": "#f2f0ea",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6b5646",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.3,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Green Craftsman bungalow, one raised storey plus attic gable (aerial says 2); front porch with steps, set back behind driveway."
+  },
+  "975058390": {
+   "visible": "partial",
+   "kind": "office",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#d9d2c4",
+   "trim": "#8a8378",
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 1.2,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.45,
+   "notes": "Mostly hidden by a big street tree; cream stucco upper floor over an open drive-through carport on the right, low brick planter wall and office sign at the sidewalk."
+  },
+  "975058391": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#7d4a2c",
+   "trim": "#2f3d38",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#3c4040",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 1.0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Brown-shingle Craftsman with dark green gable end and brick base, set back behind a paver forecourt; left half hidden by trees."
+  },
+  "975058789": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#a0977f",
+   "trim": "#5c574c",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0.8,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Low flat-roofed taupe stucco box with a red door under a flat canopy, ivy/shrub bed in front, steps with handrail."
+  },
+  "975058392": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 3,
+   "wall": "wood_siding",
+   "col": "#ece8dc",
+   "trim": "#ffffff",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#4a4c50",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 0.6,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Tall white Queen Anne Victorian: two floors plus attic gable, wrap porch with spindlework, glazed sun-room left; scaffolding on front at capture time."
+  },
+  "975058787": {
+   "visible": "partial",
+   "kind": "office",
+   "lv": 3,
+   "wall": "shingle",
+   "col": "#a35a3c",
+   "trim": "#f0ece2",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a5a48",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Red-brown shingled house converted to offices, two floors plus attic gable, raised on a stone retaining wall with a ramp and white railings up from the street."
+  },
+  "547595926": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#e3cd88",
+   "trim": "#f4f0e4",
+   "roof": "hip",
+   "roofMat": "clay_tile",
+   "roofCol": "#b0604a",
+   "windows": "regular",
+   "garage": true,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Yellow Mediterranean two-storey with red clay tile hip roof, white-columned entry portico and a one-storey garage wing on the left, paver forecourt."
+  },
+  "547376710": {
+   "visible": "yes",
+   "kind": "restaurant",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#ecebe4",
+   "trim": "#3a3a3a",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.05,
+    "awning": null,
+    "sign": "Johnny Doughnuts",
+    "signBg": "#ecebe4",
+    "signFg": "#3a3a3a"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 1.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [],
+   "conf": 0.8,
+   "notes": "G Street side wall of Johnny Doughnuts: tall white painted wall with a grey elephant mural and painted script sign, one small window; dark grey board fence to the right."
+  },
+  "547376709": {
+   "visible": "yes",
+   "kind": "restaurant",
+   "lv": 1,
+   "wall": "brick",
+   "col": "#2a2a2c",
+   "trim": "#7a3026",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.5,
+    "awning": null,
+    "sign": null,
+    "signBg": null,
+    "signFg": null
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Tall one-storey bar front: black tile/brick lower, dark red brick parapet with a glass-block band, no readable sign; timber pergola parklet in the street."
+  },
+  "163665053": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#d9c9a0",
+   "trim": "#9c2f2a",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": "FRANK'S",
+    "signBg": "#f2efe6",
+    "signFg": "#1a1a1a"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [],
+   "conf": 0.7,
+   "notes": "Tan stucco two-storey block with dark red window shutters and cornice; a one-storey wing on G Street has brick base, red trim and big showroom windows."
+  },
+  "547376708": {
+   "visible": "yes",
+   "kind": "restaurant",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#b23a2a",
+   "trim": "#2a78c0",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.4,
+    "awning": null,
+    "sign": "whipper snapper",
+    "signBg": "#a9c64a",
+    "signFg": "#3a2a6a"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Whipper Snapper: red upper wall, bright blue lower wall, lime-green sign band with a yellow dome; timber pergola dining parklet in front."
+  },
+  "163665051": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#e0d2b0",
+   "trim": "#8f2a2a",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": "#8f2a2a",
+    "sign": null,
+    "signBg": null,
+    "signFg": null
+   },
+   "yard": {
+    "fence": "iron",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "One tall storey storefront with two dark red awnings, red columns, brick bulkhead and red door; taller two-storey part of the same block rises on the left."
+  },
+  "163670622": {
+   "visible": "partial",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#efede6",
+   "trim": "#ffffff",
+   "roof": "flat",
+   "roofMat": "clay_tile",
+   "roofCol": "#b0563f",
+   "windows": "few",
+   "garage": true,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.55,
+   "notes": "Small white car-lot office at the back of a paved lot: red clay tile parapet strip, white canopy and white roll-up doors; white iron fence along the sidewalk."
+  },
+  "163670625": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#ebe2d4",
+   "trim": "#ffffff",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.35,
+    "awning": null,
+    "sign": "DHARMA TRADING CO.",
+    "signBg": "#2f5f9e",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Dharma Trading Co: cream stucco one-storey with Mission-style scalloped parapet; F Street side is a blank wall with one flush door, shop windows only at the 4th St corner."
+  },
+  "976709692": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#8fa1a6",
+   "trim": "#f2f0ea",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#8a6a55",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Mostly hidden behind street trees: blue-grey house with gable roof behind, tan lower wall with white exterior stair to the upper floor, white picket fence and arbor gate."
+  },
+  "163672746": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#dcb18a",
+   "trim": "#a8553c",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.5,
+    "awning": null,
+    "sign": "Red Hill",
+    "signBg": "#1c1c1c",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 1.5,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [],
+   "conf": 0.75,
+   "notes": "Peach stucco one-storey: F Street side has white multi-pane industrial windows and service doors; 4th St front has red brick piers and recessed shop windows, glazed dining parklet in the street."
+  },
+  "163672747": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#cfc4ad",
+   "trim": "#55565a",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": true,
+   "porch": false,
+   "storefront": {
+    "glass": 0.55,
+    "awning": null,
+    "sign": "TEMPEST",
+    "signBg": "#2a2a2a",
+    "signFg": "#c9a94e"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.75,
+   "notes": "One tall storey (aerial says 2) with a stepped dark-grey capped parapet; glazed shopfronts, a grey roll-up door at the right end, blue oval gallery sign and a gold 'TEMPEST' sign."
+  },
+  "163672744": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#e88c68",
+   "trim": "#6a4a3e",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.5,
+    "awning": null,
+    "sign": "UNITED",
+    "signBg": "#1c1c1c",
+    "signFg": "#f2e6c0"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "United Liquor: salmon-orange stucco one-storey with flat canopy, brown brick piers, poster-filled windows and a black projecting sign; parking lot on the east side."
+  },
+  "163672756": {
+   "visible": "no",
+   "kind": "other",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 1.8,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.15,
+   "notes": "About 33 m back inside a gated yard, hidden by a street tree, hedge and trellis; only a low carport-like structure is glimpsed."
+  },
+  "976724953": {
+   "visible": "partial",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#7fb08c",
+   "trim": "#ffffff",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6a6a66",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.3,
+   "notes": "Far across a parking lot (56 m): a small mint-green gabled cottage with white trim is the likely target, carport and box trucks in front of it."
+  },
+  "976724954": {
+   "visible": "no",
+   "kind": "other",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "chainlink",
+    "hedge": 2.0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.1,
+   "notes": "Not visible: about 48 m back behind an ivy-covered fence and parked trucks."
+  },
+  "976724955": {
+   "visible": "no",
+   "kind": "other",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.8,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.1,
+   "notes": "Small outbuilding about 48 m back, hidden by the hedge and tree; nothing identifiable."
+  },
+  "163672745": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#ebdcb4",
+   "trim": "#ffffff",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#4a4c52",
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 1.2,
+    "driveway": true,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.75,
+   "notes": "Cream two-storey house set back behind a sloping lawn: stucco ground floor with bay window, cream shingled upper floor with dormer, white side stair; driveway on the west side."
+  },
+  "163674353": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#dcc49c",
+   "trim": "#f0ede6",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.8,
+    "awning": null,
+    "sign": "GROCERIES",
+    "signBg": "#c8322a",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [],
+   "conf": 0.8,
+   "notes": "One-storey grocery front: tan raised centre parapet between white side bays, steel-and-glass canopy on tie rods, almost full-width glazing, red sign at the left bay."
+  },
+  "1430734361": {
+   "visible": "no",
+   "kind": "other",
+   "lv": null,
+   "wall": null,
+   "col": null,
+   "trim": null,
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 3.0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.1,
+   "notes": "About 50 m back at the end of a driveway and parking lot, screened by a large ivy mound; only a distant low grey wall can be seen."
+  },
+  "163674357": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#e8c97a",
+   "trim": "#c9a56e",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.55,
+    "awning": "#1c1c1c",
+    "sign": "BORDENAVE'S BAKERY",
+    "signBg": "#1c1c1c",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Bordenave's Bakery: tall one-storey yellow stucco block with a long black awning carrying the name and 'FRESH DAILY FOR OVER A CENTURY', tan pilasters at the corners."
+  },
+  "163674354": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#b8b6c4",
+   "trim": "#e6dcc0",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.7,
+    "awning": null,
+    "sign": null,
+    "signBg": null,
+    "signFg": null
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Long one tall storey (aerial says 2): lavender-grey stucco with an ornate cream relief frieze at the parapet, cobalt-blue tile bulkheads under continuous shop windows; 'For Lease' sign on the roof."
+  },
+  "547595928": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#e6dfc8",
+   "trim": "#6a5a4a",
+   "roof": "mansard",
+   "roofMat": "wood_shake",
+   "roofCol": "#8f6c4c",
+   "windows": "large",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "wall",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "1970s two-storey office: cream stucco ground floor, upper floor wrapped in a brown wood-shake mansard with large inset windows; steps up at left, raised white planter with palms in front."
+  },
+  "163674356": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#cdbda8",
+   "trim": "#9c2a2a",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.5,
+    "awning": "#9c2a2a",
+    "sign": null,
+    "signBg": null,
+    "signFg": null
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Corner one-storey taupe stucco shop with a dark red awning and brick bulkhead on 4th St, large athlete posters in the windows; long plain side wall on E Street."
+  },
+  "163674352": {
+   "visible": "yes",
+   "kind": "restaurant",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#d42a30",
+   "trim": "#e8b830",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.55,
+    "awning": null,
+    "sign": "EVEREST CURRY & MOMO HOUSE",
+    "signBg": "#e8c040",
+    "signFg": "#c8322a"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Now Everest Curry & Momo House: bright red flat facade with yellow edge trim and yellow sign, red brick bulkhead, dark glazed entry."
+  },
+  "547595927": {
+   "visible": "partial",
+   "kind": "office",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#8f9aa4",
+   "trim": "#f2f2ee",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "iron",
+    "hedge": 1.2,
+    "driveway": false,
+    "lawn": true
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.65,
+   "notes": "Blue-grey two-storey with white trim and flat roof, white-columned entry porch with lime-green door, red brick steps and a railed ramp; half hidden by a big tree, lawn in front."
+  },
+  "1292173821": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#1f8f86",
+   "trim": "#f0ece0",
+   "roof": "flat",
+   "roofMat": "clay_tile",
+   "roofCol": "#a85a44",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.65,
+    "awning": null,
+    "sign": "Rebound Bookstore",
+    "signBg": "#f0e8d0",
+    "signFg": "#2a2a2a"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Rebound Bookstore: one-storey unit (aerial says 2) in a row sharing a red clay-tile pent roof over the fascia; teal-green front with cream bulkheads and an oval cream sign."
+  },
+  "1292173820": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#8e8a88",
+   "trim": "#e8e4dc",
+   "roof": "flat",
+   "roofMat": "clay_tile",
+   "roofCol": "#a85a44",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": "WILLOW",
+    "signBg": "#8e8a88",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Willow salon: one-storey unit (aerial says 2) under the shared clay-tile pent roof; grey front, white curtained windows, yellow recessed door."
+  },
+  "1292173822": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#26262a",
+   "trim": "#e8e4dc",
+   "roof": "flat",
+   "roofMat": "clay_tile",
+   "roofCol": "#a85a44",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.7,
+    "awning": null,
+    "sign": "LiLy's",
+    "signBg": "#1c1c1e",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Lily's dry cleaner/tailor: one-storey unit under the shared clay-tile pent roof; black fascia sign with white lettering, dark shopfront with green-and-gold tiled bulkhead."
+  },
+  "547376707": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#1f55c8",
+   "trim": "#f0f0ec",
+   "roof": "flat",
+   "roofMat": "clay_tile",
+   "roofCol": "#a85a44",
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.65,
+    "awning": null,
+    "sign": "SLING IT! LACROSSE",
+    "signBg": "#1f55c8",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Sling It! Lacrosse: end unit of the clay-tile pent-roof row, royal blue fascia and frames with white bulkheads; blank cream side wall of the neighbour to the west."
+  },
+  "547376706": {
+   "visible": "partial",
+   "kind": "shop",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#f0eee8",
+   "trim": "#b0604a",
+   "roof": null,
+   "roofMat": "clay_tile",
+   "roofCol": "#b0604a",
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": null,
+   "yard": {
+    "fence": "none",
+    "hedge": 2.0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.4,
+   "notes": "F Street side/rear, largely hidden by a street tree and tall hedges: plain white stucco wall with a red tile roof edge, parking lot to the north."
+  },
+  "547376705": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#b9753f",
+   "trim": "#9c3a3e",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": null,
+   "windows": "few",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": null,
+    "signBg": null,
+    "signFg": null
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ],
+   "conf": 0.8,
+   "notes": "Tall two-storey Victorian false-front commercial building (aerial says 3): orange-brown horizontal siding, red-trimmed arched upper windows, dark cornice with brackets, grey panelled shopfront at the corner."
+  },
+  "547336760": {
+   "visible": "yes",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#3a3f4c",
+   "trim": "#f4f2ec",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#7a6248",
+   "windows": "regular",
+   "garage": false,
+   "porch": true,
+   "storefront": null,
+   "yard": {
+    "fence": "picket",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Charcoal-navy cottage, one storey raised on a tall base (aerial says 2), low hip roof, full-width porch with white posts, wooden steps, white picket fence at the sidewalk."
+  },
+  "547336759": {
+   "visible": "yes",
+   "kind": "restaurant",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#d9a868",
+   "trim": "#b9bf98",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": "MEXICAN GRILL",
+    "signBg": "#d9a868",
+    "signFg": "#2a2a2a"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ],
+   "conf": 0.85,
+   "notes": "Two-storey stucco: ochre ground floor with restaurant glazing, sage-green upper floor with two projecting bays and iron-railed balconies; timber parklet with red umbrella."
+  },
+  "547336757": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 2,
+   "wall": "brick",
+   "col": "#b08a60",
+   "trim": "#f0ece2",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": "Help Us Grow",
+    "signBg": "#2f3a32",
+    "signFg": "#ffffff"
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.5,
+   "notes": "View centres on a two-storey tan brick block with a white multi-pane transom band over the shopfronts (sign 'Help Us Grow'); aerial says one-storey hip, which matches the low tan hip-roofed salon with maroon awning across the alley to the west, so the footprint may be that one."
+  },
+  "547336752": {
+   "visible": "yes",
+   "kind": "shop",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#a9afba",
+   "trim": "#f0f0ee",
+   "roof": null,
+   "roofMat": null,
+   "roofCol": null,
+   "windows": "regular",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": null,
+    "signBg": null,
+    "signFg": null
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    }
+   ],
+   "conf": 0.7,
+   "notes": "Two storeys seen (aerial says 3): pale blue-grey upper floor with white-framed windows, black-painted shopfront below with clothing racks outside, gated passage on the right; no sign visible."
+  },
+  "163674355": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 1,
+   "wall": "concrete",
+   "col": "#9aa4aa",
+   "trim": "#3a3d40",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.85,
+    "awning": null,
+    "sign": null,
+    "signBg": null,
+    "signFg": null
+   },
+   "yard": {
+    "fence": "none",
+    "hedge": 0,
+    "driveway": false,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": false
+    }
+   ],
+   "conf": 0.75,
+   "notes": "Modern one-storey front: grey fascia band over nearly full-width dark tinted glazing with a recessed central entry and curved glass corners."
+  },
+  "163674403": {
+   "visible": "yes",
+   "kind": "office",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#f0efea",
+   "trim": "#8a8f92",
+   "roof": "flat",
+   "roofMat": "membrane",
+   "roofCol": null,
+   "windows": "large",
+   "garage": false,
+   "porch": false,
+   "storefront": {
+    "glass": 0.6,
+    "awning": null,
+    "sign": "ARCHITECTS + ENGINEERS",
+    "signBg": "#f0efea",
+    "signFg": "#8a8f92"
+   },
+   "yard": {
+    "fence": "iron",
+    "hedge": 0,
+    "driveway": true,
+    "lawn": false
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ],
+   "conf": 0.8,
+   "notes": "White one-storey office with a deep plain fascia carrying grey lettering and an orange logo square, glazed aluminium entry; black iron gate across a driveway on the right."
+  }
+ },
+ "school": {
+  "s_foster": {
+   "sees": "Foster Hall seen across the entry drive: a cream Italianate mansion with a wrap-around ground-floor colonnade porch, bracketed eaves and a small central rooftop belvedere, set behind a lawn with a flagpole in front. A low monument sign sits in a flower bed at the drive.",
+   "storeys": 3,
+   "wallCol": "#e9e2cf",
+   "roofCol": "#6f6a62",
+   "roof": "hip",
+   "frontage": "Open lawn, no fence; red-painted kerbs; stone-coloured monument sign about 1.2 m high and 6 m long in a bed of red and white flowers; flagpole about 10 m; parking lot at left.",
+   "signText": "MARIN ACADEMY",
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "redwood",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ]
+  },
+  "s_thacher_field": {
+   "sees": "Nothing of the school is visible: the view is completely filled by a dense evergreen hedge along the sidewalk.",
+   "storeys": null,
+   "wallCol": null,
+   "roofCol": null,
+   "roof": null,
+   "frontage": "Solid broadleaf evergreen hedge about 4-5 m tall right at the back of the sidewalk, ivy ground cover at its foot.",
+   "signText": null,
+   "trees": []
+  },
+  "s_leadership": {
+   "sees": "A long single-storey cream stucco wing with a low brown hip roof, tall dark-green multi-pane windows in a regular row and an arched entry porch at its left end. A concrete ramp/steps with low concrete walls leads to the arch; a service road with a utility cart runs past on the left.",
+   "storeys": 1,
+   "wallCol": "#ece4d0",
+   "roofCol": "#6e5a4c",
+   "roof": "hip",
+   "frontage": "Lawn strip with a clipped hedge about 1.2 m against the wall, low concrete walls (0.6 m) along the ramp, a campus map sign on posts about 1.2 m, black wall lanterns; red kerb.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": true
+    }
+   ]
+  },
+  "s_library_pool": {
+   "sees": "Corner of a two-storey beige stucco building with large dark-green framed multi-pane windows on both floors and a projecting string course between them. To the left a white wall and a black vertical-bar gate about 2.4 m high close off a service yard.",
+   "storeys": 2,
+   "wallCol": "#d9cdb8",
+   "roofCol": "#3c4a48",
+   "roof": "flat",
+   "frontage": "Planting bed with ornamental grasses and mulch between sidewalk and wall; black steel bar fence and gate 2.4 m; white rendered wall about 3 m at left; small red sign on posts.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ]
+  },
+  "s_pool_5th": {
+   "sees": "A long plain white wall about 3 m high screens the aquatic centre from Fifth Avenue, with small lettering 'AQUATIC CENTER' at left and faint 'MARIN ACADEMY' lettering at right. Behind at left is a two-storey cream building with green-framed windows and a low hip roof; a brick building (not school) is at the right.",
+   "storeys": 2,
+   "wallCol": "#f2f1ec",
+   "roofCol": "#5c5a55",
+   "roof": "hip",
+   "frontage": "White rendered wall 3 m high for about 40 m, entry ramp with steel handrails at left, black bar gates at both ends, planting bed with low shrubs and young trees, bike hoops at the kerb, tall light poles behind the wall.",
+   "signText": "MARIN ACADEMY",
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "conifer",
+     "where": "left",
+     "big": false
+    }
+   ]
+  },
+  "s_pac_cottage": {
+   "sees": "Tall cream stucco performing-arts building: a windowless two-storey-high volume with horizontal metal reveal bands and a parapet at left, and a taller block at right with a deep overhanging dark metal eave and a double-height dark-green framed window. A ground-floor band of green-mullioned glazing faces the sidewalk.",
+   "storeys": 2,
+   "wallCol": "#ece6d4",
+   "roofCol": "#4a4f52",
+   "roof": "flat",
+   "frontage": "Mulched planting bed about 3 m deep with low shrubs and grasses, no fence; street tree in the sidewalk strip.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    }
+   ]
+  },
+  "s_founders": {
+   "sees": "Oblique view along Fifth Avenue of the same large cream stucco block: mostly blank wall with horizontal bands, a recessed glazed entrance with a dark metal canopy near the middle. A board-formed concrete retaining wall carries the name in raised letters beside an accessible ramp with steel handrails.",
+   "storeys": 2,
+   "wallCol": "#ece6d4",
+   "roofCol": "#4a4f52",
+   "roof": "flat",
+   "frontage": "Concrete retaining wall rising from 0.5 to 1.5 m with a steel handrail on top, lettering on the wall near the entrance, planting strip with grasses and round shrubs, clipped hedge about 1.5 m further east, young street trees.",
+   "signText": "MARIN ACADEMY",
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ]
+  },
+  "s_visual_arts": {
+   "sees": "Single-storey olive-tan stucco building with a flat roof and dark metal coping. A long band of dark-green framed windows with pale blinds under a standing-seam metal sunshade, and one smaller window with its own small metal canopy at right.",
+   "storeys": 1,
+   "wallCol": "#b8aa80",
+   "roofCol": "#3f4648",
+   "roof": "flat",
+   "frontage": "Continuous clipped hedge about 1.4 m high the full width, mulch strip and sidewalk in front, red fire hydrant; gravel strip at the kerb.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "left",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ]
+  },
+  "s_field_east": {
+   "sees": "View from above across the green synthetic-turf field with a red logo at centre circle. Beyond it stand a low two-storey white building with long window bands and a three-storey white block with horizontal dark window strips, plus brick-red terracing at the field edge.",
+   "storeys": 3,
+   "wallCol": "#ecebe4",
+   "roofCol": "#7a7a76",
+   "roof": "flat",
+   "frontage": "Road sits above the field: weedy grass bank and shrubs, chain-link/netting fence about 3 m at the field edge below; red kerb.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "redwood",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "palm",
+     "where": "behind",
+     "big": false
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ]
+  },
+  "s_gyms_north": {
+   "sees": "No school building is visible from here: the view shows a private cream two-level house (number 4244) with a tall red-brick chimney and garage, a lawn bank with concrete steps, and a large palm filling the right half.",
+   "storeys": null,
+   "wallCol": null,
+   "roofCol": null,
+   "roof": null,
+   "frontage": "Asphalt parking apron with painted bays, lawn bank with steps; no school fence or sign in view.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "palm",
+     "where": "right",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "behind",
+     "big": true
+    }
+   ]
+  },
+  "s_science": {
+   "sees": "Looking along the west side of the field: at left a three-storey cream stucco building with dark-green framed windows and a galvanised steel sunshade/trellis frame projecting from the upper floors and roof; beyond it a newer three-storey flat-roofed block in cream with grey panels. The green turf field with soccer goals is at right.",
+   "storeys": 3,
+   "wallCol": "#ebe3cc",
+   "roofCol": "#3d4a48",
+   "roof": "flat",
+   "frontage": "Black chain-link fence and double gates about 2.4 m across the field entrance, black steel bar fence 1.8 m on a concrete retaining wall at left, bark-mulch bank, small red sign on posts.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "conifer",
+     "where": "behind",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "left",
+     "big": false
+    }
+   ]
+  },
+  "s_leadership_5th": {
+   "sees": "Two-storey beige stucco building in Mission style with a curved parapet gable over an arched upper opening, dark-green multi-pane windows, round wall medallions and a low-pitch roof with dark green fascia. A solid stucco-walled exterior stair rises diagonally across the front to the right; a white arched doorway sits at ground level.",
+   "storeys": 2,
+   "wallCol": "#d9cbb0",
+   "roofCol": "#3d4a48",
+   "roof": "hip",
+   "frontage": "Chunky clipped hedges about 1.5-1.8 m in blocks along the sidewalk, bed of flax and grasses at left, red standpipe; parking sign pole at the kerb.",
+   "signText": null,
+   "trees": [
+    {
+     "type": "broadleaf",
+     "where": "front",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "where": "right",
+     "big": true
+    }
+   ]
+  }
+ }
+}

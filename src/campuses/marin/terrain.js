@@ -1,35 +1,40 @@
-// Terrain backdrop: the real hills around the campus (San Rafael Hill to the north-east, the ridge to the north-west),
-// baked by tools/gen.py from 3D-tiles ground samples into gen.terrain (20 m grid, metres above the Mission Ave level,
-// already faded to zero at the play bounds). VISUAL ONLY and outside the play area only: gameplay ground stays y = 0.
-// Inside the satellite extent the hills reuse the ground material (streets / yards drape over them); beyond it they
-// are wooded green with dry-grass patches, like the real skyline.
+// Terrain backdrop: the real hills around the campus (San Rafael Hill to the north-east, the ridge to the north-west)
+// beyond the satellite rectangle, from gen.terrain (20 m grid over +-1500 m, metres above the Championship Field, USGS
+// 3DEP, baked by tools/terrain.py). VISUAL ONLY: inside the satellite rectangle the engine's terrain (descriptor
+// `terrain`, the same DEM at 2 m) is the ground, and its outer 40 m are blended into this grid, so the two meet.
+// Hill cells are wooded green with dry-grass patches; the low flat blocks carry on as an urban sheet draped on the grid.
 import * as THREE from 'three';
 import { mulberry32, makeCanvas, canvasTexture } from './kit.js';
+import { setBackdrop, backdropY, backdropEdge, BACKDROP_EDGE_Y } from './backdropY.js';
 
-export function terrainSampler(gen) {
-  const t = gen.terrain; if (!t) return () => 0;
-  return (x, z) => {
-    const fx = Math.min(Math.max((x - t.x0) / t.step, 0), t.n - 1.001), fz = Math.min(Math.max((z - t.z0) / t.step, 0), t.n - 1.001);
-    const i = Math.floor(fx), j = Math.floor(fz), a = fx - i, b = fz - j; const H = (ii, jj) => t.h[jj * t.n + ii] / 10;
-    return H(i, j) * (1 - a) * (1 - b) + H(i + 1, j) * a * (1 - b) + H(i, j + 1) * (1 - a) * b + H(i + 1, j + 1) * a * b;
-  };
-}
+export function terrainSampler(gen) { setBackdrop(gen.terrain); return backdropY; }
 
 export function buildTerrain(ctx) {
   const { gen, scene, campus } = ctx; const t = gen.terrain; if (!t) return;
   const sat = campus.sat; const n = t.n; const rnd = mulberry32(1971);
   const noise = new Float32Array(n * n); for (let k = 0; k < noise.length; k++) noise[k] = rnd();
   const sm = (i, j) => { let s = 0, c = 0; for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= n || jj >= n) continue; s += noise[jj * n + ii]; c++; } return s / c; };
-  const X = (i) => t.x0 + i * t.step, Z = (j) => t.z0 + j * t.step, edge = (i, j) => { const d = Math.min(i, j, n - 1 - i, n - 1 - j) * t.step; const k = Math.min(1, d / 520); return k * k * (3 - 2 * k); }, Hh = (i, j) => { const h = t.h[j * n + i] / 10 * edge(i, j); return h > 0 ? h : -0.04; };
+  setBackdrop(t);
+  // the engine's flat far skirt (a green ring at y = -0.25 from 280 m out) would cut through real ground that lies lower
+  // (downtown is 6-12 m below the field): park it under the lowest land; the backdrop meshes below replace it
+  { const sk = scene.getObjectByName('ground-skirt'); if (sk) { sk.position.y = BACKDROP_EDGE_Y - 1.5; sk.updateMatrix(); } }
+  const X = (i) => t.x0 + i * t.step, Z = (j) => t.z0 + j * t.step;
   const inSat = (i, j) => X(i) > sat.minX + 1 && X(i) < sat.maxX - 1 && Z(j) > sat.minZ + 1 && Z(j) < sat.maxZ - 1;
-  const near = { p: [], nrm: [] }, far = { p: [], c: [] };
+  // grid heights with the outer fade; nodes inside the satellite rectangle sit 0.8 m low so the engine ground (same
+  // heights at 2 m) always covers the straddling cells
+  const Hh = (i, j) => backdropY(X(i), Z(j)) - (inSat(i, j) ? 0.8 : 0);
+  // hill = wooded slope; everything low and gentle is town (urban sheet)
+  const hillN = new Uint8Array(n * n);
+  for (let j = 1; j < n - 1; j++) for (let i = 1; i < n - 1; i++) { const h = backdropY(X(i), Z(j)); const sl = Math.hypot(backdropY(X(i + 1), Z(j)) - backdropY(X(i - 1), Z(j)), backdropY(X(i), Z(j + 1)) - backdropY(X(i), Z(j - 1))) / (2 * t.step); hillN[j * n + i] = (h > 22 || (sl > 0.13 && h > 4)) ? 1 : 0; }
+  const isHill = (i, j) => hillN[Math.max(0, Math.min(n - 1, j)) * n + Math.max(0, Math.min(n - 1, i))] === 1;
+  const far = { p: [], c: [] }, urb = { p: [], uv: [] };
+  const TILE = 330, ca = Math.cos(0.12566), sa = Math.sin(0.12566);
   const colAt = (i, j) => { const g = Math.max(0, Math.min(0.75, (sm(i, j) - 0.58) * 11)); const v = 0.7 + 0.5 * noise[j * n + i]; return [(0.03 + 0.2 * g) * v, (0.075 + 0.15 * g) * v, (0.022 + 0.05 * g) * v]; };   // oak woodland with dry-grass clearings
   for (let j = 0; j < n - 1; j++) for (let i = 0; i < n - 1; i++) {
     const c = [[i, j], [i, j + 1], [i + 1, j + 1], [i + 1, j]];
-    const any = c.some(([a, b]) => t.h[b * n + a] > 0); const inside = c.every(([a, b]) => inSat(a, b));
-    if (!any) continue;                                 // flat: the ground plane has it inside the satellite extent, the urban sheet outside
-    const dst = inside ? near : far;
-    for (const k of [0, 1, 2, 0, 2, 3]) { const [a, b] = c[k]; dst.p.push(X(a), Hh(a, b), Z(b)); if (!inside) dst.c.push(...colAt(a, b)); }
+    if (c.every(([a, b]) => inSat(a, b))) continue;     // the engine's ground mesh has it
+    const hill = c.some(([a, b]) => isHill(a, b));
+    for (const k of [0, 1, 2, 0, 2, 3]) { const [a, b] = c[k]; const x = X(a), z = Z(b), y = Hh(a, b); if (hill) { far.p.push(x, y, z); far.c.push(...colAt(a, b)); } else { urb.p.push(x, y, z); urb.uv.push((x * ca + z * sa) / TILE, (-x * sa + z * ca) / TILE); } }
   }
   const mk = (d, mat, name) => {
     if (!d.p.length) return; const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(d.p, 3));
@@ -38,8 +43,6 @@ export function buildTerrain(ctx) {
     g.computeVertexNormals(); g.computeBoundingSphere(); g.computeBoundingBox();
     const m = new THREE.Mesh(g, mat); m.name = name; m.receiveShadow = true; m.castShadow = false; m.matrixAutoUpdate = false; scene.add(m);
   };
-  const ground = scene.getObjectByName('ground');
-  mk(near, ground ? ground.material : new THREE.MeshStandardMaterial({ color: 0x4a6030, roughness: 1 }), 'terrain:near');
   // woodland canopy texture (tiled in world metres) so the far hills read as oak / bay forest with grass clearings
   const S = 256, cv = makeCanvas(S, S), g = cv.getContext('2d'); g.fillStyle = '#9aa58c'; g.fillRect(0, 0, S, S);
   for (let k = 0; k < 900; k++) { const x = rnd() * S, y = rnd() * S, r = 3 + rnd() * 7; const d = rnd(); g.fillStyle = d < 0.6 ? `rgba(${40 + rnd() * 30 | 0},${70 + rnd() * 40 | 0},${30 + rnd() * 20 | 0},0.85)` : `rgba(${150 + rnd() * 50 | 0},${170 + rnd() * 50 | 0},${110 + rnd() * 30 | 0},0.55)`; for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { g.beginPath(); g.arc(x + ox, y + oy, r, 0, 7); g.fill(); } g.fillStyle = 'rgba(10,20,8,0.35)'; g.beginPath(); g.arc(x + r * 0.35, y + r * 0.4, r * 0.8, 0, 7); g.fill(); }
@@ -61,38 +64,39 @@ export function buildTerrain(ctx) {
       for (let k = 0, nR = leafy ? 9 : 6; k < nR; k++) { const rw = (leafy ? 12 : 22) + r2() * (leafy ? 14 : 34), rh = (leafy ? 12 : 18) + r2() * (leafy ? 12 : 26); const rx = x0 + 4 + r2() * Math.max(1, w - rw - 8), ry = y0 + 4 + r2() * Math.max(1, w - rh - 8); g2.fillStyle = 'rgba(20,22,20,0.35)'; g2.fillRect(rx + 2, ry + 2, rw, rh); g2.fillStyle = roofs[Math.floor(r2() * roofs.length)]; g2.fillRect(rx, ry, rw, rh); }
       for (let k = 0, nT = leafy ? 30 : 9; k < nT; k++) { const tx = x0 + r2() * w, ty = y0 + r2() * w, tr = 3 + r2() * 4.5; g2.fillStyle = 'rgba(12,22,10,0.4)'; g2.beginPath(); g2.arc(tx + 1.5, ty + 1.5, tr, 0, 7); g2.fill(); g2.fillStyle = `rgb(${38 + r2() * 22 | 0},${74 + r2() * 30 | 0},${30 + r2() * 14 | 0})`; g2.beginPath(); g2.arc(tx, ty, tr, 0, 7); g2.fill(); }
     }
-    const utex = canvasTexture(cv2, { aniso: 8 }); const TILE = 330, ca = Math.cos(0.12566), sa = Math.sin(0.12566);
-    const R = 6000, y = -0.1, x0 = sat.minX + 2, x1 = sat.maxX - 2, z0 = sat.minZ + 2, z1 = sat.maxZ - 2; const up = { p: [], uv: [] };
-    const q = (ax, az, bx, bz) => { for (const [x, z] of [[ax, az], [ax, bz], [bx, bz], [ax, az], [bx, bz], [bx, az]]) { up.p.push(x, y, z); up.uv.push((x * ca + z * sa) / TILE, (-x * sa + z * ca) / TILE); } };
+    const utex = canvasTexture(cv2, { aniso: 8 });
+    // flat skirt beyond the grid (the grid fades to this level on its outer edge)
+    const R = 6000, y = BACKDROP_EDGE_Y, x0 = t.x0 + 1, x1 = t.x0 + (n - 1) * t.step - 1, z0 = t.z0 + 1, z1 = t.z0 + (n - 1) * t.step - 1;
+    const q = (ax, az, bx, bz) => { for (const [x, z] of [[ax, az], [ax, bz], [bx, bz], [ax, az], [bx, bz], [bx, az]]) { urb.p.push(x, y, z); urb.uv.push((x * ca + z * sa) / TILE, (-x * sa + z * ca) / TILE); } };
     q(-R, -R, R, z0); q(-R, z1, R, R); q(-R, z0, x0, z1); q(x1, z0, R, z1);
     const um = new THREE.MeshStandardMaterial({ map: utex, roughness: 1, metalness: 0 }); um.color.setRGB(0.7, 0.7, 0.68);
-    mk(up, um, 'terrain:urban');
+    mk(urb, um, 'terrain:urban');
   }
   // ---- tree crowns on the hills and among the flat-land blocks, plus a few hillside houses and low-rise roofs
   // (instanced, no collision). Crowns are the size of the real trees; the band next to the photo edge is dense so the
   // modelled trees do not stop on a line, farther out they thin and drop to 5 triangles each.
-  const H = terrainSampler(gen); const dummy = new THREE.Object3D(); const col = new THREE.Color();
-  const hAt = (x, z) => { const i = Math.round((x - t.x0) / t.step), j = Math.round((z - t.z0) / t.step); if (i < 1 || j < 1 || i > n - 2 || j > n - 2) return null; return { h: H(x, z) * edge(i, j), i, j }; };
+  const dummy = new THREE.Object3D(); const col = new THREE.Color();
+  const hAt = (x, z) => { const i = Math.round((x - t.x0) / t.step), j = Math.round((z - t.z0) / t.step); if (i < 1 || j < 1 || i > n - 2 || j > n - 2) return null; return { h: backdropY(x, z), hill: isHill(i, j) && backdropEdge(x, z) > 0.15, i, j }; };
   const outside = (x, z) => Math.max(sat.minX - x, x - sat.maxX, sat.minZ - z, z - sat.maxZ);   // metres beyond the photo edge (< 0 inside)
   const nearC = [], farC = [], houses = [], blocks = [];
   for (let k = 0; k < 30000 && nearC.length < 2700; k++) {   // within 260 m of the photo: full domes
     const x = sat.minX - 260 + rnd() * (sat.maxX - sat.minX + 520), z = sat.minZ - 260 + rnd() * (sat.maxZ - sat.minZ + 520); const d = outside(x, z); if (d < -1) continue;
-    const s = hAt(x, z); if (!s) continue; const hill = s.h >= 1.5;
+    const s = hAt(x, z); if (!s) continue; const hill = s.hill;
     if (rnd() > (d < 45 ? 1 : hill ? 0.8 : 0.16)) continue;                       // dense first row, wooded hills, sparse street trees
     if (hill && d > 45 && sm(s.i, s.j) > 0.6 && rnd() < 0.8) continue;            // keep the grass clearings open
-    nearC.push([x, Math.max(0, s.h), z, 3.0 + rnd() * 2.6, rnd()]);
-    if (hill && houses.length < 60 && s.h < 110 && rnd() < 0.05) houses.push([x + 9, s.h, z + 4, rnd()]);
+    nearC.push([x, s.h, z, 3.0 + rnd() * 2.6, rnd()]);
+    if (hill && houses.length < 60 && s.h < 130 && rnd() < 0.05) houses.push([x + 9, s.h, z + 4, rnd()]);
   }
   for (let k = 0; k < 30000 && farC.length < 2840; k++) {   // the rest of the hills
     const x = (rnd() - 0.5) * 2400, z = (rnd() - 0.5) * 2400; if (outside(x, z) < 260) continue;
-    const s = hAt(x, z); if (!s || s.h < 2) continue; if (sm(s.i, s.j) > 0.6 && rnd() < 0.8) continue;
+    const s = hAt(x, z); if (!s || !s.hill) continue; if (sm(s.i, s.j) > 0.6 && rnd() < 0.8) continue;
     farC.push([x, s.h, z, 4.2 + rnd() * 3.4, rnd()]);
-    if (houses.length < 160 && s.h < 110 && rnd() < 0.04) houses.push([x + 9, s.h, z + 4, rnd()]);
+    if (houses.length < 160 && s.h < 130 && rnd() < 0.04) houses.push([x + 9, s.h, z + 4, rnd()]);
   }
   for (let k = 0; k < 20000 && blocks.length < 520; k++) {  // low-rise roofs on the flat land south / west / east
     const x = sat.minX - 420 + rnd() * (sat.maxX - sat.minX + 840), z = sat.minZ - 420 + rnd() * (sat.maxZ - sat.minZ + 840); const d = outside(x, z); if (d < 8) continue;
-    const s = hAt(x, z); if (!s || s.h > 0.3) continue; if (rnd() < d / 520) continue;
-    blocks.push([x, z, rnd(), rnd()]);
+    const s = hAt(x, z); if (!s || s.hill) continue; if (rnd() < d / 520) continue;
+    blocks.push([x, z, rnd(), rnd(), s.h]);
   }
   {
     // leaf-clump texture so the crowns are not smooth blobs
@@ -122,7 +126,7 @@ export function buildTerrain(ctx) {
     const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3)); bg.computeVertexNormals();
     const im = new THREE.InstancedMesh(bg, new THREE.MeshStandardMaterial({ roughness: 0.95, vertexColors: true }), blocks.length);
     const tones = [[0.62, 0.6, 0.56], [0.5, 0.49, 0.47], [0.56, 0.5, 0.4], [0.7, 0.69, 0.66], [0.4, 0.4, 0.4], [0.5, 0.32, 0.25]];
-    blocks.forEach(([x, z, v, w], k) => { const big = w < 0.3; dummy.position.set(x, -0.1, z); dummy.scale.set(big ? 26 + v * 26 : 10 + v * 9, big ? 5 + w * 14 : 4.5 + w * 4, big ? 18 + ((v * 7) % 1) * 20 : 8 + ((v * 5) % 1) * 7); dummy.rotation.set(0, -0.12566 + (((v * 3) % 1) < 0.5 ? 0 : Math.PI / 2), 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const c = tones[Math.floor(((v * 11) % 1) * tones.length)]; col.setRGB(c[0], c[1], c[2]); im.setColorAt(k, col); });
+    blocks.forEach(([x, z, v, w, gy], k) => { const big = w < 0.3; dummy.position.set(x, gy - 1.2, z); dummy.scale.set(big ? 26 + v * 26 : 10 + v * 9, big ? 5 + w * 14 : 4.5 + w * 4, big ? 18 + ((v * 7) % 1) * 20 : 8 + ((v * 5) % 1) * 7); dummy.rotation.set(0, -0.12566 + (((v * 3) % 1) < 0.5 ? 0 : Math.PI / 2), 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const c = tones[Math.floor(((v * 11) % 1) * tones.length)]; col.setRGB(c[0], c[1], c[2]); im.setColorAt(k, col); });
     im.name = 'terrain:blocks'; im.castShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
   }
   if (houses.length) {

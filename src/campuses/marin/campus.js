@@ -1,5 +1,6 @@
 // Marin Academy, San Rafael CA. Data + baked assets live in public/campuses/marin/ (see tools/ for how they are made).
 import { MARIN_BRAND } from './brand.js';
+import { backdropY } from './backdropY.js';
 
 export default {
   id: 'marin',
@@ -9,12 +10,12 @@ export default {
   stateName: 'California',
   rival: 'San Domenico',     // the Panthers: Marin Academy's main rival
   aliases: ['Marin Academy High School', 'MA', 'San Rafael', 'Marin County', 'Bay Area'],
-  blurb: 'Clay-tile roofs, Championship Field, the pool and downtown San Rafael at the gate.',
+  blurb: 'A hillside campus on its real terrain: Foster Hall, Championship Field, the gyms up the hill and downtown San Rafael below.',
   legal: 'Fan-made campus game. Not affiliated with Marin Academy.',
   ...MARIN_BRAND,   // short, palette, emblem, teams (Wildcats vs San Domenico Panthers), letters: see brand.js
-  // local frame: x east, z south, metres; height = ellipsoid height of the campus ground (Mission Ave) for 3D tiles
-  origin: { lat: 37.97575, lon: -122.53505, height: -14.0 },
-  tileRegistration: [[80, -6], [60, -20], [100, 5], [-20, -5], [-90, -45], [10, -140], [-25, 60], [82, 58], [-140, 130], [0, 102], [150, 60], [-150, 20]],
+  // local frame: x east, z south, metres; height = ellipsoid height of y = 0 (the Championship Field turf) for 3D tiles
+  origin: { lat: 37.97575, lon: -122.53505, height: -13.5 },
+  tileRegistration: [[80, -6], [60, -20], [100, 5], [70, -50], [100, -30], [50, 5]],   // on the pitch: the only large level ground at y = 0
   files: {
     campus: 'campuses/marin/campus.json',
     gen: 'campuses/marin/gen.json',
@@ -26,6 +27,11 @@ export default {
   },
   sat: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 },
   playBounds: { minX: -186, maxX: 182, minZ: -176, maxZ: 204 },
+  // Real ground heights (CAMPUSES.md "Terrain"): USGS 3DEP lidar DEM baked by tools/terrain.py, centimetres above the
+  // Championship Field (y = 0), 2 m grid over the satellite rectangle; its outer 40 m are already blended into the 20 m
+  // backdrop grid (gen.terrain), which also answers beyond the rectangle. Pads (field, pool deck, courts, building
+  // entrances) are flattened by the builder (sitework in world.js) before anything is placed.
+  terrain: { file: 'campuses/marin/terrain.bin', format: 'i16', nx: 331, nz: 301, scale: 0.01, offset: 0, extent: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 }, outside: backdropY, blend: 20, cell: 2 },
   // red = the north-east corner of Championship Field by the scorer's tents (cover + 4 fence openings), blue = the
   // downtown car park off 4th St, ~295 m apart
   ctf: { red: [104, -27], blue: [-141, 131] },
@@ -46,9 +52,11 @@ export default {
   // load (src/world/collision.js pickHeliSpawns: exact 8.5 m rotor clearance, trees >= 10.5 m, open sky, deck under the
   // skids) and by the map check; entries closer than 30 m to an accepted one are skipped.
   heliPark: [
-    [62, 0, -22], [76, 0, -71], [-87, 0, -45], [-21, 0, -20], [84, 0, 59], [-10, 0, 179], [68, 0, 152], [-166, 0, 170], [14, 0, 92],
-    [-97, 0, 89], [-140, 0, 47], [28, 0, -112], [103, 0, -52], [166, 0, 155], [133, 0, 41], [43, 0, 2], [28, 0, 188], [-32, 0, 98],
-    [22, 15, -52],   // flat roof: the Science + Innovation Center penthouse (the west classroom block roof is covered by its solar array)
+    // found with a scan on the terrain (5 m grid, exact 8.5 m rotor clearance, <= 0.28 m of ground relief under the skids,
+    // trunks >= 11.5 m, never on a street): car parks first, then the pitch and lawns
+    [-6, 0, -152], [22, 0, -140], [-90, 0, -44], [82, 0, 68], [122, 0, 136], [-150, 0, 144], [6, 0, 144], [-26, 0, 160], [-138, 0, 48],
+    [74, 0, -68], [114, 0, 20], [50, 0, -8], [14, 0, 88], [26, 0, 176], [34, 0, -112],
+    [22, 15.85, -52],   // flat roof: the Science + Innovation Center penthouse (absolute deck height; the west classroom block roof is covered by its solar array)
   ],
   // walkable flood-fill seeds (CAMPUSES.md). Spelled out so the reachable area does not depend on the helicopter list:
   // the flag bases, the practice pad and open ground around campus.
@@ -60,20 +68,20 @@ export default {
       pos: [[136, 16, 34], [124, 18, 10], [112, 20, -16], [96, 22, -44]],
       tgt: [[78, 1, -8], [76, 1, -8], [72, 2, -6], [66, 2, -4]] },
     { name: 'Foster Hall', fov: 46,
-      pos: [[-52, 3.0, 14], [-47, 3.4, 4], [-41, 4.0, -8], [-34, 4.8, -18]],
-      tgt: [[-18, 5.5, -36], [-18, 5.5, -38], [-18, 6, -40], [-18, 6.5, -42]] },
+      pos: [[-52, 5.6, 14], [-47, 7.0, 4], [-41, 8.6, -8], [-34, 10.4, -18]],
+      tgt: [[-18, 12.5, -36], [-18, 12.5, -38], [-18, 13, -40], [-18, 13.5, -42]] },
     { name: 'Mission Avenue', fov: 50,
-      pos: [[-120, 9, 14], [-84, 10, 18], [-48, 11, 22], [-12, 12, 26]],
-      tgt: [[-40, 5, 30], [-4, 5, 34], [30, 5, 38], [66, 5, 44]] },
+      pos: [[-120, 8, 14], [-84, 11, 18], [-48, 13, 22], [-12, 12, 26]],
+      tgt: [[-40, 5, 30], [-4, 4, 34], [30, 3, 38], [66, 2, 44]] },
     { name: 'Gyms and Science Center', fov: 48,
-      pos: [[84, 30, -150], [70, 28, -128], [62, 26, -104], [60, 24, -78]],
-      tgt: [[14, 8, -100], [16, 8, -90], [18, 8, -76], [20, 8, -58]] },
+      pos: [[84, 44, -150], [70, 40, -128], [62, 36, -104], [60, 32, -78]],
+      tgt: [[14, 17, -100], [16, 17, -90], [18, 16, -76], [20, 14, -58]] },
     { name: 'Aquatic Center', fov: 46,
       pos: [[98, 20, 112], [86, 22, 106], [72, 24, 104], [56, 26, 108]],
-      tgt: [[52, 0, 74], [50, 0, 72], [48, 0, 70], [44, 2, 66]] },
+      tgt: [[52, -4, 74], [50, -4, 72], [48, -4, 70], [44, -2, 66]] },
     { name: 'Downtown San Rafael', fov: 52,
       pos: [[-170, 46, 236], [-110, 44, 232], [-50, 42, 230], [10, 40, 232]],
-      tgt: [[-110, 4, 150], [-60, 4, 140], [-10, 4, 120], [30, 6, 90]] },
+      tgt: [[-110, -3, 150], [-60, -3, 140], [-10, -2, 120], [30, 0, 90]] },
   ],
   loadWorld: () => import('./world.js'),
 };

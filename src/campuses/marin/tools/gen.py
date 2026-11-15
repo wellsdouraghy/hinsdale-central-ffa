@@ -7,6 +7,11 @@ Reads public/campuses/marin/campus.json + satellite.jpg + tools/data/tile_height
   surface_classes.png - 1 m class grid (grass, asphalt, concrete, rubber, dirt)
   gen.json            - trees, per-building heights / roof kinds / colours, roofs rect
 Usage: python gen.py [debug_dir]
+
+AFTER this script run tools/terrain.py: it bakes the real ground (public/campuses/marin/terrain.bin, USGS 3DEP) and patches
+gen.json in place: per-building heights against the ground round each footprint (this script still measures against the
+lowest ground nearby, which reads hillside houses a storey too tall), the un-faded backdrop grid, tree base heights.
+Then tools/mask_fix.mjs and tools/macro_fix.js as before. Street View attributes: tools/streetview.py + tools/facades.py.
 """
 import json, sys, os, math, random
 import numpy as np

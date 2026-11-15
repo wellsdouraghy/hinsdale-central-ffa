@@ -130,6 +130,8 @@ Builder helpers (all no-ops on flat campuses, so a shared helper can call them u
 - Things you add to `ctx.scene` yourself (instanced meshes, custom meshes) need `y = ctx.groundY(...)` by hand.
 - Water: `level` is above the mean ground under the outline (flatten it first); `absolute: true` for sea / bay level.
 - heliPark: entries with y <= 0.5 are ground spots (placed on the terrain); larger y = absolute roof deck height.
+- Worked example on a real hillside: Marin Academy (`src/campuses/marin/`: `sitework` in world.js, `sited` / `atGround` /
+  `onSlope` / `hillFence` / `ringGround` in kit.js; lessons in MAP_NOTES.md "Marin on real terrain").
 
 Player controller on terrain (src/game/player.js, terrain campuses only; flat campuses keep the old code path bit for
 bit): ground with a contact normal y >= 0.7 holds the player (standing still on a hill does not creep downhill: the way

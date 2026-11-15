@@ -7,3 +7,7 @@ dist
 # Street View reference imagery (not redistributable)
 src/campuses/*/tools/data/streetview/
 dev/shots/*/streetview-compare/
+# USGS 3DEP DEM cache (re-downloaded by tools/terrain.py)
+src/campuses/*/tools/data/dem/
+# Street View side-by-side comparison sheets (contain Google imagery: local review only)
+dev/shots/*/streetview-compare/

@@ -1,7 +1,7 @@
 // Marin Academy grounds: Championship Field (turf, lines, the MA mark, goals, bleachers, fences, hedge, scoreboard),
 // the circle drive in front of Foster Hall, entry sign and flag, car parks and kerb-side cars, street lamps, cover.
 import * as THREE from 'three';
-import { ANG, UX, UZ, gp, rect, CLAY, minAreaOBB, hipRoof, boxFromRect, wallDecal, edgeFrame, quadFacing, pointInRing, ensureCCW, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
+import { atGround, hillFence, onSlope, ANG, UX, UZ, gp, rect, CLAY, minAreaOBB, hipRoof, boxFromRect, wallDecal, edgeFrame, quadFacing, pointInRing, ensureCCW, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
 import { paintedQuad } from '../../world/fields.js';
 import { fence, bleachers, lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
@@ -10,7 +10,11 @@ const ROT = -ANG;
 const G = (a, b) => gp(0, 0, a, b);                 // street-grid coordinates (a east, b south, metres from the origin)
 const STREETS = ['primary', 'secondary', 'secondary_link', 'tertiary', 'residential'];
 const ROADW = { primary: 15.0, secondary: 13.0, secondary_link: 8.0, tertiary: 11.5, residential: 8.5 };
-const TURF = [[124.65, 15.7], [33.3, 16.1], [33.1, -48.9], [61.8, -87.8], [85.5, -87.6], [124.5, -49.2]];   // grid coords
+export const TURF = [[124.65, 15.7], [33.3, 16.1], [33.1, -48.9], [61.8, -87.8], [85.5, -87.6], [124.5, -49.2]];   // grid coords
+/** The turf outline pushed out by d metres (grid coords), and in world coords. */
+export const turfOffset = (d) => TURF.map(([a, b]) => { const l = Math.hypot(a - 79, b + 30); return [a + (a - 79) / l * d, b + (b + 30) / l * d]; });
+export const turfWorld = (d) => turfOffset(d).map(([a, b]) => G(a, b));
+const gY = (ctx, x, z) => (ctx.groundY ? ctx.groundY(x, z) : 0);
 
 // ------------------------------------------------------------------------------------------ Championship Field
 const TURF_GREEN = '#37713a';
@@ -38,6 +42,35 @@ function turfDetail(ctx, mat, w, h) {
   };
   mat.customProgramCacheKey = () => prevKey + '|maTurf';
   mat.needsUpdate = true;
+}
+// Field edge along a polyline (world coords, 2 m outside the turf, y = 0 pad inside): 3 m panels of black ball-stop fence;
+// where the hill behind is higher than the pitch, a retaining wall (2.2 m deep block over the pad's blend zone, top
+// stepped with the ground behind it) with the fence on top. `gaps`: [d0, d1] distances along the line left open.
+function perimeter(ctx, pts, gaps) {
+  const { B } = ctx; const step = 3.0; let dist = 0; const run = [];   // fence runs: [[x, z, lift], ...]
+  const flush = () => { if (run.length > 1) { const lifts = new Map(run.map((p) => [p[0].toFixed(2) + ',' + p[1].toFixed(2), p[2]])); hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, run.map((p) => [p[0], p[1]]), { h: 3.0, black: true, every: step }); } run.length = 0; };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.round(L / step)); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
+    // outward = away from the pitch centre
+    const c = G(79, -30); let nx = -tz, nz = tx; if (nx * (a[0] - c[0]) + nz * (a[1] - c[1]) < 0) { nx = -nx; nz = -nz; }
+    for (let k = 0; k < n; k++) {
+      const p = [a[0] + tx * L * k / n, a[1] + tz * L * k / n], q = [a[0] + tx * L * (k + 1) / n, a[1] + tz * L * (k + 1) / n]; const d0 = dist + L * k / n, d1 = dist + L * (k + 1) / n;
+      // ground behind the wall line (beyond the pad's blend): the wall top for this panel
+      let top = -Infinity; for (const t of [0, 0.5, 1]) top = Math.max(top, gY(ctx, p[0] + (q[0] - p[0]) * t + nx * 2.5, p[1] + (q[1] - p[1]) * t + nz * 2.5));
+      const wall = top > 0.7; const lift = wall ? top + 0.12 : null;
+      if (wall) { const m = [(p[0] + q[0]) / 2 + nx * 1.25, (p[1] + q[1]) / 2 + nz * 1.25]; const w = L / n + 0.04; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, 2.5, Math.atan2(-tz, tx), 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, 2.5, Math.atan2(-tz, tx));
+        B.v('limestone').box(m[0] - nx * 1.2, lift + 0.03, m[1] - nz * 1.2, w, 0.06, 0.34, Math.atan2(-tz, tx), 1 / 3); }
+      const open = gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
+      if (open) { flush(); continue; }
+      const y0 = wall ? lift : gY(ctx, p[0], p[1]), y1 = wall ? lift : gY(ctx, q[0], q[1]); const o = wall ? 0.25 : 0;
+      const P0 = [p[0] + nx * o, p[1] + nz * o, y0], P1 = [q[0] + nx * o, q[1] + nz * o, y1];
+      if (run.length && (Math.abs(run[run.length - 1][2] - y0) > 0.02 || Math.hypot(run[run.length - 1][0] - P0[0], run[run.length - 1][1] - P0[1]) > 0.05)) flush();
+      if (!run.length) run.push(P0); run.push(P1);
+      if (wall) flush();   // every wall panel has its own level top
+    }
+    dist += L;
+  }
+  flush();
 }
 function field(ctx) {
   const { B, quality } = ctx;   const a0 = 31, a1 = 127, b0 = -90, b1 = 18; const ppm = quality === 'high' ? 18 : quality === 'low' ? 9 : 12; const W = Math.round((b1 - b0) * ppm), H = Math.round((a1 - a0) * ppm);
@@ -104,13 +137,16 @@ function field(ctx) {
   }
   for (const a of [56, 72, 88, 104]) { const p = G(a + 5, -51.4); bleachers(ctx, { x: p[0], z: p[1], dir: ROT + Math.PI, len: 10, rows: 3, run: 0.62, rise: 0.25, frontH: 0 }); }
   for (const a of [60, 98]) { const p = G(a, 14.2); propKit.bench(ctx, p[0], p[1], ROT); const q = G(a + 3, 14.2); propKit.bench(ctx, q[0], q[1], ROT); }
-  // perimeter: black ball-stop fence (open on the campus side), with gates on Mission Ave and the east path
-  const off = (pts, d) => pts.map(([a, b], i) => { const cx = 79, cz = -30; const l = Math.hypot(a - cx, b - cz); return [a + (a - cx) / l * d, b + (b - cz) / l * d]; });
-  const P = off(TURF, 2.0).map(([a, b]) => G(a, b));
-  fence(ctx, [P[1], P[0], P[5]], { h: 3.0, black: true, every: 3.2, gaps: [[38, 43], [118, 122]] });        // south (Mission Ave) + east
-  fence(ctx, [P[5], P[4], P[3], P[2]], { h: 3.0, black: true, every: 3.2, gaps: [[20, 24], [100, 126]] });   // north-east, north, north-west
+  // perimeter: black ball-stop fence (open on the campus side), with gates on Mission Ave and the east path. The pitch
+  // is a level pad cut into the hill: where the ground outside stands more than 0.7 m above the turf (the whole north
+  // end, up to ~6 m) a concrete retaining wall holds the bank and the fence runs along its top.
+  const P = turfWorld(2.0);
+  perimeter(ctx, [P[1], P[0], P[5]], [[38, 43], [118, 122]]);        // south (Mission Ave) + east
+  perimeter(ctx, [P[5], P[4], P[3], P[2]], [[20, 24], [100, 126]]);   // north-east, north, north-west
   // clipped hedge between the fence and the Mission Ave sidewalk
-  for (let a = 37; a < 122; a += 9.4) { if (a > 68 && a < 78) continue; const p = G(a + 4.5, 20.4); ctx.shrubs.push([p[0], 0, p[1], 9.0, 1.05, ROT]); }
+  // (Street View: a dense evergreen hedge wall 4-5 m high hides the pitch from Mission Ave; it was a knee-high row before)
+  for (let a = 37; a < 122; a += 4.7) { if (a > 68 && a < 78) continue; const p = G(a + 2.35, 20.6); const y = gY(ctx, p[0], p[1]); const hb = B.v('paint', true); const hh = 4.2 + ((a * 7) % 5) * 0.12;
+    hb.setColor(0.03, 0.075, 0.028).box(p[0], y + hh / 2 - 0.4, p[1], 4.74, hh + 0.8, 1.7, ROT); hb.setColor(0.045, 0.1, 0.035).box(p[0], y + hh + 0.03, p[1], 4.5, 0.12, 1.4, ROT); hb.setColor(1, 1, 1); B.c('wood').box(p[0], y + hh / 2 - 0.4, p[1], 4.74, hh + 0.8, 1.7, ROT); }
   // scoreboard in the north-east corner, angled back at the pitch
   {
     const p = G(118.5, -57); const rot = ROT - 0.75; const pt = B.v('paint', true);
@@ -147,7 +183,7 @@ function field(ctx) {
 }
 
 // ------------------------------------------------------------------------------------------ flag
-function usFlag(ctx, x, z) {
+function usFlag(ctx, x, z, gy0 = 0) {
   const { B, scene } = ctx; const H = 10.5;
   B.v('aluminum').cyl(x, 0, z, 0.075, 0.045, H, 10, 1, true); B.v('concrete').cyl(x, 0, z, 0.3, 0.3, 0.25, 12, 1 / 3, true);
   B.v('lightEmit').cyl(x, H, z, 0.07, 0.07, 0.12, 8, 1, true); B.c('metal').box(x, 2, z, 0.3, 4, 0.3); ctx.grapplePoles.push({ x, z, y0: 1, y1: H, r: 0.08 });
@@ -159,14 +195,14 @@ function usFlag(ctx, x, z) {
   for (let i = 0; i < p.count; i++) { const u = (p.getX(i) + 1.2) / 2.4; p.setZ(i, Math.sin(u * 7 + x) * 0.14 * u); p.setY(i, p.getY(i) - 0.22 * u * u); }
   geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: canvasTexture(c, { repeat: false }), side: THREE.DoubleSide, roughness: 0.85 }));
-  m.position.set(x + 1.25, H - 0.95, z); m.castShadow = true; m.name = 'flag-us'; scene.add(m);
+  m.position.set(x + 1.25, gy0 + H - 0.95, z); m.castShadow = true; m.name = 'flag-us'; scene.add(m);
 }
 
 // ------------------------------------------------------------------------------------------ front of campus
 function frontOfCampus(ctx) {
   const { B } = ctx;
   // entry sign on the lawn by the Mission Ave drive: cream stucco wall, clay-tile cap, bronze letters, both faces
-  {
+  onSlope(ctx, -38.5, 12.6, 3.0, () => {
     const p = [-38.5, 12.6]; const L = 6.4;
     B.v('stucco', true).setColor(0.9, 0.8, 0.57).box(p[0], 0.85, p[1], L, 1.7, 0.6, ROT, 0.45); B.v('stucco', true).setColor(1, 1, 1);
     for (const s of [-1, 1]) { const q = gp(p[0], p[1], s * (L / 2 + 0.4), 0); B.v('stucco', true).setColor(0.9, 0.8, 0.57).box(q[0], 1.1, q[1], 0.85, 2.2, 0.85, ROT, 0.45); B.c('concrete').box(q[0], 1.1, q[1], 0.85, 2.2, 0.85, ROT); hipRoof(ctx, boxFromRect(q[0], q[1], 0.85, 0.85), 2.2, 0.35, { overhang: 0.14, noCollision: true, caps: false }); }
@@ -181,24 +217,28 @@ function frontOfCampus(ctx) {
     wallDecal(ctx, tex, edgeFrame(a2[0], a2[1], b2[0], b2[1]), (L - 0.6) / 2, 0.95, L - 0.8, 1.25, 0.012, { opaque: true });
     B.v('mulch').quad(...[[-4.6, 1.8], [4.6, 1.8], [4.6, -1.8], [-4.6, -1.8]].map(([da, db]) => { const q = gp(p[0], p[1], da, db); return [q[0], 0.03, q[1]]; }), [0, 0], [4, 0], [4, 2], [0, 2]);
     ctx.shrubs.push([...(() => { const q = gp(p[0], p[1], 0, 1.2); return [q[0], 0.05, q[1]]; })(), 8, 0.55, ROT]);
-  }
-  usFlag(ctx, -10.5, 12.5);
+  });
+  atGround(ctx, -10.5, 12.5, (g) => usFlag(ctx, -10.5, 12.5, g));
   // red-brick walk from Mission Ave up to Foster Hall's porch (west of the circle), and across the top of the circle
-  const br = B.v('brickRed'); const walk = (pts, w) => { for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const nx = (b[1] - a[1]) / L * w / 2, nz = -(b[0] - a[0]) / L * w / 2; quadFacing(br, [a[0] - nx, 0.035, a[1] - nz], [a[0] + nx, 0.035, a[1] + nz], [b[0] + nx, 0.035, b[1] + nz], [b[0] - nx, 0.035, b[1] - nz], [0, 1, 0], [[0, 0], [w / 2, 0], [w / 2, L / 2], [0, L / 2]]); } };
+  // (laid on the ground in <= 1.5 m pieces: the walk climbs ~5 m from the street to the porch)
+  const br = B.v('brickRed'); const Y = (x, z) => gY(ctx, x, z) + 0.05;
+  const walk = (pts, w) => { let v = 0; for (let i = 0; i < pts.length - 1; i++) { const a0 = pts[i], b0 = pts[i + 1]; const L0 = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]); const n = Math.max(1, Math.ceil(L0 / 1.5)); const nx = (b0[1] - a0[1]) / L0 * w / 2, nz = -(b0[0] - a0[0]) / L0 * w / 2;
+    for (let k = 0; k < n; k++) { const a = [a0[0] + (b0[0] - a0[0]) * k / n, a0[1] + (b0[1] - a0[1]) * k / n], b = [a0[0] + (b0[0] - a0[0]) * (k + 1) / n, a0[1] + (b0[1] - a0[1]) * (k + 1) / n]; const L = L0 / n;
+      quadFacing(br, [a[0] - nx, Y(a[0] - nx, a[1] - nz), a[1] - nz], [a[0] + nx, Y(a[0] + nx, a[1] + nz), a[1] + nz], [b[0] + nx, Y(b[0] + nx, b[1] + nz), b[1] + nz], [b[0] - nx, Y(b[0] - nx, b[1] - nz), b[1] - nz], [0, 1, 0], [[0, v], [w / 2, v], [w / 2, v + L / 2], [0, v + L / 2]]); v += L / 2; } } };
   walk([[-44, 16.5], [-45.5, -4], [-42, -20], [-33, -28.5], [-18.4, -30.2]], 2.6);
   walk([[-18.4, -30.2], [-2, -28.6], [6, -24]], 2.6);
   // lamp posts round the circle and along the walk, benches facing the lawn
-  for (const [x, z] of [[-41, 6], [-41.5, -14], [-30, -27], [-6, -27.5], [1, -12], [2.5, 8], [-27, 15.5], [-4, 16.5], [-52, -30], [-60, -50]]) lampPost(ctx, x, z);
+  for (const [x, z] of [[-41, 6], [-41.5, -14], [-30, -27], [-6, -27.5], [1, -12], [2.5, 8], [-27, 15.5], [-4, 16.5], [-52, -30], [-60, -50]]) atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min');
   for (const [x, z, r] of [[-47.5, -2, ROT + Math.PI / 2], [-46.5, -12, ROT + Math.PI / 2], [-24, -29.5, ROT], [-10, -28, ROT]]) propKit.bench(ctx, x, z, r);
   for (const [x, z] of [[-46, 3], [-14, -29.5], [3, -22]]) propKit.trashCan(ctx, x, z);
   propKit.bikeRack(ctx, -1.5, -24, ROT + Math.PI / 2); propKit.bikeRack(ctx, 5.5, -72, ROT);
   // stone seat wall round the south half of the circle lawn (cover) + the plaque boulder in the middle
   const cx = -20.3, cz = -4.6, R = 15.2;
-  for (let k = 0; k < 9; k++) { const a0 = 0.18 * Math.PI + k * 0.071 * Math.PI, a1 = a0 + 0.06 * Math.PI; if (k === 4) continue; const xa = cx + Math.cos(a0) * R, za = cz + Math.sin(a0) * R, xb = cx + Math.cos(a1) * R, zb = cz + Math.sin(a1) * R; const L = Math.hypot(xb - xa, zb - za); B.solidBox('limestone', 'concrete', (xa + xb) / 2, 0.28, (za + zb) / 2, L + 0.05, 0.56, 0.5, Math.atan2(-(zb - za), xb - xa), 1 / 3); }
-  B.v('concrete').cyl(cx + 2, 0, cz + 6, 0.9, 0.6, 0.9, 7, 1 / 3, true); B.c('concrete').box(cx + 2, 0.45, cz + 6, 1.5, 0.9, 1.5);
+  for (let k = 0; k < 9; k++) { const a0 = 0.18 * Math.PI + k * 0.071 * Math.PI, a1 = a0 + 0.06 * Math.PI; if (k === 4) continue; const xa = cx + Math.cos(a0) * R, za = cz + Math.sin(a0) * R, xb = cx + Math.cos(a1) * R, zb = cz + Math.sin(a1) * R; const L = Math.hypot(xb - xa, zb - za); atGround(ctx, (xa + xb) / 2, (za + zb) / 2, () => B.solidBox('limestone', 'concrete', (xa + xb) / 2, 0.18, (za + zb) / 2, L + 0.05, 0.76, 0.5, Math.atan2(-(zb - za), xb - xa), 1 / 3), L / 2); }
+  atGround(ctx, cx + 2, cz + 6, () => { B.v('concrete').cyl(cx + 2, -0.2, cz + 6, 0.9, 0.6, 1.1, 7, 1 / 3, true); B.c('concrete').box(cx + 2, 0.35, cz + 6, 1.5, 1.1, 1.5); }, 0.8, 'min');
   // plaza between Science, the gyms and Foster: picnic tables, planters, bins
   for (const [x, z, r] of [[2, -76, 0.2], [8, -79.5, -0.3], [-2, -82, 0.9], [14, -74, 0.1]]) propKit.picnicTable(ctx, x, z, r);
-  for (const [x, z, len, rot] of [[3.5, -66.5, 5, ROT + Math.PI / 2], [3, -44, 6, ROT + Math.PI / 2], [-33, -66, 6, ROT + Math.PI / 2]]) { B.solidBox('concrete', 'concrete', x, 0.4, z, len, 0.8, 1.3, rot, 1 / 3); ctx.shrubs.push([x, 0.8, z, len - 0.8, 0.75, rot]); }
+  for (const [x, z, len, rot] of [[3.5, -66.5, 5, ROT + Math.PI / 2], [3, -44, 6, ROT + Math.PI / 2], [-33, -66, 6, ROT + Math.PI / 2]]) atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.2, z, len, 1.2, 1.3, rot, 1 / 3); ctx.shrubs.push([x, 0.8, z, len - 0.8, 0.75, rot]); }, len / 2);
   propKit.dumpster(ctx, -27, -101.5, ROT); propKit.dumpster(ctx, 52, -132, ROT + Math.PI / 2, [0.1, 0.16, 0.3]); propKit.dumpster(ctx, -72, 46.5, ROT + Math.PI / 2);
   propKit.utilityBox(ctx, 17.5, -105, ROT); propKit.utilityBox(ctx, -66, 2, ROT);
 }
@@ -213,7 +253,7 @@ function vehicles(ctx) {
   const keep = ctx.keepClear || [];
   // the school buses (placed after the cars) and tree trunks: no car may overlap them. A car rejected for one of these
   // still draws its three random numbers, so every other car keeps its place, type and colour.
-  const buses = [[...G(52, 26.9), ROT], [...G(-8, -134.5), ROT + Math.PI / 2], [...G(43, -128), ROT + Math.PI / 2]];
+  const buses = [[...G(52, 26.9), ROT], [...G(-8, -134.5), ROT + Math.PI / 2], [...G(14, -129), ROT + Math.PI / 2]];
   const trunks = (ctx.gen.trees || []).filter((t) => inPlay(t[0], t[1], -4));
   const overlaps = (x, z, h, bx, bz, bh, hl, hw) => {   // oriented rectangles: car (2.3 x 0.95 half extents) vs (hl x hw) at (bx, bz, bh)
     const R = [[x, z, h, 2.3, 0.95], [bx, bz, bh, hl, hw]];
@@ -225,30 +265,33 @@ function vehicles(ctx) {
   };
   const car = (x, z, heading) => {
     if (!inPlay(x, z)) return; if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
+    if (ctx.terrain && ctx.terrain.slopeAt(x, z) > 0.115) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }   // nobody parks on a bank (and a car cannot be laid on more than ~11 %)
     if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.5)) return;
     for (const r of ctx.buildingRings || []) if (pointInRing(x, z, r)) return;
     // (trunks: up to ~0.45 m radius plus 0.6 m of room; other cars: a lane car must not clip a kerb-parked one)
     if (buses.some(([bx, bz, bh]) => overlaps(x, z, heading, bx - 0.15 * Math.cos(bh), bz + 0.15 * Math.sin(bh), bh, 6.1, 1.6)) || trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 4.2 && overlaps(x, z, heading, t[0], t[1], 0, 1.05, 1.05))
       || parked.some(([px, pz, ph]) => Math.hypot(px - x, pz - z) < 5.4 && overlaps(x, z, heading, px, pz, ph, 2.45, 1.0))) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }
-    propKit.placeCar(ctx, pick(), x, z, heading + (rnd() - 0.5) * 0.05, propKit.CAR_COLORS[Math.floor(rnd() * propKit.CAR_COLORS.length)]); placed.push([x, z]); parked.push([x, z, heading]); n++;
+    { const tpl = pick(), hd = heading + (rnd() - 0.5) * 0.05, col = propKit.CAR_COLORS[Math.floor(rnd() * propKit.CAR_COLORS.length)]; onSlope(ctx, x, z, 2.0, () => propKit.placeCar(ctx, tpl, x, z, hd, col)); }   // lies on the street's slope
+    placed.push([x, z]); parked.push([x, z, heading]); n++;
   };
   // stall paint: 10 cm lines just above the asphalt, one merged mesh, worn and faded out with distance (visual only)
   const stripes = [], stripeCol = [], seen = new Set();
+  // a painted line a -> b (half width w) draped on the ground in <= 1.7 m pieces
+  const line = (a0, b0, w, col) => { const L0 = Math.hypot(b0[0] - a0[0], b0[1] - a0[1]); if (L0 < 1e-3) return; const n = Math.max(1, Math.ceil(L0 / 1.7)); const px = -(b0[1] - a0[1]) / L0 * w, pz = (b0[0] - a0[0]) / L0 * w;
+    for (let k = 0; k < n; k++) { const a = [a0[0] + (b0[0] - a0[0]) * k / n, a0[1] + (b0[1] - a0[1]) * k / n], b = [a0[0] + (b0[0] - a0[0]) * (k + 1) / n, a0[1] + (b0[1] - a0[1]) * (k + 1) / n];
+      const q = [[a[0] - px, a[1] - pz], [a[0] + px, a[1] + pz], [b[0] + px, b[1] + pz], [b[0] - px, b[1] - pz]];
+      const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
+      for (const j of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) { stripes.push(q[j][0], gY(ctx, q[j][0], q[j][1]) + 0.03, q[j][1]); stripeCol.push(col[0], col[1], col[2]); } } };
   const stall = (cx, cz, dx, dz) => {
     const key = Math.round(cx * 4) + ',' + Math.round(cz * 4); if (seen.has(key)) return; seen.add(key);
-    const h = 2.45, w = 0.05, y = 0.017; const a = [cx - dx * h, cz - dz * h], b = [cx + dx * h, cz + dz * h], px = -dz * w, pz = dx * w;
-    const q = [[a[0] - px, a[1] - pz], [a[0] + px, a[1] + pz], [b[0] + px, b[1] + pz], [b[0] - px, b[1] - pz]];
-    const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
-    for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) { stripes.push(q[k][0], y, q[k][1]); stripeCol.push(0.84, 0.835, 0.8); }
+    const h = 2.45; line([cx - dx * h, cz - dz * h], [cx + dx * h, cz + dz * h], 0.05, [0.84, 0.835, 0.8]);
   };
   // Mission Avenue's double yellow centre line (the satellite paint is smoothed away up close)
   for (const r of data.roads) {
     if (r.tags.name !== 'Mission Avenue') continue;
     for (let i = 0; i < r.line.length - 1; i++) {
       const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5 || !inPlay((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, -30)) continue; const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
-      for (const o of [-0.11, 0.11]) { const q = [[a[0] + nx * (o - 0.05), a[1] + nz * (o - 0.05)], [a[0] + nx * (o + 0.05), a[1] + nz * (o + 0.05)], [b[0] + nx * (o + 0.05), b[1] + nz * (o + 0.05)], [b[0] + nx * (o - 0.05), b[1] + nz * (o - 0.05)]];
-        const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
-        for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) { stripes.push(q[k][0], 0.017, q[k][1]); stripeCol.push(0.8, 0.6, 0.08); } }
+      for (const o of [-0.11, 0.11]) line([a[0] + nx * o, a[1] + nz * o], [b[0] + nx * o, b[1] + nz * o], 0.05, [0.8, 0.6, 0.08]);
     }
   }
   // car parks (OSM amenity=parking): rows of stalls along the long axis, alternating with aisles
@@ -290,7 +333,7 @@ function vehicles(ctx) {
     const hw = r.tags.highway; if (hw !== 'tertiary' && hw !== 'secondary' && hw !== 'primary') continue;
     for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 30) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; if (rnd() < 0.55) { const d = 10 + rnd() * (L - 20), sd = rnd() < 0.5 ? 1 : -1; car(a[0] + tx * d - tz * sd * 1.7, a[1] + tz * d + tx * sd * 1.7, Math.atan2(-tz, tx) + (sd > 0 ? 0 : Math.PI)); } }
   }
-  for (const [bx, bz, bh] of buses) propKit.placeBus(ctx, bx, bz, bh);
+  for (const [bx, bz, bh] of buses) onSlope(ctx, bx, bz, 5.0, () => propKit.placeBus(ctx, bx, bz, bh));
   if (stripes.length) {
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(stripes, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(stripes.length).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
@@ -322,7 +365,7 @@ function streets(ctx) {
         const x = a[0] + tx * d - tz * side * (w / 2 + 0.75), z = a[1] + tz * d + tx * side * (w / 2 + 0.75); side = -side;
         if (!inPlay(x, z) || !clearOfBuildings(x, z) || lamps.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 14)) continue;
         if (z < -60 && hw === 'residential' && rnd() < 0.5) continue;      // the hillside lanes are sparsely lit
-        lampPost(ctx, x, z); lamps.push([x, z]);
+        atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min'); lamps.push([x, z]);
       }
       carry = d - L;
     }
@@ -331,9 +374,11 @@ function streets(ctx) {
   for (const p of data.points) {
     if (p.tags.highway !== 'traffic_signals') continue; const [x, z] = p.p; if (!inPlay(x, z, 6)) continue;
     const px = x + 6.2, pz = z + 6.6; if (!clearOfBuildings(px, pz)) continue;
+    atGround(ctx, px, pz, () => {
     B.v('galv').cyl(px, 0, pz, 0.14, 0.1, 6.2, 8, 1, true).tube([px, 5.9, pz], [px - 6.5, 6.1, pz - 0.8], 0.07, 6); B.c('metal').box(px, 3.1, pz, 0.35, 6.2, 0.35); ctx.grapplePoles.push({ x: px, z: pz, y0: 1, y1: 6.2, r: 0.14 });
     const pt = B.v('paint', true); pt.setColor(0.85, 0.7, 0.05); for (const k of [2.6, 5.4]) { pt.box(px - k, 5.55, pz - k * 0.123, 0.36, 1.0, 0.3, 0.12); B.v('lightEmit').box(px - k, 5.85, pz - k * 0.123 + 0.16, 0.2, 0.2, 0.02, 0.12); } pt.setColor(1, 1, 1);
     B.c('metal').box(px - 3.2, 6.0, pz - 0.4, 6.6, 0.3, 0.3, 0.12);
+    }, 0.3, 'min');
   }
   // downtown kerb furniture on the 4th / 5th St sidewalks: bins, benches, newspaper boxes, planters (light cover)
   for (const r of data.roads) {
@@ -345,8 +390,8 @@ function streets(ctx) {
         if (!inPlay(x, z, 4) || !clearOfBuildings(x, z) || ctx.surfaceAt(x, z) === 'asphalt' || ctx.surfaceAt(x, z) === 'rubber') continue;
         const k = rnd(); const rot = Math.atan2(-tz, tx);
         if (k < 0.3) propKit.trashCan(ctx, x, z); else if (k < 0.55) propKit.bench(ctx, x, z, rot + (sd > 0 ? Math.PI : 0));
-        else if (k < 0.8) { B.solidBox('concrete', 'concrete', x, 0.38, z, 2.4, 0.76, 1.0, rot, 1 / 3); ctx.shrubs.push([x, 0.76, z, 1.9, 0.6, rot]); }
-        else { const pt = B.v('paint', true); pt.setColor(0.1, 0.2, 0.5).box(x, 0.6, z, 0.5, 1.2, 0.5, rot); pt.setColor(0.6, 0.1, 0.08).box(x + tx * 0.6, 0.6, z + tz * 0.6, 0.5, 1.2, 0.5, rot); pt.setColor(1, 1, 1); B.c('metal').box(x + tx * 0.3, 0.6, z + tz * 0.3, 1.1, 1.2, 0.5, rot); }
+        else if (k < 0.8) atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.28, z, 2.4, 0.96, 1.0, rot, 1 / 3); ctx.shrubs.push([x, 0.76, z, 1.9, 0.6, rot]); }, 1.2);
+        else atGround(ctx, x + tx * 0.3, z + tz * 0.3, () => { const pt = B.v('paint', true); pt.setColor(0.1, 0.2, 0.5).box(x, 0.5, z, 0.5, 1.4, 0.5, rot); pt.setColor(0.6, 0.1, 0.08).box(x + tx * 0.6, 0.5, z + tz * 0.6, 0.5, 1.4, 0.5, rot); pt.setColor(1, 1, 1); B.c('metal').box(x + tx * 0.3, 0.5, z + tz * 0.3, 1.1, 1.4, 0.5, rot); }, 0.6);
       }
     }
   }
@@ -363,23 +408,23 @@ function boundary(ctx) {
   const trunks = (ctx.gen.trees || []).filter((t) => t[0] > pb.minX - 8 && t[0] < pb.maxX + 8 && t[1] > pb.minZ - 8 && t[1] < pb.maxZ + 8);
   for (let e = 0; e < 4; e++) {
     const a = corners[e], b = corners[(e + 1) % 4]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.ceil(L / 6); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const rot = Math.atan2(-tz, tx);
-    let run = null; const flush = () => { if (run && run.length > 1) fence(ctx, run, { h: 2.4, screen: 2.0, every: 3 }); run = null; };
+    let run = null; const flush = () => { if (run && run.length > 1) hillFence(ctx, run, { h: 2.4, screen: 2.0, every: 3 }); run = null; };
     for (let i = 0; i < n; i++) {
       const p0 = [a[0] + tx * (i * L / n), a[1] + tz * (i * L / n)], p1 = [a[0] + tx * ((i + 1) * L / n), a[1] + tz * ((i + 1) * L / n)], mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
       if (inBld(mid[0], mid[1])) { flush(); continue; }
-      if (onStreet(mid[0], mid[1])) {
+      if (onStreet(mid[0], mid[1]) && !(ctx.terrain && ctx.terrain.maxIn(mid[0], mid[1], 2.8) - ctx.terrain.minIn(mid[0], mid[1], 2.8) > 0.38)) {   // (a roadblock needs fairly level ground: on a steep lane the fence carries on)
         flush();
         // a street tree beside the roadblock: shift the barrier a step out (or in) so it stands clear of the trunk
         const bl = L / n - 0.3; const clearOfTrunks = (x, z) => !trunks.some((t) => { const dx = t[0] - x, dz = t[1] - z; return Math.hypot(Math.max(0, Math.abs(dx * tx + dz * tz) - bl / 2), Math.max(0, Math.abs(dx * tz - dz * tx) - 0.3)) < 1.1; });
         for (const o of [0, 0.3, -0.3, 0.6, -0.6]) if (clearOfTrunks(mid[0] + tz * o, mid[1] - tx * o)) { mid[0] += tz * o; mid[1] -= tx * o; break; }
-        propKit.barrier(ctx, mid[0], mid[1], rot, bl); const pt = ctx.B.v('paint', true); pt.setColor(0.95, 0.45, 0.05).box(mid[0], 1.0, mid[1], L / n - 0.6, 0.22, 0.06, rot); pt.setColor(0.9, 0.9, 0.88).box(mid[0], 0.72, mid[1], L / n - 0.6, 0.16, 0.06, rot); pt.setColor(1, 1, 1); continue;
+        onSlope(ctx, mid[0], mid[1], bl / 2, () => { propKit.barrier(ctx, mid[0], mid[1], rot, bl); const pt = ctx.B.v('paint', true); pt.setColor(0.95, 0.45, 0.05).box(mid[0], 1.0, mid[1], L / n - 0.6, 0.22, 0.06, rot); pt.setColor(0.9, 0.9, 0.88).box(mid[0], 0.72, mid[1], L / n - 0.6, 0.16, 0.06, rot); pt.setColor(1, 1, 1); }); continue;
       }
       if (!run) run = [p0]; run.push(p1);
     }
     flush();
   }
   // the service alley between the 4th St shopfronts in the south-west corner runs out to the edge: gated
-  fence(ctx, [[-177.3, 202.6], [-175.1, 202.6]], { h: 2.4, screen: 2.0, every: 3 });
+  hillFence(ctx, [[-177.3, 202.6], [-175.1, 202.6]], { h: 2.4, screen: 2.0, every: 3 });
 }
 
 export function buildGrounds(ctx) {

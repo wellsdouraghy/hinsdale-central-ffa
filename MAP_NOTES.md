@@ -250,8 +250,8 @@ What each check does (and what to fix when it fails):
 ## Terrain: hilly campuses (real ground heights in the play area)
 
 The engine supports a real in-bounds heightfield (descriptor `terrain`, src/world/terrain.js; contract and builder API
-in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin's ~10 m climb is still faked (backdrop
-outside the bounds + terraces inside) until its builder adopts the terrain. Proven on the test campus
+in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin Academy is the first real campus on it
+(66 m of relief inside the play area: see "Marin on real terrain" below). Proven on the test campus
 (`?terrainTest=1`, src/campuses/terraintest.js) before any real campus uses it.
 - **Baking the heightfield.** Ground, not roofs or tree crowns:
   - *Google 3D tiles (dev only):* cast rays straight down through the tiles on a 2-4 m grid over the satellite
@@ -344,3 +344,53 @@ outside the bounds + terraces inside) until its builder adopts the terrain. Prov
   from the text, not from the prop.
 - **Elevation in the 3D-tiles origin:** set origin.height to the ellipsoid height of the main ground level and
   pick tileRegistration spots on flat open ground at that level.
+
+## Marin on real terrain (lessons from the rebuild; scripts in src/campuses/marin/tools/)
+
+- **Ground source: USGS 3DEP beat the 3D tiles.** The National Map ImageServer (`3DEPElevation/ImageServer/exportImage`,
+  bbox in EPSG:4326, `format=tiff&pixelType=F32`, no key) returns bare-earth lidar at 1 m: no roofs, no canopies, no min
+  filter needed. The tile samples agree with it to ~0.5 m on open flat ground after a constant offset, but **their offset
+  drifts across the map** (3 m on the hillside streets, 20 m on a steep wooded slope where only coarse LODs load). Never
+  take absolute ground heights from tile samples on a hill; use them for roofs only (tools/terrain.py).
+- **Check the DEM against current imagery for regrading.** The lidar predated one car park (a 15 % hillside in the DEM, a
+  flat lot in the tiles: residual of a plane fit 1.0 m, where every real lot had < 0.35 m) and the north tip of the pitch.
+  A plane fit per OSM `amenity=parking` polygon finds these in seconds; flatten them to the level of the building they serve.
+- **Building heights (the "not two storey" report).** Roof = tile samples inside the footprint, shifted by an offset
+  fitted LOCALLY on open ground next to it (smooth tile cells clear of every footprint, gaussian 16 m); ground = DEM on
+  the outline. Store the roof as an ABSOLUTE height plus the ground min / max. The old "roof minus the lowest ground
+  nearby" read 34 of 144 buildings a storey too tall (one-storey houses on a 3 m fall became two storeys on every side);
+  the gyms were 9 / 12.4 m and are 7 / 9 m. OSM had no `building:levels` here: Street View is the cross-check.
+- **Place buildings by absolute roof height, datum = lowest ground on the outline** (`sited` in kit.js) and let the hill
+  bury the rest: one storey uphill, two or three downhill, as in reality. The facade kit lays storeys out from y = 0, so
+  **each wall (each 8-12 m piece of a long wall) gets its own base** (`kitWalls` -> nested `ctx.onGround`): doors and
+  windows start at that wall's ground instead of being buried. House wall textures are anchored at the eave, not the base.
+- **A plinth cap is a drawn floor.** `ctx.plinth` with its cap fails the roofSkin check from inside every attic above it
+  (rays reach a front face that is not under a roof skin). Build foundations without a cap (`cap: false`).
+- **Do all flattening first** (`sitework` in world.js), then read the ground: a pad flattened later moves the ground
+  under a neighbour that was already placed. Flatten only what is level in reality (pitch, pool deck, terraces, the
+  regraded lot); lidar already has the real shape of streets, lots and yards.
+- **A level pad cut into a hill needs a retaining structure as deep as the blend.** The lattice is 2 m, so a pad edge is
+  never a cliff: the blend zone is a steep ramp in front of any thin wall. Make the wall a block that covers the blend
+  (field: 2.5 m deep, top stepped with the ground behind, fence on top). A wall with the fence in front of it leaves a slot.
+- **Props on slopes:** `propKit` stands a prop level on its lowest ground (a car across a 6 % street is 25 cm in the
+  asphalt at one end). `onSlope` in Marin's kit shears whatever a callback builds onto the plane fitted through its
+  footprint (visual + collision; walls stay vertical): cars, buses, roadblocks, the entry sign, the courtyard. The map
+  check still measures them as level boxes, so sloped cars show as "half buried" warnings up to ~11 %; park nothing
+  steeper (`terrain.slopeAt`). Facade-kit planting beds stand at the wall base: clamp them to the ground a metre out.
+- **The engine's far skirt** (a green ring at y = -0.25 from 280 m) cuts through any real ground below the datum: a
+  campus whose surroundings fall away must park it under its lowest land and drape its own backdrop on the grid.
+- **Helicopter spots on terrain:** find them with a scan, not by eye (candidates on a 4 m grid, car parks first, then
+  turf and lawns, never on a street; <= 0.28 m of relief under the skids; let the pipeline's own exact test pick).
+  21 valid spots came out; every hand-picked one from the flat map had to go.
+- **Street View pass (tools/streetview.py -> facades_src.json -> facades.py -> facades.js):** one view per building from
+  the nearest street point with a clear line to the footprint (metadata first, aim from the panorama's real position,
+  fov from the footprint's angular width), a second for footprints > 420 m2: 158 images for 131 buildings + 12 school
+  frontages. Reading them is a job for parallel agents writing JSON (storeys from the street, material, colours, roof
+  type, storefront, sign text, fences, hedges, trees); ~10 % are hidden by hedges or blurred, and those take the look
+  of the nearest classified neighbour of the same kind instead of a random skin. What it corrected: the aerial "hip"
+  default (40 gables, 39 flat), shop names (only signs that exist are drawn: no invented tenants), the 4-5 m hedge wall
+  along the pitch that had been a knee-high row, one-storey frontages of buildings that are three storeys downhill.
+  "Storeys" from the street include the attic of a gabled house: a third storey under a pitched roof is not a wall storey.
+  Shop windows belong on the main frontage only; the side-street wall of a corner shop is usually blank.
+- **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
+  dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.
