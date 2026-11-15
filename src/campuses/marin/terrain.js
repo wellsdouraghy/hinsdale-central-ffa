@@ -58,13 +58,30 @@ export function buildTerrain(ctx) {
     if (houses.length < 160 && h < 110 && rnd() < 0.09) houses.push([x + 9, h, z + 4, rnd()]);
   }
   if (crowns.length) {
-    const im = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }), crowns.length);
-    crowns.forEach(([x, y, z, r, v], k) => { dummy.position.set(x, y + r * 0.55, z); dummy.scale.set(r, r * (0.8 + v * 0.5), r); dummy.rotation.set(0, v * 6, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); col.setRGB(0.035 + v * 0.03, 0.085 + v * 0.05, 0.03 + v * 0.015); im.setColorAt(k, col); });
+    // canopy dome: 18 smooth-shaded triangles, open underneath (never seen from below), darker toward the skirt so the
+    // massed crowns read as rounded oak / bay canopy with depth instead of flat-shaded polyhedra
+    const P = [[0, 0.86, 0]], C = [[1.08, 1.08, 1.08]]; const N = 6, da = Math.PI * 2 / N;
+    for (let k = 0; k < N; k++) { const a = k * da; P.push([Math.cos(a) * 0.82, 0.5, Math.sin(a) * 0.82]); C.push([0.95, 0.95, 0.95]); }
+    for (let k = 0; k < N; k++) { const a = (k + 0.5) * da; P.push([Math.cos(a) * 1.06, -0.42, Math.sin(a) * 1.06]); C.push([0.42, 0.42, 0.42]); }
+    const idx = []; for (let k = 0; k < N; k++) { const u0 = 1 + k, u1 = 1 + (k + 1) % N, l0 = 1 + N + k, l1 = 1 + N + (k + 1) % N; idx.push(0, u1, u0, u0, u1, l0, u1, l1, l0); }
+    const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3)); dg.setAttribute('color', new THREE.Float32BufferAttribute(C.flat(), 3));
+    dg.setAttribute('normal', new THREE.Float32BufferAttribute(P.flatMap(([x, y, z]) => { const yy = y + 0.45, l = Math.hypot(x, yy, z); return [x / l, yy / l, z / l]; }), 3)); dg.setIndex(idx);
+    const im = new THREE.InstancedMesh(dg, new THREE.MeshStandardMaterial({ roughness: 1, vertexColors: true }), crowns.length);
+    crowns.forEach(([x, y, z, r, v], k) => { const rr = r * 1.3; dummy.position.set(x, y + rr * 0.42, z); dummy.scale.set(rr, rr * (0.75 + v * 0.5), rr * (0.9 + ((v * 7) % 1) * 0.3)); dummy.rotation.set(0, v * 6, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const d = (v * 13) % 1; col.setRGB(0.026 + v * 0.03 + d * 0.012, 0.1 + v * 0.05 + d * 0.02, 0.016 + v * 0.012); im.setColorAt(k, col); });
     im.name = 'terrain:crowns'; im.castShadow = false; im.receiveShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
   }
   if (houses.length) {
-    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.9 }), houses.length);
-    houses.forEach(([x, y, z, v], k) => { dummy.position.set(x, y + 2.5, z); dummy.scale.set(9 + v * 6, 5.5, 7 + v * 4); dummy.rotation.set(0, v * 3, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const w = 0.45 + v * 0.3; col.setRGB(w, w * 0.95, w * 0.85); im.setColorAt(k, col); });
+    // hillside house: four walls + a hip roof (14 triangles, vertex-coloured so one instanced mesh has pale walls and
+    // weathered brown / grey roofs); unit footprint, walls 0..0.62, ridge at 1
+    const pos = [], cl = []; const wall = [1, 1, 1], roof = [0.4, 0.3, 0.26]; const e = 0.56, wy = 0.62;
+    const tri = (a, b, c, k) => { pos.push(...a, ...b, ...c); cl.push(...k, ...k, ...k); }; const quad = (a, b, c, d, k) => { tri(a, b, c, k); tri(a, c, d, k); };
+    const cs = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]];
+    for (let i = 0; i < 4; i++) { const a = cs[i], b = cs[(i + 1) % 4]; quad([b[0], 0, b[1]], [a[0], 0, a[1]], [a[0], wy, a[1]], [b[0], wy, b[1]], wall); }
+    const E = cs.map(([x, z]) => [x * 2 * e, wy - 0.04, z * 2 * e]), R0 = [-0.22, 1, 0], R1 = [0.22, 1, 0];
+    quad(E[1], E[0], R0, R1, roof); quad(E[3], E[2], R1, R0, roof); tri(E[0], E[3], R0, roof); tri(E[2], E[1], R1, roof);
+    const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); hg.setAttribute('color', new THREE.Float32BufferAttribute(cl, 3)); hg.computeVertexNormals();
+    const im = new THREE.InstancedMesh(hg, new THREE.MeshStandardMaterial({ roughness: 0.9, vertexColors: true }), houses.length);
+    houses.forEach(([x, y, z, v], k) => { dummy.position.set(x, y - 0.6, z); dummy.scale.set(9 + v * 6, 7.6 + ((v * 5) % 1) * 2.4, 7 + v * 4); dummy.rotation.set(0, v * 3, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const w = 0.5 + v * 0.3; const t = (v * 11) % 1; col.setRGB(w, w * (0.93 + t * 0.05), w * (0.8 + t * 0.14)); im.setColorAt(k, col); });
     im.name = 'terrain:houses'; im.castShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
   }
 }

@@ -30,6 +30,10 @@ export default {
   spawnCenter: [-10, 20],
   // free-for-all spawns stay on and around campus (needs computeSpawns to honour it; ignored otherwise)
   spawnBounds: { minX: -150, maxX: 150, minZ: -150, maxZ: 170 },
+  // Visual-only extras (see src/world/sky.js, ground.js): a soft haze band hides the seam between the fogged ground and the
+  // sky on the horizon (very visible from the helicopter), and smeared satellite paint on asphalt is smoothed up close.
+  sky: { horizonHaze: 1 },
+  ground: { asphaltDeblur: 1 },
   // Water features (visual only, see src/world/water.js). Aquatic centre: 25 yd x ~34 m competition pool on the street
   // grid (rotated 7.2 deg), fourteen 25 yd lanes running east-west, deep end to the south.
   water: [

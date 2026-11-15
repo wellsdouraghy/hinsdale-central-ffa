@@ -65,6 +65,18 @@ function storefrontTexture(aniso) {
   return canvasTexture(c, { aniso });
 }
 
+function paverTexture(aniso) {
+  // courtyard paving, one tile = 2.4 m: 0.6 m buff concrete pavers in a running bond, slightly different tones, dark joints
+  const S = 512, c = makeCanvas(S, S), g = c.getContext('2d'); const rnd = mulberry32(31); const n = 4, w = S / n;
+  g.fillStyle = '#6f6a60'; g.fillRect(0, 0, S, S);
+  for (let j = 0; j < n; j++) for (let i = -1; i < n; i++) {
+    const x = i * w + (j % 2 ? w / 2 : 0), y = j * w; const v = 168 + Math.floor(rnd() * 26), warm = rnd() * 10;
+    for (const ox of [0, S]) { g.fillStyle = `rgb(${v + warm},${v + warm * 0.4 - 2},${v - 14})`; g.fillRect(x + ox + 2, y + 2, w - 4, w - 4); }
+  }
+  for (let k = 0; k < 2600; k++) { const v = rnd() < 0.5 ? 255 : 60; g.fillStyle = `rgba(${v},${v},${v},${0.03 + rnd() * 0.05})`; const r = 1 + rnd() * 4; g.beginPath(); g.ellipse(rnd() * S, rnd() * S, r * 1.5, r, rnd() * 3, 0, 7); g.fill(); }
+  return canvasTexture(c, { aniso });
+}
+
 export function addMaterials(ctx) {
   const { M, T } = ctx; if (M.stucco) return;
   const std = (o) => new THREE.MeshStandardMaterial(o);
@@ -74,6 +86,7 @@ export function addMaterials(ctx) {
   M.polyGreen = std({ map: polyPanelTexture(T.aniso), roughness: 0.3, metalness: 0.1, emissive: 0x6f9a90, emissiveIntensity: 0.12, envMapIntensity: 1.2 });
   M.storefront = std({ map: storefrontTexture(T.aniso), roughness: 0.35, metalness: 0.4, envMapIntensity: 1.2 });
   M.water = std({ color: 0x2f9fd0, roughness: 0.06, metalness: 0.0, envMapIntensity: 1.6, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+  M.maPaver = std({ map: paverTexture(T.aniso), normalMap: ctx.quality === 'low' ? null : T.concreteNormal, roughness: 0.88 }); M.maPaver.normalScale.set(0.35, 0.35); M.maPaver.color.setRGB(0.8, 0.79, 0.76);
   M.trimRed = std({ color: 0xb3261e, roughness: 0.6, metalness: 0.05 });
   M.awning = std({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)

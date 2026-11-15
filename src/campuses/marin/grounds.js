@@ -13,12 +13,37 @@ const ROADW = { primary: 15.0, secondary: 13.0, secondary_link: 8.0, tertiary: 1
 const TURF = [[124.65, 15.7], [33.3, 16.1], [33.1, -48.9], [61.8, -87.8], [85.5, -87.6], [124.5, -49.2]];   // grid coords
 
 // ------------------------------------------------------------------------------------------ Championship Field
+const TURF_GREEN = '#37713a';
+// Synthetic-turf close-up detail: the painted field texture is only ~10 px per metre, so up close it turned into soft
+// blobs. A small tiling fibre texture (mean 0.5, so it averages out to nothing in the distance through its mipmaps) is
+// multiplied in at two scales: blade-level grain plus broader brushed patches. One extra material, no geometry.
+function turfDetail(ctx, mat, w, h) {
+  const S = 256, c = makeCanvas(S, S), g = c.getContext('2d'); const rnd = mulberry32(2024); const id = g.createImageData(S, S);
+  const f = new Float32Array(S * S);
+  for (let k = 0; k < 5200; k++) {   // short fibre strokes, half lighter and half darker, wrapped at the edges
+    const x = Math.floor(rnd() * S), y = Math.floor(rnd() * S), len = 2 + Math.floor(rnd() * 5), dx = rnd() < 0.5 ? 0 : (rnd() < 0.5 ? 1 : -1), v = (k % 2 ? 1 : -1) * (0.1 + rnd() * 0.16);
+    for (let i = 0; i < len; i++) f[((y + i) % S) * S + ((x + (dx * i >> 1) + S) % S)] += v;
+  }
+  let mean = 0; for (let i = 0; i < f.length; i++) { f[i] += (rnd() - 0.5) * 0.1; mean += f[i]; } mean /= f.length;
+  for (let i = 0; i < f.length; i++) { const v = Math.max(0, Math.min(255, Math.round(128 + (f[i] - mean) * 255))); id.data[i * 4] = v * 0.97; id.data[i * 4 + 1] = v; id.data[i * 4 + 2] = v * 0.94; id.data[i * 4 + 3] = 255; }
+  g.putImageData(id, 0, 0);
+  const tex = canvasTexture(c, { srgb: false, aniso: ctx.T.aniso });
+  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey() : '';
+  mat.onBeforeCompile = (shader, renderer) => {
+    if (prev) prev(shader, renderer);
+    shader.uniforms.uTurfDetail = { value: tex }; shader.uniforms.uTurfRep = { value: new THREE.Vector4(w / 1.7, h / 1.7, w / 9.3, h / 9.3) };
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uTurfDetail; uniform vec4 uTurfRep;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n{ vec3 td = texture2D(uTurfDetail, vMapUv * uTurfRep.xy).rgb; vec3 tb = texture2D(uTurfDetail, vMapUv * uTurfRep.zw + vec2(0.37, 0.11)).rgb; diffuseColor.rgb *= 0.1 + td * 1.2 + tb * 0.6; }');
+  };
+  mat.customProgramCacheKey = () => prevKey + '|maTurf';
+  mat.needsUpdate = true;
+}
 function field(ctx) {
-  const { B, quality } = ctx; const big = quality === 'high' ? 2 : 1;
-  const a0 = 31, a1 = 127, b0 = -90, b1 = 18; const ppm = 9 * big; const W = Math.round((b1 - b0) * ppm), H = Math.round((a1 - a0) * ppm);
+  const { B, quality } = ctx;   const a0 = 31, a1 = 127, b0 = -90, b1 = 18; const ppm = quality === 'high' ? 18 : quality === 'low' ? 9 : 12; const W = Math.round((b1 - b0) * ppm), H = Math.round((a1 - a0) * ppm);
   const c = makeCanvas(W, H), g = c.getContext('2d'); const X = (b) => (b - b0) * ppm, Y = (a) => (a1 - a) * ppm;
   g.save(); g.beginPath(); TURF.forEach(([a, b], i) => (i ? g.lineTo(X(b), Y(a)) : g.moveTo(X(b), Y(a)))); g.closePath(); g.clip();
-  g.fillStyle = '#2c6b3c'; g.fillRect(0, 0, W, H);
+  g.fillStyle = TURF_GREEN; g.fillRect(0, 0, W, H);
   // mowing-pattern bands across the pitch (every 5 yd)
   for (let a = 37.5, k = 0; a < 120.5; a += 4.572, k++) if (k % 2) { g.fillStyle = 'rgba(255,255,255,0.045)'; g.fillRect(X(-45.5), Y(a + 4.572), 58 * ppm, 4.572 * ppm); }
   const line = (col, w) => { g.strokeStyle = col; g.lineWidth = Math.max(1.5, w * ppm); };
@@ -44,7 +69,7 @@ function field(ctx) {
     g.fillStyle = '#f1f1ec'; g.beginPath(); g.arc(X(BC), Y(ae - s * 11), 0.16 * ppm, 0, 7); g.fill();
   }
   // the MA mark on the centre spot
-  g.fillStyle = '#2c6b3c'; g.beginPath(); g.arc(X(BC), Y(AC), 7.6 * ppm, 0, 7); g.fill();
+  g.fillStyle = TURF_GREEN; g.beginPath(); g.arc(X(BC), Y(AC), 7.6 * ppm, 0, 7); g.fill();
   line('#f1f1ec', 0.14); arc(AC, BC, 7.6, 0, 7);
   g.save(); g.translate(X(BC), Y(AC)); g.rotate(-Math.PI / 2); g.textAlign = 'center'; g.textBaseline = 'middle';
   g.font = `900 ${Math.round(9.4 * ppm)}px Georgia, "Times New Roman", serif`; g.lineJoin = 'round';
@@ -52,10 +77,11 @@ function field(ctx) {
   // practice area north of the pitch: throwing sector arcs as in the imagery
   line('#f1f1ec', 0.1); g.beginPath(); g.arc(X(-52), Y(73.5), 22 * ppm, 0.55 * Math.PI, 1.45 * Math.PI); g.stroke();
   line('#e8892b', 0.1); g.beginPath(); g.arc(X(-52), Y(73.5), 12 * ppm, 0.55 * Math.PI, 1.45 * Math.PI); g.stroke();
-  turfNoise(g, W, H, 30, 17);
+  turfNoise(g, W, H, quality === 'low' ? 30 : 12, 17);
   g.restore();
   const cc = G((a0 + a1) / 2, (b0 + b1) / 2);
-  paintedQuad(ctx, c, cc[0], cc[1], b1 - b0, a1 - a0, ANG, { cut: true, y: 0.018, nScale: 0.5, rough: 0.95 });
+  const pq = paintedQuad(ctx, c, cc[0], cc[1], b1 - b0, a1 - a0, ANG, { cut: true, y: 0.018, nScale: 0.5, rough: 0.95 });
+  if (quality !== 'low') turfDetail(ctx, pq.mesh.material, b1 - b0, a1 - a0);
 
   // goals
   const gw = G(A0, BC), ge = G(A1, BC); landmarkKit.soccerGoal(ctx, gw[0], gw[1], Math.atan2(-UX, -UZ)); landmarkKit.soccerGoal(ctx, ge[0], ge[1], Math.atan2(UX, UZ));
@@ -191,6 +217,15 @@ function vehicles(ctx) {
     for (const r of ctx.buildingRings || []) if (pointInRing(x, z, r)) return;
     propKit.placeCar(ctx, pick(), x, z, heading + (rnd() - 0.5) * 0.05, propKit.CAR_COLORS[Math.floor(rnd() * propKit.CAR_COLORS.length)]); placed.push([x, z]); n++;
   };
+  // stall paint: 10 cm lines just above the asphalt, one merged mesh, worn and faded out with distance (visual only)
+  const stripes = [], seen = new Set();
+  const stall = (cx, cz, dx, dz) => {
+    const key = Math.round(cx * 4) + ',' + Math.round(cz * 4); if (seen.has(key)) return; seen.add(key);
+    const h = 2.45, w = 0.05, y = 0.017; const a = [cx - dx * h, cz - dz * h], b = [cx + dx * h, cz + dz * h], px = -dz * w, pz = dx * w;
+    const q = [[a[0] - px, a[1] - pz], [a[0] + px, a[1] + pz], [b[0] + px, b[1] + pz], [b[0] - px, b[1] - pz]];
+    const up = (q[1][0] - q[0][0]) * (q[3][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[3][0] - q[0][0]) < 0;
+    for (const k of (up ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2])) stripes.push(q[k][0], y, q[k][1]);
+  };
   // car parks (OSM amenity=parking): rows of stalls along the long axis, alternating with aisles
   for (const a of data.areas) {
     if (a.tags.amenity !== 'parking') continue; const ring = ensureCCW(a.outer[0]); const o = minAreaOBB(ring); if (!o) continue;
@@ -200,6 +235,11 @@ function vehicles(ctx) {
     if (depth >= 9) for (let v = v0 + 2.7, k = 0; v < v1 - 2.2; v += (k % 2 === 0 ? 11.6 : 5.3), k++) rows.push([v, k % 2 === 0 ? 1 : -1]);
     const fill = campus ? 0.7 : 0.48;
     for (const [v, dir] of rows) for (let u = u0 + 1.6; u < u1 - 1.4; u += 2.75) {
+      { // painted stall lines either side of every usable stall, parked in or not (no random numbers drawn here)
+        const sx = u * tx - v * tz, sz = u * tz + v * tx, ax = -tz * dir, az = tx * dir;
+        if (inPlay(sx, sz) && pointInRing(sx + ax * 2.2, sz + az * 2.2, ring) && pointInRing(sx - ax * 2.2, sz - az * 2.2, ring) && ctx.surfaceAt(sx, sz) === 'asphalt' && !(ctx.buildingRings || []).some((r) => pointInRing(sx, sz, r)))
+          for (const o of [-1.375, 1.375]) stall(sx + tx * o, sz + tz * o, ax, az);
+      }
       if (rnd() > fill) continue; const x = u * tx - v * tz, z = u * tz + v * tx;
       const hx = -tz * dir, hz = tx * dir; if (!pointInRing(x + hx * 2.2, z + hz * 2.2, ring) || !pointInRing(x - hx * 2.2, z - hz * 2.2, ring)) continue;
       car(x, z, Math.atan2(-hz, hx) + (rnd() < 0.2 ? Math.PI : 0));
@@ -226,7 +266,19 @@ function vehicles(ctx) {
     for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 30) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; if (rnd() < 0.55) { const d = 10 + rnd() * (L - 20), sd = rnd() < 0.5 ? 1 : -1; car(a[0] + tx * d - tz * sd * 1.7, a[1] + tz * d + tx * sd * 1.7, Math.atan2(-tz, tx) + (sd > 0 ? 0 : Math.PI)); } }
   }
   { const p = G(52, 26.9); propKit.placeBus(ctx, p[0], p[1], ROT); const q = G(-8, -134.5); propKit.placeBus(ctx, q[0], q[1], ROT + Math.PI / 2); const s = G(43, -128); propKit.placeBus(ctx, s[0], s[1], ROT + Math.PI / 2); }
-  ctx.stats = { cars: n };
+  if (stripes.length) {
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(stripes, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(stripes.length).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+    const mat = new THREE.MeshStandardMaterial({ color: 0xd6d5cc, roughness: 0.85, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    const wear = (shader) => { shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+  { float sd = length(vWPos - cameraPosition); vec2 sp = vWPos.xz * 3.1;
+    float sw = fract(sin(dot(floor(sp * 6.0), vec2(12.9898, 78.233))) * 43758.5453) * 0.35 + fract(sin(dot(floor(sp), vec2(39.3468, 11.135))) * 24634.6345) * 0.4;
+    diffuseColor.a *= (0.5 + 0.5 * smoothstep(0.1, 0.55, sw + 0.25)) * (1.0 - smoothstep(55.0, 140.0, sd)); }`); };
+    wear.key = 'maStallPaint';
+    ctx.applyBakedShadow(mat, ctx.sky.shadowUniforms, wear);
+    const mesh = new THREE.Mesh(g, mat); mesh.name = 'stall-paint'; mesh.receiveShadow = true; mesh.castShadow = false; mesh.matrixAutoUpdate = false; mesh.renderOrder = 1; ctx.scene.add(mesh);
+  }
+  ctx.stats = { cars: n, stallLines: stripes.length / 18 };
 }
 
 // ------------------------------------------------------------------------------------------ streets

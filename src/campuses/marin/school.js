@@ -214,8 +214,8 @@ function leadershipCenter(ctx) {
   { const wr = wellRoof(ctx, boxFromRect(29.9, 60.4, 12.9, 42.4), 9.4, 2.3, 3.3, { overhang: 0.8 }); const a = gp(29.9, 60.4, 0, -6.5); solarRows(ctx, a[0], a[1], 4.8, 20, wr.deck, 8); const r2 = mulberry32(13); for (const b of [9, 14.5]) { const p = gp(29.9, 60.4, 0, b); roofUnit(ctx, p[0], wr.deck, p[1], ROT + Math.PI / 2, r2); } }
   hipBuilding(ctx, rect(18.9, 58.6, 9.6, 34.6), 8.9, 'maMission', { rise: 2.2, overhang: 0.7, roofs: [boxFromRect(18.9, 58.6, 9.6, 34.6)] });
   // courtyard between the two: paved patio, pergola on the Mission Ave side, cafe tables
-  const pv = B.v('limestone'); const c = rect(8.1, 60.5, 9.6, 36), y = 0.03;
-  pv.quad([c[3][0], y, c[3][1]], [c[2][0], y, c[2][1]], [c[1][0], y, c[1][1]], [c[0][0], y, c[0][1]], [0, 0], [4.8, 0], [4.8, 18], [0, 18]);
+  const pv = B.v('maPaver'); const c = rect(8.1, 60.5, 9.6, 36), y = 0.03;
+  pv.quad([c[3][0], y, c[3][1]], [c[2][0], y, c[2][1]], [c[1][0], y, c[1][1]], [c[0][0], y, c[0][1]], [0, 0], [4, 0], [4, 15], [0, 15]);
   for (let i = 0; i < 4; i++) for (const b of [-21.5, -18.2]) { const p = gp(8.1, 60.5, -4.4 + i * 2.93, b); B.v('wood').box(p[0], 1.55, p[1], 0.22, 3.1, 0.22, ROT, 0.5); B.c('wood').box(p[0], 1.55, p[1], 0.3, 3.1, 0.3, ROT); }
   for (const b of [-21.5, -18.2]) { const p = gp(8.1, 60.5, 0, b); B.v('wood').box(p[0], 3.2, p[1], 10.2, 0.22, 0.16, ROT, 0.5); }
   for (let a = -4.8; a <= 4.81; a += 0.8) { const p = gp(8.1, 60.5, a, -19.85); B.v('wood').box(p[0], 3.38, p[1], 0.08, 0.16, 4.4, ROT, 0.5); }
@@ -225,7 +225,9 @@ function leadershipCenter(ctx) {
   for (const [a, b, len] of [[-4.1, -12, 5], [-4.1, -1, 4], [-4.1, 12, 5], [4.1, -11, 4], [4.1, 3, 5], [4.1, 13.5, 4]]) { const p = gp(8.1, 60.5, a, b); B.solidBox('limestone', 'concrete', p[0], 0.36, p[1], 0.9, 0.72, len, ROT, 1 / 3); ctx.shrubs.push([p[0], 0.72, p[1], len - 0.6, 0.6, ROT + Math.PI / 2]); }
   for (const [a, b, r] of [[-2.9, -6.5, Math.PI / 2], [2.9, 8.5, -Math.PI / 2], [0, 16.6, 0]]) { const p = gp(8.1, 60.5, a, b); propKit.bench(ctx, p[0], p[1], ROT + r); }
   { const p = gp(8.1, 60.5, 3.2, -15.5); propKit.trashCan(ctx, p[0], p[1]); }
-  for (const [a, b] of [[-2, -8], [2.2, -2], [-1.8, 5], [2.4, 11]]) for (let k = 0; k < 3; k++) { const an = k * 2.1 + a; const p = gp(8.1, 60.5, a + Math.cos(an) * 0.95, b + Math.sin(an) * 0.95); B.v('blackMetal').box(p[0], 0.23, p[1], 0.42, 0.46, 0.42, an).box(p[0] + Math.cos(an + ANG) * 0.19, 0.62, p[1] + Math.sin(an + ANG) * 0.19, 0.06, 0.4, 0.42, -an); }
+  for (const [a, b] of [[-2, -8], [2.2, -2], [-1.8, 5], [2.4, 11]]) for (let k = 0; k < 3; k++) { const an = k * 2.1 + a; const p = gp(8.1, 60.5, a + Math.cos(an) * 0.95, b + Math.sin(an) * 0.95); const ca = Math.cos(an), sa = Math.sin(an), R = -an + Math.PI / 2;   // bistro chair facing its table: slatted seat + back in aluminium on a dark frame
+    B.v('aluminum').box(p[0], 0.45, p[1], 0.4, 0.035, 0.4, R).box(p[0] + ca * 0.2, 0.7, p[1] + sa * 0.2, 0.4, 0.3, 0.03, R);
+    for (const sd of [-1, 1]) B.v('blackMetal').box(p[0] - sa * sd * 0.185, 0.215, p[1] + ca * sd * 0.185, 0.03, 0.43, 0.38, R).box(p[0] + ca * 0.2 - sa * sd * 0.185, 0.66, p[1] + sa * 0.2 + ca * sd * 0.185, 0.03, 0.46, 0.03, R); }
   for (const [a, b] of [[-2, -8], [2.2, -2], [-1.8, 5], [2.4, 11]]) { const p = gp(8.1, 60.5, a, b); B.v('aluminum').cyl(p[0], 0.72, p[1], 0.55, 0.55, 0.04, 14, 1, true).cyl(p[0], 0, p[1], 0.04, 0.04, 0.72, 6, 1, false); B.c('metal').box(p[0], 0.4, p[1], 1.1, 0.8, 1.1); }
 }
 

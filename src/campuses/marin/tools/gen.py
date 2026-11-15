@@ -114,7 +114,15 @@ for (x0, z0, x1, z1, c) in [(-36, -22, -4, 12, GRASS), (-60, 6, -4, 16, GRASS), 
 print('class fractions', [(cls == c).mean().round(3) for c in range(5)])
 
 # ---------------------------------------------------------------- mask (soft weights)
-def soft(c, sigma=0.9): return ndi.gaussian_filter((cls == c).astype(np.float32), sigma)
+# visual-only paving for the mask (ground shader + grass blades); the class grid gameplay reads keeps `cls` as it is.
+# Grid-aligned rectangles (cx, cz, w, d), rotated 7.2 deg like the street grid: the Library / Leadership Center courtyard.
+# tools/mask_fix.mjs patches an existing ground_mask.png the same way without the Python imaging stack.
+mcls = cls.copy()
+for (cx, cz, w, d) in [(8.1, 60.5, 9.6, 36)]:
+    ca, sa = math.cos(math.radians(7.2)), math.sin(math.radians(7.2))
+    ring = [(cx + a * ca - b * sa, cz + a * sa + b * ca) for a, b in [(-w / 2, -d / 2), (w / 2, -d / 2), (w / 2, d / 2), (-w / 2, d / 2)]]
+    mcls[raster(polys=[([ring], [])])] = CONC
+def soft(c, sigma=0.9): return ndi.gaussian_filter((mcls == c).astype(np.float32), sigma)
 wA, wC, wS, wD = soft(ASPH), soft(CONC), soft(SYN, 0.6), soft(DIRT, 1.2)
 mask = np.stack([wA, wC, wS, 1 - wD], 2)
 Image.fromarray((np.clip(mask, 0, 1) * 255).astype(np.uint8), 'RGBA').save(os.path.join(OUT, 'ground_mask.png'), optimize=True)
