@@ -214,7 +214,12 @@ bounds plus solid terraces/ramps inside. For a genuinely hilly or coastal campus
   the storey count against street-level imagery and OSM `building:levels`, then place it on the real terrain. On a
   flat-ground map, a hillside building must keep its true height, not inherit the slope.
 - **Street-level imagery for facades:** surrounding buildings must not be procedural guesses. Sample each building
-  in the play area from street-level imagery (Google Street View Static API or Mapillary) for colour, material,
-  storeys, windows, storefronts and signage.
+  in the play area from street-level imagery (Google Street View Static API) for colour, material, storeys,
+  windows, storefronts and signage. The key in .env.local (VITE_GOOGLE_TILES_KEY) allows Map Tiles + Street View
+  Static and is website-restricted: scripts must send `Referer: http://localhost:5173/` (curl -H) or run from the
+  dev server page. Use the free `streetview/metadata` endpoint first (pano date/position), then fetch only the
+  views you need (`streetview?size=640x640&location=..&heading=..&pitch=..&fov=..`); keep requests in the hundreds
+  per campus (free trial credit). Never print or commit the key; cache images under the campus tools/data folder
+  only if they are not committed (add to .gitignore) since Street View imagery may not be redistributed.
 - **Elevation in the 3D-tiles origin:** set origin.height to the ellipsoid height of the main ground level and
   pick tileRegistration spots on flat open ground at that level.

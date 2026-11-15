@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 .DS_Store
+
+# Street View reference imagery (not redistributable)
+src/campuses/*/tools/data/streetview/
