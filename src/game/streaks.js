@@ -132,6 +132,9 @@ export class StreakRules {
     const now = this.auth.time();
     const ground = pos.clone();
     if (this.auth.world.groundY) ground.y = Math.max(ground.y - 0.1, this.auth.world.groundY(ground.x, ground.z));
+    // terrain: the crate box (1.2 x 0.9 m) settles on the lowest ground under it, so no corner hangs over a slope
+    const T = this.auth.world.terrain;
+    if (T && ground.y - T.heightAt(ground.x, ground.z) < 0.5) ground.y = Math.min(ground.y, T.minIn(ground.x, ground.z, 0.75));
     if (item === 'care') {
       const cid = this.nextCrate++;
       const c = { cid, owner: ownerId, team: owner?.team ?? null, p: ground.toArray(), t0: now, landAt: now + STREAK.dropDelay + STREAK.fallTime, state: 'incoming', caps: new Map() };

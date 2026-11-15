@@ -91,7 +91,7 @@ export class HeliRules {
     const w = this.auth.world;
     // Practice: always park at the campus's practice spot (Hinsdale: Dickinson Field turf, nose north).
     const ph = w.practiceHeli;
-    if (this.auth.practice && ph) return [{ pos: new THREE.Vector3(ph.x, 0, ph.z), yaw: ph.yaw ?? 0 }];
+    if (this.auth.practice && ph) return [{ pos: new THREE.Vector3(ph.x, w.terrain ? w.terrain.maxIn(ph.x, ph.z, 2.6) : 0, ph.z), yaw: ph.yaw ?? 0 }];   // terrain: skids on the highest ground under them
     if (w.heliSpawns?.length) return w.heliSpawns.map((s) => ({ pos: s.pos, yaw: s.yaw ?? 0 }));
     return w.spawnPoints.map((p) => ({ pos: p, yaw: Math.random() * Math.PI * 2 }));
   }

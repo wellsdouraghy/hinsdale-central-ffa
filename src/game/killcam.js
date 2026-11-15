@@ -6,6 +6,7 @@ import { createCharacter } from '../visuals/character.js';
 import { INTERP_DELAY } from './remotePlayer.js';
 import { now as clock } from './authority.js';
 import { WEAPON_STATS } from './weapons.js';
+import { terrainActive, conformToGround, lieWeight } from './groundConform.js';
 
 const KEEP = 8;
 const LEAD = 3.6;   // seconds of replay before the kill
@@ -93,7 +94,8 @@ export class KillCam {
     const s = g.killcamRec.selfAt(rt);
     if (s) {
       this.ghost.object3D.position.fromArray(s.p);
-      this.ghost.object3D.rotation.y = s.yaw;
+      if (this.ghostDead && terrainActive()) conformToGround(this.ghost.object3D, s.yaw, lieWeight(rt - this.info.killTime));   // lies on the slope
+      else this.ghost.object3D.rotation.y = s.yaw;
       this.ghost.setState({
         speed: Math.hypot(s.v[0], s.v[2]), vx: s.v[0], vy: s.v[1], vz: s.v[2], crouching: s.c, aimPitch: s.pitch, weaponId: g.arsenal.gun?.id || 'ar',
         grounded: s.g !== false, sprinting: !!s.s, ads: s.a || 0, mode: s.m || 0, grapple: s.ga || null,

@@ -34,7 +34,7 @@ export class HeliView {
   get mine() { return this.s?.pilot === this.game.localId; }
 
   apply(s, spawned = false) {
-    const prev = this.s;
+    const prev = this.s, g0 = this.game;
     this.s = s;
     if (s.pilot !== this.game.localId && this.pilot) { this.pilot.dispose(); this.pilot = null; }
     if (!this.active) { this.vis.object3D.visible = false; this.vis.setOccupied?.(false); this.buf = []; return; }
@@ -44,7 +44,8 @@ export class HeliView {
       this.buf = [];
       this._pose(new THREE.Vector3().fromArray(s.pos), s.yaw, 0, 0);
     }
-    if (s.state === 'parked') this._pose(new THREE.Vector3().fromArray(s.pos), s.yaw, 0, 0);
+    // (terrain campuses: a helicopter parked after landing on a slope keeps the tilt it landed with)
+    if (s.state === 'parked') this._pose(new THREE.Vector3().fromArray(s.pos), s.yaw, g0.world.terrain ? s.pitch || 0 : 0, g0.world.terrain ? s.roll || 0 : 0);
     this.vis.setDamage?.(1 - s.hp / HELI_HP);
     this.vis.setOccupied?.(s.pilot !== null);
     const g = this.game;

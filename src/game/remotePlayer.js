@@ -1,6 +1,7 @@
 // A non-local player (network peer or practice dummy): interpolation buffer, third-person character, hitbox.
 import * as THREE from 'three';
 import { createCharacter } from '../visuals/character.js';
+import { terrainActive, conformToGround, lieWeight } from './groundConform.js';
 
 export const INTERP_DELAY = 0.1; // seconds of buffering for smooth playback
 
@@ -90,6 +91,7 @@ export class RemotePlayer {
 
   kill() {
     this.alive = false;
+    this.deadAt = performance.now() / 1000;
     this.character.die();
   }
 
@@ -159,7 +161,10 @@ export class RemotePlayer {
   _applyTransform() {
     const o = this.character.object3D;
     o.position.copy(this.feet);
-    o.rotation.y = this.yaw;
+    if (!terrainActive()) { o.rotation.y = this.yaw; return; }
+    // terrain: a dead body lies on the slope (the death fall pivots about the feet); upright otherwise
+    if (!this.alive && this.deadAt !== undefined) conformToGround(o, this.yaw, lieWeight(performance.now() / 1000 - this.deadAt));
+    else o.rotation.set(0, this.yaw, 0);
   }
 
   /** Interpolated historical state at sender time `ts` (kill cam), or null when outside the recorded range. */

@@ -156,8 +156,12 @@ export class HeliPilot {
     if (top < -999) { const d = hs.castWorld(_g.set(this.pos.x, this.pos.y + 2, this.pos.z), DOWN, 400); top = d ? d.point.y : 0; }
     // SKIDS order: front-left, front-right, back-left, back-right (local -z = nose).
     const fz = (h[0] + h[1]) / 2, bz = (h[2] + h[3]) / 2, lx = (h[0] + h[2]) / 2, rx = (h[1] + h[3]) / 2;
-    const ok = h.every((v) => v > -999 && Math.abs(v - top) < 1.2);
+    // terrain campuses: hillsides up to ~30 deg are landable (the skids follow the slope and the body sits on the plane
+    // through them instead of on the highest skid, which left both skids hovering); flat campuses keep the 1.2 m rule
+    const terr = !!this.game.world.terrain;
+    const ok = h.every((v) => v > -999 && Math.abs(v - top) < (terr ? 2.6 : 1.2));
     this.groundTilt = ok ? { pitch: Math.atan2(fz - bz, SKID_LEN), roll: Math.atan2(rx - lx, SKID_W) } : { pitch: 0, roll: 0 };
+    if (terr && ok) return (h[0] + h[1] + h[2] + h[3]) / 4;
     return top;
   }
 

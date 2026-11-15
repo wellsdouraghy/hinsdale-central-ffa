@@ -3,6 +3,7 @@
 import hinsdale from './hinsdale/campus.js';
 import marin from './marin/campus.js';
 import hamilton from './hamilton/campus.js';
+import terraintest from './terraintest.js';
 
 // Campuses still in review are only listed on the local dev server or with ?preview (until they pass QA).
 const IN_REVIEW = new Set(['hamilton']);
@@ -10,8 +11,11 @@ const PREVIEW = import.meta.env.DEV || (typeof location !== 'undefined' && new U
 export const CAMPUSES = [hinsdale, marin, hamilton].filter((c) => PREVIEW || !IN_REVIEW.has(c.id));
 export const DEFAULT_CAMPUS = 'hinsdale';
 
+// Dev-only campuses: reachable by id (?campus=terraintest, ?terrainTest=1, a host's room), never listed in the picker.
+const HIDDEN = [terraintest];
+
 export function getCampus(id) {
-  return CAMPUSES.find((c) => c.id === id) || CAMPUSES.find((c) => c.id === DEFAULT_CAMPUS);
+  return CAMPUSES.find((c) => c.id === id) || HIDDEN.find((c) => c.id === id) || CAMPUSES.find((c) => c.id === DEFAULT_CAMPUS);
 }
 
 let active = getCampus(DEFAULT_CAMPUS);

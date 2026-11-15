@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { createFinisher, clearSpot } from '../visuals/finishers.js';
 import { createCharacter } from '../visuals/character.js';
 import { now as clock } from './authority.js';
+import { terrainActive, slopeTilt, groundAt } from './groundConform.js';
 
 const BLEND_IN = 0.45, BLEND_OUT = 0.35;
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _dir = new THREE.Vector3(), _g = new THREE.Vector3();
@@ -16,6 +17,7 @@ const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
 // Fallbacks for an audio module without finisher(type, pos, intensity).
 const OLD_SOUND = { whoosh: 'melee', impact: 'impact', heavy: 'impact', crack: 'impact', land: 'impact', slam: 'thud', stab: 'stab', slash: 'stab' };
 const _look = new THREE.PerspectiveCamera();   // cameras look down -z (Object3D.lookAt would face +z)
+const _tq = new THREE.Quaternion(), _sn = new THREE.Vector3();
 
 export class FinisherView {
   constructor(game) {
@@ -91,17 +93,35 @@ export class FinisherView {
     for (const s of [...this.scenes]) {
       const lt = t - s.t0;
       s.f.update(lt);
+      const dyA = terrainActive() ? this._conform(s) : 0;
       if (s.A.local) s.A.character.update(dt);
       if (s.V.local) s.V.character.update(dt);
       // Keep hitboxes / minimap / audio on the puppets.
       const hips = s.f.bonePosition('Hips', _a, 'attacker');
-      if (s.A.remote) s.A.remote.feet.set(hips.x, s.origin.y, hips.z);
-      if (s.A.local) { g.player.position.set(hips.x, s.origin.y, hips.z); g.player.velocity.set(0, 0, 0); }
+      if (s.A.remote) s.A.remote.feet.set(hips.x, s.origin.y + dyA, hips.z);
+      if (s.A.local) { g.player.position.set(hips.x, s.origin.y + dyA, hips.z); g.player.velocity.set(0, 0, 0); }
       if (s.V.remote) s.V.remote.feet.copy(s.origin);
       // Sound / blood events.
       while (s.ev < s.f.events.length && lt >= s.f.events[s.ev].t) this._event(s, s.f.events[s.ev++]);
       if (lt >= s.dur) this._end(s, false);
     }
+  }
+
+  /**
+   * Terrain: the scene is authored on level ground at the victim's feet. On a slope (the host allows up to ~18 degrees)
+   * the victim's root is tilted onto the slope plane as the body goes down (rotation about the origin, which lies on the
+   * ground, maps the scene's floor onto the slope), and the attacker is raised / lowered to the slope under their hips.
+   * Returns the attacker's height offset. Called after every f.update (which resets both roots).
+   */
+  _conform(s, lie = null) {
+    const o = s.origin, n = this.game.world.groundNormal(o.x, o.z, _sn);
+    if (n.y > 0.9995) return 0;
+    const dy = (x, z) => -(n.x * (x - o.x) + n.z * (z - o.z)) / n.y;
+    if (lie === null) { const hv = s.f.bonePosition('Hips', _b, 'victim'); const k = Math.max(0, Math.min(1, (0.85 - (hv.y - o.y)) / 0.5)); lie = k * k * (3 - 2 * k); }
+    if (lie > 0) s.V.character.object3D.quaternion.premultiply(slopeTilt(o.x, o.z, lie, _tq));
+    const ha = s.f.bonePosition('Hips', _b, 'attacker'); const d = dy(ha.x, ha.z);
+    s.A.character.object3D.position.y += d;
+    return d;
   }
 
   _sound(type, pos, intensity) {
@@ -112,7 +132,8 @@ export class FinisherView {
 
   /** Ground point under `p` and its surface type. */
   _ground(s, p) {
-    const h = this.game.hitscan.castWorld(_g.set(p.x, s.origin.y + 0.8, p.z), DOWN, 2);
+    const top = terrainActive() ? Math.max(s.origin.y, p.y, groundAt(p.x, p.z)) : s.origin.y;
+    const h = this.game.hitscan.castWorld(_g.set(p.x, top + 0.8, p.z), DOWN, terrainActive() ? 3 : 2);
     return { point: new THREE.Vector3(p.x, h ? h.point.y : s.origin.y, p.z), surface: h?.surface || 'dirt' };
   }
 
@@ -144,6 +165,7 @@ export class FinisherView {
     s.ended = true;
     const g = this.game;
     s.f.finish();
+    if (terrainActive() && s.V.local) this._conform(s, 1);   // finish() re-posed the scene on level ground: lay our body on the slope again
     this.scenes.splice(this.scenes.indexOf(s), 1);
     if (s.A.remote) s.A.remote.puppeted = false;
     if (s.V.remote) s.V.remote.puppeted = false;
@@ -153,7 +175,8 @@ export class FinisherView {
       this.blendOut = { t0: clock(), pos: cam.position.clone(), quat: cam.quaternion.clone(), fov: cam.fov };
       if (!cancelled && g.alive) {
         const end = s.f.attackerEnd;
-        g.player.teleport(clearSpot(g.hitscan.castWorld, s.origin, end.position).setY(s.origin.y + 0.05), end.yaw);
+        const spot = clearSpot(g.hitscan.castWorld, s.origin, end.position);
+        g.player.teleport(spot.setY((terrainActive() ? g.world.terrain.standY(spot.x, spot.z) : s.origin.y) + 0.05), end.yaw);
         g.player.pitch = -0.1;
         g.arsenal.viewmodel?.equip?.();
         g.stateTimer = 1;   // send the new position right away
@@ -202,7 +225,8 @@ export class FinisherView {
         const hit = g.hitscan.castWorld(c.target, _dir, len + 0.5);
         if (hit) c.pos.copy(c.target).addScaledVector(_dir, Math.max(0.45, hit.distance - 0.5));
       }
-      if (c.pos.y < s.origin.y + 0.2) c.pos.y = s.origin.y + 0.2;
+      const floor = terrainActive() ? Math.max(s.origin.y - 1, groundAt(c.pos.x, c.pos.z)) + 0.2 : s.origin.y + 0.2;
+      if (c.pos.y < floor) c.pos.y = floor;
       _look.position.copy(c.pos);
       _look.lookAt(c.target);
       if (c.roll) _look.rotateZ(c.roll);

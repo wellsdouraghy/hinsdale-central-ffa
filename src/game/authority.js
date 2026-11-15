@@ -372,13 +372,18 @@ export class Authority {
     if (this.finishers.has(a.id)) return null;
     const hs = this.bots.hitscan;
     const o = new THREE.Vector3().fromArray(v.pos);
-    const ground = (x, z) => { const h = hs.castWorld(_fq.set(x, o.y + 1.2, z), _DOWN, 3); return h ? h.point.y : null; };
+    // terrain campuses: a scene may play on a gentle, even hillside (<= ~18 deg; FinisherView lays it onto the slope), so
+    // "level" below means "on the slope plane through the victim's feet" (sp = 0 on flat campuses: unchanged)
+    const T = this.world.terrain, sn = T ? T.normalAt(o.x, o.z) : null;
+    if (T && T.slopeAt(o.x, o.z) > 0.32) return null;
+    const sp = (x, z) => (sn ? -(sn.x * (x - o.x) + sn.z * (z - o.z)) / sn.y : 0);
+    const ground = (x, z) => { const h = hs.castWorld(_fq.set(x, o.y + 1.2 + Math.max(0, sp(x, z)), z), _DOWN, 3 + Math.abs(sp(x, z))); return h ? h.point.y : null; };
     const g0 = ground(o.x, o.z);
     if (g0 === null || Math.abs(o.y - g0) > 0.45) return null;               // airborne / on a ladder
     for (let i = 0; i < 6; i++) {
-      const ang = (i / 6) * Math.PI * 2;
-      const gy = ground(o.x + Math.cos(ang) * 1.2, o.z + Math.sin(ang) * 1.2);
-      if (gy === null || Math.abs(gy - g0) > 0.4) return null;                // edge / steps / slope
+      const ang = (i / 6) * Math.PI * 2, x = o.x + Math.cos(ang) * 1.2, z = o.z + Math.sin(ang) * 1.2;
+      const gy = ground(x, z);
+      if (gy === null || Math.abs(gy - g0 - sp(x, z)) > 0.4) return null;   // edge / steps / slope
     }
     o.y = g0;
     const free = (r, hgt) => {
@@ -386,9 +391,12 @@ export class Authority {
       for (let i = 0; i < 8; i++) {
         const ang = (i / 8) * Math.PI * 2;
         _fd.set(Math.cos(ang), 0, Math.sin(ang));
-        for (const y of [0.5, 1.3]) if (hs.castWorld(_fq.set(o.x, o.y + y, o.z), _fd, r)) return false;
-        const gy = ground(o.x + _fd.x * r * 0.8, o.z + _fd.z * r * 0.8);          // level ground where the bodies end up
-        if (gy === null || Math.abs(gy - g0) > 0.4) return false;
+        if (sn) {   // terrain: knee / chest rays run parallel to the slope
+          const rise = sp(o.x + _fd.x, o.z + _fd.z), L = Math.hypot(1, rise), dir = new THREE.Vector3(_fd.x / L, rise / L, _fd.z / L);
+          for (const y of [0.5, 1.3]) if (hs.castWorld(_fq.set(o.x, o.y + y, o.z), dir, r * L)) return false;
+        } else for (const y of [0.5, 1.3]) if (hs.castWorld(_fq.set(o.x, o.y + y, o.z), _fd, r)) return false;
+        const gx = o.x + _fd.x * r * 0.8, gz = o.z + _fd.z * r * 0.8, gy = ground(gx, gz);   // level ground where the bodies end up
+        if (gy === null || Math.abs(gy - g0 - sp(gx, gz)) > 0.4) return false;
       }
       return true;
     };
@@ -399,7 +407,8 @@ export class Authority {
     const yaw = Math.hypot(dx, dz) > 0.05 ? Math.atan2(-dx, -dz) : 0;
     const fin = createFinisher({ id: pick.id, attacker: _NO_CHAR, victim: _NO_CHAR });   // only for attackerEnd
     fin.setOrigin(o, yaw);
-    this.finishers.set(a.id, { attacker: a.id, victim: v.id, until: now() + pick.duration, end: clearSpot(hs.castWorld, o, fin.attackerEnd.position), endYaw: fin.attackerEnd.yaw });
+    const end = clearSpot(hs.castWorld, o, fin.attackerEnd.position); if (T) end.y = T.standY(end.x, end.z) + 0.05;
+    this.finishers.set(a.id, { attacker: a.id, victim: v.id, until: now() + pick.duration, end, endYaw: fin.attackerEnd.yaw });
     a.protectUntil = 0;
     this.out({ t: 'finisher', id: pick.id, attacker: a.id, victim: v.id, origin: [r2(o.x), r2(o.y), r2(o.z)], yaw: Math.round(yaw * 1000) / 1000, dur: pick.duration });
     return pick;

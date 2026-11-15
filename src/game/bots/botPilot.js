@@ -221,8 +221,11 @@ export class BotPilot {
     const fwdSpeed = this.vel.x * -Math.sin(this.yaw) + this.vel.z * -Math.cos(this.yaw);
     const sideSpeed = this.vel.x * Math.cos(this.yaw) - this.vel.z * Math.sin(this.yaw);
     const kt = 1 - Math.exp(-3 * dt);
-    this.tilt.pitch += ((this.grounded ? 0 : -fwdSpeed / BOOST_SPEED * 0.35) - this.tilt.pitch) * kt;
-    this.tilt.roll += ((this.grounded ? 0 : -sideSpeed / MAX_SPEED * 0.4 - this.yawRate * 0.12) - this.tilt.roll) * kt;
+    // (terrain campuses: landed on a slope, the airframe lies on it)
+    const T = this.auth.world.terrain, n = T && this.grounded ? T.normalAt(this.pos.x, this.pos.z) : null;
+    const gp = n ? Math.atan((n.x * Math.sin(this.yaw) + n.z * Math.cos(this.yaw)) / n.y) : 0, gr = n ? Math.atan(-(n.x * Math.cos(this.yaw) - n.z * Math.sin(this.yaw)) / n.y) : 0;
+    this.tilt.pitch += ((this.grounded ? gp : -fwdSpeed / BOOST_SPEED * 0.35) - this.tilt.pitch) * kt;
+    this.tilt.roll += ((this.grounded ? gr : -sideSpeed / MAX_SPEED * 0.4 - this.yawRate * 0.12) - this.tilt.roll) * kt;
 
     // Keep the on-foot controller with us (hearing distances, respawn bookkeeping).
     this.brain.ctrl.position.set(this.pos.x, this.pos.y + 0.6, this.pos.z);

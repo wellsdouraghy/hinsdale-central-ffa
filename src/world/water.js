@@ -14,7 +14,8 @@
 //     outline: [[x, z], ...]            // any simple polygon, or
 //     rect: { cx, cz, w, d, angle },    // rectangle: w along the local x axis rotated by `angle` (rad, atan2(z, x)), d across
 //     kind: 'pool' | 'pond' | 'fountain',
-//     level: 0.05,                      // y of the visible surface (keep it just above the ground plane)
+//     level: 0.05,                      // y of the visible surface (keep it just above the ground plane; on terrain campuses
+//                                       // it is above the mean ground under the outline unless `absolute: true`)
 //     depth: [shallow, deep] | number,  // metres (visual only)
 //     deepEnd: 1 | -1,                  // which end of the long axis is deep (rect pools)
 //     lanes: { count, along: 'long' | 'short' } | true,   // competition lane lines + ropes (rect pools)
@@ -146,7 +147,8 @@ let sharedTime = null;
 
 export function addWater(ctx, opts = {}) {
   const kind = KIND[opts.kind] === undefined ? 'pool' : opts.kind; const D = DEFAULTS[kind];
-  const level = opts.level === undefined ? 0.05 : opts.level;
+  let level = opts.level === undefined ? 0.05 : opts.level;
+  let base = 0;   // terrain campuses: `level` is above the ground under the water (flatten it first); `absolute: true` = world y (sea, bay)
   const depth = Array.isArray(opts.depth) ? opts.depth : opts.depth ? [opts.depth, opts.depth] : D.depth;
   // ---- outline + local frame
   let ring, isRect = false, L = 1, W = 1, axisU = [1, 0], axisV = [0, 1], org = [0, 0];
@@ -165,6 +167,7 @@ export function addWater(ctx, opts = {}) {
       }
     }
   }
+  if (ctx.terrain && !opts.absolute) { base = ctx.terrain.footprint(ring).mean; level += base; }
   const basin = kind !== 'pond';
   // free-form basins (round fountains...): no walls / lanes, floor pattern in world metres
   if (basin && !isRect) { org = [-1e4, -1e4]; L = W = 2e4; axisU = [1, 0]; axisV = [0, 1]; }
@@ -250,7 +253,7 @@ export function addWater(ctx, opts = {}) {
       const u = per === 1 ? L * 0.5 : L * (0.12 + 0.76 * i / (per - 1)); const v = s ? W : 0, out = s ? 1 : -1;
       for (const du of [-0.24, 0.24]) {
         const p0 = toWorld(u + du, v - out * 0.22), p1 = toWorld(u + du, v + out * 0.5); const top = level + 0.95;
-        al.tube([p0[0], level - 0.02, p0[1]], [p0[0], top, p0[1]], 0.022, 6).tube([p0[0], top, p0[1]], [p1[0], top, p1[1]], 0.022, 6).tube([p1[0], top, p1[1]], [p1[0], 0.02, p1[1]], 0.022, 6);
+        al.tube([p0[0], level - 0.02, p0[1]], [p0[0], top, p0[1]], 0.022, 6).tube([p0[0], top, p0[1]], [p1[0], top, p1[1]], 0.022, 6).tube([p1[0], top, p1[1]], [p1[0], base + 0.02, p1[1]], 0.022, 6);
       }
     }
   }

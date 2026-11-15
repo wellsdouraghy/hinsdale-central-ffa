@@ -21,6 +21,7 @@ import { MAP_ALLY, MAP_ENEMY } from '../ui/minimap.js';
 import { every } from '../net/ticker.js';
 import { KillCamRecorder, KillCam } from './killcam.js';
 import { HeliView } from './heliView.js';
+import { setConformWorld } from './groundConform.js';
 
 const LOCAL_FOOTSTEPS = false;   // the player never hears their own footsteps
 
@@ -62,6 +63,7 @@ export class Game {
     this.strikeView = new StrikeView(this);
     this.laptop = new StrikeLaptop(this);
     this.fin = new FinisherView(this);
+    setConformWorld(world);   // bodies lie on terrain slopes (groundConform.js; no-op on flat campuses)
     this.killcamRec = new KillCamRecorder();
     this.killcam = null;
     this.deathFlow = null;     // { phase: 'pre'|'killcam'|'screen'|'waiting', t, until }

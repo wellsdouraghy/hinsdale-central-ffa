@@ -81,9 +81,9 @@ What each check does (and what to fix when it fails):
 4b. **terrain** (campuses with a descriptor `terrain` only; flat campuses report `skip`). Every ground / roof / spawn /
    heli / nav threshold of the other checks is measured from `world.groundY` there, so a hill is not a "roof".
    (a) Slope pockets: terrain samples every 2.5 m that are steeper than the walk limit, or on hilly ground (> 0.5 m
-   relief within 6 m) without a nav connection, are clustered (4 m); from up to 3 starts per cluster the real
+   relief within 6 m) without a nav connection, are clustered (4 m); from the 3 lowest starts of each cluster the real
    controller (stuck net off) must reach walkable, nav-connected ground with walk + jump + double jump (16 directions x
-   6 s). None escapes = **unwalkable slope pocket** (fail): a hollow ringed by slopes too steep to climb. Fix by easing
+   6 s). One that cannot = **unwalkable slope pocket** (fail): a hollow ringed by slopes too steep to climb. Fix by easing
    a slope (`ctx.flatten` with a ramp `y` function), a ramp / steps with collision, or filling the hollow.
    (b) Props on slopes: each registered prop's base against the ground under its footprint corners + centre: floating
    > 12 cm fails; ground above the base by > 50 % of the prop's height fails (> 30 % warns). Place props with

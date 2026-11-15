@@ -5,6 +5,9 @@ import { applyBakedShadow } from './sky.js';
 import { onCampusChange } from '../campuses/index.js';
 
 /** World extent of the active campus's satellite / ground images (updated in place when the campus changes). */
+/** Extra render layer of the terrain ground mesh: the baked shadow mask camera draws only this layer on terrain campuses. */
+export const GROUND_BAKE_LAYER = 7;
+
 export const SAT = { minX: -394.85, maxX: 394.85, minZ: -305.44, maxZ: 305.44 };
 onCampusChange((c) => Object.assign(SAT, c.sat));
 
@@ -52,7 +55,7 @@ function softGroundTexture(macroImg, maskImg) {
 //   asphaltDeblur: 0..1   up close, replace the smeared satellite paint/car remnants on asphalt with a low-pass tone
 //   canopy: { y, inset }  a flat "tree canopy" shelf at crown height around the satellite rectangle, so from the air the
 //                         woods carry on to the horizon instead of ending in a cliff over a flat lawn (visual only)
-export function createGround({ scene, textures, shadowUniforms, quality, opts = {}, roads = null }) {
+export function createGround({ scene, textures, shadowUniforms, quality, opts = {}, roads = null, terrain = null }) {
   const T = textures;
   const deblur = Math.max(0, Math.min(1, +opts.asphaltDeblur || 0));
   const w = SAT.maxX - SAT.minX, h = SAT.maxZ - SAT.minZ;
@@ -68,6 +71,11 @@ export function createGround({ scene, textures, shadowUniforms, quality, opts = 
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, metalness: 0 });
   const extra = (shader) => {
     Object.assign(shader.uniforms, uniforms);
+    if (terrain) {
+      shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vTerrN;')
+        .replace('#include <project_vertex>', '#include <project_vertex>\nvTerrN = normal;');
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vTerrN;');
+    }
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
 uniform sampler2D uMacro, uMask, uGrassC, uGrassN, uAsphC, uAsphN, uConcC, uConcN;
@@ -130,20 +138,29 @@ float gNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 *
   vec3 gN = nG * vec3(1.3, 1.3, 1.0) * wG + nA * vec3(0.8, 0.8, 1.0) * wA + nC * vec3(0.5, 0.5, 1.0) * wC + nS * vec3(0.5, 0.5, 1.0) * wS + nC * vec3(0.9, 0.9, 1.0) * wD;
   gN.xy *= mix(0.25, 1.0, midW);
   gN.xy += vec2(joint * sign(fract(vWPos.x / 1.524) - 0.5), joint * sign(fract(vWPos.z / 1.524) - 0.5)) * 0.4 * wC;
+#ifdef GROUND_TERRAIN
+  // detail normal in the tangent frame of the terrain surface (T ~ +x, B ~ +z, N = the mesh normal)
+  vec3 tN = normalize(vTerrN); vec3 tT = normalize(vec3(tN.y, -tN.x, 0.0)); vec3 tB = cross(tT, tN);
+  vec3 gNormalW = normalize(tT * gN.x + tB * gN.y + tN * gN.z);
+#else
   vec3 gNormalW = normalize(vec3(gN.x, gN.z, gN.y));
+#endif
   float gRough = 0.93 * wG + 0.86 * wA + 0.8 * wC + 0.88 * wS + 0.95 * wD;
 `)
       .replace('#include <roughnessmap_fragment>', 'float roughnessFactor = gRough;')
       .replace('#include <normal_fragment_maps>', 'normal = normalize((viewMatrix * vec4(gNormalW, 0.0)).xyz);');
   };
-  extra.key = 'ground' + (deblur ? ':deblur' + deblur.toFixed(2) : '');
+  extra.key = 'ground' + (deblur ? ':deblur' + deblur.toFixed(2) : '') + (terrain ? ':terrain' : '');
   if (deblur) mat.defines = { ...(mat.defines || {}), GROUND_ASPHALT_DEBLUR: deblur.toFixed(3) };
+  if (terrain) mat.defines = { ...(mat.defines || {}), GROUND_TERRAIN: '' };
   applyBakedShadow(mat, shadowUniforms, extra);
 
-  const geo = new THREE.PlaneGeometry(w, h, 1, 1).rotateX(-Math.PI / 2);
-  geo.translate((SAT.minX + SAT.maxX) / 2, 0, (SAT.minZ + SAT.maxZ) / 2);
+  let geo;
+  if (terrain) geo = terrain.groundGeometry();   // displaced lattice (src/world/terrain.js); the shader only reads xz, so the photo lines up
+  else { geo = new THREE.PlaneGeometry(w, h, 1, 1).rotateX(-Math.PI / 2); geo.translate((SAT.minX + SAT.maxX) / 2, 0, (SAT.minZ + SAT.maxZ) / 2); }
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true; mesh.name = 'ground'; mesh.matrixAutoUpdate = false;
+  if (terrain) mesh.layers.enable(GROUND_BAKE_LAYER);   // the baked shadow mask is rendered from this mesh alone (sky.js)
   scene.add(mesh);
 
   // far skirt so the horizon is never empty (fog blends it into the sky)

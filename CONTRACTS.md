@@ -10,7 +10,8 @@ exported interface exactly (you may add extra optional fields/methods). If you n
 optional addition and note it at the bottom of this file under "Change log".
 
 ## Coordinate frame (shared by everyone)
-- Meters. `+x` = east, `+z` = south (so north is `-z`), `+y` = up. Ground is approximately `y = 0` (the campus is flat).
+- Meters. `+x` = east, `+z` = south (so north is `-z`), `+y` = up. Ground is approximately `y = 0` (the campus is flat), except on
+  campuses with a descriptor `terrain` (see CAMPUSES.md "Terrain"): there use `world.groundY(x, z)`.
 - Origin = center of the satellite image, lat 41.78725, lon -87.93375. See `public/data/campus.json` (fetch as `./data/campus.json`) -> `frame`.
 - `public/data/campus.json` (fetch as `./data/campus.json`): OpenStreetMap features already converted to this frame (`buildings`, `roads`, `areas`, `points`;
   polygons are `outer: [[[x,z],...]], inner: [...]`, lines are `line: [[x,z],...]`). Main school building is relation
@@ -355,3 +356,11 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
     eye at `adsFov` with `KillCam.scoped = true`, which `_updateHud` uses to show the `#scope` overlay (kept visible by
     the `#hud.killcam-on` rule). The recorder also stores our own velocity / ads / mode / grapple for the victim ghost.
   - `dev/anim.html`: motion harness (scripted `st` samples -> RemotePlayer, fixed follow camera, contact sheets).
+- (Terrain round) Optional real ground heights per campus (`src/world/terrain.js`, CAMPUSES.md "Terrain"). World additions:
+  `groundY(x, z)` returns the terrain height (bilinear; 0 on flat campuses, unchanged), `terrain` (null when flat; `heightAt,
+  normalAt, slopeAt, minIn, maxIn, standY, footprint`), `groundNormal(x, z, out)`; `navGrid.steepCells` on terrain campuses;
+  heli spots / spawns / CTF points carry their ground y. Builder ctx: `terrain, groundY, flatten, onGround, plinth, drape`;
+  `Builder.off.y` (vertex offset used by `onGround`); `registerProp` records `y`. Gameplay: slope rules in the controller
+  (terrain only), dead bodies / finisher victims lie on the slope (`src/game/groundConform.js`), finishers allowed on even
+  slopes <= ~18 deg, fall-out thresholds relative to the ground. Flat campuses are byte-identical (same spawns, nav,
+  collision and visual geometry). Dev: `?terrainTest=1` / `?campus=terraintest`; map check `terrain` check.

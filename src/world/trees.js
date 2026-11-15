@@ -167,7 +167,7 @@ function makeConifer(seed, o) {
 
 // ---------------------------------------------------------------------------------- main
 export function createTrees(ctx) {
-  const { T, gen, quality, scene, B } = ctx; const pb = ctx.playBounds;
+  const { T, gen, quality, scene, B } = ctx; const pb = ctx.playBounds; const terrain = ctx.terrain || null;
   const aniso = T.aniso;
   const leafTexA = leafClusterTexture(T.leafBroad, 3, aniso), leafTexB = leafClusterTexture(T.leafBroad, 9, aniso), conTex = coniferCardTexture(T.leafConifer, 5, aniso);
   const mkLeaf = (map, tint) => {
@@ -247,7 +247,9 @@ export function createTrees(ctx) {
   const group = new THREE.Group(); group.name = 'trees'; scene.add(group);
   const dummy = new THREE.Object3D(); const col = new THREE.Color();
   for (const t of gen.trees) {
-    const [x, z, kind, s, ty = 0] = t;   // optional 5th value: base height (terrain backdrops); default ground level
+    // optional 5th value: base height (terrain backdrops); default ground level (terrain campuses: the lowest ground
+    // under the trunk, so the root flare never floats on a slope)
+    const [x, z, kind, s] = t; const ty = t.length > 4 ? t[4] : terrain ? terrain.minIn(x, z, 0.5) : 0;
     let vi;
     if (kind === 1) vi = 3; else { const r = rnd(); vi = s < 0.82 && r < 0.5 ? 4 : r < 0.42 ? 0 : r < 0.78 ? 1 : 2; }
     const key = Math.floor(x / CHUNK) + ':' + Math.floor(z / CHUNK);
@@ -258,7 +260,8 @@ export function createTrees(ctx) {
     // trunk collision near the play area
     if (x > pb.minX - 25 && x < pb.maxX + 25 && z > pb.minZ - 25 && z < pb.maxZ + 25) {
       const tr = variants[vi].trunkR * sc * 1.05;
-      B.c('wood').cyl(x, 0, z, tr, tr * 0.8, vi === 3 ? 9 : 4.5, 7, 1, true);
+      if (terrain) B.c('wood').cyl(x, ty - 0.3, z, tr, tr * 0.8, (vi === 3 ? 9 : 4.5) + 0.3 + Math.max(0, terrain.maxIn(x, z, tr) - ty), 7, 1, true);
+      else B.c('wood').cyl(x, 0, z, tr, tr * 0.8, vi === 3 ? 9 : 4.5, 7, 1, true);
       (ctx.trunks || (ctx.trunks = [])).push([x, z, tr]);   // map check: prop vs trunk overlaps
     }
   }

@@ -4,7 +4,8 @@ import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-
 import { Builder } from './util.js';
 import { loadTextures, createMaterials } from './assets.js';
 import { createSky, sunDirection, applyBakedShadow } from './sky.js';
-import { createGround, SAT } from './ground.js';
+import { createGround, SAT, GROUND_BAKE_LAYER } from './ground.js';
+import { createTerrain, installBuilderHelpers } from './terrain.js';
 import { createPost } from './post.js';
 import { createTrees } from './trees.js';
 import { createGrass } from './grass.js';
@@ -89,11 +90,17 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   }
 
   progress(0.42, 'Building terrain');
-  const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality, opts: campus.ground, roads: data.roads });
+  // optional real ground heights (descriptor `terrain`, src/world/terrain.js); null = flat at y = 0 (unchanged behaviour)
+  const terrain = await createTerrain(campus, { sat: { ...SAT }, playBounds: campus.playBounds });
+  const groundY = terrain ? terrain.heightAt : () => 0;
+  const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality, opts: campus.ground, roads: data.roads, terrain });
   const ctx = { campus, data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: { ...campus.playBounds }, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
+  installBuilderHelpers(ctx, terrain);   // ctx.terrain / groundY / flatten / onGround / plinth / drape (CAMPUSES.md "Terrain")
 
   progress(0.48, 'Building campus'); await tick();
   await builder.build(ctx, progress);
+  // the builder may have flattened pads: re-displace the ground mesh to the final heights
+  if (terrain && ground.mesh.geometry.userData.terrainVersion !== terrain.version) terrain.refreshGeometry(ground.mesh.geometry);
 
   // merge the static geometry: one mesh per material
   progress(0.76, 'Merging geometry'); await tick();
@@ -129,14 +136,17 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   progress(0.93, 'Baking shadows'); await tick();
   scene.updateMatrixWorld(true);
   trees.setForceFull(true, camera);
-  sky.bakeShadowMask({ minX: SAT.minX, maxX: SAT.maxX, minZ: SAT.minZ, maxZ: SAT.maxZ });
+  sky.bakeShadowMask({ minX: SAT.minX, maxX: SAT.maxX, minZ: SAT.minZ, maxZ: SAT.maxZ }, terrain ? { layer: GROUND_BAKE_LAYER, minY: terrain.minY, maxY: terrain.maxY } : null);
   trees.setForceFull(false, camera);
 
   // (Google 3D Tiles are used only offline, as a reference for building the campuses: no runtime streaming.)
   const attributionHTML = BASE_ATTRIBUTION;
   const world = {
     collisionMeshes,
-    groundY: () => 0,
+    groundY,
+    // terrain campuses: { heightAt, normalAt, slopeAt, minIn, maxIn, standY, footprint, ... } (src/world/terrain.js); null when flat
+    terrain,
+    groundNormal: (x, z, out = new THREE.Vector3()) => (terrain ? terrain.normalAt(x, z, out) : out.set(0, 1, 0)),
     spawnPoints,
     ctfBases,
     navGrid: nav.grid,
@@ -162,7 +172,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
       const c = cam || camera;
       sky.update(c);
       trees.update(c, dt);
-      if (grass) grass.update(c, dt);
+      if (grass) grass.update(c, dt, groundY);
       for (const u of ctx.updaters) u(dt, c);
     },
     render(overlayScene, overlayCamera) { post.render(overlayScene, overlayCamera); },

@@ -35,7 +35,10 @@ export function createGrass(ctx) {
     uMask: { value: T.groundMask }, uMacro: { value: T.groundMacro },
     uSatRect: { value: new THREE.Vector4(SAT.minX, SAT.minZ, 1 / (SAT.maxX - SAT.minX), 1 / (SAT.maxZ - SAT.minZ)) },
   };
+  const terrain = ctx.terrain || null;   // terrain campuses: tufts stand on the height lattice (texelFetch + bilinear)
+  if (terrain) Object.assign(uniforms, { uTerr: { value: terrain.texture() }, uTerrO: { value: new THREE.Vector2(terrain.x0, terrain.z0) }, uTerrInv: { value: 1 / terrain.cell }, uTerrN: { value: new THREE.Vector2(terrain.nx, terrain.nz) } });
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0, side: THREE.DoubleSide });
+  if (terrain) { mat.defines = { GRASS_TERRAIN: '' }; mat.customProgramCacheKey = () => 'grass-terrain'; }
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uniforms);
     sh.vertexShader = sh.vertexShader
@@ -43,7 +46,13 @@ export function createGrass(ctx) {
 attribute vec2 aRoot; attribute vec2 aMisc;
 uniform vec3 uCam; uniform float uTime; uniform float uD; uniform sampler2D uMask; uniform sampler2D uMacro; uniform vec4 uSatRect;
 uniform vec4 uNoGrass[${NG}]; uniform float uNoGrassR[${NG}];
-varying vec3 vGrassCol;`)
+varying vec3 vGrassCol;
+#ifdef GRASS_TERRAIN
+uniform highp sampler2D uTerr; uniform vec2 uTerrO; uniform float uTerrInv; uniform vec2 uTerrN;
+float terrainH(vec2 p) { vec2 g = clamp((p - uTerrO) * uTerrInv, vec2(0.0), uTerrN - 1.001); ivec2 i = ivec2(floor(g)); vec2 f = g - vec2(i);
+  float a = texelFetch(uTerr, i, 0).r, b = texelFetch(uTerr, i + ivec2(1, 0), 0).r, c = texelFetch(uTerr, i + ivec2(0, 1), 0).r, d = texelFetch(uTerr, i + ivec2(1, 1), 0).r;
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
+#endif`)
       .replace('#include <beginnormal_vertex>', 'vec3 objectNormal = vec3(0.0, 1.0, 0.0);')
       .replace('#include <begin_vertex>', `
   vec2 rw = mod(aRoot - uCam.xz + uD * 0.5, uD) - uD * 0.5 + uCam.xz;
@@ -60,6 +69,9 @@ varying vec3 vGrassCol;`)
   float tip = aMisc.x;
   transformed.xz += tip * grow * 0.02 * vec2(sin(uTime * 1.7 + rw.x * 0.9 + aMisc.y * 6.0), cos(uTime * 1.3 + rw.y * 0.8));
   transformed.x += rw.x; transformed.z += rw.y;
+#ifdef GRASS_TERRAIN
+  transformed.y += terrainH(rw);
+#endif
   vec3 mc = texture2D(uMacro, guv).rgb;
   vGrassCol = mc * mix(0.8, 1.12, tip) * (0.9 + 0.2 * aMisc.y);`);
     sh.fragmentShader = sh.fragmentShader
@@ -72,6 +84,6 @@ varying vec3 vGrassCol;`)
   scene.add(mesh);
   return {
     mesh,
-    update(camera, dt) { uniforms.uCam.value.copy(camera.position); uniforms.uTime.value += dt || 0; mesh.visible = camera.position.y < 12; },
+    update(camera, dt, groundY) { uniforms.uCam.value.copy(camera.position); uniforms.uTime.value += dt || 0; mesh.visible = camera.position.y - (terrain && groundY ? groundY(camera.position.x, camera.position.z) : 0) < 12; },
   };
 }

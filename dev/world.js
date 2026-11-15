@@ -3,6 +3,7 @@
 // WASD + mouse (click to lock), Space/C up/down, Shift fast. Exposes window.__world, __camera, __scene, __renderer.
 import * as THREE from 'three';
 import { createWorld } from '../src/world/index.js';
+import { getCampus } from '../src/campuses/index.js';
 
 const qs = new URLSearchParams(location.search);
 const quality = qs.get('q') || 'high';
@@ -25,7 +26,7 @@ window.__setCam = setCam;
 
 const loadEl = document.getElementById('load');
 const world = await createWorld({
-  renderer, scene, camera,
+  renderer, scene, camera, ...(qs.get('campus') ? { campus: getCampus(qs.get('campus')) } : {}),   // ?campus=<id> (e.g. terraintest)
   settings: { quality, googleTilesKey: qs.get('gkey') || (qs.get('tiles') === '1' ? import.meta.env.VITE_GOOGLE_TILES_KEY : null) || null },
   onProgress: (f, label) => { loadEl.textContent = `${Math.round(f * 100)}% ${label}`; },
 });

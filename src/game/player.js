@@ -1,5 +1,6 @@
 // First-person capsule character controller colliding with world.collisionMeshes via three-mesh-bvh shapecast.
 import * as THREE from 'three';
+import { WALK_NORMAL_Y } from '../world/terrain.js';
 
 export const RADIUS = 0.35;
 export const STAND = { height: 1.8, eye: 1.65 };
@@ -46,6 +47,8 @@ const _b = new THREE.Vector3();
 const _m1 = new THREE.Vector3();
 const _m2 = new THREE.Vector3();
 const _down = new THREE.Vector3(0, -1, 0);
+const _n = new THREE.Vector3();
+const _sn = new THREE.Vector3();
 
 export class PlayerController {
   constructor(world) {
@@ -241,6 +244,14 @@ export class PlayerController {
     else if (this.crouching) speed = SPEED.crouch;
     speed = THREE.MathUtils.lerp(speed, Math.min(speed, SPEED.ads), ads);
     speed *= moveMult;
+    // Terrain: walking uphill is slower (about 0.78x on a 30 degree hill, 0.7x at the 45 degree limit); downhill is not faster.
+    const terr = this.world.terrain;
+    if (terr && this.grounded && _wish.lengthSq() > 0.01 && this.position.y - terr.heightAt(this.position.x, this.position.z) < 0.3) {
+      terr.normalAt(this.position.x, this.position.z, _n);
+      const wl = Math.sqrt(_wish.x * _wish.x + _wish.z * _wish.z);
+      const rise = -(_n.x * _wish.x + _n.z * _wish.z) / (wl * Math.max(0.3, _n.y));
+      if (rise > 0) speed /= 1 + 0.5 * rise;
+    }
 
     if (this.grapple) {
       this._updateGrapple(dt);
@@ -305,7 +316,7 @@ export class PlayerController {
       if (px !== this.position.x) { this.position.x = px; this.velocity.x = 0; }
       if (pz !== this.position.z) { this.position.z = pz; this.velocity.z = 0; }
     }
-    if (this.position.y < -20 && this.onFellOut) this.onFellOut();
+    if (this.position.y < (terr ? terr.heightAt(this.position.x, this.position.z) : 0) - 20 && this.onFellOut) this.onFellOut();
     this._stuckWatch(dt, input);
   }
 
@@ -515,6 +526,9 @@ export class PlayerController {
     this.position.add(want);
     const push = this._resolve(this.position, this.height, _push);
     let grounded = push.y > Math.abs(want.y) * 0.25 && push.y > 1e-6 && this.velocity.y <= 0.01;
+    // Terrain campuses only (flat campuses keep the original behaviour bit for bit): slope rules, see _slopeContact.
+    const terrain = !!this.world.terrain;
+    if (terrain) grounded = this._slopeContact(push, grounded, _sn);
     this.position.add(push);
 
     // Step-up assist when blocked horizontally while on the ground.
@@ -531,7 +545,8 @@ export class PlayerController {
           const down = this._resolve(alt, this.height, _dir);
           alt.add(down);
           const altH = Math.hypot(alt.x - start.x, alt.z - start.z);
-          if (down.y > 0 && altH > gotH + 1e-4 && alt.y - start.y <= STEP + 0.01) {
+          // (terrain: the step must land on walkable ground, or it would climb any hillside 0.45 m at a time)
+          if (down.y > 0 && altH > gotH + 1e-4 && alt.y - start.y <= STEP + 0.01 && (!terrain || this._cMaxNy >= WALK_NORMAL_Y)) {
             this.position.copy(alt);
             this.velocity.y = 0;
             return true;
@@ -543,11 +558,55 @@ export class PlayerController {
     if (grounded) {
       this.velocity.y = Math.max(0, this.velocity.y);
     } else if (push.lengthSq() > 1e-10) {
-      _dir.copy(push).normalize();
+      _dir.copy(terrain ? _sn : push).normalize();   // terrain: the contact normal (a steep slope is slid down, not climbed)
       const d = _dir.dot(this.velocity);
-      if (d < 0) this.velocity.addScaledVector(_dir, -d);
+      if (d < 0) {
+        const vy = this.velocity.y;
+        this.velocity.addScaledVector(_dir, -d);
+        // steep ground never turns a push into it into upward speed (air control re-adds speed every frame: that would let
+        // a player hover on, or run up, a bank steeper than the walk limit); falling onto it still slides down it
+        if (terrain && this._steep) this.velocity.y = Math.min(this.velocity.y, Math.max(vy, 0));
+      }
+    }
+    // Terrain: stay on the ground walking / running / sliding downhill instead of skipping off it every frame. Only
+    // when we were on the ground, are not going up, and walkable ground is within a step's reach below (never off a ledge).
+    if (terrain && !grounded && allowStepUp && this.velocity.y <= 0.01 && !this.grapple) {
+      const snap = Math.hypot(want.x, want.z) * 1.05 + 0.03;
+      _v.copy(this.position); _v.y -= snap;
+      const p2 = this._resolve(_v, this.height, _dir);
+      if (p2.y > 1e-6 && this._cMaxNy >= WALK_NORMAL_Y) {
+        if (this._cMinNy >= WALK_NORMAL_Y) { const L2 = p2.lengthSq(); _v.y += Math.min(L2 / p2.y, Math.sqrt(L2) / WALK_NORMAL_Y); }
+        else _v.add(p2);
+        // (already touching = a grazing contact the push test above did not count: grounded where we stand)
+        if (_v.y <= this.position.y + 0.01) { if (_v.y < this.position.y) this.position.copy(_v); this.velocity.y = 0; grounded = true; }
+      }
     }
     return grounded;
+  }
+
+  /**
+   * Terrain slope rules for one resolved step (push = the capsule's way out, adjusted in place; normalOut = the contact
+   * normal used to cancel velocity). Walkable ground (contact normal y >= WALK_NORMAL_Y) holds the player: when it is
+   * the only thing touched the way out is straight up, so standing on a hill does not creep downhill. Steeper ground
+   * is a wall: not grounded, and its push is made horizontal, so walking into it (or the step-up assist) never lifts
+   * the player; gravity slides them down it.
+   */
+  _slopeContact(push, grounded, normalOut) {
+    normalOut.copy(push); this._steep = false;
+    const L2 = push.lengthSq();
+    if (push.y <= 1e-6 || L2 < 1e-12) return grounded;
+    // (a crease between two steep banks pushes straight up overall: that is a floor too, or the player would sink through it)
+    if (this._cMaxNy >= WALK_NORMAL_Y || push.y * push.y >= WALK_NORMAL_Y * WALK_NORMAL_Y * L2) {
+      const h2 = push.x * push.x + push.z * push.z;
+      if (grounded && this._cMinNy >= WALK_NORMAL_Y && h2 > 1e-12) push.set(0, Math.min(L2 / push.y, Math.sqrt(L2) / WALK_NORMAL_Y), 0);
+      return grounded;
+    }
+    if (this._cMaxNy > 0.05) {
+      this._steep = true;
+      const h2 = push.x * push.x + push.z * push.z;
+      if (h2 > 1e-12) { const k = Math.min(L2 / h2, 4); push.set(push.x * k, 0, push.z * k); }
+    }
+    return false;
   }
 
   /** Returns the push vector that moves a capsule at `feet` out of all colliders. */
@@ -555,6 +614,8 @@ export class PlayerController {
     _seg.start.set(feet.x, feet.y + RADIUS, feet.z);
     _seg.end.set(feet.x, feet.y + height - RADIUS, feet.z);
     const origStartX = _seg.start.x, origStartY = _seg.start.y, origStartZ = _seg.start.z;
+    // steepest / flattest contact normal of this call (terrain slope rules in _step; unused on flat campuses)
+    let cMax = -2, cMin = 2;
     for (let iter = 0; iter < 2; iter++) {
       for (const c of this._colliders) {
         _box.makeEmpty();
@@ -578,6 +639,7 @@ export class PlayerController {
             if (dist < RADIUS) {
               const depth = RADIUS - dist;
               if (dist < 1e-6) tri.getNormal(_cap); else _cap.sub(_tri).normalize();
+              if (_cap.y > cMax) cMax = _cap.y; if (_cap.y < cMin) cMin = _cap.y;
               _segLocal.start.addScaledVector(_cap, depth);
               _segLocal.end.addScaledVector(_cap, depth);
               moved = true;
@@ -593,6 +655,7 @@ export class PlayerController {
         }
       }
     }
+    this._cMaxNy = cMax; this._cMinNy = cMin;
     return out.set(_seg.start.x - origStartX, _seg.start.y - origStartY, _seg.start.z - origStartZ);
   }
 

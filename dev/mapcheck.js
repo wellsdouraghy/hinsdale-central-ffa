@@ -1,5 +1,5 @@
 // Map check: automated validator for a campus map (see MAP_NOTES.md "Map check (required before QA)").
-//   dev/mapcheck.html?campus=hinsdale|marin  [&only=escape,ladders,...] [&skip=bots] [&grid=2.5] [&q=low] [&bots=8] [&botTime=60]
+//   dev/mapcheck.html?campus=hinsdale|marin|terraintest  [&only=escape,ladders,...] [&skip=bots] [&grid=2.5] [&q=low] [&bots=8] [&botTime=60]
 // Loads the real world (src/world/index.js) and runs every check against the real collision and the real player
 // controller (src/game/player.js). Result: window.__mapcheck (JSON report), a readable summary, and a top-down image.
 // Deterministic: fixed sample grids, fixed probe orders, seeded Math.random + virtual clock for the bot run.
@@ -9,6 +9,7 @@ import { createWorld } from '../src/world/index.js';
 import { getCampus } from '../src/campuses/index.js';
 import { PlayerController, STAND } from '../src/game/player.js';
 import { mulberry32 } from '../src/world/util.js';
+import { WALK_NORMAL_Y, SPAWN_MAX_GRADE, HELI_MAX_SKID_DROP } from '../src/world/terrain.js';
 
 const VERSION = 1;
 const qs = new URLSearchParams(location.search);
@@ -54,6 +55,12 @@ export const TH = {
   boundaryStep: 3, boundaryStreetWarn: 6,
   // 9 bots
   botCount: num('bots', 8), botTime: num('botTime', 60), botStuck: 12, botMoveRadius: 2.0,
+  // 10 terrain (campuses with a heightfield only)
+  terrainGrid: 2.5,                          // m between terrain samples for the slope-pocket test
+  terrainEscapeTime: 6,                      // s per escape attempt from an unconnected / steep sample
+  propFloat: 0.12,                           // a prop base this far above the lowest ground under its footprint = floating (fail)
+  propBuryWarn: 0.3, propBuryFail: 0.5,      // highest ground under the footprint above the base, as a fraction of the prop height
+  heliSkidFloat: 0.15,                       // ground heli spot: skids this far above the highest ground under them
 };
 
 // ---------------------------------------------------------------------------------------------- page
@@ -120,6 +127,8 @@ function buildSolid() {
 }
 const S = buildSolid();
 const navOK = (x, z) => (world.navSample ? world.navSample(x, z) : true);
+// ground height (0 on flat campuses; every "ground level" test below is relative to it)
+const GY = world.terrain ? (x, z) => world.terrain.heightAt(x, z) : () => 0;
 const nearWalk = (x, z) => { if (navOK(x, z)) return true; for (const r of [1.5, 3]) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; if (navOK(x + Math.cos(a) * r, z + Math.sin(a) * r)) return true; } return false; };
 const inPB = (x, z, m = 0) => x >= PB.minX + m && x <= PB.maxX - m && z >= PB.minZ + m && z <= PB.maxZ - m;
 
@@ -140,12 +149,13 @@ async function checkEscape() {
   const samples = []; let columns = 0; const cols = new Map();
   for (let ix = 0, x = gx0; x < PB.maxX; ix++, x += g) for (let iz = 0, z = gz0; z < PB.maxZ; iz++, z += g) {
     columns++;
-    const hits = S.all(V(x, 150, z), DOWN, 150 - 0.3);
+    const gy = GY(x, z);
+    const hits = S.all(V(x, gy + 150, z), DOWN, 150 - 0.3);
     let above = Infinity;
     for (const h of hits) {
       const y = h.point.y, ny = Math.abs(h.face.normal.y);
       const room = above - y; above = y;
-      if (y < TH.escapeMinY || ny < 0.45 || room < STAND.height + 0.05) continue;
+      if (y - gy < TH.escapeMinY || ny < 0.45 || room < STAND.height + 0.05) continue;
       const s = { x, y, z, ny, ix, iz, ceil: room, kind: ny < 0.97 ? 'slope' : 'roof' };
       s.n = h.face.normal.clone(); if (s.n.y < 0) s.n.negate();
       samples.push(s);
@@ -195,7 +205,7 @@ async function checkEscape() {
     const sc = [];
     for (let k = 0; k < 8; k++) {
       const a = k * Math.PI / 4, dx = Math.cos(a), dz = Math.sin(a); let best = 99;
-      for (let d = 2; d <= 24; d += 2) { const h = S.first(V(x + dx * d, y + 1.5, z + dz * d), DOWN, 60); if ((h ? h.point.y : 0) < y - 1) { best = d; break; } }
+      for (let d = 2; d <= 24; d += 2) { const h = S.first(V(x + dx * d, y + 1.5, z + dz * d), DOWN, 60); if ((h ? h.point.y : GY(x + dx * d, z + dz * d)) < y - 1) { best = d; break; } }
       sc.push([best, a]);
     }
     return sc.sort((p, q) => p[0] - q[0]).map((p) => p[1]);
@@ -220,14 +230,15 @@ async function checkEscape() {
       const p = ctrl.position;
       moved = Math.hypot(p.x - lastX, p.z - lastZ) / DT; lastX = p.x; lastZ = p.z;
       if (p.y < minY) minY = p.y; const dd = Math.hypot(p.x - start.x, p.z - start.z); if (dd > maxD) maxD = dd;
-      if (p.y < -5) return { ok: false, fell: true, traj, minY, maxD, last: p.clone() };
+      const pg = GY(p.x, p.z);
+      if (p.y < pg - 5) return { ok: false, fell: true, traj, minY, maxD, last: p.clone() };
       if (ctrl.grounded) {
         if ((steps & 3) === 0 || !traj.length) traj.push(p.clone());
-        if ((p.y < 0.35 && nearWalk(p.x, p.z)) || memo.has(key(p.x, p.y, p.z))) return { ok: true, traj };
-        if (ladderCells && p.y < 0.35) { const li = ladderCells.get(lcKey(p.x, p.z)); if (li !== undefined) { laddersUsed.add(li); return { ok: true, traj }; } }
+        if ((p.y - pg < 0.35 && nearWalk(p.x, p.z)) || memo.has(key(p.x, p.y, p.z))) return { ok: true, traj };
+        if (ladderCells && p.y - pg < 0.35) { const li = ladderCells.get(lcKey(p.x, p.z)); if (li !== undefined) { laddersUsed.add(li); return { ok: true, traj }; } }
       }
     }
-    return { ok: false, traj, minY, maxD, last: ctrl.position.clone(), onGround: ctrl.position.y < 0.35 && ctrl.grounded };
+    return { ok: false, traj, minY, maxD, last: ctrl.position.clone(), onGround: ctrl.position.y - GY(ctrl.position.x, ctrl.position.z) < 0.35 && ctrl.grounded };
   }
   const prove = (traj, start) => { for (const p of traj) memo.add(key(p.x, p.y, p.z)); if (start) memo.add(key(start.x, start.y, start.z)); };
   // one start point: up to 16 attempts, then a second level from the farthest places those attempts reached
@@ -293,8 +304,8 @@ async function checkEscape() {
   let viaLadder = 0; const ladderInfo = [];
   if (trapped.length && world.ladders.length) {
     const lres = report.checks.ladders?.ladders || []; const cells = new Map();
-    const free = (cx, cz) => !S.first(V(cx + 0.5, 1.9, cz + 0.5), DOWN, 1.6);
-    const open = (ax, az, bx, bz) => { for (const y of [0.45, 1.3]) if (S.first(V(ax + 0.5, y, az + 0.5), V(bx - ax, 0, bz - az), 1)) return false; return true; };
+    const free = (cx, cz) => !S.first(V(cx + 0.5, GY(cx + 0.5, cz + 0.5) + 1.9, cz + 0.5), DOWN, 1.6);
+    const open = (ax, az, bx, bz) => { const ga = GY(ax + 0.5, az + 0.5), gb = GY(bx + 0.5, bz + 0.5); for (const y of [0.45, 1.3]) if (S.first(V(ax + 0.5, ga + y, az + 0.5), V(bx - ax, gb - ga, bz - az).normalize(), Math.hypot(1, gb - ga))) return false; return true; };
     for (const [i, L] of world.ladders.entries()) {
       const lr = lres[i]; if (!lr || !lr.ok || L.y0 > 1.2) continue;
       const top = tryEscape(lr.end[0], lr.end[1], lr.end[2], false, true, false);
@@ -405,7 +416,7 @@ async function checkLadders() {
   for (const [i, L] of world.ladders.entries()) {
     const ctrl = noUnstuck(new PlayerController(world));
     const sx = L.x + L.nx * 1.3, sz = L.z + L.nz * 1.3;
-    const fl = S.first(V(sx, L.y0 + 1.5, sz), DOWN, L.y0 + 1.5); const fy = fl ? fl.point.y : 0;
+    const fl = S.first(V(sx, L.y0 + 1.5, sz), DOWN, L.y0 + 1.5 - GY(sx, sz)); const fy = fl ? fl.point.y : GY(sx, sz);
     ctrl.teleport(V(sx, fy + 0.02, sz), Math.atan2(L.nx, L.nz));
     let grabs = 0, exitT = null, t = 0, onLadder = false, topY = -1;
     for (; t < TH.ladderTime; t += DT) {
@@ -445,6 +456,7 @@ async function checkSpawns() {
     if (!inPB(p.x, p.z, 1)) errs.push('outside playBounds');
     if (group === 'ffa' && sb && !(p.x >= sb.minX && p.x <= sb.maxX && p.z >= sb.minZ && p.z <= sb.maxZ)) errs.push('outside spawnBounds');
     if (Math.abs(p.y - (world.groundY ? world.groundY(p.x, p.z) : 0)) > 0.1) errs.push('not at ground level (y=' + r2(p.y) + ')');
+    if (world.terrain && world.terrain.slopeAt(p.x, p.z) > SPAWN_MAX_GRADE * 1.05) errs.push('on a slope of ' + r1(Math.atan(world.terrain.slopeAt(p.x, p.z)) * 180 / Math.PI) + ' deg');
     if (S.first(V(p.x, p.y + 2, p.z), UP, 100)) errs.push('no clear sky (roof / canopy above)');
     ctrl._resolve(V(p.x, p.y + 0.02, p.z), STAND.height, push); if (push.length() > 0.02) errs.push('capsule overlaps geometry (' + r2(push.length()) + ' m)');
     let wall = Infinity;
@@ -474,7 +486,7 @@ async function checkSpawns() {
     for (const team of ['red', 'blue']) {
       const b = bases[team]; const own = cs[team] || [], other = cs[team === 'red' ? 'blue' : 'red'] || [];
       // cover around the base: fraction of 16 directions blocked within 30 m at chest height
-      let blocked = 0; for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; if (S.first(V(b.x, 1.3, b.z), V(Math.cos(a), 0, Math.sin(a)), 30)) blocked++; }
+      let blocked = 0; for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; if (S.first(V(b.x, b.y + 1.3, b.z), V(Math.cos(a), 0, Math.sin(a)), 30)) blocked++; }
       const dists = own.map((p) => Math.hypot(p.x - b.x, p.z - b.z));
       const outOfRange = dists.filter((d) => d < TH.ctfSpawnRange[0] - 1 || d > TH.ctfSpawnRange[1] + 1).length;
       const wrongSide = own.filter((p) => { const ob = bases[team === 'red' ? 'blue' : 'red']; return Math.hypot(p.x - ob.x, p.z - ob.z) < Math.hypot(p.x - b.x, p.z - b.z); }).length;
@@ -522,7 +534,16 @@ async function checkHeli() {
     const tree = REG.trunks.reduce((b, t) => Math.min(b, Math.hypot(t[0] - x, t[1] - z)), Infinity);
     if (tree < TH.heliTreeClear) errs.push(`tree ${r1(tree)} m away (canopy in the rotor)`);
     if (S.first(V(x, y + 0.6, z), UP, 80)) errs.push('no open sky above');
-    if (h.roof || y > 0.5) {
+    if (world.terrain && !h.roof) {
+      // ground spot on terrain: skids on the ground (not floating, not buried), nearly level, no hillside in the rotor disc
+      const T = world.terrain, c = Math.cos(h.yaw || 0), s = Math.sin(h.yaw || 0); let gmax = -Infinity, gmin = Infinity;
+      for (const [lx, lz] of [[0, 0], [-1.2, -2], [1.2, -2], [-1.2, 2], [1.2, 2]]) { const g = T.heightAt(x + lx * c + lz * s, z - lx * s + lz * c); gmax = Math.max(gmax, g); gmin = Math.min(gmin, g); }
+      if (y - gmax > TH.heliSkidFloat) errs.push(`skids ${r2(y - gmax)} m above the ground`);
+      if (gmax - y > 0.1) errs.push(`skids ${r2(gmax - y)} m in the ground`);
+      if (gmax - gmin > HELI_MAX_SKID_DROP + 0.05) errs.push(`ground under the skids not level (${r2(gmax - gmin)} m)`);
+      const hill = T.maxIn(x, z, TH.heliClear); if (hill > y + 2.0) errs.push(`hillside ${r2(hill - y)} m high inside the rotor disc`);
+    }
+    if (h.roof || (!world.terrain && y > 0.5)) {
       const c = Math.cos(h.yaw || 0), s = Math.sin(h.yaw || 0);
       for (const [lx, lz] of [[0, 0], [-1.2, -2], [1.2, -2], [-1.2, 2], [1.2, 2]]) {
         const px = x + lx * c + lz * s, pz = z - lx * s + lz * c;
@@ -540,12 +561,88 @@ async function checkHeli() {
   finishCheck('heli', res);
 }
 
+// ============================================================================================== 4b terrain
+// Campuses with a heightfield (descriptor `terrain`, src/world/terrain.js) only; flat campuses skip it.
+// a) Slope pockets: terrain samples every 2.5 m that are steeper than the walk limit, or on hilly ground (> 0.5 m relief
+//    within 6 m) but not connected to the nav walk area, are clustered (4 m); from the 3 lowest starts of each cluster the real
+//    controller (stuck safety net off) must reach walkable, nav-connected ground with walk + jump + double jump in 16
+//    directions x 6 s. One that cannot = an unwalkable slope pocket (fail): a hollow ringed by slopes too steep to climb.
+// b) Props on slopes: every registered prop's base (registry y) against the ground under its footprint corners and centre:
+//    floating > 12 cm = fail; highest ground more than 50 % of the prop's height above its base = fail (30 % = warn).
+async function checkTerrain() {
+  const T = world.terrain;
+  if (!T) { finishCheck('terrain', { status: 'skip', what: 'Flat campus (no descriptor `terrain`): nothing to check.', counts: { flat: true } }); return; }
+  const tStart = performance.now(); const g = TH.terrainGrid;
+  const ctrl = noUnstuck(new PlayerController(world)); const nrm = V();
+  const starts = []; let samples = 0, steep = 0, unconnected = 0, maxSlope = 0;
+  for (let x = PB.minX + g / 2; x < PB.maxX; x += g) for (let z = PB.minZ + g / 2; z < PB.maxZ; z += g) {
+    if (!inPB(x, z, 2)) continue;
+    samples++; const gy = T.heightAt(x, z); maxSlope = Math.max(maxSlope, T.slopeAt(x, z));
+    const isSteep = T.normalAt(x, z, nrm).y < WALK_NORMAL_Y;
+    if (!isSteep && (nearWalk(x, z) || T.maxIn(x, z, 6) - T.minIn(x, z, 6) < 0.5)) continue;
+    if (S.first(V(x, gy + 60, z), DOWN, 59.7)) continue;   // under / inside a solid: the escape check's business
+    if (isSteep) steep++; else unconnected++;
+    starts.push({ x, z, gy, steep: isSteep });
+  }
+  const clusters = [];
+  for (const st of starts) { let c = clusters.find((q) => q.pts.some((p) => Math.hypot(p.x - st.x, p.z - st.z) <= 4)); if (!c) clusters.push(c = { pts: [] }); c.pts.push(st); }
+  const okAt = (p) => ctrl.grounded && p.y - GY(p.x, p.z) < 0.35 && navOK(p.x, p.z) && T.normalAt(p.x, p.z, nrm).y >= WALK_NORMAL_Y;
+  const escape = (st) => {
+    const sy = st.steep ? st.gy + 0.4 : T.standY(st.x, st.z) + 0.02;
+    for (let k = 0; k < 16; k++) {
+      const a = k * Math.PI / 8, dx = Math.cos(a), dz = Math.sin(a);
+      ctrl.teleport(V(st.x, sy, st.z), Math.atan2(-dx, -dz)); if (st.steep) ctrl.grounded = false;
+      let blockedT = 0, jumped = false, doubled = false, lx = st.x, lz = st.z;
+      for (let t = 0; t < TH.terrainEscapeTime; t += DT) {
+        let jump = false; const p = ctrl.position; const mv = Math.hypot(p.x - lx, p.z - lz) / DT; lx = p.x; lz = p.z;
+        if (ctrl.grounded) { jumped = doubled = false; if (mv < 1.2) blockedT += DT; else blockedT = 0; if (blockedT > 0.15) { jump = jumped = true; blockedT = 0; } }
+        else if (jumped && !doubled && ctrl.velocity.y < 0.8 && ctrl.airJumps > 0) { jump = doubled = true; }
+        ctrl.update(DT, { forward: 1, strafe: 0, jump, crouchToggle: false, sprint: true }); ctrl.events.length = 0;
+        if (okAt(ctrl.position)) return { ok: true };
+        if (ctrl.position.y < GY(ctrl.position.x, ctrl.position.z) - 5) return { ok: false, fell: true, last: ctrl.position.clone() };
+      }
+    }
+    return { ok: false, last: ctrl.position.clone() };
+  };
+  const pockets = []; let tested = 0, lastYield = performance.now();
+  for (const c of clusters) {
+    // the lowest starts of the cluster (where a player ends up after sliding down) must all get out
+    const low = c.pts.slice().sort((a, b) => a.gy - b.gy); const picks = [];
+    for (const q of low) { if (picks.every((p) => Math.hypot(p.x - q.x, p.z - q.z) > 2)) picks.push(q); if (picks.length >= 3) break; }
+    let ok = true, last = null;
+    for (const st of picks) { tested++; const r = escape(st); if (!r.ok) { ok = false; last = r; break; } }
+    const cx = c.pts.reduce((a, p) => a + p.x, 0) / c.pts.length, cz = c.pts.reduce((a, p) => a + p.z, 0) / c.pts.length;
+    if (!ok) pockets.push({ at: [r1(cx), r2(T.heightAt(cx, cz)), r1(cz)], samples: c.pts.length, steepSamples: c.pts.filter((p) => p.steep).length, endedAt: last ? P3(last.last) : null, fellThrough: !!last?.fell, note: 'unwalkable slope pocket: the controller cannot walk / jump out to walkable, nav-connected ground' });
+    marks.push({ kind: 'slope', x: cx, z: cz, bad: !ok });
+    if (performance.now() - lastYield > 250) { lastYield = performance.now(); $('status').textContent = `terrain: slope clusters ${clusters.indexOf(c) + 1}/${clusters.length}`; await tick(); }
+  }
+  // props on slopes
+  const propFails = [], propWarns = [];
+  for (const p of REG.props) {
+    if (!inPB(p.x, p.z, -30)) continue;
+    const pts = obbCorners(p).concat([[p.x, p.z]]); let gmin = Infinity, gmax = -Infinity;
+    for (const [x, z] of pts) { const gy = T.heightAt(x, z); gmin = Math.min(gmin, gy); gmax = Math.max(gmax, gy); }
+    const base = p.y || 0, flt = base - gmin, bury = (gmax - base) / Math.max(0.3, p.h || 1);
+    const e = { prop: p.kind, at: [r1(p.x), r2(base), r1(p.z)], floating: r2(flt), buriedFrac: r2(bury), groundRange: r2(gmax - gmin) };
+    if (flt > TH.propFloat || bury > TH.propBuryFail) propFails.push(e); else if (bury > TH.propBuryWarn) propWarns.push(e);
+    if (flt > TH.propFloat || bury > TH.propBuryWarn) marks.push({ kind: 'propSlope', x: p.x, z: p.z, bad: flt > TH.propFloat || bury > TH.propBuryFail });
+  }
+  const res = {
+    status: status(pockets.length + propFails.length, propWarns.length),
+    what: 'Terrain: (a) every steep (normal y < ' + WALK_NORMAL_Y + ') or hilly-but-unconnected terrain sample (2.5 m grid, open sky) is clustered and the real controller must walk / jump from the 3 lowest starts of each cluster to walkable nav-connected ground (one that cannot = an unwalkable slope pocket); (b) props: base vs the ground under the footprint (floating > ' + TH.propFloat + ' m fails; ground above the base > ' + TH.propBuryFail * 100 + ' % of the prop height fails, > ' + TH.propBuryWarn * 100 + ' % warns).',
+    counts: { samples, maxSlopeDeg: r1(Math.atan(maxSlope) * 180 / Math.PI), steepSamples: steep, unconnectedHillSamples: unconnected, clusters: clusters.length, startsTested: tested, pockets: pockets.length, navSteepCells: world.navGrid?.steepCells ?? null, terrainMinY: r2(T.minY), terrainMaxY: r2(T.maxY), propsFloatingOrBuried: propFails.length, propsHalfBuried: propWarns.length },
+    failures: pockets.concat(propFails).slice(0, 60), warnings: propWarns.slice(0, 20).map((w) => JSON.stringify(w)), seconds: r1((performance.now() - tStart) / 1000),
+  };
+  log(`terrain: ${res.status} ${pockets.length} slope pockets, ${propFails.length} props floating / buried (${res.seconds} s)`);
+  finishCheck('terrain', res);
+}
+
 // ============================================================================================== 5 visible but not solid
 async function checkVisualSolid() {
   const vis = scene.getObjectByName('world-visuals');
   const cells = new Map(); let tris = 0, sampled = 0;
   const a = V(), b = V(), c = V(), n = V(), p = V(), e1 = V(), e2 = V();
-  const SKIPNAMES = /^(decal|stall-paint|shrubs|static:net|static:chainlink|static:windscreen|static:lightEmit)$/;   // see-through / not walkable-looking
+  const SKIPNAMES = /^(decal|stall-paint|shrubs|static:net|static:chainlink|static:windscreen|static:lightEmit|ground)$/;   // (ground: the terrain mesh is its own collision)   // see-through / not walkable-looking
   const meshes = [];
   vis.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && o.visible && !SKIPNAMES.test(o.name) && o.geometry?.attributes?.position) meshes.push(o); });
   let lastYield = performance.now();
@@ -559,7 +656,7 @@ async function checkVisualSolid() {
     for (let t = 0; t < nT; t++) {
       const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
       a.fromBufferAttribute(pos, i0).applyMatrix4(mw); b.fromBufferAttribute(pos, i1).applyMatrix4(mw); c.fromBufferAttribute(pos, i2).applyMatrix4(mw);
-      const ymax = Math.max(a.y, b.y, c.y); if (ymax < TH.visMinY || Math.min(a.y, b.y, c.y) > TH.visMaxY) continue;
+      const ymax = Math.max(a.y, b.y, c.y); if (ymax - (world.terrain ? Math.min(GY(a.x, a.z), GY(b.x, b.z), GY(c.x, c.z)) : 0) < TH.visMinY || Math.min(a.y, b.y, c.y) > TH.visMaxY) continue;
       e1.subVectors(b, a); e2.subVectors(c, a); n.crossVectors(e1, e2); const area2 = n.length(); if (area2 < 0.04) continue; n.divideScalar(area2);
       const ny = dbl ? Math.abs(n.y) : n.y; if (ny < 0.7) continue;
       const L = Math.max(e1.length(), e2.length(), b.distanceTo(c)); if (area2 / L < TH.visMinWidth) continue;   // triangle altitude: sills, copings, rails are too narrow to stand on
@@ -571,7 +668,7 @@ async function checkVisualSolid() {
           if (up && j === k - i - 1) continue;
           const u = up ? (i + 2 / 3) / k : (i + 1 / 3) / k, v = up ? (j + 2 / 3) / k : (j + 1 / 3) / k;
           p.copy(a).addScaledVector(e1, u).addScaledVector(e2, v);
-          if (p.y < TH.visMinY || !inPB(p.x, p.z)) continue;
+          if (p.y - GY(p.x, p.z) < TH.visMinY || !inPB(p.x, p.z)) continue;
           sampled++;
           const h = S.first(V(p.x, p.y + 0.3, p.z), DOWN, 0.9);
           if (h) continue;
@@ -607,8 +704,8 @@ async function checkVisualSolid() {
   // hedges / shrubs taller than eye-blocking height with nothing solid under them
   const shrubs = [];
   for (const sh of REG.shrubs || []) {
-    const [x, y, z, len, h, rot] = sh; const top = y + h; if (top <= TH.shrubMaxH) continue;
-    const hit = S.first(V(x, top + 0.3, z), DOWN, top + 0.3 - 0.3);
+    const [x, y, z, len, h, rot] = sh; const top = y + h, sg = GY(x, z); if (top - sg <= TH.shrubMaxH) continue;
+    const hit = S.first(V(x, top + 0.3, z), DOWN, top + 0.3 - 0.3 - sg);
     if (!hit) { shrubs.push({ at: [r1(x), r2(top), r1(z)], len: r1(len), height: r2(top), rot: r2(rot) }); marks.push({ kind: 'vis', x0: x - 1, z0: z - 1, x1: x + 1, z1: z + 1 }); }
   }
   const res = {
@@ -737,7 +834,8 @@ async function checkBoundary() {
       // the ray runs from the walkable ground nearest the edge on this line (at least 3 m in) to 2 m outside: with a fixed
       // 3 m start, a building whose wall stands 3-5 m inside the edge was behind the ray origin and read as "open"
       let d0 = 3; for (let dd = 0.75; dd <= 5.75; dd += 0.25) if (navOK(x + E.n[0] * dd, z + E.n[1] * dd)) { d0 = Math.max(3, dd); break; }
-      for (const y of [0.5, 1.0, 1.6]) if (S.first(V(x + E.n[0] * d0, y, z + E.n[1] * d0), V(-E.n[0], 0, -E.n[1]), d0 + 2)) { barrier = true; break; }
+      const bg = GY(x + E.n[0] * d0, z + E.n[1] * d0);
+      for (const y of [0.5, 1.0, 1.6]) if (S.first(V(x + E.n[0] * d0, bg + y, z + E.n[1] * d0), V(-E.n[0], 0, -E.n[1]), d0 + 2)) { barrier = true; break; }
       if (!barrier) barrier = REG.trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 4);
       if (barrier) { flush(); continue; }
       open++;
@@ -789,7 +887,7 @@ async function checkBots() {
         const busy = b.visible || b.mob?.state === 'perch';
         if (tr.intent > 0.3 && !busy) tr.intentT += DT;
         tr.maxStill = Math.max(tr.maxStill, tr.intentT);
-        if (tr.intentT > TH.botStuck && !tr.reported) { tr.reported = { bot: b.p.name, at: P3(p), t: r1(s * DT), mobState: b.mob?.state || null, goal: b.goal ? P3(b.goal) : null, onRoof: p.y > 0.6 }; events.push(tr.reported); marks.push({ kind: 'bot', x: p.x, z: p.z }); }
+        if (tr.intentT > TH.botStuck && !tr.reported) { tr.reported = { bot: b.p.name, at: P3(p), t: r1(s * DT), mobState: b.mob?.state || null, goal: b.goal ? P3(b.goal) : null, onRoof: p.y - GY(p.x, p.z) > 0.6 }; events.push(tr.reported); marks.push({ kind: 'bot', x: p.x, z: p.z }); }
         if (tr.reported) tr.reported.stuckFor = r1(tr.intentT);
       }
       if (realNow() - lastYield > 250) { lastYield = realNow(); $('status').textContent = `bots ${r1(s * DT)} / ${TH.botTime} s`; await tick(); }
@@ -804,7 +902,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'visualSolid', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'visualSolid', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -840,13 +938,15 @@ async function drawMap() {
     else if (m.kind === 'heli') { g.strokeStyle = m.bad ? '#f33' : '#3f3'; g.lineWidth = 2; g.beginPath(); g.arc(X(m.x), Z(m.z), 8 * s, 0, 7); g.stroke(); }
     else if (m.kind === 'prop') X8(m.x, m.z, '#ffff00', 5, 2);
     else if (m.kind === 'sign') { g.fillStyle = m.bad ? '#ffcc00' : 'rgba(255,204,0,0.5)'; g.fillRect(X(m.x) - 5, Z(m.z) - 3, 10, 6); }
+    else if (m.kind === 'slope') X8(m.x, m.z, m.bad ? '#ff2020' : '#ff9020', 6, 3);
+    else if (m.kind === 'propSlope') X8(m.x, m.z, m.bad ? '#ff00ff' : '#ff88ff', 5, 2);
     else if (m.kind === 'bot') { g.strokeStyle = '#b060ff'; g.lineWidth = 3; g.beginPath(); g.arc(X(m.x), Z(m.z), 6, 0, 7); g.stroke(); }
   }
   window.__mapcheckImage = () => cv.toDataURL('image/png');
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

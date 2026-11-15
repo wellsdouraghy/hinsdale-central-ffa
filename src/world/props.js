@@ -6,7 +6,8 @@ import { bleachers, fence } from './landmarks.js';
 
 // Optional prop registry for the map check (dev/mapcheck.html): footprint boxes of placed props, in Bucket.box terms
 // (centre, size along local x / z, rotY). Purely informational: nothing in the game reads it.
-export function registerProp(ctx, kind, x, z, rot, sx, sz, h) { (ctx.props || (ctx.props = [])).push({ kind, x, z, rot, sx, sz, h }); }
+// y: base height the prop was built at (the Builder ground offset: 0 on flat campuses, the ground under it with terrain)
+export function registerProp(ctx, kind, x, z, rot, sx, sz, h) { (ctx.props || (ctx.props = [])).push({ kind, x, z, rot, sx, sz, h, y: ctx.B?.off?.y || 0 }); }
 
 // ------------------------------------------------------------------------------------------ cars
 const CAR_TYPES = {
@@ -446,4 +447,13 @@ function edgeDressing(ctx, nearTrunk) {
 }
 
 // Shared prop kit for other campuses (see src/campuses/*/world.js). Hinsdale's own placement above is unchanged.
-export const propKit = { CAR_TYPES, CAR_COLORS, buildCarTemplate, placeCar, placeBus, dumpster, container, barrier, bench, picnicTable, trashCan, utilityBox, portaPotty, bikeRack, registerProp };
+// Terrain campuses: every kit prop stands on the ground under its footprint (ctx.onGround, lowest ground so nothing floats
+// on a slope). On flat campuses (no ctx.terrain) and inside a builder's own ctx.onGround block these are the plain helpers.
+const grounded = (fn, r, at = 1) => (ctx, ...a) => (ctx.terrain && !ctx.groundDepth ? ctx.onGround([a[at - 1], a[at], typeof r === 'function' ? r(...a) : r], () => fn(ctx, ...a)) : fn(ctx, ...a));
+export const propKit = {
+  CAR_TYPES, CAR_COLORS, buildCarTemplate, registerProp,
+  // (footprint radius = half the diagonal, so no corner hangs over the downhill side)
+  placeCar: grounded(placeCar, (tpl) => Math.hypot(tpl.t.L, tpl.t.W) / 2, 2), placeBus: grounded(placeBus, 5.55), dumpster: grounded(dumpster, 1.2), container: grounded(container, 3.27),
+  barrier: grounded(barrier, (x, z, rot, len = 3) => Math.hypot(len, 0.6) / 2), bench: grounded(bench, 0.94), picnicTable: grounded(picnicTable, 1.25), trashCan: grounded(trashCan, 0.43),
+  utilityBox: grounded(utilityBox, 1.04), portaPotty: grounded(portaPotty, 0.82), bikeRack: grounded(bikeRack, 1.83),
+};

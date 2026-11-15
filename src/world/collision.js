@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Bucket } from './util.js';
 import { SAT } from './ground.js';
+import { NAV_MAX_GRADE, SPAWN_MAX_GRADE, HELI_MAX_SKID_DROP } from './terrain.js';
 
 const SPAWN_WALL_CLEAR = 1.25;   // m: no spawn closer than this to a wall, fence or prop (the map check warns below 1.2)
 
@@ -23,6 +24,15 @@ export function buildCollision(ctx, group) {
   // ---- ground: 2 m cells inside the play area tagged by surface class, plus a big grass apron outside
   const names = ['grass', 'asphalt', 'concrete', 'rubber', 'dirt'];
   const gb = names.map(() => new Bucket());
+  if (ctx.terrain) {
+    terrainGround(ctx, gb, names);
+    names.forEach((n, i) => add(gb[i], n, { isGround: true }));
+    for (const [surface, bucket] of ctx.B.collision) {
+      const passthrough = surface.endsWith(':mesh');
+      add(bucket, passthrough ? surface.split(':')[0] : surface, passthrough ? { bulletPassthrough: true } : null);
+    }
+    return meshes;
+  }
   const pb = ctx.playBounds; const cell = 2;
   const x0 = Math.floor((pb.minX - 12) / cell) * cell, x1 = Math.ceil((pb.maxX + 12) / cell) * cell;
   const z0 = Math.floor((pb.minZ - 12) / cell) * cell, z1 = Math.ceil((pb.maxZ + 12) / cell) * cell;
@@ -55,6 +65,27 @@ export function buildCollision(ctx, group) {
   return meshes;
 }
 
+// Terrain campuses: the ground collision is the height lattice (src/world/terrain.js), every cell two triangles split the
+// same way as the visual ground mesh, tagged by surface class inside the play area (+12 m) and grass outside it, out to
+// the satellite edge; beyond that a flat apron at the outside height catches stray rays.
+function terrainGround(ctx, gb, names) {
+  const T = ctx.terrain, L = T.lattice, H = T.heights, nx = T.nx;
+  const xs = L.xs, zs = L.zs, NX = xs.length, NZ = zs.length;
+  const y = (a, b) => H[L.zj[b] * nx + L.xi[a]];
+  for (let b = 0; b < NZ - 1; b++) for (let a = 0; a < NX - 1; a++) {
+    const fine = L.xi[a] >= L.fine.i0 && L.xi[a + 1] <= L.fine.i1 && L.zj[b] >= L.fine.j0 && L.zj[b + 1] <= L.fine.j1;
+    const c = fine ? Math.max(0, names.indexOf(ctx.surfaceAt((xs[a] + xs[a + 1]) / 2, (zs[b] + zs[b + 1]) / 2))) : 0;
+    const p00 = [xs[a], y(a, b), zs[b]], p10 = [xs[a + 1], y(a + 1, b), zs[b]], p01 = [xs[a], y(a, b + 1), zs[b + 1]], p11 = [xs[a + 1], y(a + 1, b + 1), zs[b + 1]];
+    gb[c].tri(p00, p01, p11).tri(p00, p11, p10);   // same diagonal as terrain.groundGeometry()
+  }
+  const E = 1500, x0 = xs[0], x1 = xs[NX - 1], z0 = zs[0], z1 = zs[NZ - 1];
+  const yo = (T.heightAt(x0 - 50, z0 - 50) + T.heightAt(x1 + 50, z1 + 50)) / 2;
+  gb[0].quad([-E, yo, z0], [E, yo, z0], [E, yo, -E], [-E, yo, -E]);
+  gb[0].quad([-E, yo, E], [E, yo, E], [E, yo, z1], [-E, yo, z1]);
+  gb[0].quad([-E, yo, z1], [x0, yo, z1], [x0, yo, z0], [-E, yo, z0]);
+  gb[0].quad([x1, yo, z1], [E, yo, z1], [E, yo, z0], [x1, yo, z0]);
+}
+
 // Visual clutter that is not solid (shrubs, low conifer branches) can swallow a player's view at spawn: keep spawns clear.
 function clutterFree(ctx, x, z) {
   for (const [sx, , sz, len, , rot] of ctx.shrubs || []) {
@@ -76,10 +107,13 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
   const solids = collisionMeshes.filter((m) => !m.userData.isGround);
   const rc = new THREE.Raycaster(); rc.firstHitOnly = true;
   const o = new THREE.Vector3(), d = new THREE.Vector3();
-  const blockedDown = (x, z) => { o.set(x, 60, z); d.set(0, -1, 0); rc.set(o, d); rc.far = 59.7; return rc.intersectObjects(solids, false).length > 0; };
+  const T = ctx.terrain, gy = T ? T.heightAt : () => 0;   // terrain campuses: every test follows the ground height
+  const blockedDown = (x, z) => { o.set(x, gy(x, z) + 60, z); d.set(0, -1, 0); rc.set(o, d); rc.far = 59.7; return rc.intersectObjects(solids, false).length > 0; };
   const blockedSeg = (ax, az, bx, bz) => {
+    const ga = gy(ax, az), gb = gy(bx, bz);
+    if (T && Math.abs(gb - ga) > cell * NAV_MAX_GRADE) return true;   // too steep to walk between the two cells
     for (const y of [0.45, 1.3]) {
-      o.set(ax, y, az); d.set(bx - ax, 0, bz - az); const len = d.length(); d.normalize(); rc.set(o, d); rc.far = len;
+      o.set(ax, ga + y, az); d.set(bx - ax, gb - ga, bz - az); const len = d.length(); d.normalize(); rc.set(o, d); rc.far = len;
       if (rc.intersectObjects(solids, false).length > 0) return true;
     }
     return false;
@@ -112,13 +146,16 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
   // lies between two grid lines (the flood fill only tests cell-to-cell segments). Tested lazily, on the cells the
   // samplers below actually pick: 16 directions at knee and chest height.
   const wallClear = (x, z, r = SPAWN_WALL_CLEAR) => {
+    const g = gy(x, z);
     for (const y of [0.5, 1.3]) for (let k = 0; k < 16; k++) {
-      const a = k * Math.PI / 8; o.set(x, y, z); d.set(Math.cos(a), 0, Math.sin(a)); rc.set(o, d); rc.far = r;
+      const a = k * Math.PI / 8; o.set(x, g + y, z); d.set(Math.cos(a), 0, Math.sin(a)); rc.set(o, d); rc.far = r;
       if (rc.intersectObjects(solids, false).length > 0) return false;
     }
     return true;
   };
-  ctx.walkGrid = { x0, z0, nx, nz, cell, state, wallClear };
+  // terrain: spawns (and CTF bases / team spawns, which use clearCell below) only on gentle ground
+  const gentle = T ? (x, z) => T.slopeAt(x, z) <= SPAWN_MAX_GRADE : null;
+  ctx.walkGrid = { x0, z0, nx, nz, cell, state, wallClear, gentle, groundY: gy, standY: T ? T.standY : gy };
   // optional campus spawn region (keeps FFA spawns near the action without shrinking the play area)
   const sb = ctx.campus?.spawnBounds;
   const inSpawnArea = (x, z) => !sb || (x >= sb.minX && x <= sb.maxX && z >= sb.minZ && z <= sb.maxZ);
@@ -127,7 +164,7 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
   for (let j = 2; j < nz - 2; j += 1) for (let i = 2; i < nx - 2; i += 1) {
     let ok = true;
     for (let b = -2; b <= 2 && ok; b++) for (let a = -2; a <= 2; a++) if (state[(j + b) * nx + i + a] !== 1) { ok = false; break; }
-    if (ok) { const c = P(i, j); if (inSpawnArea(c[0], c[1]) && clutterFree(ctx, c[0], c[1])) cands.push(c); }
+    if (ok) { const c = P(i, j); if (inSpawnArea(c[0], c[1]) && clutterFree(ctx, c[0], c[1]) && (!gentle || gentle(c[0], c[1]))) cands.push(c); }
   }
   const spawns = [];
   if (cands.length) {
@@ -145,7 +182,7 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
     for (let n = 0, tries = 0; n < count && tries < cands.length; tries++) {
       const [cx, cz] = cands[cur];
       if (!wallClear(cx, cz)) dead[cur] = 1;
-      else { spawns.push(new THREE.Vector3(cx, 0, cz)); n++; for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; } }
+      else { spawns.push(new THREE.Vector3(cx, T ? T.standY(cx, cz) : 0, cz)); n++; for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; } }
       let bi = -1, bd = -1;
       for (let k = 0; k < cands.length; k++) {
         if (dead[k]) continue;
@@ -158,23 +195,25 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
     }
   }
   // fallback (should not happen): a ring of points on the practice field
-  for (let k = spawns.length; k < 24; k++) spawns.push(new THREE.Vector3(L.navSeed[0] + Math.cos(k) * 20, 0, L.navSeed[1] + Math.sin(k) * 20));
+  for (let k = spawns.length; k < 24; k++) { const fx = L.navSeed[0] + Math.cos(k) * 20, fz = L.navSeed[1] + Math.sin(k) * 20; spawns.push(new THREE.Vector3(fx, gy(fx, fz), fz)); }
   return spawns;
 }
 
 // Walkable ground cells (from the flood fill in computeSpawns) near a point: used for CTF bases and team spawns.
 function clearCell(g, i, j, r) {
   for (let b = -r; b <= r; b++) for (let a = -r; a <= r; a++) { const ii = i + a, jj = j + b; if (ii < 0 || jj < 0 || ii >= g.nx || jj >= g.nz || g.state[jj * g.nx + ii] !== 1) return false; }
+  if (g.gentle && !g.gentle(g.x0 + (i + 0.5) * g.cell, g.z0 + (j + 0.5) * g.cell)) return false;
   return true;
 }
 export function nearestOpenGround(ctx, x, z, clear = 2) {
-  const g = ctx.walkGrid; if (!g) return new THREE.Vector3(x, 0, z);
+  const g = ctx.walkGrid; if (!g) return new THREE.Vector3(x, ctx.groundY ? ctx.groundY(x, z) : 0, z);
   let best = null, bd = Infinity;
   for (let j = 0; j < g.nz; j++) for (let i = 0; i < g.nx; i++) {
     const cx = g.x0 + (i + 0.5) * g.cell, cz = g.z0 + (j + 0.5) * g.cell; const d = (cx - x) ** 2 + (cz - z) ** 2;
     if (d < bd && clearCell(g, i, j, clear)) { bd = d; best = [cx, cz]; }
   }
-  return best ? new THREE.Vector3(best[0], 0, best[1]) : new THREE.Vector3(x, 0, z);
+  const sy = g.standY || (() => 0);
+  return best ? new THREE.Vector3(best[0], sy(best[0], best[1]), best[1]) : new THREE.Vector3(x, sy(x, z), z);
 }
 export function spawnsNear(ctx, center, rMin, rMax, count, awayFrom) {
   const g = ctx.walkGrid; const out = []; if (!g) return out;
@@ -194,7 +233,7 @@ export function spawnsNear(ctx, center, rMin, rMax, count, awayFrom) {
   for (let n = 0, tries = 0; n < count && tries < cands.length; tries++) {
     const [cx, cz] = cands[cur];
     if (!wallClear(cx, cz)) dead[cur] = 1;
-    else { out.push(new THREE.Vector3(cx, 0, cz)); n++; for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; } }
+    else { out.push(new THREE.Vector3(cx, g.standY ? g.standY(cx, cz) : 0, cz)); n++; for (let k = 0; k < cands.length; k++) { const dd = Math.hypot(cands[k][0] - cx, cands[k][1] - cz); if (dd < dist[k]) dist[k] = dd; } }
     let bi = -1, bd = -1;
     for (let k = 0; k < cands.length; k++) { if (dead[k]) continue; const sc = out.length ? dist[k] * cands[k][2] : cands[k][2]; if (bi < 0 || sc > bd) { bd = sc; bi = k; } }
     if (bi < 0) break;
@@ -238,13 +277,16 @@ export function buildNav(ctx, collisionMeshes, mustReach = []) {
   const nx = Math.floor((pb.maxX - pb.minX - 2 * margin) / cell), nz = Math.floor((pb.maxZ - pb.minZ - 2 * margin) / cell);
   const S = solidBVH(collisionMeshes);
   const blocked = new Uint8Array(nx * nz);
+  const T = ctx.terrain, gy = T ? T.heightAt : () => 0;   // terrain: probes follow the ground, steep cells are blocked
+  let steepCells = 0;
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-    const x = x0 + (i + 0.5) * cell, z = z0 + (j + 0.5) * cell; const k = j * nx + i;
-    if (S.cast(x, 2.0, z, 0, -1, 0, 1.7) < Infinity) { blocked[k] = 1; continue; }     // kerbs / low steps (< 0.3 m) stay walkable
+    const x = x0 + (i + 0.5) * cell, z = z0 + (j + 0.5) * cell; const k = j * nx + i; const g = gy(x, z);
+    if (T && T.slopeAt(x, z) > NAV_MAX_GRADE) { blocked[k] = 1; steepCells++; continue; }
+    if (S.cast(x, g + 2.0, z, 0, -1, 0, 1.7) < Infinity) { blocked[k] = 1; continue; }     // kerbs / low steps (< 0.3 m) stay walkable
     // thin obstacles between cell centres (fences, nets, rails, benches): block the cell on the obstacle's side
     for (const y of [0.45, 1.35]) {
-      if (i + 1 < nx) { const d = S.cast(x, y, z, 1, 0, 0, cell); if (d < Infinity) blocked[d < cell / 2 ? k : k + 1] = 1; }
-      if (j + 1 < nz) { const d = S.cast(x, y, z, 0, 0, 1, cell); if (d < Infinity) blocked[d < cell / 2 ? k : k + nx] = 1; }
+      if (i + 1 < nx) { const dh = T ? gy(x + cell, z) - g : 0, L = T ? Math.hypot(cell, dh) : cell; const d = S.cast(x, g + y, z, cell / L, dh / L, 0, L); if (d < Infinity) blocked[d < L / 2 ? k : k + 1] = 1; }
+      if (j + 1 < nz) { const dh = T ? gy(x, z + cell) - g : 0, L = T ? Math.hypot(cell, dh) : cell; const d = S.cast(x, g + y, z, 0, dh / L, cell / L, L); if (d < Infinity) blocked[d < L / 2 ? k : k + nx] = 1; }
     }
   }
   // connectivity: flood from the main lawn; anything not reached (courtyards, sealed pockets) is not walkable
@@ -277,6 +319,7 @@ export function buildNav(ctx, collisionMeshes, mustReach = []) {
   if (unreachable) console.warn('[world] navGrid: ' + unreachable + ' spawn/base points are not connected to the main walk area');
   let nWalk = 0; for (let k = 0; k < walk.length; k++) nWalk += walk[k];
   const grid = { x0, z0, cell, nx, nz, walk, cost, walkableCells: nWalk, unreachable };
+  if (T) grid.steepCells = steepCells;
   const sample = (x, z) => { const c = idxOf(x, z); return c >= 0 && walk[c] === 1; };
   return { grid, sample, bvh: S };
 }
@@ -299,12 +342,21 @@ function campusLayout(ctx) {
   };
 }
 export function pickHeliSpawns(ctx, S, min = 12) {
-  const trees = ctx.gen.trees || []; const out = [];
+  const trees = ctx.gen.trees || []; const out = []; const T = ctx.terrain;
   const tryAll = (clear) => {
-    for (const [x, y, z] of campusLayout(ctx).heliPark) {
+    for (const [x, y0, z] of campusLayout(ctx).heliPark) {
+      // terrain campuses: a ground entry (y <= 0.5) stands on the terrain (highest ground under the skids, nearly level,
+      // and no hill inside the rotor disc); roof entries keep their absolute deck height
+      let y = y0;
+      if (T && y0 <= 0.5) {
+        y = T.maxIn(x, z, 2.6);
+        if (y - T.minIn(x, z, 2.6) > HELI_MAX_SKID_DROP) continue;
+        if (T.maxIn(x, z, clear + 0.5) > y + 1.6) continue;
+      }
       if (out.some((o) => Math.hypot(o.pos.x - x, o.pos.z - z) < 30)) continue;
       // something to stand on right below, open sky above
-      const below = S.cast(x, y + 1.0, z, 0, -1, 0, 1.3); if (y > 0.5 && below === Infinity) continue; if (y <= 0.5 && below < 0.9) continue;
+      const roof = T ? y0 > 0.5 : y > 0.5;
+      const below = S.cast(x, y + 1.0, z, 0, -1, 0, 1.3); if (roof && below === Infinity) continue; if (!roof && below < 0.9) continue;
       let ok = S.cast(x, y + 0.6, z, 0, 1, 0, 80) === Infinity;
       // rotor disc + skids: nothing solid within the clearance radius at skid, cabin and rotor height
       let bestD = -1, bestA = 0;
@@ -312,7 +364,7 @@ export function pickHeliSpawns(ctx, S, min = 12) {
         const an = (a / 16) * Math.PI * 2, dx = Math.cos(an), dz = Math.sin(an);
         for (const h of [0.5, 1.8, 3.2]) if (S.cast(x, y + h, z, dx, 0, dz, clear) < Infinity) { ok = false; break; }
         // roof spots: the disc may overhang the parapet, but the skids need deck under them
-        if (ok && y > 0.5 && S.cast(x + dx * 2.2, y + 1.0, z + dz * 2.2, 0, -1, 0, 1.4) === Infinity) ok = false;
+        if (ok && roof && S.cast(x + dx * 2.2, y + 1.0, z + dz * 2.2, 0, -1, 0, 1.4) === Infinity) ok = false;
         if (ok) { const d = Math.min(S.cast(x, y + 1.8, z, dx, 0, dz, 60), 60); if (d > bestD) { bestD = d; bestA = an; } }
       }
       if (!ok) continue;
@@ -323,7 +375,7 @@ export function pickHeliSpawns(ctx, S, min = 12) {
       if ((ctx.trunks || []).some((t) => Math.hypot(t[0] - x, t[1] - z) < clear + 2.5)) continue;   // builder-planted trees too
       const pb = ctx.playBounds; if (x < pb.minX + 6 || x > pb.maxX - 6 || z < pb.minZ + 6 || z > pb.maxZ - 6) continue;
       // nose (-z at yaw 0) toward the most open direction
-      out.push({ pos: new THREE.Vector3(x, y, z), yaw: Math.atan2(-Math.cos(bestA), -Math.sin(bestA)), roof: y > 0.5 });
+      out.push({ pos: new THREE.Vector3(x, y, z), yaw: Math.atan2(-Math.cos(bestA), -Math.sin(bestA)), roof });
     }
   };
   tryAll(8); if (out.length < min) tryAll(7); if (out.length < min) tryAll(6);

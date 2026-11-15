@@ -2,16 +2,19 @@
 // one per collision surface type).
 import * as THREE from 'three';
 
+const NO_OFFSET = Object.freeze({ y: 0 });
+
 export class Bucket {
   constructor(withColor = false) {
     this.pos = []; this.nor = []; this.uv = [];
     this.col = withColor ? [] : null;
     this.c = [1, 1, 1];
+    this.off = NO_OFFSET;   // Builder ground offset (terrain campuses: ctx.onGround raises everything placed inside it)
   }
   setColor(r, g, b) { this.c[0] = r; this.c[1] = g; this.c[2] = b; return this; }
   get triCount() { return this.pos.length / 9; }
   _v(x, y, z, nx, ny, nz, u, v) {
-    this.pos.push(x, y, z); this.nor.push(nx, ny, nz); this.uv.push(u, v);
+    this.pos.push(x, this.off.y ? y + this.off.y : y, z); this.nor.push(nx, ny, nz); this.uv.push(u, v);
     if (this.col) this.col.push(this.c[0], this.c[1], this.c[2]);
   }
   // a,b,c,d counter-clockwise seen from the front; uvs as [u,v] pairs
@@ -196,9 +199,11 @@ export function mulberry32(seed) {
 
 // Collects visual buckets by material key and collision buckets by surface name.
 export class Builder {
-  constructor() { this.visual = new Map(); this.collision = new Map(); }
-  v(key, withColor = false) { let b = this.visual.get(key); if (!b) { b = new Bucket(withColor); this.visual.set(key, b); } return b; }
-  c(surface) { let b = this.collision.get(surface); if (!b) { b = new Bucket(false); this.collision.set(surface, b); } return b; }
+  // off.y: vertical offset added to every vertex written through this builder's buckets (0 = none; set by ctx.onGround on
+  // terrain campuses so props / buildings placed with local y = 0 stand on the ground)
+  constructor() { this.visual = new Map(); this.collision = new Map(); this.off = { y: 0 }; }
+  v(key, withColor = false) { let b = this.visual.get(key); if (!b) { b = new Bucket(withColor); b.off = this.off; this.visual.set(key, b); } return b; }
+  c(surface) { let b = this.collision.get(surface); if (!b) { b = new Bucket(false); b.off = this.off; this.collision.set(surface, b); } return b; }
   // box that is both drawn and solid
   solidBox(key, surface, cx, cy, cz, sx, sy, sz, rotY = 0, s = 1) {
     this.v(key).box(cx, cy, cz, sx, sy, sz, rotY, s);

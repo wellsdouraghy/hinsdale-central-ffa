@@ -86,7 +86,9 @@ export async function createSky({ renderer, scene, quality, opts = {} }) {
   }
 
   // Render the whole map's shadows once, from above, into a mask texture (R: 1 lit, 0 shadowed).
-  function bakeShadowMask(rect) {
+  // groundOnly (terrain campuses): { layer, minY, maxY } - the ground is not a thin slab at y = 0, so the top-down camera
+  // spans the terrain's height range and draws only the ground mesh's layer (roofs would otherwise cover the ground).
+  function bakeShadowMask(rect, groundOnly = null) {
     const { minX, maxX, minZ, maxZ } = rect;
     const maxTex = renderer.capabilities.maxTextureSize;
     const mapSize = Math.min(preset.bakeMap, maxTex), rtSize = Math.min(preset.bakeRT, maxTex);
@@ -109,7 +111,9 @@ export async function createSky({ renderer, scene, quality, opts = {} }) {
     const cam = new THREE.OrthographicCamera((minX - maxX) / 2, (maxX - minX) / 2, (maxZ - minZ) / 2, (minZ - maxZ) / 2, 0.1, 100);
     // looking straight down, +x right, north (-z) at the top
     cam.position.set(cx, 30, cz); cam.up.set(0, 0, -1); cam.lookAt(cx, 0, cz);
-    cam.near = 29.6; cam.far = 30.3; cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    cam.near = 29.6; cam.far = 30.3;
+    if (groundOnly) { cam.position.y = groundOnly.maxY + 30; cam.far = 30.3 + groundOnly.maxY - groundOnly.minY; cam.layers.set(groundOnly.layer); }
+    cam.updateProjectionMatrix(); cam.updateMatrixWorld();
     const override = new THREE.ShadowMaterial({ color: 0x000000, opacity: 1.0 });
     const prev = { bg: scene.background, fog: scene.fog, om: scene.overrideMaterial, rt: renderer.getRenderTarget(), cc: renderer.getClearColor(new THREE.Color()), ca: renderer.getClearAlpha(), tm: renderer.toneMapping };
     scene.background = null; scene.fog = null; scene.overrideMaterial = override;

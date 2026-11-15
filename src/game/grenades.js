@@ -77,7 +77,7 @@ export class Projectile {
     }
     const b = world.playBounds;
     if (b) { this.pos.x = THREE.MathUtils.clamp(this.pos.x, b.minX - 20, b.maxX + 20); this.pos.z = THREE.MathUtils.clamp(this.pos.z, b.minZ - 20, b.maxZ + 20); }
-    if (this.pos.y < -30) { this.resting = true; this.vel.set(0, 0, 0); }
+    if (this.pos.y < (world.terrain ? world.terrain.heightAt(this.pos.x, this.pos.z) : 0) - 30) { this.resting = true; this.vel.set(0, 0, 0); }
     this.rot.x += this.spin.x * h; this.rot.y += this.spin.y * h; this.rot.z += this.spin.z * h;
     return null;
   }

@@ -309,10 +309,12 @@ export class BotBrain {
         if (pick && Math.random() < this.d.push) {
           const h = this.d.hint;
           goal = new THREE.Vector3(pick.pos[0] + rand(-h, h), 0, pick.pos[2] + rand(-h, h));
+          if (auth.world.terrain) goal.y = auth.world.groundY(goal.x, goal.z);   // (goal distances are 3D: keep goals on the hills)
         } else {
           const b = auth.world.playBounds;
           const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
           goal = new THREE.Vector3(cx + rand(-90, 90), 0, cz + rand(-70, 70));
+          if (auth.world.terrain) goal.y = auth.world.groundY(goal.x, goal.z);
         }
         this.goalT = t + rand(3, 5);
       } else goal = this.goal;
@@ -482,7 +484,8 @@ export class BotBrain {
     this.adsVis = (this.adsVis || 0) + THREE.MathUtils.clamp((this.adsWant || 0) - (this.adsVis || 0), -dt / 0.2, dt / (gs.adsTime || 0.25));
     this.mob.afterMove(t, this.ctrl.events);
     this.ctrl.events.length = 0;
-    if (this.ctrl.position.y < -20) this.ctrl.teleport(this.mgr.nav.randomPoint(), this.ctrl.yaw);
+    const w = this.auth.world;
+    if (this.ctrl.position.y < (w.terrain ? w.terrain.heightAt(this.ctrl.position.x, this.ctrl.position.z) : 0) - 20) this.ctrl.teleport(this.mgr.nav.randomPoint(), this.ctrl.yaw);
 
     // Weapons (bots never run dry on reserve ammo).
     for (const g of this.guns) { g.update(t, dt, false); if (g.reserve < g.stats.mag) g.reserve = g.stats.mag * 3; }
