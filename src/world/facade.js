@@ -159,17 +159,22 @@ function louver(ctx, F, u0, u1, y0, y1) {
   fbox(B.v('frame'), F, u0 - 0.05, u1 + 0.05, y0 - 0.05, y1 + 0.05, 0, 0.035, 1, 0, 'fstb');
   wallRect(B.v('louver'), F, u0, u1, y0, y1, 0.04, [0, 0, 1, (y1 - y0) / 0.42]);
 }
-function downspout(ctx, F, u, yTop) {
+// `o` = how far the surface behind stands out from the wall plane (a pilaster face): fixtures mount on that surface
+// instead of sinking into it.
+function downspout(ctx, F, u, yTop, o = 0) {
   const fr = ctx.B.v('frame');
-  fbox(fr, F, u - 0.055, u + 0.055, 0.35, yTop, 0.02, 0.13, 1, 0, 'fs');
-  fbox(fr, F, u - 0.11, u + 0.11, yTop, yTop + 0.3, 0.0, 0.2, 1, 0, 'fstb');
-  fbox(fr, F, u - 0.055, u + 0.055, 0.18, 0.35, 0.02, 0.3, 1, 0, 'fstb');
-  for (let y = 1.2; y < yTop; y += 2.4) fbox(fr, F, u - 0.075, u + 0.075, y, y + 0.05, 0, 0.14, 1, 0, 'fstb');
+  fbox(fr, F, u - 0.055, u + 0.055, 0.35, yTop, o + 0.02, o + 0.13, 1, 0, 'fs');
+  fbox(fr, F, u - 0.11, u + 0.11, yTop, yTop + 0.3, 0.0, o + 0.2, 1, 0, 'fstb');
+  fbox(fr, F, u - 0.055, u + 0.055, 0.18, 0.35, o + 0.02, o + 0.3, 1, 0, 'fstb');
+  for (let y = 1.2; y < yTop; y += 2.4) fbox(fr, F, u - 0.075, u + 0.075, y, y + 0.05, o, o + 0.14, 1, 0, 'fstb');
 }
-function wallPack(ctx, F, u, y) {
+// wall-pack light: back plate, bronze housing standing proud of the surface, glowing lens on the front and underside
+// (so it reads as a fixture from a distance rather than a black rectangle)
+function wallPack(ctx, F, u, y, o = 0) {
   const { B } = ctx;
-  fbox(B.v('blackMetal'), F, u - 0.17, u + 0.17, y, y + 0.22, 0, 0.14, 1, 0, 'fst');
-  fbox(B.v('lightEmit'), F, u - 0.15, u + 0.15, y - 0.012, y, 0.01, 0.13, 1, 0, 'b');
+  fbox(B.v('blackMetal'), F, u - 0.2, u + 0.2, y - 0.03, y + 0.27, o, o + 0.03, 1, 0, 'fstb');
+  fbox(B.v('blackMetal'), F, u - 0.17, u + 0.17, y + 0.09, y + 0.24, o + 0.03, o + 0.19, 1, 0, 'fstb');
+  fbox(B.v('lightEmit'), F, u - 0.15, u + 0.15, y, y + 0.09, o + 0.03, o + 0.16, 1, 0, 'fsb');
 }
 
 // ------------------------------------------------------------------------------------------ one wall
@@ -205,6 +210,8 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
 
   const openings = [];      // rows: [yA, yB, [[u0,u1,type,oy0,oy1], ...]]
   const piers = [];         // [uCentre, width, out]
+  const drawnPiers = [];    // the ones actually built (filled before the extras run)
+  const pierOut = (u) => { let o = 0; for (const [uc, w, out] of drawnPiers) if (Math.abs(u - uc) < w / 2 - 0.02) o = Math.max(o, out); return o; };
   const extras = [];        // deferred detail callbacks
   const m = L > 6 ? 1.3 : 0.6;
   // corner piers: hide the razor edge where two walls meet
@@ -220,7 +227,7 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
     const yA0 = 1.0, yA1 = 3.2, yB0 = h * 0.5 + 0.35, yB1 = Math.min(h * 0.5 + 2.85, wallTop - 0.5);
     for (let i = 0; i < nb; i++) {
       const c = m + (i + 0.5) * bay;
-      if (i === doorBay) { r1.push([c - 1.1, c + 1.1, 'door']); extras.push(() => wallPack(ctx, F, c + 2.0, 2.9)); }
+      if (i === doorBay) { r1.push([c - 1.1, c + 1.1, 'door']); extras.push(() => wallPack(ctx, F, c + 2.0, 2.9, pierOut(c + 2.0))); }
       else r1.push([c - (bay - 1.75) / 2, c + (bay - 1.75) / 2, 'win', 1]);
       if (two) r2.push([c - (bay - 0.75) / 2, c + (bay - 0.75) / 2, 'win', 1]);
       if (i > 0) piers.push([m + i * bay, 0.62, 0.11]);
@@ -229,7 +236,7 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
     openings.push([yA0, yA1, r1]); if (two) openings.push([yB0, yB1, r2]);
     // continuous limestone sill courses + downspouts on some piers
     extras.push(() => { const ls = B.v('limestone'); for (const [a, b] of runs()) fbox(ls, F, a, b, yA0 - 0.34, yA0 - 0.11, 0, 0.03, STONE_S, uOff, 'fstb'); if (two) fbox(ls, F, 0, L, yB0 - 0.34, yB0 - 0.11, 0, 0.03, STONE_S, uOff, 'ftb'); });
-    for (let i = 3; i < nb; i += 4) { const u = m + i * bay + 0.48; extras.push(() => downspout(ctx, F, u, bandY - 0.4)); }
+    for (let i = 3; i < nb; i += 4) { const u = m + i * bay + 0.48; extras.push(() => downspout(ctx, F, u, bandY - 0.4, pierOut(u))); }
   } else if (st.kind === 'modern') {
     // tall glazed bays: two storeys of glass with an insulated metal spandrel between
     const r1 = [], r2 = []; const yA0 = 0.85, yA1 = h * 0.5 - 0.55, yB0 = h * 0.5 + 0.35, yB1 = wallTop - 0.55;
@@ -241,7 +248,7 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
       if (st.beds && i !== doorBay) extras.push(() => bed(ctx, F, c, bay - 1.6));
     }
     openings.push([yA0, yA1, r1]); openings.push([yB0, yB1, r2]);
-    for (let i = 2; i < nb; i += 3) { const u = m + i * bay; extras.push(() => downspout(ctx, F, u, bandY - 0.3)); }
+    for (let i = 2; i < nb; i += 3) { const u = m + i * bay; extras.push(() => downspout(ctx, F, u, bandY - 0.3, pierOut(u))); }
   } else if (st.kind === 'lowmod') {
     const r1 = []; const yA0 = 0.95, yA1 = Math.min(3.4, wallTop - 0.7);
     for (let i = 0; i < nb; i++) {
@@ -257,12 +264,12 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
     for (let i = 1; i < nb; i++) piers.push([m + i * bay, st.tall ? 1.1 : 0.9, 0.14]);
     for (let i = 0; i < nb; i++) {
       const c = m + (i + 0.5) * bay;
-      if (i === doorBay) { r1.push([c - 1.1, c + 1.1, 'door']); extras.push(() => wallPack(ctx, F, c - 1.9, 3.0)); }
+      if (i === doorBay) { r1.push([c - 1.1, c + 1.1, 'door']); extras.push(() => wallPack(ctx, F, c - 1.9, 3.0, pierOut(c - 1.9))); }
       else if (rnd() < 0.3 && h > 6) extras.push(() => louver(ctx, F, c - 1.1, c + 1.1, 2.7, 3.9));
       else if (st.kind === 'service' && rnd() < 0.5 && h > 4.4) r1.push([c - 1.2, c + 1.2, 'win', 1, 1.5, 2.9]);
       if (st.clerestory && h > 9) rc.push([c - (bay - 1.5) / 2, c + (bay - 1.5) / 2, 'win', 2]);
       if (st.tall && i !== doorBay) extras.push(() => { setTint(brick, tint, 0.9); fbox(brick, F, c - (bay - 1.7) / 2, c + (bay - 1.7) / 2, 3.6, wallTop - 1.2, -0.0, 0.045, BRICK_S, uOff, 'fstb'); setTint(brick, tint); });
-      if (i % 2 === 1) extras.push(() => wallPack(ctx, F, m + i * bay, 4.2));
+      if (i % 2 === 1 && i % 3 !== 1) extras.push(() => wallPack(ctx, F, m + i * bay, 4.2, pierOut(m + i * bay)));   // not on the pilasters that carry a downspout
     }
     if (r1.length) openings.push([0.0, 2.95, r1]);
     if (rc.length) openings.push([wallTop - 3.1, wallTop - 0.9, rc]);
@@ -272,7 +279,8 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
       for (const [a, b] of runs()) fbox(ls, F, a, b, 3.5, 3.7, 0, 0.035, STONE_S, uOff, 'fstb');
       fbox(ls, F, 0, L, wallTop - 3.45, wallTop - 3.25, 0, 0.035, STONE_S, uOff, 'ftb');
     });
-    for (let i = 1; i < nb; i += 3) { const u = m + i * bay + 0.6; extras.push(() => downspout(ctx, F, u, bandY - 0.3)); }
+    // downspouts run down the pilaster faces (beside a pilaster the pipe hid one of its edges, so the other read as a stray seam)
+    for (let i = 1; i < nb; i += 3) { const u = m + i * bay; extras.push(() => downspout(ctx, F, u, bandY - 0.3, pierOut(u))); }
   }
 
   // ---- brick field with the openings cut out, row by row
@@ -310,7 +318,11 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
     const a = Math.max(0, uc - w / 2), b = Math.min(L, uc + w / 2);
     let clash = false; for (const [, , list] of openings) for (const o of list) if (a < o[1] + 0.05 && b > o[0] - 0.05) clash = true;
     if (clash) continue;
-    fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 'fs');
+    drawnPiers.push([uc, w, out]);
+    // deep pilasters on the big blank walls get a slightly darker brick so they read as pilasters, not as one stray edge line
+    // (their returns are shaded darker still: a 14 cm sunlit brick return read as a bright seam running up the wall)
+    if (out >= 0.14) { setTint(brick, tint, 0.9); fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 'f'); setTint(brick, tint, 0.62); fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 's'); setTint(brick, tint); }
+    else fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 'fs');
     fbox(pl, F, a - 0.04, b + 0.04, 0, pY + 0.04, 0, out + 0.07, STONE_S, uOff, 'fst');
     fbox(B.v('limestone'), F, a - 0.03, b + 0.03, wallTop - 0.16, wallTop, 0, out + 0.04, STONE_S, uOff, 'fstb');
   }

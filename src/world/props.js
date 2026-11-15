@@ -34,9 +34,18 @@ function buildCarTemplate(t) {
   const secs = t.st.map(([x, y, ws]) => sec(x, y, ws));
   for (const s of secs) for (const p of s) pos.push(p[0], p[1], p[2]);
   for (let i = 0; i < secs.length - 1; i++) for (let k = 0; k < NS - 1; k++) { const a = i * NS + k, b = a + 1, c = a + NS + 1, d = a + NS; idx.push(a, b, c, a, c, d); }
-  // end caps (fans)
-  const cap = (i, flip) => { const base = i * NS; const ci = pos.length / 3; let cx = 0, cy = 0; for (const p of secs[i]) { cy += p[1]; } cy /= NS; pos.push(secs[i][0][0], cy, 0); for (let k = 0; k < NS - 1; k++) { if (flip) idx.push(ci, base + k + 1, base + k); else idx.push(ci, base + k, base + k + 1); } };
-  cap(0, false); cap(secs.length - 1, true);
+  // end caps: closed fans on their own vertices (flat bumper faces; the old open fan left a notch under the plate with
+  // the lower corners hanging like flaps), and a floor pan so the shell is not see-through from low angles
+  const cap = (i, flip) => {
+    const base = pos.length / 3; for (const p of secs[i]) pos.push(p[0], p[1], p[2]);
+    const ci = pos.length / 3; let cy = 0; for (const p of secs[i]) cy += p[1]; cy /= NS; pos.push(secs[i][0][0], cy, 0);
+    for (let k = 0; k < NS; k++) { const k1 = (k + 1) % NS; if (flip) idx.push(ci, base + k1, base + k); else idx.push(ci, base + k, base + k1); }
+  };
+  cap(0, true); cap(secs.length - 1, false);
+  for (let i = 0; i < secs.length - 1; i++) {
+    const base = pos.length / 3; for (const p of [secs[i][NS - 1], secs[i][0], secs[i + 1][0], secs[i + 1][NS - 1]]) pos.push(p[0], p[1], p[2]);
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
   const body = new THREE.BufferGeometry(); body.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); body.setIndex(idx); body.computeVertexNormals();
   body.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array((pos.length / 3) * 2), 2));
   // make sure the shell faces outward (check one triangle against the centre)
@@ -91,15 +100,15 @@ function placeCar(ctx, tpl, x, z, heading, color) {
     // the body has no arch cut-outs, so the wheel sits slightly proud with a dark arch disc behind it
     const a = Wp(wx, t.wr, sgn * (t.W / 2 - 0.22)), b = Wp(wx, t.wr, sgn * (t.W / 2 + 0.035));
     rub.tube(a, b, t.wr, 14);
-    const disc = (r, col, dOut, cy) => {
+    const disc = (r, col, dOut, cy, yMin = -1) => {
       p.setColor(col[0], col[1], col[2]); const ctr = Wp(wx, cy, sgn * (t.W / 2 + dOut));
       for (let k = 0; k < 14; k++) {
         const a0 = (k / 14) * Math.PI * 2, a1 = ((k + 1) / 14) * Math.PI * 2;
-        const P = (ang) => [ctr[0] + Math.cos(ang) * r * c, ctr[1] + Math.sin(ang) * r, ctr[2] - Math.cos(ang) * r * s];
+        const P = (ang) => [ctr[0] + Math.cos(ang) * r * c, Math.max(yMin, ctr[1] + Math.sin(ang) * r), ctr[2] - Math.cos(ang) * r * s];
         if (sgn > 0) p.tri(ctr, P(a0), P(a1)); else p.tri(ctr, P(a1), P(a0));
       }
     };
-    disc(t.wr + 0.075, [0.015, 0.015, 0.015], 0.012, t.wr + 0.03);   // arch shadow
+    disc(t.wr + 0.075, [0.015, 0.015, 0.015], 0.012, t.wr + 0.03, 0.24);   // arch shadow (stops at the sill: below it the disc hung in the air beside the tyre)
     disc(t.wr, [0.03, 0.03, 0.03], 0.036, t.wr);                      // tyre sidewall
     disc(t.wr * 0.6, [0.3, 0.31, 0.33], 0.04, t.wr);                // alloy
     disc(t.wr * 0.2, [0.1, 0.1, 0.1], 0.044, t.wr);
