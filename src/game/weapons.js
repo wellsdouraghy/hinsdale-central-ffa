@@ -32,6 +32,7 @@ export const WEAPON_STATS = {
     spread: { hip: 7, ads: 0.0, move: 4, air: 10, crouch: 0.8, perShot: 0, maxBloom: 0 },
     recoil: { pitch: 4.5, yaw: 0.8, recover: 5, adsMult: 0.8, pattern: 'kick' },
     adsTime: 0.36, adsFov: 16, moveMult: 0.9, equipTime: 0.6, scope: true,
+    pierce: 3,   // the round passes through up to 3 players (collaterals)
   },
   shotgun: {
     id: 'shotgun', label: 'Pump Shotgun', short: 'SG', slot: 'primary', mode: 'pump', rpm: 70,

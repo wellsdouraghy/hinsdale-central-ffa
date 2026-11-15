@@ -171,15 +171,24 @@ export class BotManager {
     for (let i = 0; i < st.pellets; i++) {
       const dir = cone(aim, spread);
       const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
-      const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : st.maxRange, targets);
-      if (th) {
+      // Nearest bodies first; piercing rounds (sniper) pass through up to `pierce` players.
+      const hits = [];
+      for (let pool = targets; hits.length < (st.pierce || 1);) {
+        const h = this.hitscan.castTargets(eye, dir, wh ? wh.distance : st.maxRange, pool);
+        if (!h) break;
+        hits.push(h);
+        pool = pool.filter((x) => x.id !== h.id);
+      }
+      for (const th of hits) {
         const a = dmgBy.get(th.id) || { dmg: 0, hs: false, ik: false };
         a.dmg += damageAt(st, th.distance) * (th.headshot ? st.headMult : 1);
         a.hs = a.hs || th.headshot;
         if (gun.id === 'sniper' && th.zone !== 'legs') a.ik = true;
         dmgBy.set(th.id, a);
         ends.push([r2(th.point.x), r2(th.point.y), r2(th.point.z), 2]);
-      } else if (wh) {
+      }
+      if (hits.length && !(st.pierce > 1)) continue;   // stopped in the body
+      if (wh) {
         ends.push([r2(wh.point.x), r2(wh.point.y), r2(wh.point.z), 1, r3(wh.normal.x), r3(wh.normal.y), r3(wh.normal.z), wh.surface]);
       } else {
         const e = eye.clone().addScaledVector(dir, Math.min(st.maxRange, 300));

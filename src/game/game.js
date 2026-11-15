@@ -451,6 +451,16 @@ export class Game {
       this.hud.hitmarker('kill');
       this.audio.kill(m.hs);
       this.hud.killBanner(victim?.name ?? '', m.hs);
+      // Multi-kills: kills landing within 1.5 s of each other (a sniper collateral lands them together).
+      const now = clock();
+      const gap = now - (this.lastKillAt ?? -99);
+      this.multiKills = gap < 1.5 ? (this.multiKills || 1) + 1 : 1;
+      this.lastKillAt = now;
+      const MULTI = { 2: 'Double kill', 3: 'Triple kill', 4: 'Quad kill' };
+      if (this.multiKills >= 2) {
+        const sub = m.w === 'sniper' && gap < 0.3 ? 'Collateral' : '';
+        this.announce(MULTI[this.multiKills] || 'Rampage', sub, '#f2b544', 'neutral');
+      }
     }
     this.enemyBars.delete(m.victim);
     if (meV) this._die(m);
@@ -711,7 +721,15 @@ export class Game {
     for (let i = 0; i < st.pellets; i++) {
       const dir = coneDir(aim, spread, st.pellets > 1 ? i / st.pellets : null);
       const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
-      const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : st.maxRange, targets);
+      // Players along the ray, nearest first; piercing rounds (sniper) keep going through up to `pierce` bodies.
+      const hits = [];
+      for (let pool = targets; hits.length < (st.pierce || 1);) {
+        const h = this.hitscan.castTargets(eye, dir, wh ? wh.distance : st.maxRange, pool);
+        if (!h) break;
+        hits.push(h);
+        pool = pool.filter((x) => x.id !== h.id);
+      }
+      const th = hits[0] || null;
       const hd = this.heliView ? this.heliView.rayHit(eye, dir, Math.min(wh ? wh.distance : st.maxRange, th ? th.distance : Infinity)) : null;
       let end;
       if (hd !== null) {
@@ -720,22 +738,32 @@ export class Game {
         this.effects.impact(end, dir.clone().negate(), 'metal');
         ends.push([r2(end.x), r2(end.y), r2(end.z), 1, r3(-dir.x), r3(-dir.y), r3(-dir.z), 'metal']);
       } else if (th) {
-        end = th.point;
-        const r = this.remotes.get(th.id);
-        const protectedNow = r && t < r.protectUntil;
-        if (!protectedNow) {
-          const dmg = damageAt(st, th.distance) * (th.headshot ? st.headMult : 1);
-          const acc = dmgBy.get(th.id) || { dmg: 0, hs: false, ik: false };
-          acc.dmg += dmg;
-          acc.hs = acc.hs || th.headshot;
-          // Sniper: head or torso is an instant kill at any range (legs take normal damage).
-          if (st.id === 'sniper' && th.zone !== 'legs') acc.ik = true;
-          dmgBy.set(th.id, acc);
-          anyHit = true;
-          anyHead = anyHead || th.headshot;
+        for (const h of hits) {
+          const r = this.remotes.get(h.id);
+          const protectedNow = r && t < r.protectUntil;
+          if (!protectedNow) {
+            const dmg = damageAt(st, h.distance) * (h.headshot ? st.headMult : 1);
+            const acc = dmgBy.get(h.id) || { dmg: 0, hs: false, ik: false };
+            acc.dmg += dmg;
+            acc.hs = acc.hs || h.headshot;
+            // Sniper: head or torso is an instant kill at any range (legs take normal damage).
+            if (st.id === 'sniper' && h.zone !== 'legs') acc.ik = true;
+            dmgBy.set(h.id, acc);
+            anyHit = true;
+            anyHead = anyHead || h.headshot;
+          }
+          this.effects.blood(h.point, dir);
+          ends.push([r2(h.point.x), r2(h.point.y), r2(h.point.z), 2]);
         }
-        this.effects.blood(end, dir);
-        ends.push([r2(end.x), r2(end.y), r2(end.z), 2]);
+        end = hits[hits.length - 1].point;
+        // A piercing round carries on past the last body to the wall behind it.
+        if (st.pierce > 1) {
+          if (wh) {
+            end = wh.point;
+            this.effects.impact(end, wh.normal, wh.surface);
+            ends.push([r2(end.x), r2(end.y), r2(end.z), 1, r3(wh.normal.x), r3(wh.normal.y), r3(wh.normal.z), wh.surface]);
+          } else end = eye.clone().addScaledVector(dir, Math.min(st.maxRange, 400));
+        }
       } else if (wh) {
         end = wh.point;
         this.effects.impact(end, wh.normal, wh.surface);
