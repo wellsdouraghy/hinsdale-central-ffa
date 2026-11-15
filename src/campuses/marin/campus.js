@@ -6,6 +6,9 @@ export default {
   name: 'Marin Academy',
   wordmark: ['Marin', 'Academy'],
   city: 'San Rafael, CA',
+  stateName: 'California',
+  rival: 'San Domenico',     // the Panthers: Marin Academy's main rival
+  aliases: ['Marin Academy High School', 'MA', 'San Rafael', 'Marin County', 'Bay Area'],
   blurb: 'Clay-tile roofs, Championship Field, the pool and downtown San Rafael at the gate.',
   legal: 'Fan-made campus game. Not affiliated with Marin Academy.',
   ...MARIN_BRAND,   // short, palette, emblem, teams (Wildcats vs San Domenico Panthers), letters: see brand.js
