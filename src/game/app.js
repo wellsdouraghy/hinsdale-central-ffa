@@ -76,6 +76,13 @@ const lobbyUi = createLobbyUi({
   onMoveBot: (team) => net?.isHost && net.moveBot(team),
   onReady: (r) => net && !net.isHost && net.setReady(r),
   onTeam: (team) => net && !net.isHost && net.setTeam(team),
+  onRename: (name) => {
+    if (!net) return;
+    const clean = sanitizeName(name);
+    net.setName?.(clean);
+    settings.name = clean; saveSettings(settings);
+    const ni = document.getElementById('name-input'); if (ni) ni.value = clean;
+  },
   onStart: () => net?.isHost && net.startCountdown(3),
   onLeave: () => leave(),
   onWarn: (t) => menus.toast(t, 4),

@@ -17,6 +17,7 @@ function esc(s) {
 export function createLobbyUi(h) {
   const el = {
     root: $('lobby'), code: $('lb-code'), status: $('lb-status'), settings: document.querySelector('.lobby-settings'),
+    nameIn: $('lb-name'), nameSave: $('lb-name-save'),
     hostOnly: $('lb-hostonly'), mode: [...document.querySelectorAll('#lb-mode button')], bots: $('lb-bots'), botsO: $('lb-bots-o'),
     diff: [...document.querySelectorAll('#lb-diff button')], limit: $('lb-limit'), unit: $('lb-limit-unit'), desc: $('lb-desc'),
     count: $('lb-count'), lists: $('lb-lists'), balance: $('lb-balance'), tip: $('lb-tip'),
@@ -54,6 +55,12 @@ export function createLobbyUi(h) {
   });
   el.leave.addEventListener('click', () => h.onLeave?.());
   el.copy.addEventListener('click', () => h.onCopy?.());
+  // Rename: a fixed field (the player list re-renders every couple of seconds, so no inline editing there).
+  const saveName = () => { const v = el.nameIn.value.trim(); if (v) h.onRename?.(v); el.nameIn.blur(); };
+  el.nameSave.addEventListener('click', saveName);
+  el.nameIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveName(); } });
+  el.nameIn.addEventListener('change', saveName);
+  el.lists.addEventListener('click', (e) => { if (e.target.closest('.lp-row.me .lp-name')) { el.nameIn.focus(); el.nameIn.select(); } });
 
   // Drag & drop between team columns (host), click-to-move fallback via the arrow buttons.
   el.lists.addEventListener('dragstart', (e) => {
@@ -88,7 +95,7 @@ export function createLobbyUi(h) {
     const canMove = state.settings.mode !== 'ffa' && (ctx.isHost || me) && state.phase === 'lobby';
     const other = m.team === 'red' ? 'blue' : 'red';
     return `<div class="lp-row ${me ? 'me' : ''} ${ctx.isHost && canMove ? 'movable' : ''}" data-id="${m.id}" ${ctx.isHost && canMove ? 'draggable="true"' : ''}>
-      <span class="lp-name"><b>${esc(m.name)}</b>${m.host ? '<span class="lp-tag">HOST</span>' : ''}${me ? '<span class="lp-tag">YOU</span>' : ''}</span>
+      <span class="lp-name" ${me ? 'title="Click to rename yourself"' : ''}><b>${esc(m.name)}</b>${me ? '<i class="lp-edit">&#9998;</i>' : ''}${m.host ? '<span class="lp-tag">HOST</span>' : ''}${me ? '<span class="lp-tag">YOU</span>' : ''}</span>
       <span class="lp-mic" title="Microphone connected">MIC &#10003;</span>
       <span class="lp-ping">${m.host ? 'host' : (m.ping ?? '-') + ' ms'}</span>
       <span><span class="lp-ready ${m.ready ? 'yes' : 'no'}">${m.host ? 'HOST' : m.ready ? 'READY' : 'NOT READY'}</span>${canMove ? `<button class="lp-move" data-move="${m.id}" data-to="${other}" title="Move to ${TEAM_NAMES[other]}">&#8644;</button>` : ''}</span>
@@ -106,7 +113,10 @@ export function createLobbyUi(h) {
     el.code.textContent = state.code;
     el.mode.forEach((b) => b.classList.toggle('on', b.dataset.v === s.mode));
     el.diff.forEach((b) => b.classList.toggle('on', b.dataset.v === s.difficulty));
-    if (document.activeElement !== el.bots) { el.bots.value = s.bots; el.botsO.textContent = s.bots; }
+    const totalBots = s.mode === 'ffa' ? s.bots : (s.botsRed || 0) + (s.botsBlue || 0);
+    if (document.activeElement !== el.bots) { el.bots.value = totalBots; el.botsO.textContent = totalBots; }
+    const meM = state.members?.find?.((m) => m.id === ctx.localId);
+    if (meM && document.activeElement !== el.nameIn) el.nameIn.value = meM.name;
     if (document.activeElement !== el.limit) el.limit.value = s.scoreLimit;
     el.unit.textContent = LIMIT_UNIT[s.mode];
     el.desc.textContent = MODE_DESC[s.mode]();
@@ -115,7 +125,7 @@ export function createLobbyUi(h) {
     el.balance.classList.toggle('hidden', !(ctx.isHost && s.mode !== 'ffa'));
     const humans = state.members.length;
     el.count.textContent = `Players ${humans + state.botSlots} / ${state.cap || 12}`;
-    $('lb-bots-row').classList.toggle('hidden', s.mode !== 'ffa');
+    // Total bots in every mode (team modes split it evenly; the per-team +/- buttons set any other split).
     $('lb-bots-team').classList.toggle('hidden', s.mode === 'ffa' || !ctx.isHost);
     if (s.mode === 'ffa') {
       el.lists.className = 'lp-lists';

@@ -457,7 +457,14 @@ h2 { margin: 0 0 8px; font-size: 22px; letter-spacing: .14em; text-transform: up
 .lb-unit { float: right; font: 600 11px var(--mono); color: var(--muted); }
 .lb-note { font-size: 10px; letter-spacing: .14em; color: var(--gold); margin-left: 8px; }
 .lb-desc { font-size: 13px; line-height: 1.5; color: rgba(255,255,255,0.6); margin: 4px 0 0; text-transform: none; letter-spacing: 0; }
-.lobby-settings.readonly .seg, .lobby-settings.readonly input { pointer-events: none; opacity: .65; }
+.lobby-settings.readonly .seg, .lobby-settings.readonly input:not(#lb-name) { pointer-events: none; opacity: .65; }
+.lb-name-row { display: block; margin-bottom: 14px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.lb-name-box { display: flex; gap: 8px; margin-top: 6px; }
+#lb-name { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: rgba(255,255,255,0.05); color: var(--text); font: 600 15px var(--font); outline: none; text-transform: none; letter-spacing: 0; }
+#lb-name:focus { border-color: var(--accent); }
+.lp-row.me .lp-name { cursor: pointer; }
+.lp-edit { margin-left: 6px; font-style: normal; color: var(--muted); font-size: 12px; }
+.lp-row.me .lp-name:hover .lp-edit { color: var(--text); }
 .lp-head { display: flex; justify-content: space-between; align-items: center; }
 .lp-head .btn { width: auto; }
 .lp-lists { display: grid; grid-template-columns: 1fr; gap: 14px; }

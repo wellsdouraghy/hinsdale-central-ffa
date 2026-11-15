@@ -112,6 +112,7 @@ export async function createClientNet({ code, name, onStatus }) {
     initialSession: null,
     onLobby: null, onCountdown: null, onCountdownCancel: null, onMatchStart: null, onToLobby: null, onDisconnect: null, onNotice: null,
     setReady(ready) { sendRaw({ t: 'lobbyReady', ready }); },
+    setName(name) { sendRaw({ t: 'lobbyName', name }); },
     setTeam(team) { sendRaw({ t: 'lobbyTeam', team }); },
     /** Ask the host for the running match's welcome and get a Game session. */
     joinMatch() {

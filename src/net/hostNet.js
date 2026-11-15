@@ -145,8 +145,8 @@ export async function createHostNet({ name, onStatus, settings }) {
     pushLobby();
   }
 
-  function uniqueName(n) {
-    const taken = new Set(humans().map((m) => m.name.toLowerCase()));
+  function uniqueName(n, exceptId = null) {
+    const taken = new Set(humans().filter((m) => m.id !== exceptId).map((m) => m.name.toLowerCase()));
     if (!taken.has(n.toLowerCase())) return n;
     for (let i = 2; ; i++) if (!taken.has(`${n} (${i})`.toLowerCase())) return `${n} (${i})`;
   }
@@ -159,6 +159,7 @@ export async function createHostNet({ name, onStatus, settings }) {
       case 'bye': dropClient(id); return;
       case 'pong': if (m) m.ping = Math.round((now() - msg.ts) * 1000); break;
       case 'lobbyReady': if (m) { m.ready = !!msg.ready; pushLobby(); } return;
+      case 'lobbyName': if (m) { rename(m, msg.name); } return;
       case 'lobbyTeam':
         if (m && teamMode() && TEAMS.includes(msg.team) && m.team !== msg.team && lobby.phase === 'lobby') {
           // Joiners may switch only if the human teams stay within one player.
@@ -237,6 +238,15 @@ export async function createHostNet({ name, onStatus, settings }) {
     if (t - lastTick < 120) return;
     match.session.tick(Math.min(0.25, (t - lastTick) / 1000));
   });
+
+  /** Renames a lobby member (cleaned, unique among humans). */
+  function rename(m, name) {
+    const n = String(name || '').replace(/[^\w \-.']/g, '').trim().slice(0, 16);
+    if (!n || n === m.name) return;
+    m.name = uniqueName(n, m.id);
+    pushLobby();
+  }
+  net.setName = (name) => { const me = members.get(localId); if (me) rename(me, name); };
 
   // ---------- host actions ----------
   net.setSettings = (patch) => {
