@@ -132,7 +132,7 @@ export class BotManager {
     const ends = [];
     for (let i = 0; i < st.pellets; i++) {
       const dir = cone(aim, spread);
-      const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
+      const wh = this.hitscan.castWorld(eye, dir, st.maxRange, { bullets: true });
       let best = Infinity;
       for (const [c, r] of spheres) {
         const oc = new THREE.Vector3().subVectors(eye, c);
@@ -177,7 +177,7 @@ export class BotManager {
     const ends = [];
     for (let i = 0; i < st.pellets; i++) {
       const dir = cone(aim, spread);
-      const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
+      const wh = this.hitscan.castWorld(eye, dir, st.maxRange, { bullets: true });
       // Nearest bodies first; piercing rounds (sniper) pass through up to `pierce` players.
       const hits = [];
       for (let pool = targets; hits.length < (st.pierce || 1);) {

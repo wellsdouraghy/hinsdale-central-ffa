@@ -720,7 +720,7 @@ export class Game {
 
     for (let i = 0; i < st.pellets; i++) {
       const dir = coneDir(aim, spread, st.pellets > 1 ? i / st.pellets : null);
-      const wh = this.hitscan.castWorld(eye, dir, st.maxRange);
+      const wh = this.hitscan.castWorld(eye, dir, st.maxRange, { bullets: true });
       // Players along the ray, nearest first; piercing rounds (sniper) keep going through up to `pierce` bodies.
       const hits = [];
       for (let pool = targets; hits.length < (st.pierce || 1);) {
@@ -1171,7 +1171,7 @@ export class Game {
     let aimName = null, aimFriendly = false;
     if (this.alive) {
       const eye = p.getEye(_v1), dir = this._viewDir(_v2);
-      const wh = this.hitscan.castWorld(eye, dir, 120);
+      const wh = this.hitscan.castWorld(eye, dir, 120, { bullets: true });
       const all = [];
       for (const r of this.remotes.values()) if (r.alive) all.push(r.hitbox());
       const th = this.hitscan.castTargets(eye, dir, wh ? wh.distance : 120, all);
@@ -1265,7 +1265,7 @@ export class Game {
           const near = d < 25;
           const fwd = _v3.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
           const aimed = to.dot(fwd) / Math.max(d, 1e-3) > Math.cos(4 * DEG);
-          vis = (near || aimed) && !this.hitscan.castWorld(cam, to.normalize(), d - 0.4);
+          vis = (near || aimed) && !this.hitscan.castWorld(cam, to.normalize(), d - 0.4, { bullets: true });
         }
         r._tagVis = vis;
       }

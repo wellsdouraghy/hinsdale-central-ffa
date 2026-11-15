@@ -113,7 +113,7 @@ export class BotBrain {
       chest.y -= 0.4;
       _v.subVectors(chest, eye);
       const len = _v.length();
-      if (this.mgr.hitscan.castWorld(eye, _v.normalize(), len - 0.3)) continue; // no wallhacks
+      if (this.mgr.hitscan.castWorld(eye, _v.normalize(), len - 0.3, { bullets: true })) continue; // no wallhacks (fences are see-through)
       this.memory.set(o.id, { pos: new THREE.Vector3().fromArray(o.pos), t });
       if (d < 50) seen++;
       // Stick with the current target (switching restarts the reaction delay); humans are slightly preferred.
@@ -182,7 +182,7 @@ export class BotBrain {
     if (inView) {
       _v.subVectors(c, eye);
       const len = _v.length();
-      const hit = this.mgr.hitscan.castWorld(eye, _v.normalize(), len);
+      const hit = this.mgr.hitscan.castWorld(eye, _v.normalize(), len, { bullets: true });
       visible = !hit || hit.distance > len - 3;
     }
     // Aim point: hull center, led by the helicopter's velocity (state latency + reaction).

@@ -69,7 +69,7 @@ export class BotPilot {
   _los(from, to) {
     _d.subVectors(to, from);
     const len = _d.length();
-    return !this.hs.castWorld(from, _d.normalize(), len - 0.4);
+    return !this.hs.castWorld(from, _d.normalize(), len - 0.4, { bullets: true });
   }
 
   // ---------------- perception (~5 Hz) ----------------
@@ -367,7 +367,7 @@ export class BotPilot {
     aim.y += this.wob.pitch;
     aim.normalize();
     const dir = cone(aim, CANNON_SPREAD * this.k.spread);
-    const wh = this.hs.castWorld(muzzle, dir, CANNON_RANGE);
+    const wh = this.hs.castWorld(muzzle, dir, CANNON_RANGE, { bullets: true });
     const targets = [];
     for (const o of auth.players.values()) if (this._enemy(o)) targets.push({ id: o.id, feet: new THREE.Vector3().fromArray(o.pos), crouch: o.crouch ? 1 : 0 });
     const th = this.hs.castTargets(muzzle, dir, wh ? wh.distance : CANNON_RANGE, targets);

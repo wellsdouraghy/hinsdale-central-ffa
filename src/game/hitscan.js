@@ -19,13 +19,16 @@ export function createHitscan(world) {
   const raycaster = new THREE.Raycaster();
   raycaster.firstHitOnly = true;
 
-  /** Nearest world hit along ray, or null. */
-  function castWorld(origin, dir, maxDist) {
+  /**
+   * Nearest world hit along ray, or null. opts.bullets: shots and sight lines pass through chain-link fences and nets
+   * (collision meshes tagged bulletPassthrough), which still stop players, helicopters and grapples.
+   */
+  function castWorld(origin, dir, maxDist, opts) {
     raycaster.set(origin, dir);
     raycaster.near = 0;
     raycaster.far = maxDist;
     const hits = raycaster.intersectObjects(world.collisionMeshes, false);
-    const h = hits[0];
+    const h = opts?.bullets ? hits.find((x) => !x.object.userData.bulletPassthrough) : hits[0];
     if (!h) return null;
     const normal = new THREE.Vector3(0, 1, 0);
     if (h.face) normal.copy(h.face.normal).transformDirection(h.object.matrixWorld);

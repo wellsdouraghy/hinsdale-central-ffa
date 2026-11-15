@@ -197,7 +197,7 @@ export class HeliPilot {
   aimRay() {
     const cam = this.game.camera;
     const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion);
-    const hit = this.game.hitscan.castWorld(cam.position, dir, CANNON_RANGE);
+    const hit = this.game.hitscan.castWorld(cam.position, dir, CANNON_RANGE, { bullets: true });
     return hit ? hit.point : cam.position.clone().addScaledVector(dir, CANNON_RANGE);
   }
 
@@ -250,7 +250,7 @@ export class HeliPilot {
     const muzzle = vis.gunMuzzle.getWorldPosition(new THREE.Vector3());
     const base = aimPoint.clone().sub(muzzle).normalize();
     const dir = cone(base, CANNON_SPREAD);
-    const wh = g.hitscan.castWorld(muzzle, dir, CANNON_RANGE);
+    const wh = g.hitscan.castWorld(muzzle, dir, CANNON_RANGE, { bullets: true });
     const targets = [];
     for (const r of g.remotes.values()) if (r.alive && !r.inHeliSeat) targets.push(r.hitbox());
     const th = g.hitscan.castTargets(muzzle, dir, wh ? wh.distance : CANNON_RANGE, targets);
