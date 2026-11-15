@@ -42,7 +42,11 @@ export default {
   playBounds: { minX, maxX, minZ, maxZ },
   ctf: { red: [x, z], blue: [x, z] },        // flag bases, far apart, open ground
   practiceHeli: { x, z, yaw },               // helicopter parking in practice
-  heliPark: [[x, z], ...],                   // optional extra open spots good for the hidden heli
+  heliPark: [[x, y, z], ...],                // hidden-heli candidates: y = 0 ground, y = deck height on flat roofs
+  walkSeeds: [[x, z], ...],                  // optional: walkable flood-fill seeds (default: ctf bases, practiceHeli, ground heliPark)
+  spawnCenter: [x, z],                       // optional: spawn sampling starts here (default: play-area centre)
+  navSeed: [x, z],                           // optional: bot nav-grid seed (default: ctf.red)
+  short, blurb, emblem, letters { red, blue }, thumb   // title badge, campus card line, logo SVG, varsity letters, card image
   tour: [ { pos: [[x,y,z] x4], tgt: [[x,y,z] x4], label }, ... ],   // menu camera tour (see src/game/menuTour.js)
   loadWorld: () => import('./world.js'),
 };

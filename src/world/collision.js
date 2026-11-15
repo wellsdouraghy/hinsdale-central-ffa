@@ -84,7 +84,8 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
   };
   const state = new Int8Array(nx * nz);  // 0 unknown, 1 reachable, -1 blocked
   const P = (i, j) => [x0 + (i + 0.5) * cell, z0 + (j + 0.5) * cell];
-  const seeds = [[-150, 60], [0, -175], [240, 20], [60, 150]];
+  const L = campusLayout(ctx);
+  const seeds = L.walkSeeds;
   const queue = [];
   for (const [sx, sz] of seeds) {
     const i = Math.floor((sx - x0) / cell), j = Math.floor((sz - z0) / cell);
@@ -118,7 +119,7 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
     // farthest point sampling, starting near the centre of campus
     const dist = new Float32Array(cands.length).fill(Infinity);
     let cur = 0, best = Infinity;
-    cands.forEach((c, k) => { const dd = Math.hypot(c[0] - 35, c[1] - 0); if (dd < best) { best = dd; cur = k; } });
+    cands.forEach((c, k) => { const dd = Math.hypot(c[0] - L.spawnCenter[0], c[1] - L.spawnCenter[1]); if (dd < best) { best = dd; cur = k; } });
     // prefer spots next to something solid (cover) by nudging the score
     const coverBonus = cands.map(([x, z]) => {
       const i = Math.floor((x - x0) / cell), j = Math.floor((z - z0) / cell); let near = 0;
@@ -136,7 +137,7 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
     }
   }
   // fallback (should not happen): a ring of points on the practice field
-  for (let k = spawns.length; k < 24; k++) spawns.push(new THREE.Vector3(-150 + Math.cos(k) * 20, 0, 60 + Math.sin(k) * 20));
+  for (let k = spawns.length; k < 24; k++) spawns.push(new THREE.Vector3(L.navSeed[0] + Math.cos(k) * 20, 0, L.navSeed[1] + Math.sin(k) * 20));
   return spawns;
 }
 
@@ -218,7 +219,8 @@ export function buildNav(ctx, collisionMeshes, mustReach = []) {
     for (let r = 1; r < 8; r++) for (let b = -r; b <= r; b++) for (let a = -r; a <= r; a++) { const i = ci + a, j = cj + b; if (i < 0 || j < 0 || i >= nx || j >= nz) continue; if (!arr[j * nx + i]) return j * nx + i; }
     return -1;
   };
-  const seed = nearestFree(-150, 60, blocked); if (seed >= 0) { walk[seed] = 1; q.push(seed); }
+  const ns = campusLayout(ctx).navSeed;
+  const seed = nearestFree(ns[0], ns[1], blocked); if (seed >= 0) { walk[seed] = 1; q.push(seed); }
   for (let h = 0; h < q.length; h++) {
     const k = q[h], i = k % nx, j = (k / nx) | 0;
     if (i > 0 && !blocked[k - 1] && !walk[k - 1]) { walk[k - 1] = 1; q.push(k - 1); }
@@ -244,19 +246,25 @@ export function buildNav(ctx, collisionMeshes, mustReach = []) {
 
 // Helicopter parking spots: hidden / out-of-the-way places with ~8 m rotor clearance and open sky, validated against the
 // collision world (and tree positions, since canopies are not in collision). Yaw faces the most open direction.
-const HELI_CANDIDATES = [
-  // ground: courtyards, service yards, behind buildings, lot corners, field edges
-  [50, 0, -77], [134, 0, -125], [166, 0, -92], [166, 0, 22], [124, 0, 150], [162, 0, 168], [272, 0, -8], [274, 0, 62], [214, 0, 62],
-  [-20, 0, 88], [-46, 0, 152], [-80, 0, 128], [-186, 0, 122], [-198, 0, 30], [-198, 0, -28], [-104, 0, -22], [-66, 0, -52], [-34, 0, -160],
-  [272, 0, -182], [228, 0, -20], [262, 0, 150], [228, 0, 196], [30, 0, 196], [-150, 0, 150], [100, 0, 64], [91, 0, -20], [10, 0, 70],
-  [-120, 0, 60], [180, 0, -170], [-200, 0, -170], [150, 0, 100], [240, 0, -160], [20, 0, 130], [105, 0, 170],
-  // flat rooftops (deck height = wing height - 0.4)
-  [140, 13.1, -68], [22, 11.6, 6], [62, 10.6, 30], [138, 15.1, 19], [70, 9.6, -141], [-12, 9.6, -80], [30, 9.6, -45], [126, 9.6, -15],
-];
+/**
+ * Per-campus layout hints (CAMPUSES.md): walkable flood-fill seeds, spawn sampling centre, nav-grid seed and hidden
+ * helicopter candidates ([x, y, z]; y = 0 ground, y = deck height on flat roofs). Defaults derive from ctf / bounds.
+ */
+function campusLayout(ctx) {
+  const c = ctx.campus || {}, pb = ctx.playBounds;
+  const ctf = c.ctf || { red: [0, 0], blue: [0, 0] };
+  const heliPark = c.heliPark || [];
+  return {
+    walkSeeds: c.walkSeeds || [ctf.red, ctf.blue, ...(c.practiceHeli ? [[c.practiceHeli.x, c.practiceHeli.z]] : []), ...heliPark.filter((p) => p[1] <= 0.5).map((p) => [p[0], p[2]])],
+    spawnCenter: c.spawnCenter || [(pb.minX + pb.maxX) / 2, (pb.minZ + pb.maxZ) / 2],
+    navSeed: c.navSeed || ctf.red,
+    heliPark,
+  };
+}
 export function pickHeliSpawns(ctx, S, min = 12) {
   const trees = ctx.gen.trees || []; const out = [];
   const tryAll = (clear) => {
-    for (const [x, y, z] of HELI_CANDIDATES) {
+    for (const [x, y, z] of campusLayout(ctx).heliPark) {
       if (out.some((o) => Math.hypot(o.pos.x - x, o.pos.z - z) < 30)) continue;
       // something to stand on right below, open sky above
       const below = S.cast(x, y + 1.0, z, 0, -1, 0, 1.3); if (y > 0.5 && below === Infinity) continue; if (y <= 0.5 && below < 0.9) continue;
