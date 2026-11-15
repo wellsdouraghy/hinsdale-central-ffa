@@ -2,8 +2,9 @@
 // mutable objects they export (SAT, PLAY_BOUNDS, TEAM_NAMES...), updated in place through onCampusChange().
 import hinsdale from './hinsdale/campus.js';
 import marin from './marin/campus.js';
+import hamilton from './hamilton/campus.js';
 
-export const CAMPUSES = [hinsdale, marin];
+export const CAMPUSES = [hinsdale, marin, hamilton];
 export const DEFAULT_CAMPUS = 'hinsdale';
 
 export function getCampus(id) {
