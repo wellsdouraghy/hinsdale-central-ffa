@@ -1059,7 +1059,9 @@ export class Game {
         if (pressed.has('Mouse0')) { this.audio.dryFire(); ar.startReload(t); }
       } else if (g.ready(t)) this._fire(t);
     }
-    if (g.ammo === 0 && !g.reloading && g.reserve > 0 && t >= g.nextFire + 0.15 && !p.sprinting) ar.startReload(t);
+    // Auto-reload right after the last round leaves (not on the next trigger pull, and not after the full fire cycle):
+    // 0.12 s after the final shot, also while sprinting.
+    if (g.ammo === 0 && !g.reloading && g.reserve > 0 && !ar.switching(t) && t >= g.nextFire - 60 / gs.rpm + 0.12) ar.startReload(t);
 
     // Footsteps / landing.
     if (p.grounded) {

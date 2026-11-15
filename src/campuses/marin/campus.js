@@ -48,7 +48,7 @@ export default {
   heliPark: [
     [62, 0, -22], [76, 0, -71], [-87, 0, -45], [-21, 0, -20], [84, 0, 59], [-10, 0, 179], [68, 0, 152], [-166, 0, 170], [14, 0, 92],
     [-97, 0, 89], [-140, 0, 47], [28, 0, -112], [103, 0, -52], [166, 0, 155], [133, 0, 41], [43, 0, 2], [28, 0, 188], [-32, 0, 98],
-    [-86, 5.9, -4], [22, 15, -52],   // flat roofs: the west classroom block and the Science + Innovation Center
+    [22, 15, -52],   // flat roof: the Science + Innovation Center penthouse (the west classroom block roof is covered by its solar array)
   ],
   // walkable flood-fill seeds (CAMPUSES.md). Spelled out so the reachable area does not depend on the helicopter list:
   // the flag bases, the practice pad and open ground around campus.
