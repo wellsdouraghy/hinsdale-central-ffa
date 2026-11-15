@@ -15,7 +15,7 @@ export class RemotePlayer {
     this.character.object3D.visible = false;
     scene.add(this.character.object3D);
     this.history = [];         // last ~8 s of states (sender clock), kept for the kill cam
-    this.buffer = [];          // [{ ts (sender clock sec), p:[x,y,z], v:[...], yaw, pitch, c, s, w, g }]
+    this.buffer = [];          // [{ ts (sender clock sec), p:[x,y,z], v:[...], yaw, pitch, c, s, w, g, a?, m?, ga? }]
     this.offset = null;        // estimate of (local clock - sender clock)
     this.life = -1;
     this.alive = false;
@@ -27,6 +27,8 @@ export class RemotePlayer {
     this.weapon = 'ar';
     this.sprinting = false;
     this.grounded = true;
+    this.ads = 0;              // aim-down-sights amount 0..1 ('a' in the state; absent = 0)
+    this.mode = 0;             // movement mode ('m'): 0 normal, 1 slide, 2 ladder, 3 mantle, 4 dash
     this.stepDist = 0;
     this.lastFireTime = -10;
   }
@@ -101,13 +103,15 @@ export class RemotePlayer {
     if (this.puppeted) { this.character.update(dt); return; }
     if (this.alive && this.buffer.length && this.offset !== null) this._interpolate(now - this.offset - INTERP_DELAY);
     this._applyTransform();
+    const v = this.velocity, live = this.alive;
     this.character.setState({
-      speed: this.alive ? Math.hypot(this.velocity.x, this.velocity.z) : 0,
+      speed: live ? Math.hypot(v.x, v.z) : 0, vx: live ? v.x : 0, vy: live ? v.y : 0, vz: live ? v.z : 0,
       crouching: this.crouch > 0.5,
       aimPitch: this.pitch,
       weaponId: this.weapon,
       grounded: this.grounded,
       sprinting: this.sprinting,
+      ads: live ? this.ads : 0, mode: live ? this.mode : 0, grapple: live ? this.grappleAnchor : null,
     });
     this.character.update(dt);
   }
@@ -135,6 +139,7 @@ export class RemotePlayer {
     this.yaw = lerpAngle(a.yaw, b.yaw, k);
     this.pitch = lerp(a.pitch, b.pitch, k);
     this.crouch = lerp(a.c ? 1 : 0, b.c ? 1 : 0, k);
+    this.ads = lerp(a.a || 0, b.a || 0, k);
   }
 
   _copyMeta(s) {
@@ -145,6 +150,8 @@ export class RemotePlayer {
     this.weapon = s.w || this.weapon;
     this.sprinting = !!s.s;
     this.grounded = s.g !== 0;
+    this.ads = s.a || 0;
+    this.mode = s.m || 0;
     if (s.ga) (this.grappleAnchor ||= new THREE.Vector3()).fromArray(s.ga);
     else this.grappleAnchor = null;
   }
@@ -165,7 +172,7 @@ export class RemotePlayer {
     return {
       p: [lerp(a.p[0], b.p[0], k), lerp(a.p[1], b.p[1], k), lerp(a.p[2], b.p[2], k)],
       yaw: lerpAngle(a.yaw, b.yaw, k), pitch: lerp(a.pitch, b.pitch, k), c: k < 0.5 ? a.c : b.c,
-      v: a.v, w: a.w, s: a.s, g: a.g, ga: k < 0.5 ? a.ga : b.ga,
+      v: a.v, w: a.w, s: a.s, g: a.g, ga: k < 0.5 ? a.ga : b.ga, a: lerp(a.a || 0, b.a || 0, k), m: k < 0.5 ? a.m : b.m,
     };
   }
 
@@ -176,9 +183,16 @@ export class RemotePlayer {
     this.pitch = sm.pitch;
     this.crouch = sm.c ? 1 : 0;
     this.weapon = sm.w || this.weapon;
+    this.ads = sm.a || 0;
+    this.mode = sm.m || 0;
+    if (sm.ga) (this.grappleAnchor ||= new THREE.Vector3()).fromArray(sm.ga);
+    else this.grappleAnchor = null;
     this._applyTransform();
     this.character.object3D.visible = true;
-    this.character.setState({ speed: Math.hypot(sm.v[0], sm.v[2]), crouching: !!sm.c, aimPitch: sm.pitch, weaponId: this.weapon, grounded: sm.g !== 0, sprinting: !!sm.s });
+    this.character.setState({
+      speed: Math.hypot(sm.v[0], sm.v[2]), vx: sm.v[0], vy: sm.v[1], vz: sm.v[2], crouching: !!sm.c, aimPitch: sm.pitch, weaponId: this.weapon,
+      grounded: sm.g !== 0, sprinting: !!sm.s, ads: this.ads, mode: this.mode, grapple: this.grappleAnchor,
+    });
     this.character.update(dt);
   }
 

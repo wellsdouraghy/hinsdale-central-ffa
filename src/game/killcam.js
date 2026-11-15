@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { createCharacter } from '../visuals/character.js';
 import { INTERP_DELAY } from './remotePlayer.js';
 import { now as clock } from './authority.js';
+import { WEAPON_STATS } from './weapons.js';
 
 const KEEP = 8;
 const LEAD = 3.6;   // seconds of replay before the kill
@@ -17,11 +18,16 @@ export class KillCamRecorder {
     this.lastSelf = -1;
   }
 
-  recordSelf(t, player) {
+  /** ads: the local aim-down-sights amount (0..1); the rest comes from the controller (as in the 'st' state). */
+  recordSelf(t, player, ads = 0) {
     if (t - this.lastSelf < 1 / 30) return;
     this.lastSelf = t;
-    const p = player.position;
-    this.self.push({ t, p: [p.x, p.y, p.z], yaw: player.yaw, pitch: player.pitch, c: player.crouching, v: [player.velocity.x, 0, player.velocity.z] });
+    const p = player.position, v = player.velocity;
+    this.self.push({
+      t, p: [p.x, p.y, p.z], yaw: player.yaw, pitch: player.pitch, c: player.crouching, v: [v.x, v.y, v.z],
+      g: player.grounded, s: player.sprinting, a: ads, m: player.ladder ? 2 : player.mantle ? 3 : player.sliding ? 1 : player.dashT > 0 ? 4 : 0,
+      ga: player.grapple ? player.grapple.anchor.clone() : null,
+    });
     while (this.self.length && this.self[0].t < t - KEEP) this.self.shift();
   }
 
@@ -48,7 +54,7 @@ export class KillCamRecorder {
     if (t >= b.t) return b;
     for (let i = 0; i < h.length - 1; i++) if (h[i].t <= t && h[i + 1].t >= t) { a = h[i]; b = h[i + 1]; break; }
     const k = (t - a.t) / Math.max(1e-6, b.t - a.t);
-    return { p: [a.p[0] + (b.p[0] - a.p[0]) * k, a.p[1] + (b.p[1] - a.p[1]) * k, a.p[2] + (b.p[2] - a.p[2]) * k], yaw: a.yaw, pitch: a.pitch, c: a.c, v: a.v };
+    return { ...a, p: [a.p[0] + (b.p[0] - a.p[0]) * k, a.p[1] + (b.p[1] - a.p[1]) * k, a.p[2] + (b.p[2] - a.p[2]) * k] };
   }
 }
 
@@ -67,6 +73,8 @@ export class KillCam {
     game.scene.add(this.ghost.object3D);
     this.ghostDead = false;
     this.camPos = null;
+    this.scoped = false;      // the killer is looking through a scope right now (the HUD draws the scope overlay)
+    this.scopeK = 0;
   }
 
   update(dt) {
@@ -86,7 +94,10 @@ export class KillCam {
     if (s) {
       this.ghost.object3D.position.fromArray(s.p);
       this.ghost.object3D.rotation.y = s.yaw;
-      this.ghost.setState({ speed: Math.hypot(s.v[0], s.v[2]), crouching: s.c, aimPitch: s.pitch, weaponId: g.arsenal.gun?.id || 'ar', grounded: true, sprinting: false });
+      this.ghost.setState({
+        speed: Math.hypot(s.v[0], s.v[2]), vx: s.v[0], vy: s.v[1], vz: s.v[2], crouching: s.c, aimPitch: s.pitch, weaponId: g.arsenal.gun?.id || 'ar',
+        grounded: s.g !== false, sprinting: !!s.s, ads: s.a || 0, mode: s.m || 0, grapple: s.ga || null,
+      });
     }
     if (!this.ghostDead && rt >= this.info.killTime) { this.ghostDead = true; this.ghost.die(); }
     this.ghost.update(dt);
@@ -130,9 +141,19 @@ export class KillCam {
     if (hit) want.copy(eye).addScaledVector(dir, Math.max(0.4, hit.distance - 0.3));
     if (!this.camPos) this.camPos = want.clone();
     else this.camPos.lerp(want, Math.min(1, dt * 12));
-    cam.position.copy(this.camPos);
+    // Aiming down sights: zoom like the killer's own view did (see game.js _updateCamera). A scoped rifle past 85 %
+    // goes to the first-person scope picture (camera at the killer's eye, scope overlay on, their body hidden).
+    const ws = WEAPON_STATS[sm.w], ads = THREE.MathUtils.clamp(sm.a || 0, 0, 1), base = g._baseVFov();
+    const scoped = !!(ws?.scope && ads > 0.85);
+    this.scopeK += ((scoped ? 1 : 0) - this.scopeK) * Math.min(1, dt * 14);
+    this.scoped = scoped && this.scopeK > 0.6;
+    let fov = base;
+    if (ws?.scope) fov = base + (ws.adsFov - base) * this.scopeK;
+    else if (ws) fov = base * (1 + (ws.adsZoom - 1) * ads);
+    cam.position.copy(this.camPos).lerp(eye, this.scopeK);
     cam.lookAt(eye.clone().addScaledVector(fwd, 30));
-    cam.fov += (g._baseVFov() - cam.fov) * Math.min(1, dt * 8);
+    if (this.scopeK > 0.5) k.character.object3D.visible = false;
+    cam.fov += (fov - cam.fov) * Math.min(1, dt * (ws?.scope ? 18 : 8));
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();
   }
@@ -147,6 +168,7 @@ export class KillCam {
     else this.camPos.lerp(want, Math.min(1, dt * 4));
     if (!this.look) this.look = focus.clone();
     else this.look.lerp(focus, Math.min(1, dt * 5));
+    this.scoped = false;
     cam.position.copy(this.camPos);
     cam.lookAt(this.look);
     cam.fov += (g._baseVFov() - cam.fov) * Math.min(1, dt * 8);
@@ -159,5 +181,7 @@ export class KillCam {
     this.ghost.dispose();
     // Remote characters resume live interpolation next frame; hide the dead ones again.
     for (const r of this.game.remotes.values()) if (!r.alive && !r.bot) r.character.object3D.visible = false;
+    const k = this.game.remotes.get(this.info.killerId);
+    if (k?.alive) k.character.object3D.visible = true;   // hidden while we looked through their scope
   }
 }

@@ -579,6 +579,21 @@ export class Game {
     });
     if (m.w === 'heligun') this.audio.cannon?.(from.clone()); else this.audio.shot(m.w, from.clone());
     this.killcamRec.recordShot(m.id, from, m.e, m.w);
+    this._flinchFrom(m.e, m.o, m.id);
+  }
+
+  /** Third-person hit reaction: remote characters standing where a shot's body hits landed flinch along the bullet. */
+  _flinchFrom(ends, origin, shooterId) {
+    for (const e of ends) {
+      if (e[3] !== 2) continue;
+      for (const r of this.remotes.values()) {
+        if (!r.alive || r.id === shooterId) continue;
+        const dx = e[0] - r.feet.x, dz = e[2] - r.feet.z, dy = e[1] - r.feet.y;
+        if (dx * dx + dz * dz > 0.7 || dy < -0.3 || dy > 2.2) continue;
+        r.character.flinch?.(_v3.set(e[0] - origin[0], 0, e[2] - origin[2]), dy > 1.4 ? 1.2 : 0.8);
+        break;
+      }
+    }
   }
 
   // ======================= player actions =======================
@@ -753,6 +768,7 @@ export class Game {
             anyHead = anyHead || h.headshot;
           }
           this.effects.blood(h.point, dir);
+          if (!protectedNow) r?.character.flinch?.(dir, h.headshot ? 1.2 : 0.8);
           ends.push([r2(h.point.x), r2(h.point.y), r2(h.point.z), 2]);
         }
         end = hits[hits.length - 1].point;
@@ -860,10 +876,10 @@ export class Game {
     this.hitStop = Math.max(0, this.hitStop - dt);
     this._frameDx = dx; this._frameDy = dy; this._framePressed = pressed;
     if (this.alive && (this.piloting || this.fin.localAttacking)) {
-      this.killcamRec.recordSelf(t, this.player);   // flying / playing a finisher: no on-foot control
+      this.killcamRec.recordSelf(t, this.player, this.arsenal.ads);   // flying / playing a finisher: no on-foot control
     } else if (this.alive) {
       this._updateAlive(pdt, t, active, pressed, dx, dy, wheel);
-      this.killcamRec.recordSelf(t, this.player);
+      this.killcamRec.recordSelf(t, this.player, this.arsenal.ads);
     } else {
       this._updateDead(dt, t);
       this._updateDeathFlow(dt, t, pressed);
@@ -913,6 +929,10 @@ export class Game {
         yaw: r3(p.yaw), pitch: r3(p.pitch), c: p.crouching ? 1 : 0, s: p.sprinting ? 1 : 0,
         w: this.arsenal.gun?.id || 'ar', g: p.grounded ? 1 : 0,
         ...(p.grapple ? { ga: [r2(p.grapple.anchor.x), r2(p.grapple.anchor.y), r2(p.grapple.anchor.z)] } : {}),
+        // Optional (absent = 0): aim-down-sights amount (remote stance + scoped kill cams) and movement mode
+        // (1 slide, 2 ladder, 3 mantle, 4 dash) for the third-person animation.
+        ...(this.arsenal.ads > 0.05 ? { a: Math.round(this.arsenal.ads * 10) / 10 } : {}),
+        ...(moveMode(p) ? { m: moveMode(p) } : {}),
       });
     }
 
@@ -1164,7 +1184,7 @@ export class Game {
         ammo: g.ammo, reserve: g.reserve, mag: g.stats.mag, reloading: g.reloading,
       });
     }
-    const scoped = this.alive && g?.stats.scope && ar.ads > 0.85;
+    const scoped = (this.alive && g?.stats.scope && ar.ads > 0.85) || this.killcam?.scoped;   // kill cam: the killer's scope
     hud.scope(!!scoped);
 
     // Crosshair + target name (teammates are shown in their team color and are not targets).
@@ -1392,6 +1412,8 @@ export class Game {
 }
 
 function smooth(x) { return x * x * (3 - 2 * x); }
+/** Movement mode sent in the 'st' state ('m'): 1 slide, 2 ladder, 3 mantle, 4 dash, 0 otherwise. */
+function moveMode(p) { return p.ladder ? 2 : p.mantle ? 3 : p.sliding ? 1 : p.dashT > 0 ? 4 : 0; }
 
 function shortName(w) {
   if (w === 'melee') return 'MELEE';

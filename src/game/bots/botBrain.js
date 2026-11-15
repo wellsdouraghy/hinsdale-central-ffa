@@ -472,6 +472,14 @@ export class BotBrain {
     const cd = classOf(p.cls);
     const engaging = this.visible && !this.outOfRange;
     this.ctrl.update(dt, input, { ads: engaging ? 0.6 : 0, moveMult: this.gun.stats.moveMult * (cd.speedMult ?? 1), blockSprint: engaging });
+    // What other players see (stance, scoped kill cam): sights up while engaging; a scoped rifle goes fully onto
+    // the scope at range. Display only: movement and accuracy keep using the 0.6 above.
+    const gs = this.gun.stats, tp = engaging && this.target?.pos;
+    const far = tp && gs.scope && Math.hypot(tp[0] - this.ctrl.position.x, tp[2] - this.ctrl.position.z) > 14;
+    const busy = this.ctrl.grapple || this.ctrl.mantle || this.ctrl.ladder || this.ctrl.sprinting;
+    if (engaging && !busy) { this.adsWant = far ? 1 : 0.6; this.adsHold = t + 0.6; }       // stays on the sights a beat after the shot
+    else if (busy || t > (this.adsHold || 0)) this.adsWant = 0;
+    this.adsVis = (this.adsVis || 0) + THREE.MathUtils.clamp((this.adsWant || 0) - (this.adsVis || 0), -dt / 0.2, dt / (gs.adsTime || 0.25));
     this.mob.afterMove(t, this.ctrl.events);
     this.ctrl.events.length = 0;
     if (this.ctrl.position.y < -20) this.ctrl.teleport(this.mgr.nav.randomPoint(), this.ctrl.yaw);

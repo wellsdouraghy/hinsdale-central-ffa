@@ -68,6 +68,9 @@ export function createCharacter({ color: number, name: string }) // -> Character
 Character = {
   object3D: THREE.Object3D,        // origin at feet, faces -z when rotation.y = 0, ~1.8 m tall standing
   setState({ speed /*m/s*/, crouching, aimPitch /*rad*/, weaponId, grounded, sprinting }): void,
+                                   // optional (motion pass): vx, vy, vz (world velocity; without them `speed` is taken as
+                                   // forward), ads 0..1, mode (0 normal, 1 slide, 2 ladder, 3 mantle, 4 dash),
+                                   // grapple (world-space anchor Vector3 while reeling, else null)
   fire(): void,                    // third-person muzzle flash
   die(): void,                     // death animation/ragdoll-ish fall; object stays until reset()
   reset(): void,
@@ -305,3 +308,15 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   TDM/CTF. Audio: SFX bus x Effects slider -> Master -> glue compressor + limiter; Voice slider (floor 0.25).
   Helicopter: X at altitude bails out (`heliBail`); the empty heli falls (state `'falling'`, host-simulated, poses relayed as
   `hst`), crushes and explodes. Calls `character.setRelation?.()` / `setTagVisible?.()` per remote.
+- (Motion pass) Third-person animation and scoped kill cams:
+  - `'st'` player state gained two optional fields (absent = 0, so older senders still work): `a` aim-down-sights amount
+    0..1 in 0.1 steps, `m` movement mode (1 slide, 2 ladder, 3 mantle, 4 dash). Humans send them from `_sendState`; bots
+    from `BotManager.update` (`brain.adsVis`: 0.6 while engaging, 1 for a scoped rifle beyond 14 m; display only, bot
+    movement and accuracy are unchanged). `RemotePlayer.ads` / `.mode`; both are in the kill cam history.
+  - `Character.setState` takes `vx, vy, vz, ads, mode, grapple` (see above). New: `handWorldPosition(target)` (left hand,
+    where the remote grapple cable starts; valid after `update`), `flinch(dirWorld, strength = 1)` (hit reaction; Gameplay
+    calls it from local hits and from remote `shot` body-hit ends). Hitboxes are unchanged (`hitscan.js`).
+  - Kill cam (`killcam.js`): zooms with the killer's ADS (`adsZoom`); a scoped weapon past 85 % switches to the killer's
+    eye at `adsFov` with `KillCam.scoped = true`, which `_updateHud` uses to show the `#scope` overlay (kept visible by
+    the `#hud.killcam-on` rule). The recorder also stores our own velocity / ads / mode / grapple for the victim ghost.
+  - `dev/anim.html`: motion harness (scripted `st` samples -> RemotePlayer, fixed follow camera, contact sheets).

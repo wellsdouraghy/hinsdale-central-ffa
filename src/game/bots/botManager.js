@@ -108,6 +108,9 @@ export class BotManager {
         yaw: r3(c.yaw), pitch: r3(c.pitch), c: c.crouching ? 1 : 0, s: c.sprinting ? 1 : 0, w: b.gun?.id || 'ar', g: c.grounded ? 1 : 0,
         // Grapple anchor (same field humans send): every client draws the cable and plays the remote grapple sound.
         ...(c.grapple ? { ga: [r2(c.grapple.anchor.x), r2(c.grapple.anchor.y), r2(c.grapple.anchor.z)] } : {}),
+        // Aim-down-sights amount and movement mode (same optional fields humans send; see game.js _sendState).
+        ...(b.adsVis > 0.05 ? { a: Math.round(b.adsVis * 10) / 10 } : {}),
+        ...(c.ladder ? { m: 2 } : c.mantle ? { m: 3 } : c.sliding ? { m: 1 } : c.dashT > 0 ? { m: 4 } : {}),
       });
     }
   }
