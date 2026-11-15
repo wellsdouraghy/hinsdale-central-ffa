@@ -46,8 +46,15 @@ export function createMinimap(canvas) {
   const W = canvas.width, H = canvas.height;
   const scale = W / VIEW_METERS;
   let baked = null;
-  loadSatellite().then((img) => {
-    if (!img) return;
+  // (Re)bake the downscaled satellite whenever the campus changes (the minimap outlives campus switches).
+  let bakeFor = null;
+  onCampusChange((campus) => {
+    if (bakeFor === campus) return;
+    bakeFor = campus;
+    baked = null;
+    loadSatellite().then((img) => { if (img && bakeFor === campus) bake(img); });
+  });
+  function bake(img) {
     const c = document.createElement('canvas');
     c.width = Math.round((SAT.maxX - SAT.minX) * BAKE_PPM);
     c.height = Math.round((SAT.maxZ - SAT.minZ) * BAKE_PPM);
@@ -55,7 +62,7 @@ export function createMinimap(canvas) {
     g.filter = 'saturate(0.7) brightness(0.85)';
     g.drawImage(img, 0, 0, c.width, c.height);
     baked = c;
-  });
+  }
 
   /**
    * me: {x, z, yaw, alive}; blips: [{x, z, color, alpha, size, shape?: 'arrow'|'flag'|'heli', yaw?, edge?}]; bounds: playBounds
