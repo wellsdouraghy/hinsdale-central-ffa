@@ -139,11 +139,28 @@ function worldReady(onProgress) {
   return worldLoading;
 }
 
-/** Title screen: load the campus in the background (faster match entry + menu tour). */
-function preloadWorld() {
-  worldReady((f, label) => menus.setWorldStatus(f, label))
-    .then(() => { menus.setWorldStatus(1); maybeTour(); })
-    .catch(() => menus.setWorldStatus(0, 'will load when you play'));
+/**
+ * Builds the active campus behind a loading screen, then shows the title. Building the world keeps the page busy for
+ * a few seconds, so the menu must not be on screen (and look frozen) while it happens.
+ */
+function loadCampusThenTitle() {
+  const campus = activeCampus();
+  if (worldCache?.world.campus === campus) { menus.showTitle(); menus.setWorldStatus(1); maybeTour(); return; }
+  menus.showLoading('Loading campus', campus.name, { campus, bounds: campus.playBounds });
+  worldReady((f, label) => { menus.setProgress(f, label); menus.setWorldStatus(f, label); })
+    .then(() => {
+      if (activeCampus() !== campus || game || net || starting) return;   // player moved on meanwhile
+      menus.setWorldStatus(1);
+      menus.hideLoading();
+      menus.showTitle();
+      maybeTour();
+    })
+    .catch((err) => {
+      console.warn('[campus load]', err);
+      menus.hideLoading();
+      menus.showTitle();
+      menus.setWorldStatus(0, 'will load when you play');
+    });
 }
 
 async function start(mode, code = null, gameMode = 'ffa', bots = null) {
@@ -474,11 +491,8 @@ function chooseCampus(id) {
   settings.campus = activeCampus().id;
   saveSettings(settings);
   csEl.classList.add('hidden');
-  menus.showTitle();
   audio.uiSelect();
-  if (worldCache?.world.campus === activeCampus()) { menus.setWorldStatus(1); maybeTour(); return; }
-  menus.setWorldStatus(0, 'Loading campus');
-  preloadWorld();   // queues behind any load still running for the previous campus
+  loadCampusThenTitle();   // queues behind any load still running for the previous campus
 }
 document.getElementById('btn-campus').addEventListener('click', showCampusSelect);
 menus.on('toLobby', () => net?.isHost && net.backToLobby());
@@ -604,10 +618,10 @@ const autoBots = { count: Math.min(11, Number(params.get('bots')) || 0), difficu
 checkForUpdate().then((v) => { if (v) { menus.showTitleError(`A newer version (${v}) is available: reload the page (Cmd+Shift+R / Ctrl+Shift+R) before playing.`); menus.toast('New version available: please reload', 8); } });
 
 // Menu: start loading the campus in the background (unless we go straight into a match).
-if (!autostart) setTimeout(preloadWorld, 50);
-// Welcome screen first (skipped for invite links and automation, which go straight to the title / match).
+// Welcome screen first; the campus is built (behind a loading screen) only once one is picked, so the picker never
+// freezes. Invite links skip the picker and load the last campus (the host's campus is applied on join).
 if (!autostart && !(joinParam.length === 6)) showCampusSelect();
-else if (!autostart) menus.showTitle();
+else if (!autostart) loadCampusThenTitle();
 document.getElementById('cine').classList.remove('hidden');
 
 if (autostart === 'practice') start('practice', null, autoMode, autoBots);

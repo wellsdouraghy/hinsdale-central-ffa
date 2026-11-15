@@ -328,6 +328,13 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
       $('ld-mode').textContent = (opts.practice ? 'Practice · ' : '') + info.name;
       $('ld-mode-sub').textContent = opts.practice ? MODE_INFO.practice.sub : info.sub;
       $('ld-rules').innerHTML = (opts.practice ? MODE_INFO.practice.rules : info.rules).map((r) => `<li>${esc(r)}</li>`).join('');
+      if (opts.campus) {
+        // Campus load (before the title screen): campus facts instead of mode rules.
+        const c = opts.campus;
+        $('ld-mode').textContent = c.city;
+        $('ld-mode-sub').textContent = `${c.teams.red} vs ${c.teams.blue}`;
+        $('ld-rules').innerHTML = [c.blurb, 'Free-for-all · Team Deathmatch · Capture the Flag', 'Host a lobby, invite friends with the room code'].filter(Boolean).map((r) => `<li>${esc(r)}</li>`).join('');
+      }
       // Highlight the play area on the aerial (image space: x right, z down, same bounds as the minimap image).
       const b = opts.bounds || { minX: -222, maxX: 292, minZ: -212, maxZ: 214 };
       const W = SAT.maxX - SAT.minX, H = SAT.maxZ - SAT.minZ;
