@@ -8,7 +8,7 @@ import { StreakRules } from './streaks.js';
 import { BotManager } from './bots/botManager.js';
 import { HeliRules } from './heli.js';
 import * as THREE from 'three';
-import { FINISHERS, createFinisher } from '../visuals/finishers.js';
+import { FINISHERS, clearSpot, createFinisher } from '../visuals/finishers.js';
 
 const _fq = new THREE.Vector3(), _fd = new THREE.Vector3();
 const _DOWN = new THREE.Vector3(0, -1, 0), _UP = new THREE.Vector3(0, 1, 0);
@@ -364,8 +364,8 @@ export class Authority {
   // ---------- melee finishers ----------
   /**
    * Picks a scene that fits around the victim: flat ground (no ladders / roof edges), every FINISHERS `clearance`
-   * radius free at knee + chest height in 8 directions and `heightClear` free above; falls back to the compact
-   * backstab. The scene is oriented so the attacker comes in from where they actually are. Returns the scene or null.
+   * radius free at knee + chest height in 8 directions (with level ground out there) and `heightClear` free above;
+   * falls back to the compact neckbreak (the body drops where it stands). The scene is oriented so the attacker comes in from where they actually are. Returns the scene or null.
    */
   _startFinisher(a, v) {
     if (!a.alive || !a.pos || !v.pos || a.inHeli || v.inHeli || this.state !== 'playing') return null;
@@ -387,16 +387,19 @@ export class Authority {
         const ang = (i / 8) * Math.PI * 2;
         _fd.set(Math.cos(ang), 0, Math.sin(ang));
         for (const y of [0.5, 1.3]) if (hs.castWorld(_fq.set(o.x, o.y + y, o.z), _fd, r)) return false;
+        const gy = ground(o.x + _fd.x * r * 0.8, o.z + _fd.z * r * 0.8);          // level ground where the bodies end up
+        if (gy === null || Math.abs(gy - g0) > 0.4) return false;
       }
       return true;
     };
     const fits = FINISHERS.filter((f) => free(f.clearance, f.heightClear));
-    const pick = fits.length ? fits[Math.floor(Math.random() * fits.length)] : FINISHERS.find((f) => f.id === 'backstab') || FINISHERS[0];
+    const pick = FINISHERS.find((f) => f.id === globalThis.__finisher)                       // dev: force a scene (window.__finisher = id)
+      || (fits.length ? fits[Math.floor(Math.random() * fits.length)] : FINISHERS.find((f) => f.id === 'neckbreak') || FINISHERS[0]);
     const dx = o.x - a.pos[0], dz = o.z - a.pos[2];
     const yaw = Math.hypot(dx, dz) > 0.05 ? Math.atan2(-dx, -dz) : 0;
     const fin = createFinisher({ id: pick.id, attacker: _NO_CHAR, victim: _NO_CHAR });   // only for attackerEnd
     fin.setOrigin(o, yaw);
-    this.finishers.set(a.id, { attacker: a.id, victim: v.id, until: now() + pick.duration, end: fin.attackerEnd.position.clone(), endYaw: fin.attackerEnd.yaw });
+    this.finishers.set(a.id, { attacker: a.id, victim: v.id, until: now() + pick.duration, end: clearSpot(hs.castWorld, o, fin.attackerEnd.position), endYaw: fin.attackerEnd.yaw });
     a.protectUntil = 0;
     this.out({ t: 'finisher', id: pick.id, attacker: a.id, victim: v.id, origin: [r2(o.x), r2(o.y), r2(o.z)], yaw: Math.round(yaw * 1000) / 1000, dur: pick.duration });
     return pick;

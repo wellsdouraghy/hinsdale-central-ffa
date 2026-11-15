@@ -164,6 +164,15 @@ export function createEffects(scene) {
     _t2.crossVectors(n, _t1);
   }
 
+  // blood pools (melee finishers): a few flat blobs that grow, then fade
+  const poolShape = new THREE.Shape();
+  for (let i = 0; i <= 28; i++) { const a = (i / 28) * Math.PI * 2, r = 1 + 0.16 * Math.sin(a * 3 + 1) + 0.1 * Math.sin(a * 5 + 2.3) + 0.06 * Math.sin(a * 9); if (i) poolShape.lineTo(Math.cos(a) * r, Math.sin(a) * r); else poolShape.moveTo(r, 0); }
+  const poolGeo = new THREE.ShapeGeometry(poolShape, 4), pools = []; let poolNext = 0;
+  for (let i = 0; i < 4; i++) {
+    const m = new THREE.Mesh(poolGeo, new THREE.MeshBasicMaterial({ color: 0x300404, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    m.rotation.x = -Math.PI / 2; m.visible = false; m.renderOrder = 2; m.userData.t = 0; m.userData.r = 0.4; group.add(m); pools.push(m);
+  }
+
   return {
     object3D: group,
     // Optional: brightness of dust/debris (they are unlit); ~0.6 for daylight, lower at dusk.
@@ -215,6 +224,43 @@ export function createEffects(scene) {
       }
     },
 
+    // Melee finishers: a heavier, directional blood spray (amount ~0.5 small hit .. 2 arterial).
+    bloodBurst(point, dir, amount = 1) {
+      _n.copy(dir); if (_n.lengthSq() < 1e-6) _n.set(0, 1, 0); _n.normalize();
+      basis(_n);
+      const nm = Math.round(6 * amount) + 3, nd = Math.round(16 * amount) + 6;
+      for (let i = 0; i < nm; i++) {
+        const out = rand(0.4, 2.6), s1 = rand(-0.6, 0.6), s2 = rand(-0.6, 0.6), k = rand(0.6, 1.0);
+        emit(0, point.x, point.y, point.z, _n.x * out + _t1.x * s1 + _t2.x * s2, _n.y * out + _t1.y * s1 + _t2.y * s2 + 0.3, _n.z * out + _t1.z * s1 + _t2.z * s2,
+          0.34 * k, 0.012, 0.01, rand(0.45, 0.7), rand(0.06, 0.13), rand(0.5, 1.1), rand(0.3, 0.6), 3, 5);
+      }
+      for (let i = 0; i < nd; i++) {
+        const out = rand(1.2, 5.5) * (0.6 + 0.4 * amount), s1 = rand(-1.1, 1.1), s2 = rand(-1.1, 1.1);
+        emit(1, point.x, point.y, point.z, _n.x * out + _t1.x * s1 + _t2.x * s2, _n.y * out + _t1.y * s1 + _t2.y * s2 + 0.9, _n.z * out + _t1.z * s1 + _t2.z * s2,
+          0.3, 0.008, 0.008, 0.95, rand(0.012, 0.028), 0, rand(0.45, 0.9), 9.8, 0.5);
+      }
+    },
+    // Dust kicked out along the ground when a body slams down: a ring of low puffs plus a few flying bits.
+    dustRing(point, radius = 1, surface = 'dirt', amount = 1) {
+      const cfg = SURFACES[surface] || SURFACES.dirt, n = Math.round(18 * amount) + 6, y = point.y + 0.06;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + rand(-0.2, 0.2), c = Math.cos(a), sn = Math.sin(a), r0 = radius * rand(0.25, 0.5), sp = radius * rand(1.6, 3.4), k = rand(0.85, 1.12);
+        emit(0, point.x + c * r0, y, point.z + sn * r0, c * sp, rand(0.15, 0.7), sn * sp,
+          cfg.dust[0] * k, cfg.dust[1] * k, cfg.dust[2] * k, rand(0.22, 0.42) * Math.min(1, amount + 0.3), rand(0.16, 0.3), rand(0.7, 1.4), rand(0.6, 1.2), 0.3, 4.2);
+      }
+      for (let i = 0; i < Math.round(8 * amount); i++) {
+        const a = rand(0, 6.283), sp = rand(1, 3.2), c = cfg.chip2 && Math.random() < 0.45 ? cfg.chip2 : cfg.chip, k = rand(0.7, 1.15);
+        emit(1, point.x + Math.cos(a) * radius * 0.3, y, point.z + Math.sin(a) * radius * 0.3, Math.cos(a) * sp, rand(1.2, 3.2), Math.sin(a) * sp,
+          c[0] * k, c[1] * k, c[2] * k, 1, rand(0.012, 0.03), 0, rand(0.5, 0.9), 9.8, 0.6);
+      }
+    },
+    // Blood slowly pooling on the ground (grows to `radius` m, fades out after ~25 s).
+    bloodPool(point, radius = 0.4) {
+      const m = pools[poolNext]; poolNext = (poolNext + 1) % pools.length;
+      m.position.set(point.x, point.y + 0.012, point.z); m.rotation.z = rand(0, 6.283);
+      m.userData.t = 0; m.userData.r = radius; m.scale.set(0.05, 0.05, 1); m.material.opacity = 0.85; m.visible = true;
+    },
+
     // Frag / blast. radius = lethal radius in metres (visual scale); surface picks debris + dust colours.
     explosion(point, { radius = 6, surface = 'dirt' } = {}) {
       if (blasts >= MAX_BLASTS) return;                      // cap concurrent explosions
@@ -252,6 +298,12 @@ export function createEffects(scene) {
     },
 
     update(dt, camera) {
+      for (const m of pools) {
+        if (!m.visible) continue;
+        const u = m.userData; u.t += dt;
+        const k = u.r * (1 - Math.exp(-u.t * 0.9)); m.scale.set(k, k * 0.82, 1);
+        if (u.t > 22) { m.material.opacity = 0.85 * Math.max(0, 1 - (u.t - 22) / 4); if (u.t > 26) m.visible = false; }
+      }
       // explosion bookkeeping: concurrent cap window, flash lights, smoke emitters
       if (blastWindow > 0) { blastWindow -= dt; if (blastWindow <= 0) blasts = 0; }
       blast.update(dt);
@@ -321,6 +373,7 @@ export function createEffects(scene) {
     },
 
     dispose() {
+      poolGeo.dispose(); for (const m of pools) m.material.dispose();
       group.removeFromParent();
       blast.dispose(); sGeo.dispose(); sMat.dispose(); scorch.dispose(); for (const l of blastLights) l.dispose();
       pGeo.dispose(); pMat.dispose(); tGeo.dispose(); tMat.dispose(); decals.geometry.dispose(); dMat.dispose(); decals.dispose();

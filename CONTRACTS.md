@@ -272,26 +272,63 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   either way). AI bots can find the parked helicopter (~30 m + line of sight, Easy/Normal/Hard 25/50/80%) and fly it
   (`src/game/bots/botPilot.js`, same flight model and host rules as a human pilot); on-foot bots hear / see an enemy
   helicopter and shoot its hull (`BotManager.botShotHeli` -> `HeliRules.bulletHit`), frag it when low, and take cover.
-- (Visuals, round 10) **`src/visuals/finishers.js`**: cinematic melee finishers.
-  - `FINISHERS = [{ id, name, duration, clearance, heightClear }]` (5 scenes: backstab, flipkick, throw, backhand, knee). `clearance` = free radius (m)
-    around the victim the scene needs (attacker approach + landing included), `heightClear` = free height (m). None needs a wall or prop; there is no
-    wall-based variant. Most compact: `backstab` (2.2 m / 2.2 m).
-  - `createFinisher({ id /* id string or index */, attacker, victim }) -> { id, name, duration, events, cameraRadius, clearance, heightClear, attackerEnd,
-    setOrigin(position, yaw), update(t), camera(t, out?), bonePosition(bone, out?, who = 'victim'), finish(), finished }`.
-    `setOrigin`: position = victim's feet, yaw = victim's facing (`object3D.rotation.y` convention); the attacker starts 1.3-2.5 m behind the victim.
-    `update(t)` poses both (t in seconds, blends in over 0.12 s) and moves both characters' `object3D` itself: do not move them meanwhile
-    (`character.update(dt)` may still be called; it idles while puppeteered). `camera(t)` returns world-space `{ pos, target, fov }`; the path stays
-    within `cameraRadius` (horizontal, m) of the origin, so raycast-clamp from `target` toward `pos`. `events` = `[{ t, type: 'whoosh'|'impact'|'blood'|'thud', bone }]`
-    (bone = victim Mixamo bone name without prefix; `bonePosition(bone)` gives its world position). `finish()` returns the attacker to normal
-    animation standing at `attackerEnd { position, yaw }` (move the player there) and leaves the victim lying, frozen, until `victim.reset()`.
-  - Guns are hidden and the attacker shows a combat knife during the scene; name tags are hidden until finish()/reset().
+- (Visuals, round 10; scenes reworked after the character motion pass) **`src/visuals/finishers.js`**: cinematic melee finishers.
+  - `FINISHERS = [{ id, name, duration, clearance, heightClear, facing, weapon }]`, 5 scenes, `duration` in real seconds (slow motion included):
+    `backstab` "Silent Blade" 3.04 s (knife), `neckbreak` "Widowmaker" 2.78 s, `slam` "Gravedigger" 3.00 s, `buttstroke` "Stock Breaker" 2.59 s
+    (the attacker's own gun), `heelkick` "Guillotine Kick" 2.54 s. `clearance` = free radius (m) around the victim (attacker approach + where the
+    body lands), `heightClear` = free height (m). None needs a wall or prop. Most compact: `neckbreak` (1.8 m / 2.2 m), the host's fallback.
+  - `createFinisher({ id /* id string or index */, attacker, victim }) -> { id, name, duration, events, cameraRadius, clearance, heightClear, weapon,
+    attackerStart, attackerEnd, setOrigin(position, yaw), update(t), camera(t, out?), fitCamera(castWorld), sceneTime(t), rate(t),
+    bonePosition(bone, out?, who = 'victim'), finish(), finished }`. All `t` are real seconds since the start.
+    `setOrigin`: position = victim's feet, yaw = scene heading (`object3D.rotation.y` convention); the attacker starts 1.5-1.75 m away on +z of that
+    heading. `update(t)` poses both (blends in over 0.15-0.3 s) and moves both characters' `object3D` itself: do not move them meanwhile
+    (`character.update(dt)` may still be called; it idles while puppeteered). `camera(t)` (call after `update`) returns world-space
+    `{ pos, target, fov, roll }` with cuts, punch-in and shake already applied; the path stays within `cameraRadius` (horizontal, m) of the origin,
+    so raycast-clamp from `target` toward `pos`. `fitCamera(castWorld)` (once, after `setOrigin`) swings each camera shot round the scene in 45 degree
+    steps to the side with a clear view when walls are near. `rate(t)` < 1 during a slow-motion beat. `finish()` returns the attacker to normal
+    animation standing at `attackerEnd { position, yaw }` (move the player there; `clearSpot(castWorld, origin, spot)` pulls it out of geometry)
+    and leaves the victim lying, frozen, with its dropped weapon, until `victim.reset()` / `dispose()` (they call `_puppet.cleanup`).
+  - Scene rig: hips transform + spine lean / twist / side bend + head + four IK limbs per character, feet planted in scene space or carried in the
+    body frame per key, contact links (a hand / foot pinned to a bone of the other character), the attacker's weapon (knife in the right hand,
+    or their gun held two-handed; otherwise the gun rides on their back), the victim's gun let go and falling to the ground, slow-motion beats.
+  - `events` = `[{ t, type, intensity, fx, bone, who: 'victim' | 'attacker', pulse?, shake?, punch?, ... }]` sorted by `t` (real seconds).
+    `type` (may be null for a pure effect) is one of the sound types below; `fx` is `'blood'` (spray) | `'gush'` (big spray) | `'dust'` (ring
+    on the ground) | `'puff'` (small dust) | `'pool'` (blood pool) | undefined; `pulse` = red vignette on the kill blow; `shake` / `punch` are
+    already in `camera()`. `bonePosition(e.bone, out, e.who)` gives the world position.
+  - **Sound contract** (`src/game/finisherView.js` -> `audio.finisher(type, pos /* THREE.Vector3, world */, intensity /* 0..1 */)`, falling back to
+    `audio.melee / impact / thud / stab` when `finisher` is missing). Types: `whoosh` (fast limb / blade swing), `grab` (cloth / gear grab),
+    `impact` (fist / elbow / knee to body), `heavy` (big body hit, kick), `crack` (neck / bone), `stab` (blade in), `slash` (blade drag / out),
+    `slam` (body to ground), `land` (attacker stomp / landing), `gear` (equipment rattle, weapon or knees hitting the ground), `sting` (low
+    cinematic hit as the slow-motion beat begins), `exhale` (attacker breath at the end). Intensities are modest on purpose: 0.3-0.6, the kill
+    blow 0.8, and no two sounds within 70 ms. Times in real seconds (intensity):
+    - `backstab` (from behind: hand over the face, blade into the flank, knife raised high and driven down into the neck, shove, knees, face-down):
+      grab 0.38 (0.5), whoosh 0.62 (0.35), stab 0.73 (0.55), gear 0.92 (0.3), slash 1.08 (0.35), sting 1.20 (0.55), **stab 1.44 (0.8)**,
+      slash 1.78 (0.4), gear 2.08 (0.35), slam 2.48 (0.5), exhale 2.73 (0.3). Slow motion 1.26-1.62.
+    - `neckbreak` (from behind: stomp to the back of the knee, victim on his knees, both hands on the head, wind-up, snap, body slumps on its side):
+      whoosh 0.30 (0.35), impact 0.42 (0.5), gear 0.66 (0.35), grab 0.80 (0.45), sting 1.04 (0.55), **crack 1.20 (0.8)**, slam 2.23 (0.5),
+      gear 2.34 (0.3), exhale 2.53 (0.3). Slow motion 1.10-1.45.
+    - `slam` (from behind: collar-and-belt grab, squat, overhead press with a held beat, slammed down on his back, boot stomp on the chest):
+      grab 0.30 (0.5), whoosh 0.70 (0.3), gear 0.84 (0.3), whoosh 1.25 (0.5), sting 1.37 (0.55), **slam 1.65 (0.8)**, gear 1.76 (0.35),
+      land 2.30 (0.6), exhale 2.70 (0.3). Slow motion 1.39-1.64.
+    - `buttstroke` (face to face: stock jabbed into the gut, victim doubles over, wind-up, upward butt-stroke to the jaw lifts him off his feet,
+      lands flat on his back, attacker covers the body with the muzzle): whoosh 0.32 (0.4), heavy 0.42 (0.6), whoosh 0.78 (0.45),
+      sting 0.85 (0.55), **crack 1.02 (0.8)**, slam 1.50 (0.6), gear 1.60 (0.35), exhale 2.24 (0.3). Slow motion 0.87-1.17.
+    - `heelkick` (face to face: head pulled down into a knee, victim reels, spinning heel kick to the head sends him spinning to the ground, attacker
+      lands low): grab 0.30 (0.45), impact 0.52 (0.55), whoosh 0.90 (0.5), sting 1.00 (0.55), **heavy 1.14 (0.8)**, land 1.56 (0.4),
+      slam 1.66 (0.55), gear 1.76 (0.3), exhale 2.24 (0.3). Slow motion 1.04-1.34.
+  - Name tags are hidden until finish()/reset(). Effects used (`src/visuals/effects.js`): `bloodBurst(point, dir, amount)`,
+    `dustRing(point, radius, surface, amount)`, `bloodPool(point, radius)`.
+  - Dev: `dev/fin.html` (scene harness, contact sheets via `window.fin`), `dev/finTest.js` (in-game capture), `window.__finisher = '<id>'` on the
+    host forces a scene.
 - (Gameplay, round 10) Melee finishers wired: on a melee kill the host (`Authority._startFinisher`) checks flat ground (no
-  ladders / roof edges; else a normal kill), tests each FINISHERS `clearance` (8 directions, knee + chest) and `heightClear`,
-  picks one at random (fallback backstab), orients it so the attacker comes in from where they stand, and broadcasts
-  `{t:'finisher', id, attacker, victim, origin, yaw, dur}` just before the `kill` (weapon `'finisher'`). Clients
-  (`src/game/finisherView.js`) play it on the two characters (local player gets a stand-in `createCharacter`), pause remote
-  interpolation for them, fire the events (positional audio + blood), and the attacker / victim cameras follow
-  `finisher.camera()` raycast-clamped to world geometry. The attacker is locked but vulnerable (killed = scene cancelled);
+  ladders / roof edges; else a normal kill), tests each FINISHERS `clearance` (8 directions, knee + chest, level ground out there) and
+  `heightClear`, picks one at random (fallback `neckbreak`), orients it so the attacker comes in from where they stand, and broadcasts
+  `{t:'finisher', id, attacker, victim, origin, yaw, dur}` just before the `kill` (weapon `'finisher'`; `dur` = the scene's real duration,
+  after which the host re-places bot attackers at `attackerEnd`). Clients (`src/game/finisherView.js`) play it on the two characters (local
+  player gets a stand-in `createCharacter`), pause remote interpolation for them, fire the events (positional audio, blood, dust), and the
+  attacker / victim cameras follow `finisher.camera()` (wall-fitted, raycast-clamped) with letterbox bars, a darkened frame during slow motion
+  and a short red vignette on the kill blow; bystanders only get a faint shake. The victim's death flow waits for the scene
+  (`deathFlow.phase = 'finisher'` -> `game.finisherDone()`), no kill cam. The attacker is locked but vulnerable (killed = scene cancelled);
   bots melee at point-blank range and freeze while playing their finisher.
 - (Visuals, round 12) Viewer-relative friend highlight on `createCharacter`:
   - `setRelation('ally' | 'enemy' | 'neutral' | null)`. **ally**: green fresnel rim on the body and outfit gear, green chevron + name tag above the head

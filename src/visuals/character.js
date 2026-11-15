@@ -470,6 +470,8 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
   // Internal hook for finishers.js (cinematic melee kills): direct access to the rig while `controlled` is on.
   const puppet = {
     get rig() { return rig; }, get template() { return template; }, root, pivot, gunSlot, tag,
+    get gunId() { return gunId; },
+    cleanup: null,                                                  // finishers.js: removes its props (dropped weapon) on reset()/dispose()
     setControlled(on) {
       controlled = !!on;
       if (!controlled) { pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); gunSlot.visible = true; tag.visible = !dead; act = null; resetMotion(); }
@@ -525,6 +527,7 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       dead = true; deathT = 0; deathRoll = (Math.random() - 0.5) * 0.7; tag.visible = false; flash.visible = false;
     },
     reset() {
+      if (puppet.cleanup) { puppet.cleanup(); puppet.cleanup = null; }
       controlled = false; gunSlot.visible = true; gunSlot.position.set(0, 0, 0);
       dead = false; deathT = 0; tag.visible = true;
       pivot.rotation.set(0, 0, 0); pivot.position.set(0, 0, 0);
@@ -646,6 +649,7 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       procedural(dt);
     },
     dispose() {
+      if (puppet.cleanup) { puppet.cleanup(); puppet.cleanup = null; }
       root.userData.disposed = true;
       root.removeFromParent();
       mixer?.stopAllAction();
