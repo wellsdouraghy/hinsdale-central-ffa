@@ -24,7 +24,7 @@ A = np.asarray(img).astype(np.float32)
 H, W, _ = A.shape
 X0, X1, Z0, Z1 = -330.0, 330.0, -300.0, 300.0
 sx = W / (X1 - X0); sz = H / (Z1 - Z0)
-PLAY = dict(minX=-212, maxX=220, minZ=-212, maxZ=216)
+PLAY = dict(minX=-186, maxX=182, minZ=-176, maxZ=204)
 LEAN = (0.0, 0.0)          # this imagery is close to nadir: footprints sit on the roofs
 random.seed(11); np.random.seed(11)
 
@@ -108,7 +108,7 @@ cls[road] = ASPH
 cls[pool_deck & ~road] = CONC
 cls[turf] = SYN
 # hand fixes (x0, z0, x1, z1, class): campus lawns / plazas read off the imagery
-for (x0, z0, x1, z1, c) in [(-36, -22, -4, 12, GRASS), (-60, 6, -4, 16, GRASS)]:
+for (x0, z0, x1, z1, c) in [(-36, -22, -4, 12, GRASS), (-60, 6, -4, 16, GRASS), (33, -72, 49, -52, CONC), (142, -126, 158, -110, GRASS)]:
     m = box(x0, z0, x1, z1) & ~road & ~foot
     cls[m] = c
 print('class fractions', [(cls == c).mean().round(3) for c in range(5)])
@@ -251,7 +251,7 @@ def free(x, z):
     return 0 <= px < W and 0 <= pz < H and not excl[pz, px]
 # hand-placed campus trees (kind 0 broadleaf, 1 conifer): the redwood / cedar grove on the circle, palms' stand-ins,
 # the row along Mission Ave south of the field, the oaks east of the field
-HAND = [(-24, -12, 1, 2.0), (-17, -3, 1, 2.3), (-27, 0, 1, 1.8), (-14, -14, 1, 1.7), (-21, 6, 1, 1.5), (-9, 3, 0, 0.9),
+HAND = [(-22, -9, 1, 2.2), (-13, -1, 1, 2.3), (-12, -13, 1, 1.8), (-9, 6, 0, 0.9), (8.2, 49.5, 0, 0.6), (8.6, 71, 0, 0.6),
         (-42, -6, 0, 1.0), (-48, 8, 0, 0.9), (-44, -20, 1, 1.1), (-58, -40, 0, 1.0), (-36, -84, 1, 1.2), (-4, -28, 1, 1.0),
         (2, -80, 0, 0.8), (16, -126, 0, 0.75), (28, -126.5, 0, 0.75), (2, -127, 0, 0.75),
         (-70, 18, 0, 0.9), (-84, 16, 0, 1.0), (-100, 12, 0, 0.9),
@@ -286,7 +286,41 @@ for _ in range(90000):
     add_tree(x, z, 1 if random.random() < (0.2 if dark else 0.07) else 0, random.uniform(0.55, 0.98))
 print('trees', len(trees), 'in play', sum(1 for t in trees if inplay(t[0], t[1])))
 
-json.dump(dict(trees=trees, buildings=buildings, roofs=roofs_rect, lean=LEAN, play=PLAY, classes=['grass', 'asphalt', 'concrete', 'rubber', 'dirt']),
+# ---------------------------------------------------------------- terrain backdrop (outside the play area only)
+# Real ground heights (3D-tiles samples, canopies / roofs filtered out) relative to the Mission Ave level, faded in over
+# the first ~110 m beyond the play bounds so gameplay ground stays the flat y = 0 plane. 20 m grid over +-1500 m.
+FAR = grid(TH['far']); BASE = -14.0
+def ground_of(g, size, sigma):
+    Hm = g[0].copy(); Hm[np.isnan(Hm)] = np.nanmedian(Hm)
+    return ndi.gaussian_filter(ndi.grey_opening(Hm, size=(size, size)), sigma)
+Gn = ground_of(WIDE, 11, 4.0); Gf = ground_of(FAR, 3, 1.0)
+def bil(G_, g, x, z):
+    fx = np.clip((x - g[1]) / g[3], 0, G_.shape[1] - 1.001); fz = np.clip((z - g[2]) / g[3], 0, G_.shape[0] - 1.001)
+    i = np.floor(fx).astype(int); j = np.floor(fz).astype(int); a = fx - i; b = fz - j
+    return G_[j, i] * (1 - a) * (1 - b) + G_[j, i + 1] * a * (1 - b) + G_[j + 1, i] * (1 - a) * b + G_[j + 1, i + 1] * a * b
+TS, TN = 20.0, 151; TX0 = TZ0 = -1500.0
+tx = TX0 + np.arange(TN) * TS; tzv = TZ0 + np.arange(TN) * TS; TXg, TZg = np.meshgrid(tx, tzv)
+near_w = np.clip(np.minimum(np.minimum(TXg - (X0 + 20), (X1 - 20) - TXg), np.minimum(TZg - (Z0 + 20), (Z1 - 20) - TZg)) / 80.0, 0, 1)
+Gt = bil(Gn, WIDE, TXg, TZg) * near_w + bil(Gf, FAR, TXg, TZg) * (1 - near_w)
+dout = np.maximum(np.maximum(PLAY['minX'] - TXg, TXg - PLAY['maxX']), np.maximum(PLAY['minZ'] - TZg, TZg - PLAY['maxZ']))
+rr_ = np.clip((dout - 10.0) / 110.0, 0, 1); ramp = rr_ * rr_ * (3 - 2 * rr_)
+TER = np.maximum(Gt - BASE, 0) * ramp
+TER[TER < 0.25] = 0
+def terrain_y(x, z):
+    fx = min(max((x - TX0) / TS, 0), TN - 1.001); fz = min(max((z - TZ0) / TS, 0), TN - 1.001); i = int(fx); j = int(fz); a = fx - i; b = fz - j
+    return float(TER[j, i] * (1 - a) * (1 - b) + TER[j, i + 1] * a * (1 - b) + TER[j + 1, i] * (1 - a) * b + TER[j + 1, i + 1] * a * b)
+for t in trees:
+    y = terrain_y(t[0], t[1])
+    if y > 0.15: t.append(round(y - 0.3, 1))
+for b in D['buildings']:
+    v = buildings.get(str(b['id']))
+    if not v or v['play']: continue
+    ys = [terrain_y(p[0], p[1]) for p in b['outer'][0]]
+    if max(ys) > 0.15: v['y'] = round(min(ys), 1); v['yTop'] = round(max(ys), 1)
+terrain = dict(x0=TX0, z0=TZ0, step=TS, n=TN, h=[int(round(v * 10)) for v in TER.reshape(-1)])
+print('terrain max', TER.max().round(1), 'cells > 0', int((TER > 0).sum()))
+
+json.dump(dict(trees=trees, buildings=buildings, terrain=terrain, roofs=roofs_rect, lean=LEAN, play=PLAY, classes=['grass', 'asphalt', 'concrete', 'rubber', 'dirt']),
           open(os.path.join(OUT, 'gen.json'), 'w'), separators=(',', ':'))
 cm = Image.fromarray(cls).resize((int(X1 - X0), int(Z1 - Z0)), Image.NEAREST)
 cm.save(os.path.join(OUT, 'surface_classes.png'), optimize=True)

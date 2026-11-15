@@ -1,7 +1,8 @@
 // The blocks around Marin Academy: hillside houses north of campus, downtown San Rafael shops and offices to the
 // south. Inside the play area every OSM building is solid (footprint from OSM, height / roof kind / roof colour from
 // gen.json, i.e. 3D-tiles samples + imagery); outside it only cheap context shells without collision.
-import { ANG, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK } from './kit.js';
+import { ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK } from './kit.js';
+import * as THREE from 'three';
 import { STYLES } from '../../world/facade.js';
 import { SCHOOL_IDS } from './school.js';
 
@@ -46,6 +47,7 @@ function house(ctx, ring, info, rnd) {
     fbox(B.v('concrete'), F, uc - 1.1, uc + 1.1, 0, 0.3, 0, 1.3, 1 / 3, 0, 'fst');
     fbox(B.v('whitePanel'), F, uc - 1.3, uc + 1.3, 2.62, 2.78, 0, 1.4, 1, 0, 'fstb');
     const c = F.P(uc, 0.15, 0.65); B.c('concrete').box(c[0], 0.15, c[2], 2.2, 0.3, 1.3, F.rotY);
+    const pr = F.P(uc, 2.7, 0.7); B.c('wood').box(pr[0], 2.7, pr[2], 2.6, 0.16, 1.4, F.rotY);       // porch roof is solid too
   }
   const tint = tileTint(info.col);
   { const o = minAreaOBB(ring); const fillR = Math.abs(signedArea(ring)) / Math.max(1, o.area); const rise = Math.min(info.rise || 1.8, 3.2); if (fillR > 0.9) hipRoof(ctx, ring, eave, rise, { tint, overhang: 0.55, gable: rnd() < 0.35, gableBucket: 'stucco', gableTint: [0.86, 0.84, 0.78] }); else polyRoof(ctx, ring, eave, rise, { tint, overhang: 0.5 }); }
@@ -71,6 +73,7 @@ function shop(ctx, ring, info, rnd, b) {
       fbox(wb, F, 0, 0.3, 0, 3.4, 0, 0.06, S, u, 'fs'); fbox(wb, F, L - 0.3, L, 0, 3.4, 0, 0.06, S, u, 'fs');
       // sign fascia + fabric awning
       fbox(B.v('paint', true).setColor(0.1 + aw[0] * 0.3, 0.1 + aw[1] * 0.3, 0.1 + aw[2] * 0.3), F, 0.3, L - 0.3, 3.4, 4.0, 0, 0.08, 1, 0, 'fstb');
+      { const sw = Math.min(L - 1.0, 6.5), uv = ctx.signCell(b); wallRect(B.v('shopSigns'), F, L / 2 - sw / 2, L / 2 + sw / 2, 3.44, 3.96, 0.09, [uv[2], uv[1], uv[0], uv[3]]); }
       if (rnd() < 0.7) { const awb = B.v('awning', true).setColor(aw[0], aw[1], aw[2]); quadFacing(awb, F.P(0.4, 3.3, 0.05), F.P(L - 0.4, 3.3, 0.05), F.P(L - 0.4, 2.65, 1.35), F.P(0.4, 2.65, 1.35), [F.nx, 1, F.nz]); quadFacing(awb, F.P(0.4, 2.65, 1.35), F.P(L - 0.4, 2.65, 1.35), F.P(L - 0.4, 2.4, 1.35), F.P(0.4, 2.4, 1.35), [F.nx, 0, F.nz]); const cc = F.P(L / 2, 2.95, 0.7); B.c('wood').box(cc[0], cc[1], cc[2], L - 0.8, 0.5, 1.35, F.rotY); }
       if (two) { const m = Math.max(1, Math.floor((L - 1) / 3.2)); for (let k = 0; k < m; k++) { const uc = (k + 0.5) * L / m; fbox(B.v('frame'), F, uc - 0.85, uc + 0.85, 4.9, 6.7, 0, 0.05, 1, 0, 'fstb'); wallRect(B.v('glassInt'), F, uc - 0.78, uc + 0.78, 4.97, 6.63, 0.055, [900 + i * 7 + k + 1, 2, 900 + i * 7 + k, 3]); fbox(B.v('limestone'), F, uc - 0.95, uc + 0.95, 4.78, 4.9, 0, 0.1, 1 / 3, 0, 'fstb'); } }
     } else {
@@ -92,19 +95,40 @@ function shop(ctx, ring, info, rnd, b) {
   if (info.area > 500) { const o = minAreaOBB(ring); const cu = (o.u0 + o.u1) / 2, cv = (o.v0 + o.v1) / 2; for (const d of [-0.22, 0.2]) { const uu = cu + (o.u1 - o.u0) * d, x = uu * o.tx - cv * o.tz, z = uu * o.tz + cv * o.tx; B.v('galv').box(x, roofY + 0.75, z, 2.6, 1.5, 1.8, -ANG); B.c('metal').box(x, roofY + 0.75, z, 2.6, 1.5, 1.8, -ANG); } }
 }
 
+// One texture atlas for every shop sign (4 x 10 cells): real names from OSM where mapped, plausible ones elsewhere.
+const SIGN_COLS = 4, SIGN_ROWS = 10;
+const GENERIC = ['CAFE', 'BOOKS', 'PIZZERIA', 'CLEANERS', 'BARBER', 'BAKERY', 'ANTIQUES', 'CYCLERY', 'TAQUERIA', 'HARDWARE', 'FLORIST', 'OPTOMETRY', 'YOGA', 'GALLERY', 'THRIFT', 'FRAMES', 'MARKET', 'NOODLES', 'RECORDS', 'JEWELERS'];
+function signAtlas(ctx, names) {
+  const W = 2048, H = 1024, cw = W / SIGN_COLS, ch = H / SIGN_ROWS; const c = makeCanvas(W, H), g = c.getContext('2d'); const rnd = mulberry32(44);
+  const pal = [['#1f2a36', '#f2ead8'], ['#7a1b16', '#f6efe0'], ['#efe8d6', '#2a2520'], ['#1e3a2b', '#e9e2c8'], ['#2b2b2e', '#e8b84a'], ['#e8dcc0', '#7a1b16'], ['#23324f', '#ffffff'], ['#f4f1ea', '#1f3d5c']];
+  const fonts = ['Georgia, serif', '"Trebuchet MS", Arial, sans-serif', 'Futura, "Century Gothic", sans-serif', '"Times New Roman", serif'];
+  names.slice(0, SIGN_COLS * SIGN_ROWS).forEach((nm, i) => {
+    const x = (i % SIGN_COLS) * cw, y = Math.floor(i / SIGN_COLS) * ch; const [bg, fg] = pal[Math.floor(rnd() * pal.length)];
+    g.fillStyle = bg; g.fillRect(x, y, cw, ch); g.strokeStyle = fg; g.globalAlpha = 0.5; g.lineWidth = 3; g.strokeRect(x + 8, y + 8, cw - 16, ch - 16); g.globalAlpha = 1;
+    g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `700 ${Math.round(ch * 0.5)}px ${fonts[Math.floor(rnd() * fonts.length)]}`;
+    g.fillText(nm.toUpperCase().slice(0, 22), x + cw / 2, y + ch / 2 + 2, cw - 40);
+  });
+  ctx.M.shopSigns = new THREE.MeshStandardMaterial({ map: canvasTexture(c, { repeat: false, aniso: ctx.T.aniso }), roughness: 0.7 });
+  return (i) => { const cx = i % SIGN_COLS, cy = Math.floor(i / SIGN_COLS); return [cx / SIGN_COLS, 1 - (cy + 1) / SIGN_ROWS, (cx + 1) / SIGN_COLS, 1 - cy / SIGN_ROWS]; };
+}
+// OSM footprints the generic classifier gets wrong: the church east of the pool is cream stucco under a clay-tile hip roof
+const OVERRIDE = { 900888958: { h: 8.2, rise: 4.2, style: 'maMission' }, 900888959: { h: 7.6, rise: 2.4, style: 'maLowCream' } };
+
 export function buildTown(ctx) {
   const { B, data, gen } = ctx; const rnd = mulberry32(1600);
   const KIT = ['maLowCream', 'maService', 'maWhite', 'maMission', 'service', 'annex'];
   let nHouse = 0, nShop = 0, nKit = 0, nCtx = 0; const flats = [];
+  const named = data.buildings.filter((b) => b.tags.name && gen.buildings[String(b.id)]?.play && !SCHOOL_IDS.has(b.id)).map((b) => b.tags.name);
+  const signNames = [...named.slice(0, 22), ...GENERIC].slice(0, SIGN_COLS * SIGN_ROWS); const signUV = signAtlas(ctx, signNames); const nNamed = Math.min(22, named.length); ctx.signCell = (b) => { const k = signNames.indexOf(b.tags.name || ''); return signUV(k >= 0 ? k : nNamed + Math.floor(rnd() * (signNames.length - nNamed))); };
   for (const b of data.buildings) {
     if (SCHOOL_IDS.has(b.id) || SKIP.has(b.id)) continue;
     const info = gen.buildings[String(b.id)]; if (!info) continue;
     const raw = b.outer[0]; if (raw.length < 3 || Math.abs(signedArea(raw)) < 14) continue;
     if (!info.play) {
       // context shell: plain walls + roof, no collision
-      const ring = simplify(raw, 1.0); const h = info.roof === 'flat' ? info.h : Math.max(2.9, info.h);
+      const ring = simplify(raw, 1.0); const y0 = (info.y || 0) - 0.6; const h = (info.yTop || 0) + (info.roof === 'flat' ? info.h : Math.max(2.9, info.h));   // stands on the terrain backdrop
       const p = B.v('paint', true); const wc = srgb(...(info.roof === 'flat' ? [196, 188, 172] : [[214, 208, 194], [186, 178, 160], [160, 168, 170], [205, 196, 170]][b.id % 4])); p.setColor(wc[0], wc[1], wc[2]);
-      for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length]; p.wall(a[0], a[1], c[0], c[1], 0, h); }
+      for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length]; p.wall(a[0], a[1], c[0], c[1], y0, h); }
       p.setColor(1, 1, 1);
       if (info.roof === 'flat') { const rr = gen.roofs; B.v('roofSat').poly(ring, null, h, (x, z) => [(x - rr.minX) / (rr.maxX - rr.minX), 1 - (z - rr.minZ) / (rr.maxZ - rr.minZ)]); }
       else polyRoof(ctx, ring, h, Math.min(info.rise || 1.8, 3), { tint: tileTint(info.col), overhang: 0.4, noCollision: true });
@@ -112,6 +136,8 @@ export function buildTown(ctx) {
     }
     const ring = simplify(raw, 0.5); const cz = ring.reduce((s, p) => s + p[1], 0) / ring.length;
     (ctx.buildingRings = ctx.buildingRings || []).push(ring);
+    const ov = OVERRIDE[b.id];
+    if (ov) { kitWalls(ctx, ring, ov.h, ov.style); polyRoof(ctx, ring, ov.h, ov.rise, { tint: CLAY, overhang: 0.7 }); B.c('concrete').prism(ring, 0, ov.h, 1, true); nKit++; continue; }
     if (info.roof !== 'flat') { house(ctx, ring, info, rnd); nHouse++; continue; }
     const t = b.tags; const commercial = t.shop || t.amenity === 'restaurant' || t.amenity === 'cafe' || t.amenity === 'bank' || t.building === 'commercial' || t.building === 'retail' || cz > 120;
     if (commercial) { shop(ctx, ring, info, rnd, b); nShop++; flats.push({ ring, roofY: Math.max(4.2, info.h + 0.5) - 0.45, area: info.area }); continue; }

@@ -8,6 +8,7 @@ import { getCampus } from '../src/campuses/index.js';
 if (new URLSearchParams(location.search).get('raf') !== '1') { window.requestAnimationFrame = (fn) => setTimeout(() => fn(performance.now()), 16); window.cancelAnimationFrame = (h) => clearTimeout(h); }
 
 const qs = new URLSearchParams(location.search);
+if (qs.get('chunk') === '1') globalThis.__WORLD_CHUNK = true;   // A/B the optional spatial chunking of static meshes
 const quality = qs.get('q') || 'high';
 const renderer = new THREE.WebGLRenderer({ antialias: quality === 'low', powerPreference: 'high-performance', preserveDrawingBuffer: true });
 renderer.setSize(innerWidth, innerHeight);

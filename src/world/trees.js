@@ -247,13 +247,13 @@ export function createTrees(ctx) {
   const group = new THREE.Group(); group.name = 'trees'; scene.add(group);
   const dummy = new THREE.Object3D(); const col = new THREE.Color();
   for (const t of gen.trees) {
-    const [x, z, kind, s] = t;
+    const [x, z, kind, s, ty = 0] = t;   // optional 5th value: base height (terrain backdrops); default ground level
     let vi;
     if (kind === 1) vi = 3; else { const r = rnd(); vi = s < 0.82 && r < 0.5 ? 4 : r < 0.42 ? 0 : r < 0.78 ? 1 : 2; }
     const key = Math.floor(x / CHUNK) + ':' + Math.floor(z / CHUNK);
     let ch = chunks.get(key); if (!ch) { ch = { lists: variants.map(() => []), cx: 0, cz: 0, n: 0 }; chunks.set(key, ch); }
     const sc = (vi === 4 ? 1.0 : s) * (0.9 + rnd() * 0.25);
-    ch.lists[vi].push({ x, z, s: sc, r: rnd() * Math.PI * 2, tint: rnd() });
+    ch.lists[vi].push({ x, y: ty, z, s: sc, r: rnd() * Math.PI * 2, tint: rnd() });
     ch.cx += x; ch.cz += z; ch.n++;
     // trunk collision near the play area
     if (x > pb.minX - 25 && x < pb.maxX + 25 && z > pb.minZ - 25 && z < pb.maxZ + 25) {
@@ -269,7 +269,7 @@ export function createTrees(ctx) {
       if (!list.length) return; const v = variants[vi];
       const wood = new THREE.InstancedMesh(v.wood, barkMat, list.length), leaves = new THREE.InstancedMesh(v.leaves, v.leafMat, list.length), imp = new THREE.InstancedMesh(impGeos[vi], impMat, list.length);
       list.forEach((it, i) => {
-        dummy.position.set(it.x, 0, it.z); dummy.rotation.set(0, it.r, 0); dummy.scale.set(it.s, it.s * (0.94 + it.tint * 0.12), it.s); dummy.updateMatrix();
+        dummy.position.set(it.x, it.y, it.z); dummy.rotation.set(0, it.r, 0); dummy.scale.set(it.s, it.s * (0.94 + it.tint * 0.12), it.s); dummy.updateMatrix();
         wood.setMatrixAt(i, dummy.matrix); leaves.setMatrixAt(i, dummy.matrix);
         dummy.rotation.set(0, 0, 0); dummy.updateMatrix(); imp.setMatrixAt(i, dummy.matrix);
         col.setHSL(0.27 + (it.tint - 0.5) * 0.05, 0.2, 0.86 + it.tint * 0.14); leaves.setColorAt(i, col); imp.setColorAt(i, col);

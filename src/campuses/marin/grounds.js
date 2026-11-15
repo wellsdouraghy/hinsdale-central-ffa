@@ -60,7 +60,21 @@ function field(ctx) {
   // goals
   const gw = G(A0, BC), ge = G(A1, BC); landmarkKit.soccerGoal(ctx, gw[0], gw[1], Math.atan2(-UX, -UZ)); landmarkKit.soccerGoal(ctx, ge[0], ge[1], Math.atan2(UX, UZ));
   // spectator bleachers on the west touchline below Thacher Hall; team benches + small stands on the north touchline
-  { const p = G(30.6, -29.5); bleachers(ctx, { x: p[0], z: p[1], dir: Math.atan2(-UX, -UZ), len: 30, rows: 6, frontH: 0.9 }); }
+  // Broad concrete spectator terrace between Thacher Hall and the pitch (the real campus steps down to the field here):
+  // four wide steps up from the touchline, a level seating deck, steps down again toward the hall. Walkable from both
+  // sides (collision is a ramp over the steps), solid, with benches on the deck.
+  {
+    const b0 = -30, b1 = 3, bm = (b0 + b1) / 2, len = b1 - b0, rise = 0.28, topY = rise * 4; const conc = B.v('concrete'), col = B.c('concrete');
+    for (let k = 0; k < 4; k++) {
+      const aE = 31.0 - k * 1.2, aW = 19.6 + k * 0.6; const c = G((aE + aW) / 2, bm);
+      conc.box(c[0], (k + 0.5) * rise, c[1], aE - aW, rise, len, ROT, 1 / 3); col.box(c[0], (k + 0.5) * rise, c[1], aE - aW, rise, len, ROT);
+      const nose = G(aE - 0.04, bm); B.v('limestone').box(nose[0], (k + 1) * rise + 0.006, nose[1], 0.1, 0.012, len, ROT, 1 / 3);
+    }
+    const q = (pts) => { const P3 = pts.map(([a, b, y]) => { const g = G(a, b); return [g[0], y, g[1]]; }); quadFacing(col, P3[0], P3[1], P3[2], P3[3], [0, 1, 0]); };
+    q([[31.35, b0, 0], [31.35, b1, 0], [27.1, b1, topY], [27.1, b0, topY]]); q([[19.3, b0, 0], [19.3, b1, 0], [21.6, b1, topY], [21.6, b0, topY]]);
+    for (const b of [-24, -13.5, -3]) { const p = G(24.3, b); B.v('wood').box(p[0], topY + 0.45, p[1], 0.5, 0.07, 4.2, ROT, 0.5); B.v('concrete').box(p[0], topY + 0.21, p[1], 0.36, 0.42, 3.8, ROT, 1 / 3); B.c('wood').box(p[0], topY + 0.24, p[1], 0.5, 0.48, 4.2, ROT); }
+    for (const b of [b0, b1]) { const p = G(24.4, b); B.solidBox('limestone', 'concrete', p[0], topY + 0.3, p[1], 5.4, 0.6, 0.5, ROT, 1 / 3); ctx.shrubs.push([p[0], topY + 0.6, p[1], 4.6, 0.5, ROT]); }
+  }
   for (const a of [56, 72, 88, 104]) { const p = G(a + 5, -51.4); bleachers(ctx, { x: p[0], z: p[1], dir: ROT + Math.PI, len: 10, rows: 3, run: 0.62, rise: 0.25, frontH: 0 }); }
   for (const a of [60, 98]) { const p = G(a, 14.2); propKit.bench(ctx, p[0], p[1], ROT); const q = G(a + 3, 14.2); propKit.bench(ctx, q[0], q[1], ROT); }
   // perimeter: black ball-stop fence (open on the campus side), with gates on Mission Ave and the east path
@@ -69,7 +83,7 @@ function field(ctx) {
   fence(ctx, [P[1], P[0], P[5]], { h: 3.0, black: true, every: 3.2, gaps: [[38, 43], [118, 122]] });        // south (Mission Ave) + east
   fence(ctx, [P[5], P[4], P[3], P[2]], { h: 3.0, black: true, every: 3.2, gaps: [[20, 24], [100, 126]] });   // north-east, north, north-west
   // clipped hedge between the fence and the Mission Ave sidewalk
-  for (let a = 37; a < 122; a += 9.4) { if (a > 68 && a < 78) continue; const p = G(a + 4.5, 20.4); ctx.shrubs.push([p[0], 0, p[1], 9.0, 1.7, ROT]); }
+  for (let a = 37; a < 122; a += 9.4) { if (a > 68 && a < 78) continue; const p = G(a + 4.5, 20.4); ctx.shrubs.push([p[0], 0, p[1], 9.0, 1.05, ROT]); }
   // scoreboard in the north-east corner, angled back at the pitch
   {
     const p = G(118.5, -57); const rot = ROT - 0.75; const pt = B.v('paint', true);
@@ -90,6 +104,19 @@ function field(ctx) {
     const p = G(a, b); pt.setColor(...col).box(p[0], h / 2, p[1], w, h, d, ROT); B.c('rubber').box(p[0], h / 2, p[1], w, h, d, ROT);
   }
   pt.setColor(1, 1, 1);
+  // match-day kit round the north-east corner (the red flag base): scorer's tent with a table, ball bins, kit carts,
+  // stacked lacrosse goals, a water station. Believable sideline clutter that also breaks the sight lines to the base.
+  {
+    const tent = (a, b, col) => { const c = G(a, b); const aw = B.v('awning', true); aw.setColor(...col); aw.box(c[0], 2.45, c[1], 3.2, 0.06, 3.2, ROT); hipRoof(ctx, boxFromRect(c[0], c[1], 3.2, 3.2), 2.48, 0.9, { bucket: 'awning', tint: col, overhang: 0, caps: false, noCollision: true }); aw.setColor(1, 1, 1);
+      for (const [da, db] of [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]]) { const q2 = G(a + da, b + db); B.v('galv').cyl(q2[0], 0, q2[1], 0.03, 0.03, 2.45, 6, 1, false); }
+      B.v('whitePanel').box(c[0], 0.74, c[1], 2.2, 0.06, 0.8, ROT); B.v('paint', true).setColor(...col).box(c[0], 0.37, c[1], 2.2, 0.72, 0.78, ROT); B.c('wood').box(c[0], 0.4, c[1], 2.2, 0.8, 0.8, ROT); B.c('wood').box(c[0], 2.7, c[1], 3.2, 0.5, 3.2, ROT); };
+    tent(108.5, -45.8, [0.62, 0.07, 0.06]); tent(92.5, -45.8, [0.9, 0.9, 0.88]);
+    const crate = (a, b, w, h, d, col, r = 0) => { const c = G(a, b); B.v('paint', true).setColor(...col).box(c[0], h / 2, c[1], w, h, d, ROT + r); B.c('rubber').box(c[0], h / 2, c[1], w, h, d, ROT + r); };
+    crate(112.5, -36, 2.4, 1.25, 1.3, [0.1, 0.1, 0.11]); crate(112.7, -33.2, 1.3, 1.5, 1.3, [0.62, 0.07, 0.06]); crate(95.5, -32.5, 2.6, 1.2, 1.2, [0.3, 0.32, 0.34], 0.5); crate(104.5, -31.2, 1.8, 1.05, 0.9, [0.9, 0.5, 0.1], -0.3);
+    crate(88.5, -40, 1.3, 1.4, 1.3, [0.05, 0.16, 0.42]); crate(100.5, -47, 3.4, 1.3, 1.0, [0.82, 0.82, 0.8]); crate(116, -44, 1.9, 1.9, 1.9, [0.9, 0.9, 0.88], 0.3);
+    B.v('paint', true).setColor(1, 1, 1);
+    { const c = G(110.5, -40.5); landmarkKit.soccerGoal(ctx, c[0], c[1], ROT + Math.PI / 2 + 0.2); }   // spare goal parked off the pitch
+  }
 }
 
 // ------------------------------------------------------------------------------------------ flag
@@ -246,10 +273,32 @@ function streets(ctx) {
   }
 }
 
+// The play-area edge: construction-style fence with a green windscreen along the bounds, concrete barriers where a
+// street crosses it, nothing where a building already forms the edge. Reads as a closed-off district, not a void.
+function boundary(ctx) {
+  const { data, playBounds: pb } = ctx; const m = 1.2;
+  const corners = [[pb.minX - m, pb.minZ - m], [pb.maxX + m, pb.minZ - m], [pb.maxX + m, pb.maxZ + m], [pb.minX - m, pb.maxZ + m]];
+  const segs = []; for (const r of data.roads) { const hw = r.tags.highway; if (!STREETS.includes(hw)) continue; for (let i = 0; i < r.line.length - 1; i++) segs.push([r.line[i], r.line[i + 1], ROADW[hw] / 2 + 1.0]); }
+  const onStreet = (x, z) => segs.some(([a, b, w]) => { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) < w; });
+  const inBld = (x, z) => (ctx.buildingRings || []).some((r) => pointInRing(x, z, r));
+  for (let e = 0; e < 4; e++) {
+    const a = corners[e], b = corners[(e + 1) % 4]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.ceil(L / 6); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const rot = Math.atan2(-tz, tx);
+    let run = null; const flush = () => { if (run && run.length > 1) fence(ctx, run, { h: 2.4, screen: 2.0, every: 3 }); run = null; };
+    for (let i = 0; i < n; i++) {
+      const p0 = [a[0] + tx * (i * L / n), a[1] + tz * (i * L / n)], p1 = [a[0] + tx * ((i + 1) * L / n), a[1] + tz * ((i + 1) * L / n)], mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+      if (inBld(mid[0], mid[1])) { flush(); continue; }
+      if (onStreet(mid[0], mid[1])) { flush(); propKit.barrier(ctx, mid[0], mid[1], rot, L / n - 0.3); const pt = ctx.B.v('paint', true); pt.setColor(0.95, 0.45, 0.05).box(mid[0], 1.0, mid[1], L / n - 0.6, 0.22, 0.06, rot); pt.setColor(0.9, 0.9, 0.88).box(mid[0], 0.72, mid[1], L / n - 0.6, 0.16, 0.06, rot); pt.setColor(1, 1, 1); continue; }
+      if (!run) run = [p0]; run.push(p1);
+    }
+    flush();
+  }
+}
+
 export function buildGrounds(ctx) {
   field(ctx);
   frontOfCampus(ctx);
   streets(ctx);
   vehicles(ctx);
+  boundary(ctx);
   ctx.B.v('paint', true).setColor(1, 1, 1); ctx.B.v('stucco', true).setColor(1, 1, 1);
 }

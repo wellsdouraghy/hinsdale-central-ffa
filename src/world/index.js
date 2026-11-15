@@ -22,6 +22,33 @@ onCampusChange((c) => Object.assign(PLAY_BOUNDS, c.playBounds));
 const BASE_ATTRIBUTION = 'Map data &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors &middot; Imagery &copy; Esri, Maxar, Earthstar Geographics';
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
+// Static merge helper: one geometry per material (default), or per material and 128 m cell when chunking is enabled.
+const CHUNK = 128, CHUNK_MIN_TRIS = 16000;
+function chunkBucket(bucket) {
+  const nTri = bucket.pos.length / 9;
+  // OFF by default: measured on both campuses it cut drawn triangles by 20-55% but the extra draw calls made frames slower
+  // (see the Marin QA notes). Opt in with globalThis.__WORLD_CHUNK = true (dev viewer: ?chunk=1) to re-measure on other GPUs.
+  if (nTri < CHUNK_MIN_TRIS || !globalThis.__WORLD_CHUNK) return [bucket.toGeometry()];
+  const cells = new Map(); const P = bucket.pos;
+  for (let t = 0; t < nTri; t++) {
+    const o = t * 9; const cx = (P[o] + P[o + 3] + P[o + 6]) / 3, cz = (P[o + 2] + P[o + 5] + P[o + 8]) / 3;
+    const k = Math.floor(cx / CHUNK) + ':' + Math.floor(cz / CHUNK); let list = cells.get(k); if (!list) { list = []; cells.set(k, list); } list.push(t);
+  }
+  const out = [];
+  for (const list of cells.values()) {
+    const n = list.length * 3; const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), uv = new Float32Array(n * 2), col = bucket.col ? new Float32Array(n * 3) : null;
+    list.forEach((t, i) => {
+      for (let k = 0; k < 9; k++) { pos[i * 9 + k] = P[t * 9 + k]; nor[i * 9 + k] = bucket.nor[t * 9 + k]; if (col) col[i * 9 + k] = bucket.col[t * 9 + k]; }
+      for (let k = 0; k < 6; k++) uv[i * 6 + k] = bucket.uv[t * 6 + k];
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    if (col) g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.computeBoundingSphere(); g.computeBoundingBox(); out.push(g);
+  }
+  return out;
+}
+
 export async function createWorld({ renderer, scene, camera, settings = {}, onProgress = () => {}, campus = activeCampus() }) {
   const F = campus.files;
   setActiveCampus(campus.id);   // shared constants (SAT, PLAY_BOUNDS, tile origin) follow the campus being built
@@ -75,9 +102,12 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     if (!bucket.pos.length) continue;
     const mat = key.startsWith('house') ? M.houseWalls[parseInt(key.slice(5), 10)] : M[key];
     if (!mat) { console.warn('[world] missing material', key); continue; }
-    const mesh = new THREE.Mesh(bucket.toGeometry(), mat);
+    // (optionally split into spatial chunks so the frustum can cull them: see chunkBucket)
+    for (const geo of chunkBucket(bucket)) {
+    const mesh = new THREE.Mesh(geo, mat);
     mesh.name = 'static:' + key; mesh.castShadow = key !== 'groundDecal' && key !== 'wallDecal'; if (key === 'groundDecal' || key === 'wallDecal') { mesh.receiveShadow = false; mesh.renderOrder = 2; } mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
     customVisuals.add(mesh);
+    }
   }
 
   progress(0.8, 'Planting trees'); await tick();

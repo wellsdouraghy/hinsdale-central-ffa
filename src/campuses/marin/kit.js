@@ -20,8 +20,8 @@ export function rect(cx, cz, w, d, ang = ANG) {
 export const gp = (ox, oz, a, b) => [ox + a * UX - b * UZ, oz + a * UZ + b * UX];
 export const srgb = (r, g, b) => [Math.pow(r / 255, 2.2), Math.pow(g / 255, 2.2), Math.pow(b / 255, 2.2)];
 export const tileTint = (rgb) => { const c = srgb(...rgb); return [c[0] / TILE_AVG, c[1] / TILE_AVG, c[2] / TILE_AVG]; };
-export const CLAY = [2.9, 1.7, 1.25];                   // weathered terracotta barrel tile
-export const CLAY_DARK = [2.5, 1.4, 1.0];
+export const CLAY = [3.7, 2.0, 1.42];                   // weathered terracotta barrel tile
+export const CLAY_DARK = [3.0, 1.6, 1.15];
 
 // ------------------------------------------------------------------------------------------ materials
 function solarTexture(aniso) {
@@ -79,7 +79,7 @@ export function addMaterials(ctx) {
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
     maMission: { kind: 'class', bay: 4.3, frame: 'frame', top: 'stone', tint: [0.9, 0.79, 0.55], beds: true },       // cream stucco, bronze frames
-    maFoster: { kind: 'class', bay: 4.0, frame: 'frame', top: 'stone', tint: [0.92, 0.84, 0.62], beds: true },
+    maFoster: { kind: 'class', bay: 4.0, frame: 'frame', top: 'stone', tint: [0.95, 0.83, 0.5], beds: true },
     maWhite: { kind: 'class', bay: 4.6, frame: 'frame', top: 'stone', tint: [0.93, 0.92, 0.88], beds: true },
     maModern: { kind: 'modern', bay: 4.9, frame: 'frameAlu', top: 'panel', tint: [0.95, 0.95, 0.94] },
     maLow: { kind: 'lowmod', bay: 4.4, frame: 'frameAlu', top: 'panel', tint: [0.94, 0.94, 0.92], beds: true },
@@ -226,6 +226,31 @@ export function polyRoof(ctx, ringIn, eaveY, rise, opts = {}) {
   }
   bucket.poly(pts.map((p) => [p.e[0], p.e[2]]), null, eaveY - 0.01, (x, z) => [x * uvS, z * uvS], true);
   bucket.setColor(1, 1, 1);
+}
+
+// Hip perimeter around a flat roof well (the modern clay-tile buildings: tiled slopes outside, a grey membrane deck
+// with plant inside). box as from boxFromRect; run = horizontal depth of the tiled slope. Returns the deck frame.
+export function wellRoof(ctx, box, eaveY, rise, run, opts = {}) {
+  const { B } = ctx; let { tx, tz, u0, u1, v0, v1 } = box; const ov = opts.overhang === undefined ? 0.7 : opts.overhang; const t = opts.tint || CLAY;
+  const W = (u, v, y) => [u * tx - v * tz, y, u * tz + v * tx]; const top = eaveY + rise, deck = top - 0.45, k = run + ov;
+  const O = [[u0 - ov, v0 - ov], [u1 + ov, v0 - ov], [u1 + ov, v1 + ov], [u0 - ov, v1 + ov]], I = [[u0 - ov + k, v0 - ov + k], [u1 + ov - k, v0 - ov + k], [u1 + ov - k, v1 + ov - k], [u0 - ov + k, v1 + ov - k]];
+  const sh = B.v('shingles', true); sh.setColor(t[0], t[1], t[2]); const col = B.c('concrete'); const up = [0, 1, 0]; const sl = Math.hypot(k, rise) / 3;
+  for (let i = 0; i < 4; i++) {
+    const a = O[i], b = O[(i + 1) % 4], ib = I[(i + 1) % 4], ia = I[i]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]) / 3;
+    const A = W(a[0], a[1], eaveY), Bq = W(b[0], b[1], eaveY), C = W(ib[0], ib[1], top), Dd = W(ia[0], ia[1], top);
+    quadFacing(sh, A, Bq, C, Dd, up, [[0, 0], [L, 0], [L, sl], [0, sl]]); quadFacing(col, A, Bq, C, Dd, up);
+    // inner curb down to the deck
+    const cn = [(ia[0] + ib[0]) / 2 < (u0 + u1) / 2 - 0.01 ? 1 : (ia[0] + ib[0]) / 2 > (u0 + u1) / 2 + 0.01 ? -1 : 0, (ia[1] + ib[1]) / 2 < (v0 + v1) / 2 - 0.01 ? 1 : (ia[1] + ib[1]) / 2 > (v0 + v1) / 2 + 0.01 ? -1 : 0];
+    const nW = [cn[0] * tx - cn[1] * tz, 0, cn[0] * tz + cn[1] * tx];
+    quadFacing(B.v('whitePanel'), W(ia[0], ia[1], deck), W(ib[0], ib[1], deck), C, Dd, nW); quadFacing(col, W(ia[0], ia[1], deck), W(ib[0], ib[1], deck), C, Dd, nW);
+  }
+  sh.tube(W(I[0][0], I[0][1], top), W(I[1][0], I[1][1], top), 0.12, 5).tube(W(I[1][0], I[1][1], top), W(I[2][0], I[2][1], top), 0.12, 5).tube(W(I[2][0], I[2][1], top), W(I[3][0], I[3][1], top), 0.12, 5).tube(W(I[3][0], I[3][1], top), W(I[0][0], I[0][1], top), 0.12, 5);
+  for (let i = 0; i < 4; i++) sh.tube(W(O[i][0], O[i][1], eaveY), W(I[i][0], I[i][1], top), 0.11, 5);
+  quadFacing(sh, W(O[0][0], O[0][1], eaveY), W(O[1][0], O[1][1], eaveY), W(O[2][0], O[2][1], eaveY), W(O[3][0], O[3][1], eaveY), [0, -1, 0]);
+  sh.setColor(1, 1, 1);
+  const d = [W(I[0][0], I[0][1], deck), W(I[1][0], I[1][1], deck), W(I[2][0], I[2][1], deck), W(I[3][0], I[3][1], deck)];
+  quadFacing(B.v('concrete'), d[0], d[1], d[2], d[3], up, [[0, 0], [(I[1][0] - I[0][0]) / 3, 0], [(I[1][0] - I[0][0]) / 3, (I[2][1] - I[1][1]) / 3], [0, (I[2][1] - I[1][1]) / 3]]); quadFacing(col, d[0], d[1], d[2], d[3], up);
+  return { W, deck, top, u0: I[0][0], u1: I[1][0], v0: I[0][1], v1: I[2][1], rotY: Math.atan2(-tz, tx) };
 }
 export const boxFromRect = (cx, cz, w, d, ang = ANG) => {
   const tx = Math.cos(ang), tz = Math.sin(ang); const uc = cx * tx + cz * tz, vcn = -cx * tz + cz * tx;

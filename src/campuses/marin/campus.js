@@ -22,9 +22,10 @@ export default {
     surfaceClasses: 'campuses/marin/surface_classes.png',
   },
   sat: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 },
-  playBounds: { minX: -212, maxX: 220, minZ: -212, maxZ: 216 },
-  // red = Championship Field (the Wildcats' home turf), blue = the downtown car park off 4th St (~265 m apart)
-  ctf: { red: [92, -8], blue: [-141, 131] },
+  playBounds: { minX: -186, maxX: 182, minZ: -176, maxZ: 204 },
+  // red = the north-east corner of Championship Field by the scorer's tents (cover + 4 fence openings), blue = the
+  // downtown car park off 4th St, ~295 m apart
+  ctf: { red: [104, -27], blue: [-141, 131] },
   practiceHeli: { x: 62, z: -22, yaw: -1.45 },
   spawnCenter: [-10, 20],
   // Water features (visual only, see src/world/water.js). Aquatic centre: 25 yd x ~34 m competition pool on the street
@@ -44,8 +45,8 @@ export default {
       pos: [[136, 16, 34], [124, 18, 10], [112, 20, -16], [96, 22, -44]],
       tgt: [[78, 1, -8], [76, 1, -8], [72, 2, -6], [66, 2, -4]] },
     { name: 'Foster Hall', fov: 46,
-      pos: [[-44, 3.2, 22], [-36, 3.6, 16], [-28, 4.2, 8], [-22, 5, -2]],
-      tgt: [[-18, 7, -40], [-18, 7, -42], [-18, 7.5, -44], [-18, 8, -46]] },
+      pos: [[-52, 3.0, 14], [-47, 3.4, 4], [-41, 4.0, -8], [-34, 4.8, -18]],
+      tgt: [[-18, 5.5, -36], [-18, 5.5, -38], [-18, 6, -40], [-18, 6.5, -42]] },
     { name: 'Mission Avenue', fov: 50,
       pos: [[-120, 9, 14], [-84, 10, 18], [-48, 11, 22], [-12, 12, 26]],
       tgt: [[-40, 5, 30], [-4, 5, 34], [30, 5, 38], [66, 5, 44]] },

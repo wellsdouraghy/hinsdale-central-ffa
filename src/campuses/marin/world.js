@@ -5,6 +5,7 @@ import { buildSchool } from './school.js';
 import { buildTown } from './town.js';
 import { buildGrounds } from './grounds.js';
 import { addCampusWater } from '../../world/water.js';
+import { buildTerrain } from './terrain.js';
 
 export function build(ctx, progress = () => {}) {
   addMaterials(ctx);
@@ -21,5 +22,6 @@ export function build(ctx, progress = () => {}) {
   ctx.campus = { ...c, heliPark: [...(c.heliPark || []), ...roofs] };
   progress(0.68, 'Laying out the field and grounds');
   buildGrounds(ctx);
+  buildTerrain(ctx);     // hills outside the play area (visual backdrop)
   addCampusWater(ctx);   // the aquatic centre pool (descriptor `water`)
 }
