@@ -227,6 +227,19 @@ export async function createTerrain(campus, { sat = campus.sat, playBounds = cam
   /** Fine collision region (node indices): inside it every lattice cell is `cell` wide. */
   lat.fine = { i0: Math.max(0, Math.floor((playBounds.minX - M - x0) / cell)), i1: Math.min(nx - 1, Math.ceil((playBounds.maxX + M - x0) / cell)), j0: Math.max(0, Math.floor((playBounds.minZ - M - z0) / cell)), j1: Math.min(nz - 1, Math.ceil((playBounds.maxZ + M - z0) / cell)) };
 
+  /**
+   * Height of the ground AS DRAWN AND COLLIDED: the mesh splits every lattice cell along its (a, b)-(a+1, b+1) diagonal,
+   * so on a twisted cell the two triangles differ from the bilinear heightAt by up to a quarter of the twist (0.5 m and
+   * more on a steep bank). Things the GAME stands on the ground (flags, dummies, markers, bodies) use this one
+   * (world.groundY); builders, street grading and the map check keep the smooth bilinear heightAt (ctx.groundY).
+   */
+  const cellOf = (arr, v) => { let lo = 0, hi = arr.length - 1; if (v <= arr[0]) return 0; if (v >= arr[hi]) return hi - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (arr[m] <= v) lo = m; else hi = m; } return lo; };
+  const meshHeightAt = (x, z) => {
+    const xs = lat.xs, zs = lat.zs; if (x < xs[0] || z < zs[0] || x > xs[xs.length - 1] || z > zs[zs.length - 1]) return heightAt(x, z);
+    const a = cellOf(xs, x), b = cellOf(zs, z); const u = (x - xs[a]) / (xs[a + 1] - xs[a]), v = (z - zs[b]) / (zs[b + 1] - zs[b]);
+    const h00 = H[lat.zj[b] * nx + lat.xi[a]], h10 = H[lat.zj[b] * nx + lat.xi[a + 1]], h01 = H[lat.zj[b + 1] * nx + lat.xi[a]], h11 = H[lat.zj[b + 1] * nx + lat.xi[a + 1]];
+    return v >= u ? h00 + (h11 - h01) * u + (h01 - h00) * v : h00 + (h10 - h00) * u + (h11 - h10) * v;
+  };
   /** Visual ground mesh geometry on the lattice (indexed; normals from the heights). */
   function groundGeometry() {
     const NX = lat.xs.length, NZ = lat.zs.length;
@@ -272,7 +285,7 @@ export async function createTerrain(campus, { sat = campus.sat, playBounds = cam
     get minY() { let m = Infinity; for (let k = 0; k < H.length; k++) if (H[k] < m) m = H[k]; return m; },
     get maxY() { let m = -Infinity; for (let k = 0; k < H.length; k++) if (H[k] > m) m = H[k]; return m; },
     range0: { min, max },
-    heightAt, normalAt, slopeAt, gradAt, minIn, maxIn, standY, footprint, flatten,
+    heightAt, meshHeightAt, normalAt, slopeAt, gradAt, minIn, maxIn, standY, footprint, flatten,
     groundGeometry, refreshGeometry, texture,
   };
 }

@@ -320,7 +320,12 @@ function aquaticCenterAt(ctx) {
   for (let i = 0; i < lanes; i++) { const p = gp(wc[0], wc[1], pw / 2 + 0.62, -pl / 2 + (i + 0.5) * pl / lanes); B.v('whitePanel').box(p[0], 0.4, p[1], 0.6, 0.58, 0.55, ROT); B.v('panelGray').box(p[0], 0.72, p[1], 0.7, 0.06, 0.62, ROT); B.c('concrete').box(p[0], 0.37, p[1], 0.65, 0.75, 0.6, ROT); }
   // deck enclosure: stucco wall toward 5th Ave and Cottage side, bleachers on the east deck, shade canopy, scoreboard
   const wall = (a0, b0, a1, b1, h = 2.3, dn = 0) => { const p = gp(pc[0], pc[1], (a0 + a1) / 2, (b0 + b1) / 2); const L = Math.hypot(a1 - a0, b1 - b0); const rot = ROT + (Math.abs(b1 - b0) > Math.abs(a1 - a0) ? Math.PI / 2 : 0); B.v('stucco', true).setColor(0.93, 0.93, 0.9).box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot, 0.45); B.v('whitePanel').box(p[0], h + 0.04, p[1], L + 0.1, 0.08, 0.36, rot); B.c('concrete').box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot); };
-  wall(-17.2, 19.0, 6, 19.0, 2.4, 0.8); wall(10, 19.0, 18.6, 19.0, 2.4, 0.8);          // south (5th Ave): the 3 m white wall Street View shows, with a gate gap
+  wall(-17.2, 19.0, 6, 19.0, 2.4, 0.8); wall(10, 19.0, 18.6, 19.0, 2.4, 0.8);
+  // lettering as on the real wall: small 'AQUATIC CENTER' at the west end, 'MARIN ACADEMY' toward the east end
+  { const A0 = gp(pc[0], pc[1], -17.2, 19.14), A1 = gp(pc[0], pc[1], 6, 19.14), B0 = gp(pc[0], pc[1], 10, 19.14), B1 = gp(pc[0], pc[1], 18.6, 19.14);
+    const Fw = edgeFrame(A1[0], A1[1], A0[0], A0[1]), Fe = edgeFrame(B1[0], B1[1], B0[0], B0[1]);
+    wallDecal(ctx, signTexture([['AQUATIC CENTER', 150, '#5a5d60', '600']], { w: 1536, h: 220 }), Fw, Fw.L - 3.4, 1.55, 3.6, 0.5, 0.02);
+    wallDecal(ctx, signTexture([['MARIN ACADEMY', 150, '#8a8d90', '600']], { w: 1536, h: 220 }), Fe, Fe.L / 2, 1.55, 4.2, 0.6, 0.02); }          // south (5th Ave): the 3 m white wall Street View shows, with a gate gap
   // (west and east: a 1.8 m black pool fence, built on the finished ground in aquaticCenter below. The deck is at street
   // level; tall stucco walls on three sides made a pit of it.)
   B.v('stucco', true).setColor(1, 1, 1);
@@ -364,5 +369,7 @@ export function buildSchool(ctx) {
   leadershipCenter(ctx);
   performingArts(ctx, { pac: ring(652917778), low: ring(652917777), founders: ring(652917779) });
   aquaticCenter(ctx);
+  // the Leadership Center's west wall stands ~2 m below the Cottage Ave sidewalk: a rail along the top of that drop
+  hillFence(ctx, [gp(-12.4, 61.0, -6.9, -24.5), gp(-12.4, 61.0, -6.9, 24.5)], { h: 1.1, black: true, every: 2.0 });
   B.v('stucco', true).setColor(1, 1, 1); B.v('shingles', true).setColor(1, 1, 1); B.v('paint', true).setColor(1, 1, 1);
 }

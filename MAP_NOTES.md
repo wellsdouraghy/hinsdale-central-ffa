@@ -518,5 +518,11 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     were plain boxes; every shell now gets window rows on its top two storeys like the houses.
   - **Hidden tabs throttle QA.** Timers and frames slow down in a hidden pane: movement tests report "stuck" or "below
     ground" that are not real. Keep the game tab in front for anything that walks; raycast checks are unaffected.
+  - **Two ground heights: the smooth one for building, the mesh one for standing.** `terrain.heightAt` is bilinear; the
+    drawn and collided mesh splits each cell along one diagonal, so on a twisted cell they differ (0.35 m max on Marin).
+    `world.groundY` is now `terrain.meshHeightAt` (exact on the mesh: flags, dummies, markers, bodies); builders, street
+    grading and the map check keep the bilinear `ctx.groundY` / `heightAt`. Do not make `heightAt` itself barycentric:
+    car placement and the graded cross-sections were tuned on the smooth surface (a car ended 1 m buried).
+  - A drop of more than 1.2 m at a retaining block gets a guard rail (`guardRail` in marin/kit.js, built by `buildPadWalls`).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.

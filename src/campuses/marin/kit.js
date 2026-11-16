@@ -508,6 +508,13 @@ export function seatInteriors(ctx) {
   const T = ctx.terrain; if (!T) return;
   for (const s of ctx.seatList || []) ctx.flatten({ outline: s.ring }, { y: (x, z) => Math.min(T.heightAt(x, z), s.cap), blend: 0.8 });
 }
+/** Guard rail (two black bars on posts, solid to players) along the top edge of a drop: from (x0, z0) to (x1, z1) at height y. */
+export function guardRail(ctx, x0, z0, x1, z1, y, h = 1.05) {
+  const { B } = ctx; const L = Math.hypot(x1 - x0, z1 - z0); if (L < 0.8) return; const rot = Math.atan2(-(z1 - z0), x1 - x0); const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2; const m = B.v('blackMetal');
+  const n = Math.max(1, Math.round(L / 1.6)); for (let k = 0; k <= n; k++) m.box(x0 + (x1 - x0) * k / n, y + h / 2, z0 + (z1 - z0) * k / n, 0.05, h, 0.05, rot);
+  for (const yy of [h, h * 0.55]) m.box(mx, y + yy, mz, L, 0.045, 0.045, rot);
+  B.c('metal').box(mx, y + h / 2, mz, L, h, 0.08, rot);
+}
 /** Retaining blocks (with a coping) along the pads that are cut deep into the hill; call after every flatten. */
 export function buildPadWalls(ctx) {
   const { B } = ctx; if (!ctx.terrain) return;
@@ -522,6 +529,7 @@ export function buildPadWalls(ctx) {
     B.v('concrete').box(c.x, c.level - 0.5 + h / 2, c.z, c.len, h, c.gap, rot, 1 / 3); B.c('concrete').box(c.x, c.level - 0.5 + h / 2, c.z, c.len, h, c.gap, rot);
     B.v('limestone').box(c.x + c.tx * (c.len / 2 - 0.16), c.top + 0.03, c.z + c.tz * (c.len / 2 - 0.16), 0.4, 0.07, c.gap, rot, 1 / 3);
     (ctx.retaining = ctx.retaining || []).push({ x: c.x, z: c.z, tx: c.nx, tz: c.nz, fx: c.tx, fz: c.tz, w: c.gap - 0.3, d: c.len, top: c.top, frontY: c.level });
+    if (c.top - c.level > 1.2) { const ex = c.x + c.tx * (c.len / 2 - 0.12), ez = c.z + c.tz * (c.len / 2 - 0.12), w2 = (c.gap - 0.3) / 2; guardRail(ctx, ex - c.nx * w2, ez - c.nz * w2, ex + c.nx * w2, ez + c.nz * w2, c.top + 0.06); }   // a fall of more than 1.2 m gets a rail
   }
   for (const s of ctx.padCuts || []) {
     const mx = (s.p[0] + s.q[0]) / 2, mz = (s.p[1] + s.q[1]) / 2; const tx = (s.q[0] - s.p[0]) / s.L, tz = (s.q[1] - s.p[1]) / s.L; const D = 2.0 + PAD_BLEND + 0.3;
@@ -533,6 +541,7 @@ export function buildPadWalls(ctx) {
     B.v('concrete').box(cx, pad - 0.5 + h / 2, cz, s.L + 0.05, h, D, rot, 1 / 3); B.c('concrete').box(cx, pad - 0.5 + h / 2, cz, s.L + 0.05, h, D, rot);
     B.v('limestone').box(mx + s.nx * (PAD_OUT + 0.14), top + 0.13, mz + s.nz * (PAD_OUT + 0.14), s.L + 0.1, 0.07, 0.4, rot, 1 / 3);
     (ctx.retaining = ctx.retaining || []).push({ x: cx, z: cz, tx, tz, fx: -s.nx, fz: -s.nz, w: s.L, d: D, top: top + 0.1, frontY: pad });
+    if (top + 0.1 - pad > 1.2) { const ex = mx + s.nx * (PAD_OUT + 0.14), ez = mz + s.nz * (PAD_OUT + 0.14); guardRail(ctx, ex - tx * s.L / 2, ez - tz * s.L / 2, ex + tx * s.L / 2, ez + tz * s.L / 2, top + 0.16); }
   }
 }
 /**

@@ -158,7 +158,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const attributionHTML = BASE_ATTRIBUTION;
   const world = {
     collisionMeshes,
-    groundY,
+    groundY: terrain ? terrain.meshHeightAt : groundY,   // the ground as drawn and collided (terrain.js meshHeightAt); builders use the bilinear ctx.groundY
     // terrain campuses: { heightAt, normalAt, slopeAt, minIn, maxIn, standY, footprint, ... } (src/world/terrain.js); null when flat
     terrain,
     groundNormal: (x, z, out = new THREE.Vector3()) => (terrain ? terrain.normalAt(x, z, out) : out.set(0, 1, 0)),
