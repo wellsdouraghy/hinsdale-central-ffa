@@ -144,13 +144,25 @@ function house(ctx, ring, info, rnd, fa, id) {
 
 // front yard from Street View: fence / hedge along the street side (a gap at the door), palms where they stand
 function yard(ctx, ring, fr, fa, rnd, wallCol) {
-  const { B } = ctx; const F = fr.F; const set = Math.min(4.2, fr.dist - 5.0); if (set < 1.2 || F.L < 6) return;
-  const free = (x, z) => { const s = ctx.surfaceAt(x, z); const pb = ctx.playBounds; return s !== 'asphalt' && x > pb.minX + 2 && x < pb.maxX - 2 && z > pb.minZ + 2 && z < pb.maxZ - 2 && !(ctx.playRings || []).some((r) => pointInRing(x, z, r)) && !(ctx.keepClear || []).some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r); };
+  const { B } = ctx; const F = fr.F; let set = Math.min(4.2, fr.dist - 5.0); if (F.L < 6) return;
+  // The fence line stands behind the street as designed: never on a sidewalk or within 1.2 m of a carriageway (a panel
+  // on the kerb, a hedge clump on the pavement). Where the house wall itself is at the sidewalk there is no front yard.
+  const S = ctx.streets; const onStreet = (x, z) => { if (!S) return false; const d = S.design(x, z); return !!(d && d.zone !== 'verge') || S.inRoad(x, z, 1.2); };
+  if (S) { let lim = Infinity; for (const t of [0.08, 0.3, 0.5, 0.7, 0.92]) for (let o = 0.6; o <= 8; o += 0.3) { const q = F.P(F.L * t, 0, o); if (onStreet(q[0], q[2])) { lim = Math.min(lim, o); break; } } set = Math.min(set, lim - 0.7); }
+  if (set < 1.2) return;
+  const T = ctx.terrain; const mY = (q) => (T && T.meshHeightAt ? T.meshHeightAt(q[0], q[2]) : 0);
+  // a panel is laid on the plane through its footprint: only where the ground under it IS a plane (no step of a pad edge under it, no bank)
+  const seated = (u) => { if (!T) return true; const h0 = mY(F.P(u, 0, set)), h1 = mY(F.P(u + 2.5, 0, set)), hm = mY(F.P(u + 1.25, 0, set)); return Math.abs(h1 - h0) <= 0.8 && Math.abs(hm - (h0 + h1) / 2) <= 0.12 && Math.abs(mY(F.P(u + 0.6, 0, set)) - (h0 * 0.76 + h1 * 0.24)) <= 0.12 && Math.abs(mY(F.P(u + 1.9, 0, set)) - (h0 * 0.24 + h1 * 0.76)) <= 0.12; };
+  const free = (x, z) => { const s = ctx.surfaceAt(x, z); const pb = ctx.playBounds; return s !== 'asphalt' && !onStreet(x, z) && x > pb.minX + 2 && x < pb.maxX - 2 && z > pb.minZ + 2 && z < pb.maxZ - 2 && !(ctx.playRings || []).some((r) => pointInRing(x, z, r)) && !(ctx.keepClear || []).some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r); };
   if (fa.fence || fa.hedge) {
     const hH = fa.hedge ? Math.min(fa.hedge, 2.4) : 0; const gap = F.L * 0.5;
-    let seg = 0;
-    for (let u = 0.5; u + 2.4 <= F.L - 0.4; u += 2.5) {
-      if (Math.abs(u + 1.25 - gap) < 1.9) continue; if (hH > 1.1 && seg++ % 4 === 3) continue; /* a tall (solid) hedge keeps a way through every 10 m: no sealed yards */ const m = F.P(u + 1.25, 0, set); if (!free(m[0], m[2]) || !free(...((q) => [q[0], q[2]])(F.P(u, 0, set))) || !free(...((q) => [q[0], q[2]])(F.P(u + 2.5, 0, set)))) continue;
+    let seg = 0; const cand = [];
+    for (let u = 0.5, idx = 0; u + 2.4 <= F.L - 0.4; u += 2.5, idx++) {
+      if (Math.abs(u + 1.25 - gap) < 1.9) continue; if (hH > 1.1 && seg++ % 4 === 3) continue; /* a tall (solid) hedge keeps a way through every 10 m: no sealed yards */ const m = F.P(u + 1.25, 0, set); if (!free(m[0], m[2]) || !free(...((q) => [q[0], q[2]])(F.P(u, 0, set))) || !free(...((q) => [q[0], q[2]])(F.P(u + 2.5, 0, set))) || !seated(u)) continue;
+      cand.push({ u, m, idx, seg });
+    }
+    // a fence is a run: one loose panel (or hedge clump, or 2.5 m of garden wall) left over between rejected neighbours is dropped
+    for (const { u, m, seg } of cand.filter((c) => cand.some((o) => o !== c && Math.abs(o.idx - c.idx) === 1))) {
       onSlope(ctx, m[0], m[2], 1.2, () => {
         if (hH > 0.3) { if (hH <= 1.1) ctx.shrubs.push([m[0], 0, m[2], 2.5, hH, F.rotY]); else hedgeMass(ctx, m[0], m[2], -0.1, 2.5, 0.9, hH, F.rotY, seg); }
         else if (fa.fence === 'picket') { const pk = B.v('whitePanel'); pk.box(m[0], 0.42, m[2], 2.5, 0.06, 0.04, F.rotY).box(m[0], 0.8, m[2], 2.5, 0.06, 0.04, F.rotY); for (let k = 0; k < 9; k++) { const q = F.P(u + 0.14 + k * 0.28, 0, set); pk.box(q[0], 0.4, q[2], 0.09, 1.0, 0.025, F.rotY); } B.c('wood').box(m[0], 0.4, m[2], 2.5, 1.0, 0.1, F.rotY); }
@@ -330,7 +342,20 @@ export function buildTown(ctx) {
         const hw = B.v('house' + (b.id % 8));
         for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 0.05) continue; const F = edgeFrame(a[0], a[1], c[0], c[1]); const yw = Math.max(y0, h - 5.8);   // windows on the top two storeys only; a downhill wall below that is plain foundation
           wallRect(hw, F, 0, L, yw, h, 0, L > 3.2 ? [0, 2 + (yw - h) * HOUSE_S[1], Math.max(1, Math.round(L / 4)), 2] : [0.02, 0.04, 0.2, 0.9]);
-          if (yw > y0 + 0.05) { p.setColor(0.36, 0.35, 0.32); p.wall(a[0], a[1], c[0], c[1], y0, yw); p.setColor(wc[0], wc[1], wc[2]); } }
+          // What is below the two window rows is a foundation only where the hill falls away under the wall. On level ground
+          // a three-storey block has a GROUND FLOOR there (the G St corner read as two storeys floating on a grey slab):
+          // a shopfront with its fascia on the walls that face a street, a plain rendered storey with a plinth elsewhere,
+          // seated on this wall's own ground (the sidewalk), the foundation below that.
+          const gW = edgeGround(ctx, a, c); const f0 = gW.max;
+          if (yw - f0 >= 2.6 && L > 3) {
+            p.setColor(wc[0] * 0.92, wc[1] * 0.92, wc[2] * 0.92); p.wall(a[0], a[1], c[0], c[1], f0, yw);
+            if (f0 > y0 + 0.05) { p.setColor(0.36, 0.35, 0.32); p.wall(a[0], a[1], c[0], c[1], y0, f0); }
+            const fh = Math.min(3.4, yw - f0 - 0.5);
+            if (info.roof === 'flat' && L > 5 && fh >= 2.9 && facesStreet(ctx, F)) { const n = Math.max(1, Math.round(L / 4.2)); wallRect(B.v('storefront'), F, 0.3, L - 0.3, f0, f0 + fh, 0.03, [n, 0, 0, 1]);
+              fbox(p.setColor(0.16, 0.16, 0.17), F, 0.2, L - 0.2, f0 + fh, f0 + fh + 0.5, 0, 0.09, 1, 0, 'fstb'); }
+            else { fbox(p.setColor(wc[0] * 0.62, wc[1] * 0.62, wc[2] * 0.62), F, 0, L, f0, f0 + 0.9, 0, 0.05, 1, 0, 'fst'); fbox(p.setColor(wc[0], wc[1], wc[2]), F, 0, L, yw - 0.16, yw, 0, 0.07, 1, 0, 'fstb'); }
+            p.setColor(wc[0], wc[1], wc[2]);
+          } else if (yw > y0 + 0.05) { p.setColor(0.36, 0.35, 0.32); p.wall(a[0], a[1], c[0], c[1], y0, yw); p.setColor(wc[0], wc[1], wc[2]); } }
       }
       p.setColor(1, 1, 1);
       if (info.roof === 'flat') { const rr = gen.roofs; B.v('roofSat').poly(ring, null, h, (x, z) => [(x - rr.minX) / (rr.maxX - rr.minX), 1 - (z - rr.minZ) / (rr.maxZ - rr.minZ)]); }

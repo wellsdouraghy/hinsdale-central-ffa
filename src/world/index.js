@@ -171,7 +171,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     grapplePoles: ctx.grapplePoles,   // [{ x, z, y0, y1, r }] thin vertical poles for grapple aim assist
     ladders: ctx.ladders,             // [{ x, z, nx, nz, y0, y1, exitY }] climbable ladders
     // dev-only build registry for the map check (dev/mapcheck.html): prop footprints, tree trunks, shrubs, ground walk grid
-    registry: { props: ctx.props || [], trunks: ctx.trunks || [], shrubs: ctx.shrubs, keepClear: ctx.keepClear || [], walkGrid: ctx.walkGrid || null, houses: ctx.houses || [], retaining: ctx.retaining || [], walls: ctx.walls || [], footprints: ctx.footprints || [], streets: ctx.streets?.stations || null, inRoad: ctx.streets?.inRoad || null },   // houses / retaining: optional, filled by hilly campus builders (map check: houses, retaining)
+    registry: { props: ctx.props || [], trunks: ctx.trunks || [], shrubs: ctx.shrubs, keepClear: ctx.keepClear || [], walkGrid: ctx.walkGrid || null, houses: ctx.houses || [], retaining: ctx.retaining || [], walls: ctx.walls || [], footprints: ctx.footprints || [], streets: ctx.streets?.stations || null, inRoad: ctx.streets?.inRoad || null, streetDesign: ctx.streets?.design || null, notes: ctx.buildNotes || null },   // houses / retaining: optional, filled by hilly campus builders (map check: houses, retaining)
     playBounds: { ...campus.playBounds },
     campus,
     tour: campus.tour || [],

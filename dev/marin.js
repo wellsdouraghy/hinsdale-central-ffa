@@ -135,3 +135,39 @@ window.__bench = (cams, n = 40) => {
   }
   return out;
 };
+
+// Dev helper: a collision-checked eye-level pose (MAP_NOTES: "a QA camera inside a wall manufactures defects").
+// Stands the camera h metres above the mesh ground at (x, z), looking at (tx, tz) with the given pitch (deg). Rejects
+// the pose (returns { ok: false, why }) when anything solid is within 0.6 m of the lens or there is collision right
+// overhead (inside a building). __lookShot(name, ...) saves the view through __shot when the pose is accepted.
+const _p = new THREE.Vector3(), _t = { point: new THREE.Vector3(), distance: 0 }, _ray = new THREE.Ray();
+window.__solidDist = (x, y, z) => { let d = Infinity; _p.set(x, y, z); for (const c of world.collisionMeshes) { const bt = c.geometry.boundsTree; if (!bt) continue; const r = bt.closestPointToPoint(_p, _t, 0, d); if (r && r.distance < d) d = r.distance; } return d; };
+window.__castDown = (x, y, z, far = 50) => { let best = null; _ray.origin.set(x, y, z); _ray.direction.set(0, -1, 0); for (const c of world.collisionMeshes) { const bt = c.geometry.boundsTree; if (!bt) continue; const h = bt.raycastFirst(_ray, THREE.DoubleSide); if (h && h.distance <= far && (!best || h.distance < best.distance)) best = h; } return best ? y - best.distance : null; };
+window.__look = (x, z, tx, tz, h = 1.7, pitch = 0, yAbs = null) => {
+  const y = yAbs ?? world.groundY(x, z) + h; const d = window.__solidDist(x, y, z); const yaw = THREE.MathUtils.radToDeg(Math.atan2(-(tx - x), -(tz - z)));
+  const cam = [x, y, z, yaw, pitch].map((v) => +v.toFixed(2)).join(',');
+  if (d < 0.6) return { ok: false, why: 'solid within ' + d.toFixed(2) + ' m', cam };
+  _ray.origin.set(x, y, z); _ray.direction.set(0, 1, 0); for (const c of world.collisionMeshes) { const bt = c.geometry.boundsTree; const hit = bt && bt.raycastFirst(_ray, THREE.DoubleSide); if (hit && hit.distance < 6) return { ok: false, why: 'collision ' + hit.distance.toFixed(1) + ' m overhead', cam }; }
+  setCam(cam); return { ok: true, cam, clear: +d.toFixed(2) };
+};
+window.__lookShot = async (name, ...a) => { const r = window.__look(...a); if (!r.ok) return r; r.saved = await window.__shot(name); return r; };
+// Contact sheet of collision-checked poses: __sheet(name, [[label, x, z, tx, tz, h, pitch, yAbs], ...], cols) -> one jpg of 640 x 400 tiles
+// (rejected poses are drawn as a red tile with the reason). Returns the pose results.
+window.__sheet = async (name, poses, cols = 3) => {
+  const W = 640, H = 400, rows = Math.ceil(poses.length / cols); const c = document.createElement('canvas'); c.width = W * cols; c.height = H * rows; const g = c.getContext('2d'); const out = [];
+  for (let i = 0; i < poses.length; i++) { const [label, ...a] = poses[i]; const r = window.__look(...a); out.push([label, r.ok ? r.cam : r.why]); const x = (i % cols) * W, y = Math.floor(i / cols) * H;
+    if (r.ok) { for (let k = 0; k < 6; k++) { world.update(0.016, camera); world.render(null, null); await new Promise((q) => setTimeout(q, 30)); } g.drawImage(renderer.domElement, x, y, W, H); } else { g.fillStyle = '#600'; g.fillRect(x, y, W, H); }
+    g.fillStyle = '#000b'; g.fillRect(x, y, 300, 16); g.fillStyle = '#ff0'; g.font = '12px monospace'; g.fillText(label + (r.ok ? '' : ' ' + r.why), x + 4, y + 12); }
+  const blob = await new Promise((q) => c.toBlob(q, 'image/jpeg', 0.85)); await fetch('http://127.0.0.1:5199/' + name, { method: 'POST', body: blob }); return out;
+};
+// Walk test with the real player controller (stuck safety net off): forward held from (x0, z0) toward (x1, z1), no
+// jump. Returns { reached, seconds, end, maxRise (largest climb in one 60 fps tick), airTicks, minY, maxY }.
+window.__walk = async (x0, z0, x1, z1, opts = {}) => {
+  const { PlayerController } = await import('../src/game/player.js'); const pc = new PlayerController(world); pc._stuckWatch = () => {};
+  const y0 = opts.y ?? (window.__castDown(x0, world.groundY(x0, z0) + 3, z0) ?? world.groundY(x0, z0)); pc.teleport(new THREE.Vector3(x0, y0 + 0.05, z0)); pc.yaw = Math.atan2(-(x1 - x0), -(z1 - z0));
+  let t = 0, maxRise = 0, air = 0, minY = Infinity, maxY = -Infinity, prev = pc.position.y; const trace = [];
+  for (; t < (opts.seconds || 12); t += 1 / 60) { pc.update(1 / 60, { forward: 1, strafe: 0, jump: false, crouchToggle: false, sprint: !!opts.sprint }); if (pc.events) pc.events.length = 0;
+    const y = pc.position.y; if (t > 0.3) maxRise = Math.max(maxRise, y - prev); prev = y; if (!pc.grounded && t > 0.3) air++; minY = Math.min(minY, y); maxY = Math.max(maxY, y); if (Math.round(t * 60) % 30 === 0) trace.push([+pc.position.x.toFixed(2), +y.toFixed(2), +pc.position.z.toFixed(2)]);
+    if (Math.hypot(pc.position.x - x1, pc.position.z - z1) < 0.5) break; }
+  return { reached: Math.hypot(pc.position.x - x1, pc.position.z - z1) < 0.5, seconds: +t.toFixed(2), end: [+pc.position.x.toFixed(2), +pc.position.y.toFixed(2), +pc.position.z.toFixed(2)], maxRise: +maxRise.toFixed(3), airTicks: air, minY: +minY.toFixed(2), maxY: +maxY.toFixed(2), trace };
+};

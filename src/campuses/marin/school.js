@@ -6,7 +6,7 @@
 // Ave), white modern boxes (Science + Innovation Center, Visual Arts), the barrel-vaulted Old Gym with its solar array
 // and the Athletic Center with its curved roof and translucent sea-green walls.
 import * as THREE from 'three';
-import { sited, atGround, onSlope, edgeGround, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence , hedgeMass } from './kit.js';
+import { sited, atGround, onSlope, edgeGround, guardRail, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence , hedgeMass } from './kit.js';
 import { doorFromKit, roofUnit } from '../../world/facade.js';
 import { propKit } from '../../world/props.js';
 import { paintedQuad } from '../../world/fields.js';
@@ -296,6 +296,9 @@ function pacAt(ctx, rings, h, base) {
 }
 
 // ============================================================================================ aquatic centre
+// the stairs in the alley between the Library and the pool house (grid coordinates: a east, b south, metres from the
+// origin): wall to wall, from the Mission Ave apron down to the pool deck. Earthworks in world.js sitework, built below.
+export const POOL_STAIR = { a0: 43.76, a1: 47.03, bTop: 38.0, tread: 0.30 };
 const POOL_HOUSE = rect(58.6, 45.6, 33.5, 9.4), POOL_HOUSE_TOP = 0.9;   // roof ~3.3 m over the Mission Ave sidewalk, ~5.1 m over the deck
 function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0], c[1], () => aquaticCenterAt(ctx), 6, 'mean');
   sited(ctx, POOL_HOUSE, (base) => flatBuilding(ctx, POOL_HOUSE, POOL_HOUSE_TOP - base, 'maLow', { roof: 'white' }));
@@ -307,9 +310,36 @@ function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0]
   { const P = (a0, b0) => gp(53.1, 75.6, a0, b0); const bar = (a0, b0, a1, b1) => hillFence(ctx, [P(a0, b0), P(a1, b1)], { h: 2.1, black: true, every: 1.0 });
     bar(6, 19.0, 10, 19.0); bar(-17.2, 19.0, -19.4, 19.0); bar(18.6, 19.0, 20.6, 19.0);
     if (!ctx.streets || ![[-9, 20.4], [14.5, 20.4]].some(([a0, b0]) => ctx.streets.surface(...P(a0, b0)))) {
-      for (const [a0, w] of [[-6.2, 20], [14.4, 7.4]]) { const c = P(a0, 20.4); hedgeMass(ctx, c[0], c[1], ctx.groundY(c[0], c[1]), w, 1.2, 0.95, ROT, 31 + Math.round(a0)); }
-      for (const a0 of [-17.4, 8, 19.6]) { const c = P(a0, 20.6); if (!ctx.streets || !ctx.streets.surface(c[0], c[1])) ctx.gen.trees.push([c[0], c[1], 0, 0.55]); } } }
+      for (const [a0, w] of [[2.0, 3.6], [14.4, 7.4]]) { const c = P(a0, 20.4); hedgeMass(ctx, c[0], c[1], ctx.groundY(c[0], c[1]), w, 1.2, 0.95, ROT, 31 + Math.round(a0)); }
+      // (west of the path: low clipped shrubs in the strip between the raised walk and the sidewalk)
+      for (let a0 = -16.6; a0 < -3; a0 += 4.5) { const c = P(a0 + 2.25, 21.4); if (!ctx.streets || !ctx.streets.surface(c[0], c[1])) ctx.shrubs.push([c[0], ctx.groundY(c[0], c[1]) + 0.05, c[1], 4.3, 0.55, ROT]); }
+      for (const [a0, b0] of [[8, 20.6], [19.6, 20.6]]) { const c = P(a0, b0); if (!ctx.streets || !ctx.streets.surface(c[0], c[1])) ctx.gen.trees.push([c[0], c[1], 0, 0.55]); } } }
+  poolStairs(ctx);
 }   // on the pool deck (one level pad, flattened in sitework)
+// Stairs from the Mission Ave apron down to the pool deck, between the Library and the pool house: thirteen 16 cm risers
+// on 30 cm treads, a landing at the top, steel handrails on both walls. Geometry from sitework (ctx.poolStair: levels and the number of risers).
+function poolStairs(ctx) {
+  const { B } = ctx; const st = POOL_STAIR, ps = ctx.poolStair; if (!ps) return; const G = (a, b) => gp(0, 0, a, b); const am = (st.a0 + st.a1) / 2, w = st.a1 - st.a0;
+  const conc = B.v('concrete'), col = B.c('concrete'), y0 = ps.botY - 0.5;
+  { // top landing: level for half a metre, then a concrete apron falling to the asphalt of the alley (the lattice ground dips toward the pool house there)
+    const yT = ps.topY + 0.02, c = G(am, st.bTop - 0.25); conc.box(c[0], (y0 + yT) / 2, c[1], w, yT - y0, 0.5, ROT, 1 / 3); col.box(c[0], (y0 + yT) / 2, c[1], w, yT - y0, 0.5, ROT);
+    const bN = st.bTop - 2.2; let yN = yT; for (const a of [st.a0 + 0.5, am, st.a1 - 0.5]) { const q = G(a, bN); yN = Math.min(yN, ctx.groundY(q[0], q[1]) + 0.02); }
+    const P3 = (a, b, y) => { const q = G(a, b); return [q[0], y, q[1]]; }; const q4 = [P3(st.a0, bN, yN), P3(st.a1, bN, yN), P3(st.a1, st.bTop - 0.5, yT), P3(st.a0, st.bTop - 0.5, yT)];
+    quadFacing(conc, ...q4, [0, 1, 0], [[0, 0], [w / 3, 0], [w / 3, 0.57], [0, 0.57]]); quadFacing(col, ...q4, [0, 1, 0]); }
+  for (let k = 0; k < ps.n - 1; k++) { const y = ps.topY - (k + 1) * ps.riser, c = G(am, st.bTop + (k + 0.5) * st.tread);
+    conc.box(c[0], (y0 + y) / 2, c[1], w, y - y0, st.tread, ROT, 1 / 3);
+    const nz = G(am, st.bTop + k * st.tread + 0.04); B.v('limestone').box(nz[0], y + 0.006, nz[1], w, 0.012, 0.08, ROT, 1 / 3); }   // nosing
+  // Collision: the plane through the nosings, as on the spectator terrace. Riser boxes do not work with this controller:
+  // on terrain campuses its step-up (0.45 m) only accepts a landing whose contact normal is walkable, and a capsule on a
+  // 0.30 m tread always touches the next nosing (walk test: stuck on the second step). The pitch is 28 degrees.
+  { const P3 = (a, b, y) => { const q = G(a, b); return [q[0], y, q[1]]; }; quadFacing(col, P3(st.a0, st.bTop, ps.topY + 0.02), P3(st.a1, st.bTop, ps.topY + 0.02), P3(st.a1, st.bTop + ps.n * st.tread, ps.botY), P3(st.a0, st.bTop + ps.n * st.tread, ps.botY), [0, 1, 0]); }
+  // handrails: one on each wall, parallel to the pitch, with a level return at the top and bottom
+  const g = B.v('galv');
+  for (const a of [st.a0 + 0.09, st.a1 - 0.09]) { const P3 = (b, y) => { const q = G(a, b); return [q[0], y, q[1]]; };
+    const t0 = P3(st.bTop - 0.35, ps.topY + 0.92), t1 = P3(st.bTop, ps.topY + 0.92), b1 = P3(st.bTop + ps.run, ps.botY + ps.riser + 0.92), b2 = P3(st.bTop + ps.run + 0.35, ps.botY + ps.riser + 0.92);
+    g.tube(t0, t1, 0.022, 6).tube(t1, b1, 0.022, 6).tube(b1, b2, 0.022, 6);
+    for (const f of [0, 0.33, 0.67, 1]) { const b = st.bTop + ps.run * f, y = ps.topY - (ps.topY - ps.botY - ps.riser) * f; g.tube(P3(b, y + 0.92), P3(b, y - 0.05), 0.016, 5); } }
+}
 function aquaticCenterAt(ctx) {
   const { B } = ctx;
   // pool house along Mission Ave (changing rooms / office), white flat roof
@@ -320,9 +350,33 @@ function aquaticCenterAt(ctx) {
   for (let i = 0; i < lanes; i++) { const p = gp(wc[0], wc[1], pw / 2 + 0.62, -pl / 2 + (i + 0.5) * pl / lanes); B.v('whitePanel').box(p[0], 0.4, p[1], 0.6, 0.58, 0.55, ROT); B.v('panelGray').box(p[0], 0.72, p[1], 0.7, 0.06, 0.62, ROT); B.c('concrete').box(p[0], 0.37, p[1], 0.65, 0.75, 0.6, ROT); }
   // deck enclosure: stucco wall toward 5th Ave and Cottage side, bleachers on the east deck, shade canopy, scoreboard
   const wall = (a0, b0, a1, b1, h = 2.3, dn = 0) => { const p = gp(pc[0], pc[1], (a0 + a1) / 2, (b0 + b1) / 2); const L = Math.hypot(a1 - a0, b1 - b0); const rot = ROT + (Math.abs(b1 - b0) > Math.abs(a1 - a0) ? Math.PI / 2 : 0); B.v('stucco', true).setColor(0.93, 0.93, 0.9).box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot, 0.45); B.v('whitePanel').box(p[0], h + 0.04, p[1], L + 0.1, 0.08, 0.36, rot); B.c('concrete').box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot); };
-  wall(-17.2, 19.0, 6, 19.0, 2.4, 0.8); wall(10, 19.0, 18.6, 19.0, 2.4, 0.8);
+  wall(-14.4, 19.0, 6, 19.0, 2.4, 0.8); wall(10, 19.0, 18.6, 19.0, 2.4, 0.8);
+  // West gate and the accessible way in (Street View: "entry ramp with steel handrails at left, black bar gates at both
+  // ends"). 5th Ave falls to the west, so at the gate the sidewalk is 0.6 m below the deck: a concrete walk leaves the
+  // sidewalk where it is level with the deck and runs along the foot of the wall to the gate (1:40 at its east end, then
+  // level), a kerb and a steel handrail on the street side, three steps down to the drive at its west end.
+  { const off = B.off ? B.off.y : 0; const lg = (a, b) => { const q = gp(pc[0], pc[1], a, b); return ctx.groundY(q[0], q[1]) - off; }; const P = (a, b) => gp(pc[0], pc[1], a, b);
+    const conc = B.v('concrete'), col = B.c('concrete'), bm = B.v('blackMetal'), gv = B.v('galv');
+    // gate: two posts, both leaves standing open into the deck
+    for (const a of [-17.0, -14.4]) { const q = P(a + (a < -15 ? 0 : -0.06), 19.0); bm.box(q[0], 1.15, q[1], 0.12, 2.3, 0.12, ROT); B.c('metal').box(q[0], 1.15, q[1], 0.14, 2.3, 0.14, ROT); }
+    for (const a of [-16.9, -14.56]) { const c = P(a, 18.33); for (const y of [0.12, 1.1, 2.08]) bm.box(c[0], y, c[1], 1.22, 0.04, 0.04, ROT + Math.PI / 2); for (let k = 0; k < 10; k++) { const q = P(a, 17.78 + k * 0.122); bm.box(q[0], 1.1, q[1], 0.022, 1.96, 0.022, ROT); } B.c('metal:mesh').box(c[0], 1.1, c[1], 1.22, 2.1, 0.06, ROT + Math.PI / 2); }
+    // the walk: level from the gate to a = -9, then down to the ground at a = -2
+    const aE = -2, yE = Math.max(lg(aE, 19.6), lg(aE, 20.3)) + 0.02, yAt = (a) => (a <= -9 ? 0.015 : 0.015 + (yE - 0.015) * (a + 9) / (aE + 9));
+    const seg = (a0, a1) => { const y = yAt((a0 + a1) / 2), c = P((a0 + a1) / 2, 19.9), k = P((a0 + a1) / 2, 20.72); conc.box(c[0], y - 0.5, c[1], a1 - a0 + 0.01, 1.0, 1.5, ROT, 1 / 3); col.box(c[0], y - 0.5, c[1], a1 - a0 + 0.01, 1.0, 1.5, ROT);
+      if (y - lg((a0 + a1) / 2, 21.3) > 0.12) { conc.box(k[0], y - 0.44, k[1], a1 - a0 + 0.01, 1.12, 0.14, ROT, 1 / 3); col.box(k[0], y - 0.44, k[1], a1 - a0 + 0.01, 1.12, 0.14, ROT); } };   // kerb on the street side where the walk stands above the bed
+    seg(-17.4, -9); for (let a = -9; a < aE - 0.01; a += 1) seg(a, a + 1);
+    { let y = yE; for (const [b0, b1] of [[19.15, 20.2], [20.2, 21.1], [21.1, 22.0]]) { y = Math.min(y, Math.max(lg(aE + 0.8, b0), lg(aE + 0.8, b1)) + 0.02); const c = P(aE + 0.8, (b0 + b1) / 2); conc.box(c[0], y - 0.4, c[1], 1.6, 0.8, b1 - b0, ROT, 1 / 3); col.box(c[0], y - 0.4, c[1], 1.6, 0.8, b1 - b0, ROT); } }   // the path across the bed to the sidewalk
+    // steel handrail on the kerb, from the gate landing to where the walk is within a step of the bed
+    let aR = -17.4; for (let a = -17.4; a <= aE; a += 0.5) if (yAt(a) - lg(a, 21.3) > 0.25) aR = a;
+    if (aR > -16) { const y0 = yAt(-17.4), y1 = yAt(aR); for (const h of [0.92, 0.5]) { const p0 = P(-17.4, 20.72), p1 = P(aR, 20.72); gv.tube([p0[0], y0 + 0.12 + h, p0[1]], [p1[0], y1 + 0.12 + h, p1[1]], 0.02, 6); }
+      for (let a = -17.4; a <= aR + 0.01; a += (aR + 17.4) / Math.max(1, Math.round((aR + 17.4) / 1.5))) { const q = P(a, 20.72); gv.box(q[0], yAt(a) + 0.58, q[1], 0.04, 0.92, 0.04, ROT); }
+      const m = P((aR - 17.4) / 2, 20.72); B.c('metal').box(m[0], (y0 + y1) / 2 + 0.58, m[1], aR + 17.4, 0.95, 0.06, ROT); }
+    // three steps down to the drive at the west end
+    { const gW = Math.min(lg(-18.6, 19.6), lg(-18.6, 20.4)), n = Math.max(2, Math.round((0.015 - gW) / 0.16)), r = (0.015 - gW) / n; for (let k = 1; k < n; k++) { const c = P(-17.4 - (k - 0.5) * 0.3, 19.9), y = 0.015 - k * r; conc.box(c[0], y - 0.5, c[1], 0.3, 1.0, 1.5, ROT, 1 / 3); }
+      { const Q = (a, b, y) => { const q = P(a, b); return [q[0], y, q[1]]; }; quadFacing(col, Q(-17.4, 19.15, 0.015), Q(-17.4, 20.65, 0.015), Q(-17.4 - n * 0.3, 20.65, gW), Q(-17.4 - n * 0.3, 19.15, gW), [0, 1, 0]); }   /* (collision: the plane through the nosings, see poolStairs) */
+      for (const h of [0.92, 0.5]) { const p0 = P(-17.4, 20.72), p1 = P(-17.4 - (n - 1) * 0.3, 20.72); gv.tube([p0[0], 0.135 + h, p0[1]], [p1[0], gW + r + 0.12 + h, p1[1]], 0.02, 6); } for (const [a, y] of [[-17.4, 0.015], [-17.4 - (n - 1) * 0.3, gW + r]]) { const q = P(a, 20.72); gv.box(q[0], y + 0.58, q[1], 0.04, 0.92, 0.04, ROT); } } }
   // lettering as on the real wall: small 'AQUATIC CENTER' at the west end, 'MARIN ACADEMY' toward the east end
-  { const A0 = gp(pc[0], pc[1], -17.2, 19.14), A1 = gp(pc[0], pc[1], 6, 19.14), B0 = gp(pc[0], pc[1], 10, 19.14), B1 = gp(pc[0], pc[1], 18.6, 19.14);
+  { const A0 = gp(pc[0], pc[1], -14.4, 19.14), A1 = gp(pc[0], pc[1], 6, 19.14), B0 = gp(pc[0], pc[1], 10, 19.14), B1 = gp(pc[0], pc[1], 18.6, 19.14);
     const Fw = edgeFrame(A1[0], A1[1], A0[0], A0[1]), Fe = edgeFrame(B1[0], B1[1], B0[0], B0[1]);
     wallDecal(ctx, signTexture([['AQUATIC CENTER', 150, '#5a5d60', '600']], { w: 1536, h: 220 }), Fw, Fw.L - 3.4, 1.55, 3.6, 0.5, 0.02);
     wallDecal(ctx, signTexture([['MARIN ACADEMY', 150, '#8a8d90', '600']], { w: 1536, h: 220 }), Fe, Fe.L / 2, 1.55, 4.2, 0.6, 0.02); }          // south (5th Ave): the 3 m white wall Street View shows, with a gate gap

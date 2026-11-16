@@ -173,8 +173,15 @@ function field(ctx) {
     cornerWedge(ctx, P[5], P[0], P[4], true); cornerWedge(ctx, P[4], P[5], P[3], false); cornerWedge(ctx, P[3], P[4], P[2], false); cornerWedge(ctx, P[2], P[3], w1, false); }
   // clipped hedge between the fence and the Mission Ave sidewalk
   // (Street View: a dense evergreen hedge wall 4-5 m high hides the pitch from Mission Ave; it was a knee-high row before)
-  for (let a = 37; a < 122; a += 4.7) { if (a > 68 && a < 78) continue; const p = G(a + 2.35, 20.6); const y = gY(ctx, p[0], p[1]); const hb = B.v('paint', true); const hh = 4.2 + ((a * 7) % 5) * 0.12;
-    hedgeMass(ctx, p[0], p[1], y - 0.2, 4.74, 1.7, hh, ROT, a); }
+  // (It stands on the bank between the fence and the street, and nowhere over the street: Mission Ave is not parallel to
+  // the pitch, so each piece is as deep as the strip between the fence line and the kerb allows, bushy columns included,
+  // and its collider with it. Laid out on a fixed line it hung up to 1.1 m over the asphalt at the east end.)
+  const vh = (d) => 0.24 * d + 0.22 + Math.min(1.2, Math.max(0.35, 0.55 * d)) + 0.05;   // half depth of a hedgeMass as drawn
+  for (let a = 37; a < 122; a += 4.7) { if (a > 68 && a < 78) continue; const hh = 4.2 + ((a * 7) % 5) * 0.12;
+    let edge = 22.2; if (ctx.streets) for (let b = 18.4; b <= 22.2; b += 0.1) if ([0, 1.2, 2.35, 3.5, 4.7].some((da) => { const q = G(a + da, b); return ctx.streets.inRoad(q[0], q[1], 0); })) { edge = b; break; }
+    let d = 1.7; while (d > 0.9 && 2 * vh(d) > edge - 0.2 - 17.5) d -= 0.1;
+    const bc = Math.max(17.5 + vh(d), edge - 0.2 - vh(d)); const p = G(a + 2.35, bc); let y = Infinity; for (const da of [0.3, 2.35, 4.4]) for (const db of [-0.5, 0, 0.6, vh(d) - 0.1]) { const q = G(a + da, bc + db); y = Math.min(y, gY(ctx, q[0], q[1])); }
+    hedgeMass(ctx, p[0], p[1], y - 0.2, 4.74, d, hh + Math.max(0, gY(ctx, p[0], p[1]) - y) * 0.5, ROT, a); }
   // scoreboard in the north-east corner, angled back at the pitch
   {
     const p = G(118.5, -57); const rot = ROT - 0.75; const pt = B.v('paint', true);

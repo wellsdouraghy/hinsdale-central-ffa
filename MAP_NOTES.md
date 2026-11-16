@@ -524,5 +524,52 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     grading and the map check keep the bilinear `ctx.groundY` / `heightAt`. Do not make `heightAt` itself barycentric:
     car placement and the graded cross-sections were tuned on the smooth surface (a car ended 1 m buried).
   - A drop of more than 1.2 m at a retaining block gets a guard rail (`guardRail` in marin/kit.js, built by `buildPadWalls`).
+- **Lessons from the polish round after QA 5 (leftovers; tools: `__look` / `__sheet` / `__walk` in dev/marin.js):**
+  - **A streak of grass across a street is geometry, not paint.** At the Bonnie Brae / Bryn Mawr fork the class map was
+    asphalt all the way; the two carriageways run side by side 2-4 m apart in height, the designed surface steps between
+    them over one lattice cell (45-50 deg), and the ground shader turns steep asphalt into grass. Look at the slope
+    before touching the surface classes. A fork on a hill gets a retaining wall between the roadways (`goreWalls` in
+    marin/kit.js: clusters of steep carriageway points that have pavement both above and below, one strip with a sloped
+    top at the upper road, coping, rail). Requiring pavement on BOTH sides is what keeps it off road ends and off the foot
+    of the field wall (two false clusters before that test).
+  - **A solid mass is as deep as it is DRAWN.** `hedgeMass` swells 0.3-0.5 m past its collider and its nominal depth
+    (half depth = 0.24 d + 0.22 + column radius): a row laid out on a fixed line beside a street that is not parallel to
+    it hung 1.1 m over the asphalt. Fit each piece between the fence line and `streets.inRoad`, drawn columns included.
+    And its collider reached 1.6 m above the leaves (right for a 5 m belt, an invisible wall over a waist-high row):
+    under 3 m the collider ends at the clipped top.
+  - **A context shell needs a ground floor too.** "Windows on the top two storeys, plain below" is a foundation only
+    where the hill falls away under the wall; on level ground it is two storeys floating on a grey slab. Per wall: if
+    there is a storey of height between the wall's own ground and the window rows, draw it (shopfront + fascia on
+    street-facing walls of flat-roofed blocks, a rendered storey with a plinth elsewhere), seated on that wall's ground.
+  - **Yard fences are runs, placed against the street design.** The rule "not on asphalt" let single 2.5 m panels, hedge
+    clumps and garden-wall slabs stand on sidewalks and lawns wherever their neighbours had been rejected. Now: the
+    line stands behind the sidewalk / 1.2 m clear of a carriageway (`streets.design`), a panel needs plane ground under
+    it (mesh heights at five points; it is laid on a fitted plane), and a panel without a neighbour is dropped.
+  - **Stairs: draw the risers, collide the plane through the nosings.** On terrain campuses the controller's step-up
+    (STEP = 0.45 m) only accepts a landing with a walkable contact normal, and a capsule (r ~0.35) on a 0.30 m tread always
+    touches the next nosing: with one collision box per 16 cm riser the walk test stopped on the second step, every time.
+    The nosing plane (28 deg here) walks up and down at walk and sprint speed with no air time. **Walk every stair with
+    `__walk` (real controller, forward only), both directions**; a riser under the step limit proves nothing.
+  - **A stair or walk between two buildings: the lattice ground there belongs to the neighbours.** In a 3.4 m alley every
+    lattice node but one row lies inside a footprint (cut to that building's floor), so the alley floor tilts toward the
+    lower building. Build the designed piece wall to wall as a solid mass, cut the ground under it (min, never fill:
+    fill buries glass next door), and end it with an apron that dies into the ground.
+  - **An accessible entrance follows the street's fall.** The pool deck is level, 5th Ave falls 1.7 m along its wall: the
+    gate at the low end is 0.6 m above its sidewalk. The walk leaves the sidewalk where the two are level and runs along
+    the wall to the gate (kerb + handrail where it stands above the bed, steps at the low end), instead of a ramp
+    square to the wall that would need 7 m.
+  - **Retaining blocks are terraced** (`terraceBlocks` in marin/kit.js): at most 1.5 m per riser, 1 m treads, coping on
+    every edge, planting on treads of long walls, the rail on the top edge. A terrace is only as deep as the ground under
+    it allows; a level that the bank pokes through is skipped (the map check's retaining rule holds per terrace: front
+    = the tread below). 22 of the 23 old "taller than 1.5 m" warnings went (the last is outside the play area); the
+    Bryn Mawr terrace below adds 11 where its bank leaves no room for a tread.
+  - **A filled house terrace at a road needs room that the lattice does not have.** A 6 m fill ending one cell from the
+    shoulder is a 60-70 deg cone of grass. Stepped walls only fit if the fill is cut back first (`planTerraceCorner`:
+    cut to the foot level, keeping 2 m of uncut ground before any house wall, or the `houses` check sees a taller
+    wall), mitred round the corner (run A builds a level from its own setback on, run B from the far side of it).
+    Where the house wall stands closer than that, there is no room: the wall carries on unstepped along the frontage.
+    The better cure is upstream: a house whose footprint falls 10 m should show its lower floors, not sit on 6 m of fill.
+  - **Close an after-shot loop against HEAD, same poses.** `git archive HEAD` into a scratch folder, a second Vite on
+    another port, the same list of camera strings in both (each tested: nothing solid within 0.6 m, above the ground).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.

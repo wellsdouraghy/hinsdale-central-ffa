@@ -1,10 +1,10 @@
 // Marin Academy builder (San Rafael, CA): the school's buildings, the surrounding blocks, Championship Field, the pool,
 // the circle drive, car parks and street furniture. See CAMPUSES.md for the contract and tools/ for the data pipeline.
-import { addMaterials, minAreaOBB, gp, ANG, planWalls, applyPads, planCheeks, buildPadWalls, seatInteriors } from './kit.js';
+import { addMaterials, minAreaOBB, gp, ANG, UX, UZ, planWalls, applyPads, planCheeks, buildPadWalls, seatInteriors, goreWalls, planTerraceCorner, buildTerraceCorners } from './kit.js';
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { buildSchool, schoolWalls } from './school.js';
+import { buildSchool, schoolWalls, POOL_STAIR } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, turfWorld } from './grounds.js';
 import { addCampusWater } from '../../world/water.js';
@@ -53,7 +53,7 @@ function sitework(ctx) {
   // lowest floor opens onto it at that level too). Mission Ave is ~1.8 m higher: the pool house stands in that step
   // (planned like every other building: street floor on Mission, a storey taller toward the deck)
   if (streets) { let n = 0, sum = 0; for (const sg of [1]) for (let a = -15; a <= 15.01; a += 5) for (let k = 0; k <= 14; k++) { const p = gp(53.1, 75.6, 0.7 + a, 19.7 + k); const d = streets.design(p[0], p[1]); if (d && d.zone === 'walk') { n++; sum += d.y; break; } }
-    ctx.flatten(poolPad, { y: n ? sum / n : mean(R(...gp(53.1, 75.6, 0.7, 0), 34, 46)), blend: 4 }); }
+    ctx.poolY = n ? sum / n : mean(R(...gp(53.1, 75.6, 0.7, 0), 34, 46)); ctx.flatten(poolPad, { y: ctx.poolY, blend: 4 }); }
   // ---- Seat every building (MAP_NOTES "seat every building on a pad"), AFTER the designed campus pads above: the walls
   // are planned on the ground as designed, each wall piece gets its own level strip (they win at the walls), a wall that
   // faces a designed pad takes that pad as its floor, and last the ground inside every footprint is cut to its floor.
@@ -69,6 +69,15 @@ function sitework(ctx) {
   if (streets) { const bx = (ctx.allRings || rings).map((r) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const p of r) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); } return [r, x0, z0, x1, z1]; }); streets.solid.push((x, z) => bx.some((b) => x >= b[1] && x <= b[3] && z >= b[2] && z <= b[4] && pointInRing(x, z, b[0]))); 
     // (no pad survives in the shoulder either: a wall that stands there takes the street's level as its floor, kit.js streetSide)
     streets.restore(); }
+  // ---- Designed steps and terraces, after the streets are back on their design (none of them touches a roadway or sidewalk):
+  // (1) the alley between the Library and the pool house falls 2 m from Mission Ave to the deck: a flight of stairs wall to
+  // wall instead of an asphalt chute. The ground under the flight is cut just below the line of the steps (school.js builds them).
+  { const st = POOL_STAIR, am = (st.a0 + st.a1) / 2; let topY = -Infinity; for (let a = st.a0 + 0.3; a <= st.a1 - 0.29; a += 0.4) for (const b of [st.bTop - 1.0, st.bTop - 0.5, st.bTop]) topY = Math.max(topY, T.heightAt(...G(a, b)));
+    const botY = ctx.poolY ?? T.heightAt(...G(am, st.bTop + 6)); const n = Math.max(2, Math.round((topY - botY) / 0.165)), riser = (topY - botY) / n, run = (n - 1) * st.tread;
+    ctx.poolStair = { topY, botY, n, riser, run };
+    ctx.flatten({ rect: { cx: G(am, st.bTop + run / 2)[0], cz: G(am, st.bTop + run / 2)[1], w: st.a1 - st.a0 + 0.4, d: run + 0.8, angle: ANG } }, { blend: 0.5, y: (x, z) => { const b = -x * UZ + z * UX; return Math.min(T.heightAt(x, z), Math.max(botY, topY - (b - st.bTop) / st.tread * riser) - 0.18); } }); }
+  // (2) the filled terrace of the house above Bryn Mawr Drive ended in a 5 m cone of grass at the road: stepped retaining walls round that corner
+  planTerraceCorner(ctx, { K: [146.5, -99.0], dirA: [-0.15, -0.9887], lenA: 9, dirB: [0.9887, -0.15], lenB: 13, d: 3.6, tread: 0.7, tailA: 14 });
   if (streets) {
     // everything respects the designed section: the ground texture is painted from it (asphalt on the carriageways,
     // concrete on the sidewalks, whatever the satellite classes say under tree crowns), and every tree the canopy
@@ -92,9 +101,12 @@ export function build(ctx, progress = () => {}) {
   // car layout was first laid out around (CAR_FREE: kept as they were, so no parked car changes place when the
   // helicopter list is edited)
   const c = ctx.campus || {};
-  ctx.keepClear = [[...(c.ctf?.red || [0, 0]), 9], [...(c.ctf?.blue || [0, 0]), 9], ...(c.practiceHeli ? [[c.practiceHeli.x, c.practiceHeli.z, 11]] : []), ...CAR_FREE.map((p) => [p[0], p[1], 10]), [78, 49, 6] /* the step beside the pool house */, ...(c.heliPark || []).filter((p) => p[1] < 0.5).map((p) => [p[0], p[2], 10])];
+  ctx.keepClear = [[...(c.ctf?.red || [0, 0]), 9], [...(c.ctf?.blue || [0, 0]), 9], ...(c.practiceHeli ? [[c.practiceHeli.x, c.practiceHeli.z, 11]] : []), ...CAR_FREE.map((p) => [p[0], p[1], 10]), [78, 49, 6] /* the step beside the pool house */, ...(ctx.extraClear || []), ...(c.heliPark || []).filter((p) => p[1] < 0.5).map((p) => [p[0], p[2], 10])];
   progress(0.48, 'Building Marin Academy');
   buildPadWalls(ctx);   // retaining blocks where a building pad is cut deep into the hill
+  goreWalls(ctx);       // ...and between two carriageways at different heights (a fork on the hill)
+  buildTerraceCorners(ctx);
+  ctx.buildNotes = { gores: ctx.goreWallStats, poolStair: ctx.poolStair };
   buildSchool(ctx);
   progress(0.58, 'Building San Rafael');
   buildTown(ctx);
