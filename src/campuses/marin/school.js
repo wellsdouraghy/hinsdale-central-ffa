@@ -6,7 +6,7 @@
 // Ave), white modern boxes (Science + Innovation Center, Visual Arts), the barrel-vaulted Old Gym with its solar array
 // and the Athletic Center with its curved roof and translucent sea-green walls.
 import * as THREE from 'three';
-import { sited, atGround, onSlope, edgeGround, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence } from './kit.js';
+import { sited, atGround, onSlope, edgeGround, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence , hedgeMass } from './kit.js';
 import { doorFromKit, roofUnit } from '../../world/facade.js';
 import { propKit } from '../../world/props.js';
 import { paintedQuad } from '../../world/fields.js';
@@ -301,7 +301,14 @@ function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0]
   sited(ctx, POOL_HOUSE, (base) => flatBuilding(ctx, POOL_HOUSE, POOL_HOUSE_TOP - base, 'maLow', { roof: 'white' }));
   // pool fence along the west (Library) and east (car park) deck edges, a gate gap in each
   const F = (a0, b0, a1, b1) => hillFence(ctx, [gp(53.1, 75.6, a0, b0), gp(53.1, 75.6, a1, b1)], { h: 1.8, black: true, every: 2.4 });
-  F(-17.2, -18.4, -17.2, 4); F(-17.2, 8.5, -17.2, 24.4); F(18.6, -24, 18.6, -8); F(18.6, -3.5, 18.6, 24.4);
+  F(-17.2, -18.4, -17.2, 4); F(-17.2, 8.5, -17.2, 19.0); F(18.6, -24, 18.6, -8); F(18.6, -3.5, 18.6, 19.0);
+  // 5th Ave side as Street View shows it: the white wall stands back behind a planting bed (low clipped shrubs, young
+  // trees, a path up to a black bar gate in the gap), with bar gates closing both ends
+  { const P = (a0, b0) => gp(53.1, 75.6, a0, b0); const bar = (a0, b0, a1, b1) => hillFence(ctx, [P(a0, b0), P(a1, b1)], { h: 2.1, black: true, every: 1.0 });
+    bar(6, 19.0, 10, 19.0); bar(-17.2, 19.0, -19.4, 19.0); bar(18.6, 19.0, 20.6, 19.0);
+    if (!ctx.streets || ![[-9, 20.4], [14.5, 20.4]].some(([a0, b0]) => ctx.streets.surface(...P(a0, b0)))) {
+      for (const [a0, w] of [[-6.2, 20], [14.4, 7.4]]) { const c = P(a0, 20.4); hedgeMass(ctx, c[0], c[1], ctx.groundY(c[0], c[1]), w, 1.2, 0.95, ROT, 31 + Math.round(a0)); }
+      for (const a0 of [-17.4, 8, 19.6]) { const c = P(a0, 20.6); if (!ctx.streets || !ctx.streets.surface(c[0], c[1])) ctx.gen.trees.push([c[0], c[1], 0, 0.55]); } } }
 }   // on the pool deck (one level pad, flattened in sitework)
 function aquaticCenterAt(ctx) {
   const { B } = ctx;
@@ -313,14 +320,14 @@ function aquaticCenterAt(ctx) {
   for (let i = 0; i < lanes; i++) { const p = gp(wc[0], wc[1], pw / 2 + 0.62, -pl / 2 + (i + 0.5) * pl / lanes); B.v('whitePanel').box(p[0], 0.4, p[1], 0.6, 0.58, 0.55, ROT); B.v('panelGray').box(p[0], 0.72, p[1], 0.7, 0.06, 0.62, ROT); B.c('concrete').box(p[0], 0.37, p[1], 0.65, 0.75, 0.6, ROT); }
   // deck enclosure: stucco wall toward 5th Ave and Cottage side, bleachers on the east deck, shade canopy, scoreboard
   const wall = (a0, b0, a1, b1, h = 2.3, dn = 0) => { const p = gp(pc[0], pc[1], (a0 + a1) / 2, (b0 + b1) / 2); const L = Math.hypot(a1 - a0, b1 - b0); const rot = ROT + (Math.abs(b1 - b0) > Math.abs(a1 - a0) ? Math.PI / 2 : 0); B.v('stucco', true).setColor(0.93, 0.93, 0.9).box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot, 0.45); B.v('whitePanel').box(p[0], h + 0.04, p[1], L + 0.1, 0.08, 0.36, rot); B.c('concrete').box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot); };
-  wall(-17.2, 24.4, 6, 24.4, 3.0, 0.8); wall(10, 24.4, 18.6, 24.4, 3.0, 0.8);          // south (5th Ave): the 3 m white wall Street View shows, with a gate gap
+  wall(-17.2, 19.0, 6, 19.0, 2.4, 0.8); wall(10, 19.0, 18.6, 19.0, 2.4, 0.8);          // south (5th Ave): the 3 m white wall Street View shows, with a gate gap
   // (west and east: a 1.8 m black pool fence, built on the finished ground in aquaticCenter below. The deck is at street
   // level; tall stucco walls on three sides made a pit of it.)
   B.v('stucco', true).setColor(1, 1, 1);
   const bl = gp(pc[0], pc[1], -13.9, -19); bleachers(ctx, { x: bl[0], z: bl[1], dir: Math.atan2(-UX, -UZ), len: 21, rows: 4, run: 0.66, rise: 0.3, frontH: 0 });   // west deck, facing the blocks
   { // scoreboard at the south end
-    const p = gp(pc[0], pc[1], -9, 23.6); const pt = B.v('paint', true); pt.setColor(0.04, 0.04, 0.05); pt.box(p[0], 4.1, p[1], 5.2, 2.2, 0.25, ROT); pt.setColor(0.62, 0.07, 0.06).box(p[0], 5.4, p[1], 5.2, 0.4, 0.27, ROT);
-    for (const k of [-2.2, 2.2]) { const q = gp(pc[0], pc[1], -9 + k, 23.6); B.v('galv').cyl(q[0], 0, q[1], 0.07, 0.07, 3.0, 6, 1, false); }
+    const p = gp(pc[0], pc[1], -9, 18.2); const pt = B.v('paint', true); pt.setColor(0.04, 0.04, 0.05); pt.box(p[0], 4.1, p[1], 5.2, 2.2, 0.25, ROT); pt.setColor(0.62, 0.07, 0.06).box(p[0], 5.4, p[1], 5.2, 0.4, 0.27, ROT);
+    for (const k of [-2.2, 2.2]) { const q = gp(pc[0], pc[1], -9 + k, 18.2); B.v('galv').cyl(q[0], 0, q[1], 0.07, 0.07, 3.0, 6, 1, false); }
     B.c('metal').box(p[0], 4.3, p[1], 5.2, 2.7, 0.3, ROT); B.v('paint', true).setColor(1, 1, 1);
   }
   // shade sails / canopy on steel posts over the north deck

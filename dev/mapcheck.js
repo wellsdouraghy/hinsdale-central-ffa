@@ -671,7 +671,7 @@ async function checkHouses() {
 async function checkRoads() {
   const SR = REG.streets; if (!SR || !SR.length || !world.terrain) { finishCheck('roads', { status: 'skip', note: 'no graded streets registered (world/streets.js gradeStreets)' }); return; }
   const pb = world.playBounds, inP = (p) => p && p[0] >= pb.minX && p[0] <= pb.maxX && p[1] >= pb.minZ && p[1] <= pb.maxZ;
-  const fails = [], warns = []; const cnt = { bump: 0, crest: 0, cross: 0, walkStep: 0, kerb: 0, moved: 0 }; let stations = 0, worstBump = 0, worstCross = 0, worstMoved = 0, worstStep = 0;
+  const fails = [], warns = []; const cnt = { bump: 0, crest: 0, cross: 0, walkStep: 0, kerb: 0, moved: 0, surface: 0, trunk: 0, post: 0 }; let stations = 0, worstBump = 0, worstCross = 0, worstMoved = 0, worstStep = 0;
   const bad = (kind, name, p, v, warn) => { const e = { kind, street: name, at: [r1(p[0]), r2(GY(p[0], p[1])), r1(p[1])], value: r2(v) }; if (warn) { warns.push(e); return; } cnt[kind]++; fails.push(e); marks.push({ kind: 'vis', x0: p[0] - 1.5, z0: p[1] - 1.5, x1: p[0] + 1.5, z1: p[1] + 1.5 }); };
   for (const st of SR) { const P = st.pts; const g = (p) => (p ? GY(p[0], p[1]) : NaN);
     for (let k = 0; k < P.length; k++) { const s = P[k]; if (!inP(s.c)) continue; stations++; const gc = g(s.c);
@@ -681,13 +681,18 @@ async function checkRoads() {
         const m = Math.min(12, k, P.length - 1 - k); const c12 = m >= 7 && P[k - m].c && P[k + m].c ? (g(P[k - m].c) - 2 * gc + g(P[k + m].c)) * 16 / (m * m) : 0; const d2 = Math.abs(c4 - c12);
         worstBump = Math.max(worstBump, d2); if (d2 > 0.08) bad('bump', st.name, s.c, d2); else if (d2 > 0.06) bad('bump', st.name, s.c, d2, true); if (Math.abs(c4) > 0.2) bad('crest', st.name, s.c, c4); }
       for (const p of [s.c, s.eL, s.eR, s.wL, s.wR]) if (p) { const d = Math.abs(g(p) - p[2]); worstMoved = Math.max(worstMoved, d); if (d > (p[3] === 'road' ? 0.12 : 0.2)) bad('moved', st.name, p, d); }
+      // the ground texture follows the design: asphalt on the carriageway, concrete on the sidewalks (ctx.paintSurface)
+      if (world.surfaceAt) for (const p of [s.c, s.eL, s.eR, s.wL, s.wR]) if (p && inP(p)) { const want = p[3] === 'road' ? 'asphalt' : 'concrete'; if (![[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => world.surfaceAt(p[0] + dx, p[1] + dz) === want)) bad('surface', st.name, p, 0); }   /* (the class map is a 1 m grid) */
       if (s.jd < st.hw + 12) continue;   // inside an intersection the arms blend into one surface: no cross-section there
       for (const e of [s.eL, s.eR]) if (e) { const cs = Math.abs(gc - g(e)) / (st.hw * 0.5); worstCross = Math.max(worstCross, cs); if (cs > 0.04) bad('cross', st.name, e, cs * 100); }
       for (const [w, e, side] of [[s.wL, s.eL, 'wL'], [s.wR, s.eR, 'wR']]) { if (!w) continue; const gw = g(w);
         if (e) { const kb = gw - g(e); if (kb < -0.1 || kb > 0.5) bad('kerb', st.name, w, kb); }
         const pw = k ? P[k - 1][side] : null; if (pw && Math.hypot(pw[0] - w[0], pw[1] - w[1]) < 1.6) { const stp = Math.abs(gw - g(pw)); worstStep = Math.max(worstStep, stp); if (stp > 0.2) bad('walkStep', st.name, w, stp); } }
     } }
-  const res = { status: status(fails.length, warns.length), what: 'Graded streets (registry.streets, every 1 m of each centreline in the play area): the centreline profile may not bump (2nd difference over 4 m, less the vertical curve of the street over 12 m, > 0.08 m; the vertical curve itself > 0.2 m over 4 m; not inside an intersection, where the arms blend), the carriageway cross-slope may not exceed 4 %, a sidewalk may not step more than 0.2 m per metre nor leave the kerb range (-0.1..0.5 m over the road edge), and no pad may have moved the carriageway (> 0.12 m) or a sidewalk (> 0.2 m) off its design.',
+  // nothing stands on a carriageway: tree trunks within 0.6 m of one, posts / props on one (vehicles and roadblocks belong there)
+  if (REG.inRoad) { for (const t of REG.trunks || []) if (inP(t) && REG.inRoad(t[0], t[1], 0.6)) bad('trunk', null, t, 0);
+    for (const p of REG.props || []) if (!/car|bus|truck|van|block|barrier|cone|heli/i.test(p.kind || '') && inP([p.x, p.z]) && REG.inRoad(p.x, p.z, 0)) bad('post', p.kind, [p.x, p.z], 0); }
+  const res = { status: status(fails.length, warns.length), what: 'Graded streets (registry.streets, every 1 m of each centreline in the play area): the centreline profile may not bump (2nd difference over 4 m, less the vertical curve of the street over 12 m, > 0.08 m; the vertical curve itself > 0.2 m over 4 m; not inside an intersection, where the arms blend), the carriageway cross-slope may not exceed 4 %, a sidewalk may not step more than 0.2 m per metre nor leave the kerb range (-0.1..0.5 m over the road edge), no pad may have moved the carriageway (> 0.12 m) or a sidewalk (> 0.2 m) off its design, the surface class must be asphalt on the carriageway and concrete on the sidewalks, and no tree trunk (within 0.6 m) or post / prop may stand on a carriageway.',
     counts: { streets: SR.length, stations, failing: fails.length, ...cnt, worstBumpM: r2(worstBump), worstCrossPct: r1(worstCross * 100), worstWalkStepM: r2(worstStep), worstMovedM: r2(worstMoved) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`roads: ${res.status} ${fails.length} failing samples on ${stations} stations`); finishCheck('roads', res);
 }

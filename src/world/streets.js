@@ -17,7 +17,9 @@
 //            maxGrade = 0.3, protect = [(x, z) => bool]   designed pads the verge / shoulder must not touch,
 //            hard = [(x, z) => bool]   designed pads that even narrow a sidewalk (never the carriageway),
 //            solid = [(x, z) => bool] (later, via streets.solid)   building footprints: restore() leaves them alone }
-// Returns ctx.streets = { design(x, z), apply(), restore(), stations, solid } (stations: map check `roads`).
+// Returns ctx.streets = { design(x, z), apply(), restore(), stations, solid, inRoad(x, z, m), toVerge(x, z, m),
+// surface(x, z) } (stations: map check `roads`). After restore(): ctx.paintSurface(streets.surface) so the ground texture
+// follows the designed section, and move every tree / post off the carriageway with toVerge.
 const DS = 2;
 
 export function gradeStreets(ctx, roads, opts = {}) {
@@ -103,6 +105,11 @@ export function gradeStreets(ctx, roads, opts = {}) {
     return { y: y / ws, zone, t: zone === 'verge' ? t : 0 };
   }
   const smooth = (t) => t * t * (3 - 2 * t);
+  // ---- everything else must respect the designed section (trees, lamps, props, surface classes)
+  const nearRoad = (x, z, m) => { const l = hash.get(hk(Math.floor(x / CELL), Math.floor(z / CELL))); let best = null; if (!l) return null;
+    for (const s of l) { const u = (x - s.a.x) * s.tx + (z - s.a.z) * s.tz; if ((u < 0 && s.first && s.a.nb.length === 1) || (u > s.L && s.last && s.b.nb.length === 1)) continue; const uc = Math.max(0, Math.min(s.L, u)); const px = s.a.x + s.tx * uc, pz = s.a.z + s.tz * uc; const d = Math.hypot(x - px, z - pz);
+      if (d < s.hw + m && (!best || d - s.hw < best.d - best.s.hw)) best = { d, s, px, pz }; }
+    return best; };
   const st = { design, solid: [], keep: [], kerb: KERB };
   const box = () => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const v of V) { x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); z0 = Math.min(z0, v.z); z1 = Math.max(z1, v.z); } return { rect: { cx: (x0 + x1) / 2, cz: (z0 + z1) / 2, w: x1 - x0 + 2 * reach, d: z1 - z0 + 2 * reach, angle: 0 } }; };
   /** Lay the streets, sidewalks and verges into the terrain (once, before the building pads). */
@@ -120,5 +127,11 @@ export function gradeStreets(ctx, roads, opts = {}) {
       out.push({ id: r.id, name: r.name || null, hw, pts }); }
     return out;
   }
+  /** Is (x, z) on a carriageway (or within m of one)? */
+  st.inRoad = (x, z, m = 0) => !!nearRoad(x, z, m);
+  /** Where a tree / post standing on (or within m of) a carriageway belongs: just behind the sidewalk on its own side. null = it is clear already. */
+  st.toVerge = (x, z, m = 0.6) => { const b = nearRoad(x, z, m); if (!b) return null; const s = b.s; const side = (x - b.px) * -s.tz + (z - b.pz) * s.tx >= 0 ? 1 : -1; const out = s.hw + (side > 0 ? (s.r.right || 0) : (s.r.left || 0)) + 0.9; return [b.px - s.tz * side * out, b.pz + s.tx * side * out]; };
+  /** Surface class the design calls for: 'asphalt' on a carriageway, 'concrete' on a sidewalk, null elsewhere (ctx.paintSurface). */
+  st.surface = (x, z) => { const d = design(x, z); if (!d || d.zone === 'verge' || hard.some((p) => p(x, z))) return null; return d.zone === 'road' ? 'asphalt' : 'concrete'; };
   ctx.streets = st; return st;
 }

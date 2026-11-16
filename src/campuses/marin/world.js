@@ -35,7 +35,7 @@ function sitework(ctx) {
   { const n = gp(7.7, 60.5, 0, -16), s2 = gp(7.7, 60.5, 0, 16); const yn = mean(R(n[0], n[1], 8, 3)), ys = mean(R(s2[0], s2[1], 8, 3)); const d = [s2[0] - n[0], s2[1] - n[1]], L2 = d[0] * d[0] + d[1] * d[1];
     ctx.flatten(R(7.7, 60.5, 10.6, 36.4), { y: (x, z) => yn + (ys - yn) * Math.max(-0.1, Math.min(1.1, ((x - n[0]) * d[0] + (z - n[1]) * d[1]) / L2)), blend: 1.5 }); }
   // aquatic centre: pool, deck and pool house on one level
-  const poolPad = R(...gp(53.1, 75.6, 0.7, -0.1), 37.6, 50.4);   // the deck, from the pool house's deck front to the 5th Ave wall
+  const poolPad = R(...gp(53.1, 75.6, 0.7, -2.8), 37.6, 45.0);   // the deck, from the pool house's deck front to the 5th Ave wall
   // the car park north of the gyms was graded level with the Athletic Center after the lidar flight (the 3D tiles show
   // a flat lot there; the DEM still has the old 15 % hillside): cut it into the hill at the gym's floor level
   { const lot = ctx.data.areas.find((q) => q.id === 652917772); if (lot) ctx.flatten({ outline: lot.outer[0] }, { y: 11.0, blend: 3.5 }); }
@@ -52,7 +52,7 @@ function sitework(ctx) {
   // aquatic centre: pool, deck and pool house on one level, at the level of the 5th Ave sidewalk it fronts (the Library's
   // lowest floor opens onto it at that level too). Mission Ave is ~1.8 m higher: the pool house stands in that step
   // (planned like every other building: street floor on Mission, a storey taller toward the deck)
-  if (streets) { let n = 0, sum = 0; for (const sg of [1]) for (let a = -15; a <= 15.01; a += 5) for (let k = 0; k <= 14; k++) { const p = gp(53.1, 75.6, 0.7 + a, 25.1 + k); const d = streets.design(p[0], p[1]); if (d && d.zone === 'walk') { n++; sum += d.y; break; } }
+  if (streets) { let n = 0, sum = 0; for (const sg of [1]) for (let a = -15; a <= 15.01; a += 5) for (let k = 0; k <= 14; k++) { const p = gp(53.1, 75.6, 0.7 + a, 19.7 + k); const d = streets.design(p[0], p[1]); if (d && d.zone === 'walk') { n++; sum += d.y; break; } }
     ctx.flatten(poolPad, { y: n ? sum / n : mean(R(...gp(53.1, 75.6, 0.7, 0), 34, 46)), blend: 4 }); }
   // ---- Seat every building (MAP_NOTES "seat every building on a pad"), AFTER the designed campus pads above: the walls
   // are planned on the ground as designed, each wall piece gets its own level strip (they win at the walls), a wall that
@@ -69,6 +69,18 @@ function sitework(ctx) {
   if (streets) { const bx = (ctx.allRings || rings).map((r) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const p of r) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); } return [r, x0, z0, x1, z1]; }); streets.solid.push((x, z) => bx.some((b) => x >= b[1] && x <= b[3] && z >= b[2] && z <= b[4] && pointInRing(x, z, b[0]))); 
     // (no pad survives in the shoulder either: a wall that stands there takes the street's level as its floor, kit.js streetSide)
     streets.restore(); }
+  if (streets) {
+    // everything respects the designed section: the ground texture is painted from it (asphalt on the carriageways,
+    // concrete on the sidewalks, whatever the satellite classes say under tree crowns), and every tree the canopy
+    // scan put on a carriageway (or within 0.6 m of one) moves behind the sidewalk on its side, or goes
+    // (and the strip between the Cottage Ave sidewalk and the Leadership Center's sunk west wall is a lawn bank, not the car park the photo's shadow reads as)
+    const lawn = shapeSDF(R(...gp(-12.4, 61.0, -8.0, 0), 5.4, 51.6)).sd;
+    if (ctx.paintSurface) ctx.paintSurface((x, z) => streets.surface(x, z) || (lawn(x, z) <= 0 ? 'grass' : null));
+    const solid = streets.solid[0] || (() => false); const out = [];
+    for (const t of ctx.gen.trees || []) { const p = streets.toVerge(t[0], t[1], 1.0); if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
+    // (and a tree deep inside a car park: asphalt 2.5 m all round it)
+    ctx.gen.trees = out.filter((t) => !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
+  }
   planCheeks(ctx);
 }
 

@@ -502,5 +502,21 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - A `// comment` appended inside a one-line statement swallows the rest of the line (four times now): use `/* */`.
   - An instanced skin for a solid mass (the evergreen belt) needs clamped dimensions: a negative cylinder height gives
     NaN normals and the bloom pass blacks out the whole frame, not just the hedge.
+  - **Everything must respect the designed street section.** Grading the streets is not enough: the canopy scan's trees,
+    lamps, a parked bus and hand-placed walls were all laid out against the lidar / photo and ended up on the graded
+    carriageway (trunks 0.8 m from a centre line, a pool wall inside the nominal kerb line). After `streets.restore()`:
+    move every tree with `streets.toVerge`, test posts with `streets.inRoad`, and check hand-built enclosures against
+    `streets.surface`. Map check `roads` fails a trunk within 0.6 m of a carriageway and any post / prop on one.
+  - **Paint surface classes from the design.** The satellite classes under tree crowns are grass: a grass wedge across a
+    hairpin, a lawn island in a junction. `ctx.paintSurface(streets.surface)` (src/world/index.js) rewrites the surface
+    mask, the class map and (where the class changed) the photo tone: asphalt on carriageways, concrete on sidewalks.
+    Map check `roads` compares the class map with the design at every station.
+  - **Check an enclosure fix from every approach, including the street outside.** The pool looked right from the deck
+    and the air while its 5th Ave side was a bare slab on the kerb line. Street View showed a wall set back behind a
+    planting bed with bar gates.
+  - **The play boundary is not the visual boundary: walk it looking outward.** Context shells just outside the boundary
+    were plain boxes; every shell now gets window rows on its top two storeys like the houses.
+  - **Hidden tabs throttle QA.** Timers and frames slow down in a hidden pane: movement tests report "stuck" or "below
+    ground" that are not real. Keep the game tab in front for anything that walks; raycast checks are unaffected.
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.

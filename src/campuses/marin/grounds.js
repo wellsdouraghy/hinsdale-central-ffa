@@ -281,7 +281,7 @@ function vehicles(ctx) {
   const keep = ctx.keepClear || [];
   // the school buses (placed after the cars) and tree trunks: no car may overlap them. A car rejected for one of these
   // still draws its three random numbers, so every other car keeps its place, type and colour.
-  const buses = [[...G(52, 26.9), ROT], [...G(-8, -134.5), ROT + Math.PI / 2], [...G(14, -129), ROT + Math.PI / 2]];
+  const buses = [[55.5, 38.7, ROT] /* at the school-side kerb of Mission Ave (graded centreline + 4.25 m) */, [...G(-8, -134.5), ROT + Math.PI / 2], [...G(14, -129), ROT + Math.PI / 2]];
   const trunks = (ctx.gen.trees || []).filter((t) => inPlay(t[0], t[1], -4));
   const overlaps = (x, z, h, bx, bz, bh, hl, hw) => {   // oriented rectangles: car (2.3 x 0.95 half extents) vs (hl x hw) at (bx, bz, bh)
     const R = [[x, z, h, 2.3, 0.95], [bx, bz, bh, hl, hw]];
@@ -316,7 +316,7 @@ function vehicles(ctx) {
   };
   // Mission Avenue's double yellow centre line (the satellite paint is smoothed away up close)
   for (const r of data.roads) {
-    if (r.tags.name !== 'Mission Avenue') continue;
+    if (!['Mission Avenue', 'Fifth Avenue', 'Fourth Street'].includes(r.tags.name)) continue;
     for (let i = 0; i < r.line.length - 1; i++) {
       const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5 || !inPlay((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, -30)) continue; const nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
       for (const o of [-0.11, 0.11]) line([a[0] + nx * o, a[1] + nz * o], [b[0] + nx * o, b[1] + nz * o], 0.05, [0.8, 0.6, 0.08]);
@@ -391,6 +391,7 @@ function streets(ctx) {
       let d = carry;
       for (; d < L; d += 27) {
         const x = a[0] + tx * d - tz * side * (w / 2 + 0.75), z = a[1] + tz * d + tx * side * (w / 2 + 0.75); side = -side;
+        if (ctx.streets && ctx.streets.inRoad(x, z, 0.4)) continue;   /* (a fork or a crossing street: never a lamp on a carriageway) */
         if (!inPlay(x, z) || !clearOfBuildings(x, z) || lamps.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 14)) continue;
         if (z < -60 && hw === 'residential' && rnd() < 0.5) continue;      // the hillside lanes are sparsely lit
         atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min'); lamps.push([x, z]);

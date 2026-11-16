@@ -326,8 +326,7 @@ export function buildTown(ctx) {
       // context shell: plain walls + roof, no collision; stands on the terrain (walls from below its lowest ground)
       const ring = simplify(raw, 1.0); const gr = ringGround(ctx, ring); const y0 = gr.min - 0.6; const h = gr.max + (info.roof === 'flat' ? info.h : Math.max(2.9, info.h));
       const p = B.v('paint', true); const wc = srgb(...(info.roof === 'flat' ? [196, 188, 172] : [[214, 208, 194], [186, 178, 160], [160, 168, 170], [205, 196, 170]][b.id % 4])); p.setColor(wc[0], wc[1], wc[2]);
-      if (info.roof === 'flat') for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length]; p.wall(a[0], a[1], c[0], c[1], y0, h); }
-      else {
+      { // (flat-roofed shells too: a row of plain boxes just outside the boundary reads as unfinished from inside play)
         const hw = B.v('house' + (b.id % 8));
         for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 0.05) continue; const F = edgeFrame(a[0], a[1], c[0], c[1]); const yw = Math.max(y0, h - 5.8);   // windows on the top two storeys only; a downhill wall below that is plain foundation
           wallRect(hw, F, 0, L, yw, h, 0, L > 3.2 ? [0, 2 + (yw - h) * HOUSE_S[1], Math.max(1, Math.round(L / 4)), 2] : [0.02, 0.04, 0.2, 0.9]);

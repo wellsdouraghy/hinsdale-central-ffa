@@ -94,7 +94,22 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const terrain = await createTerrain(campus, { sat: { ...SAT }, playBounds: campus.playBounds });
   const groundY = terrain ? terrain.heightAt : () => 0;
   const ground = createGround({ scene: customVisuals, textures: T, shadowUniforms: sky.shadowUniforms, quality, opts: campus.ground, roads: data.roads, terrain });
-  const ctx = { campus, data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: { ...campus.playBounds }, surfaceAt, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
+  // Builders that DESIGN ground (graded streets, src/world/streets.js) repaint the surface classes from the design:
+  // classAt(x, z) -> 'asphalt' | 'concrete' | 'grass' | null (null = keep the satellite class). Rewrites the surface
+  // mask (ground shader, grass), the class map (footsteps, props) and, where the class changed, the photo's tone.
+  function paintSurface(classAt) {
+    if (!classMap || !T.groundMask || !T.groundMask.image) return 0; const w = classMap.w, h = classMap.h; const mk = new Uint8ClampedArray(w * h * 4), mc = new Uint8ClampedArray(w * h * 4); let n = 0;
+    const MASK = { asphalt: [255, 0, 0], concrete: [0, 255, 0], grass: [0, 0, 0] }, TONE = { asphalt: [72, 72, 76], concrete: [158, 156, 150], grass: [72, 96, 48] };
+    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const c = classAt(SAT.minX + (i + 0.5) / w * (SAT.maxX - SAT.minX), SAT.minZ + (j + 0.5) / h * (SAT.maxZ - SAT.minZ)); if (!c || !MASK[c]) continue; const k = (j * w + i) * 4; n++;
+      mk[k] = MASK[c][0]; mk[k + 1] = MASK[c][1]; mk[k + 2] = MASK[c][2]; mk[k + 3] = 255;
+      if (classNames[classMap.d[k]] !== c) { mc[k] = TONE[c][0]; mc[k + 1] = TONE[c][1]; mc[k + 2] = TONE[c][2]; mc[k + 3] = 255; }
+      classMap.d[k] = classNames.indexOf(c); }
+    if (!n) return 0;
+    const small = (arr) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').putImageData(new ImageData(arr, w, h), 0, 0); return c; };
+    for (const [tex, arr] of [[T.groundMask, mk], [T.groundMacro, mc]]) { const img = tex && tex.image; if (!img || !img.width) continue; const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; const g = c.getContext('2d'); g.drawImage(img, 0, 0); g.imageSmoothingEnabled = true; g.drawImage(small(arr), 0, 0, c.width, c.height); tex.image = c; tex.needsUpdate = true; }
+    return n;
+  }
+  const ctx = { campus, data, gen, T, M, quality, scene: customVisuals, B: new Builder(), sky, applyBakedShadow, playBounds: { ...campus.playBounds }, surfaceAt, paintSurface, blockers: [], instanced: [], updaters: [], shrubs: [], grapplePoles: [], ladders: [] };
   installBuilderHelpers(ctx, terrain);   // ctx.terrain / groundY / flatten / onGround / plinth / drape (CAMPUSES.md "Terrain")
 
   progress(0.48, 'Building campus'); await tick();
@@ -156,7 +171,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     grapplePoles: ctx.grapplePoles,   // [{ x, z, y0, y1, r }] thin vertical poles for grapple aim assist
     ladders: ctx.ladders,             // [{ x, z, nx, nz, y0, y1, exitY }] climbable ladders
     // dev-only build registry for the map check (dev/mapcheck.html): prop footprints, tree trunks, shrubs, ground walk grid
-    registry: { props: ctx.props || [], trunks: ctx.trunks || [], shrubs: ctx.shrubs, keepClear: ctx.keepClear || [], walkGrid: ctx.walkGrid || null, houses: ctx.houses || [], retaining: ctx.retaining || [], walls: ctx.walls || [], footprints: ctx.footprints || [], streets: ctx.streets?.stations || null },   // houses / retaining: optional, filled by hilly campus builders (map check: houses, retaining)
+    registry: { props: ctx.props || [], trunks: ctx.trunks || [], shrubs: ctx.shrubs, keepClear: ctx.keepClear || [], walkGrid: ctx.walkGrid || null, houses: ctx.houses || [], retaining: ctx.retaining || [], walls: ctx.walls || [], footprints: ctx.footprints || [], streets: ctx.streets?.stations || null, inRoad: ctx.streets?.inRoad || null },   // houses / retaining: optional, filled by hilly campus builders (map check: houses, retaining)
     playBounds: { ...campus.playBounds },
     campus,
     tour: campus.tour || [],
