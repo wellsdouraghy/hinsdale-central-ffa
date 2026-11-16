@@ -525,8 +525,7 @@ export function buildPadWalls(ctx) {
       for (let k = 0; k < 8 && !ok; k++) { let m = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) m = Math.max(m, ctx.groundY(far[0] + c.tx * (c.len + 0.08) + c.nx * u, far[1] + c.tz * (c.len + 0.08) + c.nz * u)); if (m - c.level <= 0.1) ok = true; else c.len += 0.4; }
       if (!ok || c.len > 7.5) continue; c.x = far[0] + c.tx * c.len / 2; c.z = far[1] + c.tz * c.len / 2;
       let t = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) for (let v = 0; v <= c.len + 0.01; v += 0.2) t = Math.max(t, ctx.groundY(far[0] + c.tx * v + c.nx * u, far[1] + c.tz * v + c.nz * u)); c.top = Math.max(c.top, t + 0.06); if (c.top - c.level < 0.25) continue; }
-    // a drop of more than 1.5 m is stepped: terraces of at most 1.5 m (terraceBlocks), the rail stays on the top edge
-    terraceBlocks(ctx, { x: c.x + c.tx * c.len / 2, z: c.z + c.tz * c.len / 2, tx: c.nx, tz: c.nz, fx: c.tx, fz: c.tz, w: c.gap, regW: c.gap - 0.3, d: c.len, frontY: c.level, top: c.top });
+    terraceBlocks(ctx, { x: c.x + c.tx * c.len / 2, z: c.z + c.tz * c.len / 2, tx: c.nx, tz: c.nz, fx: c.tx, fz: c.tz, w: c.gap, regW: c.gap - 0.3, d: c.len, frontY: c.level, top: c.top, single: true });   // (a 2-3 m wide cheek at a building corner stays one wall: stepped, it was a giant stair to nowhere)
   }
   for (const s of ctx.padCuts || []) {
     const mx = (s.p[0] + s.q[0]) / 2, mz = (s.p[1] + s.q[1]) / 2; const tx = (s.q[0] - s.p[0]) / s.L, tz = (s.q[1] - s.p[1]) / s.L; const D = 2.0 + PAD_BLEND + 0.3;
@@ -551,7 +550,7 @@ export function terraceBlocks(ctx, o) {
   const { B } = ctx; const T = ctx.terrain; const { x, z, tx, tz, fx, fz, w, d, frontY } = o; const maxRise = o.maxRise || 1.5; const rw = o.regW || w;
   const gAt = (px, pz) => Math.max(ctx.groundY(px, pz), T && T.meshHeightAt ? T.meshHeightAt(px, pz) : -Infinity);
   const prof = []; for (let v = 0; v <= d + 1e-6; v += 0.2) { let m = -Infinity; for (let u = -rw / 2; u <= rw / 2 + 1e-6; u += Math.max(0.2, Math.min(0.5, rw / 4))) m = Math.max(m, gAt(x + tx * u - fx * v, z + tz * u - fz * v)); prof.push(m); }
-  const top = Math.max(o.top ?? -Infinity, Math.max(...prof) + (o.top === undefined ? 0.1 : 0.04)); const H = top - frontY; const n = o.allowTall ? 1 : Math.max(1, Math.ceil(H / maxRise - 1e-6));
+  const top = Math.max(o.top ?? -Infinity, Math.max(...prof) + (o.top === undefined ? 0.1 : 0.04)); const H = top - frontY; const n = o.allowTall || o.single || w < 5 ? 1 : Math.max(1, Math.ceil(H / maxRise - 1e-6));   // only a long wall is terraced
   const tread = o.tread || Math.max(0.6, Math.min(1.0, (d - 0.8) / Math.max(1, n - 1)));
   const reach = (lv) => { let v = 0; for (let i = 0; i < prof.length; i++) { if (prof[i] > lv - 0.06) break; v = i * 0.2; } return v; };   // how far back the ground stays under a level
   const blocks = []; let start = 0;
@@ -595,7 +594,13 @@ export function goreWalls(ctx) {
       let top = -Infinity, lo0 = -Infinity, lo1 = -Infinity; for (let u = a - 1; u <= a + 1.001; u += 0.25) { for (let v = v0; v <= v1 + 0.001; v += 0.2) { const q = P(u, v); top = Math.max(top, gAt(q[0], q[1])); } }
       for (let u = a - 0.5; u <= a + 0.501; u += 0.125) { const q0 = P(u, v0 - 0.08), q1 = P(u, v1 + 0.08); lo0 = Math.max(lo0, gAt(q0[0], q0[1])); lo1 = Math.max(lo1, gAt(q1[0], q1[1])); }
       nodes.push({ a, v0, v1, top: top + 0.06, lo0, lo1 }); }
-    const live = nodes.filter(Boolean); if (live.length < 3) continue; const low = live.reduce((q, nd) => q + (nd.lo0 - nd.lo1), 0) <= 0 ? 0 : 1;   // which edge looks down on the lower road
+    const live = nodes.filter(Boolean); if (live.length < 3) continue;
+    // straight faces: each edge is the least-squares line through the band's edge, pushed out until it covers every cross-line;
+    // the top stands one constant kerb height over the upper road
+    for (const [key, sg] of [['v0', -1], ['v1', 1]]) { let sa = 0, sv = 0, saa = 0, sav = 0; for (const nd of live) { sa += nd.a; sv += nd[key]; saa += nd.a * nd.a; sav += nd.a * nd[key]; } const m = live.length, k = (m * sav - sa * sv) / (m * saa - sa * sa || 1), c0 = (sv - k * sa) / m; let off = 0; for (const nd of live) off = Math.max(off, sg * (nd[key] - (k * nd.a + c0))); for (const nd of live) nd[key] = k * nd.a + c0 + sg * off; }
+    for (const nd of live) { let top = -Infinity, lo0 = -Infinity, lo1 = -Infinity; for (let u = nd.a - 1; u <= nd.a + 1.001; u += 0.25) for (let v = nd.v0; v <= nd.v1 + 0.001; v += 0.2) { const q = P(u, v); top = Math.max(top, gAt(q[0], q[1])); }
+      for (let u = nd.a - 0.5; u <= nd.a + 0.501; u += 0.125) { const q0 = P(u, nd.v0 - 0.08), q1 = P(u, nd.v1 + 0.08); lo0 = Math.max(lo0, gAt(q0[0], q0[1])); lo1 = Math.max(lo1, gAt(q1[0], q1[1])); } nd.top = top + 0.06; nd.lo0 = lo0; nd.lo1 = lo1; }
+    { const hiSide = live.reduce((q, nd) => q + (nd.lo0 - nd.lo1), 0) <= 0 ? 'lo1' : 'lo0'; let kerb = 0.15; for (const nd of live) kerb = Math.max(kerb, nd.top - nd[hiSide]); for (const nd of live) nd.top = nd[hiSide] + kerb; } const low = live.reduce((q, nd) => q + (nd.lo0 - nd.lo1), 0) <= 0 ? 0 : 1;   // which edge looks down on the lower road
     let n = 0; const y0 = Math.min(...live.map((nd) => Math.min(nd.lo0, nd.lo1))) - 0.6; const up = [0, 1, 0];
     const C = (nd, side, y) => { const q = P(nd.a, side ? nd.v1 : nd.v0); return [q[0], y, q[1]]; }; const quad = (p0, p1, p2, p3, nrm) => { quadFacing(conc, p0, p1, p2, p3, nrm, [p0, p1, p2, p3].map((p) => [(p[0] * tx + p[2] * tz) / 3, (nrm[1] ? p[0] * nx + p[2] * nz : p[1]) / 3])); quadFacing(col, p0, p1, p2, p3, nrm); };
     for (let i = 0; i < nodes.length - 1; i++) { const A = nodes[i], Bn = nodes[i + 1]; if (!A || !Bn) continue; const drop = Math.max(A.top - (low ? A.lo1 : A.lo0), Bn.top - (low ? Bn.lo1 : Bn.lo0)); if (drop < 0.35) continue;
@@ -616,65 +621,6 @@ export function goreWalls(ctx) {
     if (n) out.push({ at: [+mx.toFixed(1), +mz.toFixed(1)], slices: n });
   }
   ctx.goreWallStats = out; return out;
-}
-/**
- * A filled house terrace that ends in a cliff at the street corner (a cone of grass 5 m high on the 2 m lattice) is held
- * by stepped retaining walls instead, wrapped round the corner: plan (earthworks, after the streets are restored) cuts
- * the fill back to the level of the ground at the foot over the terraces' depth; build stands the blocks on it.
- * o: { K: [x, z] foot corner, dirA, lenA, dirB, lenB (unit vectors along the two feet, from K; the high ground lies
- * between them), d (depth), top (terrace level; default: the ground just behind the far edge), tread, maxRise }.
- */
-export function planTerraceCorner(ctx, o) {
-  const T = ctx.terrain; if (!T) return null; const [kx, kz] = o.K, A = o.dirA, Bd = o.dirB, d = o.d || 5; const S = ctx.streets;
-  const foot = (dir, len) => { const g = []; for (let s = 0; s <= len + d + 0.01; s += 0.5) { const t = Math.min(s, len); let m = -Infinity; for (const back of [0.3, 0.7]) { const other = dir === A ? Bd : A; m = Math.max(m, T.heightAt(kx + dir[0] * t - other[0] * back, kz + dir[1] * t - other[1] * back)); } g.push(m); } return (s) => g[Math.max(0, Math.min(g.length - 1, Math.round(s / 0.5)))]; };
-  const gA = foot(A, o.lenA), gB = foot(Bd, o.lenB);   // ground along each foot line, just outside the face (before the cut)
-  let top = o.top; if (top === undefined) { top = -Infinity; for (let s = d; s <= Math.max(o.lenA, o.lenB); s += 1) for (const [dir, oth, len] of [[A, Bd, o.lenA], [Bd, A, o.lenB]]) if (s <= len) top = Math.max(top, T.heightAt(kx + dir[0] * s + oth[0] * (d + 0.4), kz + dir[1] * s + oth[1] * (d + 0.4))); top += 0.08; }
-  const loc = (x, z) => { const dx = x - kx, dz = z - kz; return [dx * A[0] + dz * A[1], dx * Bd[0] + dz * Bd[1]]; };   // [along A, along B]
-  // the cut: everything under the lower terraces down to the foot level (the last 2 m before the far edge is the lattice's ramp up to the terrace: it lies under the top blocks)
-  const cutD = d - 2.0; const ring = [[0, 0], [o.lenA, 0], [o.lenA, cutD], [cutD, cutD], [cutD, o.lenB], [0, o.lenB]].map(([a, b]) => [kx + A[0] * a + Bd[0] * b, kz + A[1] * a + Bd[1] * b]);
-  ctx.flatten({ outline: ring }, { blend: 1.5, y: (x, z) => { const h = T.heightAt(x, z); if (S) { const ds = S.design(x, z); if (ds && ds.zone !== 'verge') return h; } const [a, b] = loc(x, z); return Math.min(h, a >= b ? gA(a) : gB(b)); } });
-  const pl = { ...o, d, top, gA, gB, loc }; (ctx.terraceCorners = ctx.terraceCorners || []).push(pl);
-  const zone = [[-0.5, -0.5], [o.lenA, -0.5], [o.lenA, d], [d, d], [d, o.lenB], [-0.5, o.lenB]].map(([a, b]) => [kx + A[0] * a + Bd[0] * b, kz + A[1] * a + Bd[1] * b]);
-  pl.zone = zone; if (ctx.gen && ctx.gen.trees) ctx.gen.trees = ctx.gen.trees.filter((t) => !pointInRing(t[0], t[1], zone));
-  for (let a = 1; a < Math.max(o.lenA, o.lenB); a += 2.5) for (const [la, lb] of [[a, 2], [2, a]]) if ((lb === 2 ? a <= o.lenA : a <= o.lenB)) (ctx.extraClear = ctx.extraClear || []).push([kx + A[0] * la + Bd[0] * lb, kz + A[1] * la + Bd[1] * lb, 4]);
-  return pl;
-}
-export function buildTerraceCorners(ctx) {
-  const { B } = ctx; const T = ctx.terrain; if (!T) return;
-  const gAt = (x, z) => Math.max(ctx.groundY(x, z), T.meshHeightAt ? T.meshHeightAt(x, z) : -Infinity);
-  for (const pl of ctx.terraceCorners || []) {
-    const [kx, kz] = pl.K, d = pl.d, tr = pl.tread || 1.0; let base = Infinity; for (let s = 0; s <= pl.lenA; s += 0.5) base = Math.min(base, pl.gA(s)); for (let s = 0; s <= pl.lenB; s += 0.5) base = Math.min(base, pl.gB(s));
-    const n = Math.max(1, Math.min(Math.floor((d - 0.6) / tr) + 1, Math.ceil((pl.top - base) / (pl.maxRise || 1.4)))); const levels = []; for (let k = 1; k <= n; k++) levels.push(k === n ? pl.top : base + (pl.top - base) * k / n);
-    for (const [dir, oth, len, mitre] of [[pl.dirA, pl.dirB, pl.lenA, 0], [pl.dirB, pl.dirA, pl.lenB, 1]]) {
-      const rot = Math.atan2(-dir[1], dir[0]); const P = (s, v) => [kx + dir[0] * s + oth[0] * v, kz + dir[1] * s + oth[1] * v];
-      for (let s = 0; s < len - 0.01; s += 1.0) {
-        const L = Math.min(1.0, len - s); let front = -Infinity; for (let u = 0; u <= L + 0.001; u += 0.25) { const q = P(s + u, -0.1); front = Math.max(front, gAt(q[0], q[1])); }
-        const under = (v0, v1) => { let m = -Infinity; for (let u = 0; u <= L + 0.001; u += 0.25) for (let v = v0 + 0.1; v <= v1 - 0.05; v += 0.2) { const q = P(s + u, v); m = Math.max(m, gAt(q[0], q[1])); } return m; };
-        let start = null, prev = front, topV0 = null;
-        for (let k = 0; k < n; k++) { const v0 = k * tr, v1 = k === n - 1 ? d : (k + 1) * tr, lv = levels[k];
-          if (s + 0.001 < (mitre ? v1 : v0) && s < d) { start = null; continue; }   // the corner is mitred: this run's block starts where the other run's ends
-          if (lv < front + 0.2) { start = null; prev = Math.max(prev, lv); continue; }   // below the ground in front: the wall dies into the rising street
-          const f0 = start ?? v0; if (k < n - 1 && under(f0, v1) > lv - 0.04) { start = f0; continue; }   // the bank stands above this level here: the next riser is taller
-          const dd = v1 - f0, c = P(s + L / 2, f0 + dd / 2), y0 = Math.min(front, prev) - 0.6;
-          B.v('concrete').box(c[0], (y0 + lv) / 2, c[1], L + 0.02, lv - y0, dd, rot, 1 / 3); B.c('concrete').box(c[0], (y0 + lv) / 2, c[1], L + 0.02, lv - y0, dd, rot);
-          { const e = P(s + L / 2, f0 + 0.14); B.v('limestone').box(e[0], lv + 0.03, e[1], L + 0.04, 0.07, 0.4, rot, 1 / 3); }
-          if (k < n - 1 && dd >= 0.9 && Math.round(s) % 3 !== 2) { const e = P(s + L / 2, f0 + 0.3 + dd / 2); ctx.shrubs.push([e[0], lv + 0.05, e[1], L, 0.45, rot]); }
-          if (k === n - 1) topV0 = f0;
-          if (under(f0, v1) <= lv + 0.02) { let fg = -Infinity; for (let u = 0.15; u <= L - 0.1; u += 0.25) { const q = P(s + u, f0 - 0.08); fg = Math.max(fg, ctx.groundY(q[0], q[1])); } const fy = Math.max(prev, fg); if (lv - fy > 0.2) (ctx.retaining = ctx.retaining || []).push({ x: c[0], z: c[1], tx: dir[0], tz: dir[1], fx: -oth[0], fz: -oth[1], w: L, d: dd, top: lv, frontY: fy }); }
-          prev = lv; start = null; }
-        if (topV0 !== null && pl.top - front > 1.2 && L >= 0.8) { const r0 = P(s, topV0 + 0.14), r1 = P(s + L, topV0 + 0.14); guardRail(ctx, r0[0], r0[1], r1[0], r1[1], pl.top + 0.06); }
-      }
-    }
-    // past the corner the house itself stands at the top of the bank: the wall carries on along its frontage, as deep as
-    // the strip between the road's shoulder and the house wall (no room to cut terraces there: stepped only where the bank allows)
-    if (pl.tailA) { const dir = pl.dirA, oth = pl.dirB, rings = ctx.allRings || [];
-      for (let s = pl.lenA; s < pl.lenA + pl.tailA - 0.01; s += 1.0) { const c = [kx + dir[0] * (s + 0.5), kz + dir[1] * (s + 0.5)];
-        if (ctx.streets && [-0.5, 0, 0.5].some((u) => ctx.streets.inRoad(c[0] + dir[0] * u - oth[0] * 0.1, c[1] + dir[1] * u - oth[1] * 0.1, 0.2))) continue;
-        let dd = null; for (let v = 0.4; v <= 6; v += 0.1) { const x = c[0] + oth[0] * v, z = c[1] + oth[1] * v; if (rings.some((r) => pointInRing(x, z, r))) { dd = v - 0.05; break; } } if (dd === null || dd < 0.6) continue;
-        let front = -Infinity, hi = -Infinity; for (let u = -0.5; u <= 0.501; u += 0.125) { front = Math.max(front, ctx.groundY(c[0] + dir[0] * u - oth[0] * 0.08, c[1] + dir[1] * u - oth[1] * 0.08)); hi = Math.max(hi, ctx.groundY(c[0] + dir[0] * u + oth[0] * (dd - 0.1), c[1] + dir[1] * u + oth[1] * (dd - 0.1))); }
-        if (hi - front < 1.0) continue;
-        terraceBlocks(ctx, { x: c[0], z: c[1], tx: dir[0], tz: dir[1], fx: -oth[0], fz: -oth[1], w: 1.02, regW: 1.0, d: dd, frontY: front, tread: 0.8 }); } }
-  }
 }
 /**
  * Stands a building on the terrain: runs fn(base, ground) with the Builder raised to `base` (default: the lowest ground
@@ -743,17 +689,17 @@ export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, signedArea, 
  * players and bullets (collision reaches the crowns; shelves inside so no mechanic finds standing room in it).
  * (x, z) centre, y base, w along `rot`, d deep, h tall.
  */
-export function hedgeMass(ctx, x, z, y, w, d, h, rot, seed = 1) {
+export function hedgeMass(ctx, x, z, y, w, d, h, rot, seed = 1, opt = {}) {   // opt.oneRow: a single row of columns of radius <= d / 2 (a narrow strip)
   const { B } = ctx; const hb = B.v('maHedge', true); const r = mulberry32(Math.abs(Math.round(x * 31 + z * 17 + seed)) + 5); const c = Math.cos(rot), s = Math.sin(rot);
   // An overgrown bank, not a clipped wall: a dark core (so nothing shows through) wrapped in two staggered rows of bushy
   // columns of different girth, height and tone. The columns swell 0.3-0.5 m past the core on both faces, so the front is
   // lumpy in depth; their tops are steep cones (nothing that looks like a ledge). Collision is the plain block below.
-  hb.setColor(0.42, 0.48, 0.4); hb.box(x, y + h * 0.42 - 0.3, z, w, h * 0.84 + 0.6, d * 0.5, rot, 1 / 3.1);
+  hb.setColor(0.42, 0.48, 0.4); hb.box(x, y + h * 0.42 - 0.3, z, w, h * 0.84 + 0.6, d * (opt.oneRow ? 0.7 : 0.5), rot, 1 / 3.1);
   const n = Math.max(2, Math.round(w / 0.95));
-  for (let k = 0; k < n; k++) for (const row of [-1, 1]) {
+  for (let k = 0; k < n; k++) for (const row of (opt.oneRow ? [0] : [-1, 1])) {
     if (row > 0 && r() < 0.12) continue;
     const u = -w / 2 + (k + 0.5 + (row > 0 ? 0.5 : 0)) * w / n + (r() - 0.5) * 0.5, v = row * (d * 0.24 + r() * 0.22); if (Math.abs(u) > w / 2 + 0.2) continue;
-    const px = x + u * c + v * s, pz = z - u * s + v * c; const R = Math.min(0.7 + r() * 0.5, Math.max(0.35, d * 0.55)), H = Math.max(0.8, h * (0.72 + r() * 0.3)), cone = Math.min(1.5 + r() * 0.9, H * 0.45); /* short yard hedges get short crowns: a negative section height gives NaN normals, and one NaN pixel blacks out the whole frame through the bloom pass */ const t = 0.78 + r() * 0.4, wm = r() * 0.12;
+    const px = x + u * c + v * s, pz = z - u * s + v * c; const R = opt.oneRow ? d / 2 * (0.88 + r() * 0.12) : Math.min(0.7 + r() * 0.5, Math.max(0.35, d * 0.55)), H = Math.max(0.8, h * (0.72 + r() * 0.3)), cone = Math.min(1.5 + r() * 0.9, H * 0.45); /* short yard hedges get short crowns: a negative section height gives NaN normals, and one NaN pixel blacks out the whole frame through the bloom pass */ const t = 0.78 + r() * 0.4, wm = r() * 0.12;
     hb.setColor(t * (0.92 + wm), t, t * (0.9 - wm));
     hb.cyl(px, y - 0.3, pz, R * 0.8, R, (H - cone) * 0.45 + 0.3, 7, 1 / 3.1, false);                          // skirt
     hb.cyl(px, y + (H - cone) * 0.45, pz, R, R * 0.92, (H - cone) * 0.55, 7, 1 / 3.1, false);                  // body
@@ -762,6 +708,6 @@ export function hedgeMass(ctx, x, z, y, w, d, h, rot, seed = 1) {
   hb.setColor(1, 1, 1);
   // (a tall mass is solid up into its crowns; a hedge under 3 m ends at its clipped top: no invisible wall over a waist-high row)
   const ch = h < 3 ? h + 0.35 : h + 1.6;
-  B.c('wood').box(x, y - 0.2 + (ch + 0.4) / 2, z, w, ch + 0.4, d + 0.3, rot);
+  B.c('wood').box(x, y - 0.2 + (ch + 0.4) / 2, z, w, ch + 0.4, opt.oneRow ? d : d + 0.3, rot);
   for (let yy = 0.55; yy < ch - 0.2; yy += 0.75) B.c('wood').box(x, y + yy, z, w - 0.1, 0.06, d - 0.1, rot);
 }

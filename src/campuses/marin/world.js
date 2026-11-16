@@ -1,6 +1,6 @@
 // Marin Academy builder (San Rafael, CA): the school's buildings, the surrounding blocks, Championship Field, the pool,
 // the circle drive, car parks and street furniture. See CAMPUSES.md for the contract and tools/ for the data pipeline.
-import { addMaterials, minAreaOBB, gp, ANG, UX, UZ, planWalls, applyPads, planCheeks, buildPadWalls, seatInteriors, goreWalls, planTerraceCorner, buildTerraceCorners } from './kit.js';
+import { addMaterials, minAreaOBB, gp, ANG, UX, UZ, planWalls, applyPads, planCheeks, buildPadWalls, seatInteriors, goreWalls } from './kit.js';
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
@@ -70,14 +70,15 @@ function sitework(ctx) {
     // (no pad survives in the shoulder either: a wall that stands there takes the street's level as its floor, kit.js streetSide)
     streets.restore(); }
   // ---- Designed steps and terraces, after the streets are back on their design (none of them touches a roadway or sidewalk):
-  // (1) the alley between the Library and the pool house falls 2 m from Mission Ave to the deck: a flight of stairs wall to
+  // the alley between the Library and the pool house falls 2 m from Mission Ave to the deck: a flight of stairs wall to
   // wall instead of an asphalt chute. The ground under the flight is cut just below the line of the steps (school.js builds them).
   { const st = POOL_STAIR, am = (st.a0 + st.a1) / 2; let topY = -Infinity; for (let a = st.a0 + 0.3; a <= st.a1 - 0.29; a += 0.4) for (const b of [st.bTop - 1.0, st.bTop - 0.5, st.bTop]) topY = Math.max(topY, T.heightAt(...G(a, b)));
     const botY = ctx.poolY ?? T.heightAt(...G(am, st.bTop + 6)); const n = Math.max(2, Math.round((topY - botY) / 0.165)), riser = (topY - botY) / n, run = (n - 1) * st.tread;
     ctx.poolStair = { topY, botY, n, riser, run };
     ctx.flatten({ rect: { cx: G(am, st.bTop + run / 2)[0], cz: G(am, st.bTop + run / 2)[1], w: st.a1 - st.a0 + 0.4, d: run + 0.8, angle: ANG } }, { blend: 0.5, y: (x, z) => { const b = -x * UZ + z * UX; return Math.min(T.heightAt(x, z), Math.max(botY, topY - (b - st.bTop) / st.tread * riser) - 0.18); } }); }
-  // (2) the filled terrace of the house above Bryn Mawr Drive ended in a 5 m cone of grass at the road: stepped retaining walls round that corner
-  planTerraceCorner(ctx, { K: [146.5, -99.0], dirA: [-0.15, -0.9887], lenA: 9, dirB: [0.9887, -0.15], lenB: 13, d: 3.6, tread: 0.7, tailA: 14 });
+  // (2) Mission Ave runs 2.5 m below the pitch along its south side, and the field pad (a `hard` zone) kept its bank on the
+  // designed sidewalk there. The walk gets its designed level back (cut only); the bank moves under the hedge at the fence.
+  if (streets) { const c = G(78, 20.4); ctx.flatten({ rect: { cx: c[0], cz: c[1], w: 98, d: 4.4, angle: ANG } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const b = -x * UZ + z * UX; if (b < 18.2) return h; const d = streets.design(x, z); return d && d.zone === 'walk' ? Math.min(h, d.y) : h; } }); }
   if (streets) {
     // everything respects the designed section: the ground texture is painted from it (asphalt on the carriageways,
     // concrete on the sidewalks, whatever the satellite classes say under tree crowns), and every tree the canopy
@@ -105,7 +106,6 @@ export function build(ctx, progress = () => {}) {
   progress(0.48, 'Building Marin Academy');
   buildPadWalls(ctx);   // retaining blocks where a building pad is cut deep into the hill
   goreWalls(ctx);       // ...and between two carriageways at different heights (a fork on the hill)
-  buildTerraceCorners(ctx);
   ctx.buildNotes = { gores: ctx.goreWallStats, poolStair: ctx.poolStair };
   buildSchool(ctx);
   progress(0.58, 'Building San Rafael');

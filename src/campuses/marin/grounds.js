@@ -173,15 +173,17 @@ function field(ctx) {
     cornerWedge(ctx, P[5], P[0], P[4], true); cornerWedge(ctx, P[4], P[5], P[3], false); cornerWedge(ctx, P[3], P[4], P[2], false); cornerWedge(ctx, P[2], P[3], w1, false); }
   // clipped hedge between the fence and the Mission Ave sidewalk
   // (Street View: a dense evergreen hedge wall 4-5 m high hides the pitch from Mission Ave; it was a knee-high row before)
-  // (It stands on the bank between the fence and the street, and nowhere over the street: Mission Ave is not parallel to
-  // the pitch, so each piece is as deep as the strip between the fence line and the kerb allows, bushy columns included,
-  // and its collider with it. Laid out on a fixed line it hung up to 1.1 m over the asphalt at the east end.)
-  const vh = (d) => 0.24 * d + 0.22 + Math.min(1.2, Math.max(0.35, 0.55 * d)) + 0.05;   // half depth of a hedgeMass as drawn
+  // (It stands on the bank between the fence and the sidewalk and covers exactly that bank: from the fence line to where
+  // the ground has come down to the designed walk (streets.design), collider and bushy columns included; one row of
+  // columns where the strip is narrow. Mission Ave is not parallel to the pitch, so every piece is fitted to its own
+  // strip. Laid out on a fixed line it stood on the walk and hung over the asphalt.)
+  const vh = (d) => 0.24 * d + 0.22 + Math.min(1.2, Math.max(0.35, 0.55 * d)) + 0.05;   // half depth of a two-row hedgeMass as drawn
   for (let a = 37; a < 122; a += 4.7) { if (a > 68 && a < 78) continue; const hh = 4.2 + ((a * 7) % 5) * 0.12;
-    let edge = 22.2; if (ctx.streets) for (let b = 18.4; b <= 22.2; b += 0.1) if ([0, 1.2, 2.35, 3.5, 4.7].some((da) => { const q = G(a + da, b); return ctx.streets.inRoad(q[0], q[1], 0); })) { edge = b; break; }
-    let d = 1.7; while (d > 0.9 && 2 * vh(d) > edge - 0.2 - 17.5) d -= 0.1;
-    const bc = Math.max(17.5 + vh(d), edge - 0.2 - vh(d)); const p = G(a + 2.35, bc); let y = Infinity; for (const da of [0.3, 2.35, 4.4]) for (const db of [-0.5, 0, 0.6, vh(d) - 0.1]) { const q = G(a + da, bc + db); y = Math.min(y, gY(ctx, q[0], q[1])); }
-    hedgeMass(ctx, p[0], p[1], y - 0.2, 4.74, d, hh + Math.max(0, gY(ctx, p[0], p[1]) - y) * 0.5, ROT, a); }
+    let edge = 21.0; if (ctx.streets) for (let b = 17.6; b <= 21.0; b += 0.1) if ([0, 1.2, 2.35, 3.5, 4.7].every((da) => { const q = G(a + da, b); const d = ctx.streets.design(q[0], q[1]); return ctx.streets.inRoad(q[0], q[1], 0) || (d && d.zone === 'walk' && gY(ctx, q[0], q[1]) <= d.y + 0.2); }) || [0, 2.35, 4.7].some((da) => { const q = G(a + da, b + 0.3); return ctx.streets.inRoad(q[0], q[1], 0); })) { edge = b; break; }
+    const b0 = 17.55, room = edge - 0.05 - b0; if (room < 0.7) continue; const one = room < 2.0; let d = one ? Math.min(1.3, room) : 1.7; if (!one) while (d > 0.9 && 2 * vh(d) > room) d -= 0.1;
+    const half = one ? d / 2 : vh(d), bc = edge - 0.05 - half; const p = G(a + 2.35, bc);
+    let y = Infinity; for (const da of [0.3, 2.35, 4.4]) for (const db of [-half * 0.8, 0, half]) { const q = G(a + da, bc + db); y = Math.min(y, gY(ctx, q[0], q[1])); }
+    hedgeMass(ctx, p[0], p[1], y - 0.2, 4.74, d, hh + Math.max(0, -y) * 0.6, ROT, a, { oneRow: one }); }
   // scoreboard in the north-east corner, angled back at the pitch
   {
     const p = G(118.5, -57); const rot = ROT - 0.75; const pt = B.v('paint', true);
@@ -300,7 +302,10 @@ function vehicles(ctx) {
   };
   const car = (x, z, heading) => {
     if (!inPlay(x, z)) return; if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
-    if (ctx.terrain && ctx.terrain.slopeAt(x, z) > 0.115) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }   // nobody parks on a bank (and a car cannot be laid on more than ~11 %)
+    if (ctx.terrain && ctx.terrain.slopeAt(x, z) > 0.115) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }
+    // ...nor across a step in the ground: the car is laid on the plane through its middle (onSlope), and beside a pad edge that plane is not the ground (one sat 0.75 m deep)
+    if (ctx.terrain && ctx.terrain.meshHeightAt) { const g = ctx.groundY, y0 = g(x, z), gx = (g(x + 2, z) - g(x - 2, z)) / 4, gz = (g(x, z + 2) - g(x, z - 2)) / 4, c = Math.cos(heading), s = Math.sin(heading);
+      if ([[2.2, 0.9], [2.2, -0.9], [-2.2, 0.9], [-2.2, -0.9], [0, 0]].some(([l, w]) => { const px = x + l * c + w * s, pz = z - l * s + w * c; return Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.35; })) { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }   // nobody parks on a bank (and a car cannot be laid on more than ~11 %)
     if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.5)) return;
     for (const r of ctx.buildingRings || []) if (pointInRing(x, z, r)) return;
     // (trunks: up to ~0.45 m radius plus 0.6 m of room; other cars: a lane car must not clip a kerb-parked one)
@@ -425,6 +430,7 @@ function streets(ctx) {
         const sd = rnd() < 0.5 ? 1 : -1; const x = a[0] + tx * d - tz * sd * (w / 2 + 1.7), z = a[1] + tz * d + tx * sd * (w / 2 + 1.7);
         if (!inPlay(x, z, 4) || !clearOfBuildings(x, z) || ctx.surfaceAt(x, z) === 'asphalt' || ctx.surfaceAt(x, z) === 'rubber') continue;
         const k = rnd(); const rot = Math.atan2(-tz, tx);
+        if (Math.hypot(x - 39.9, z - 40.6) < 4.5) continue;   /* the mouth of the alley with the pool stairs stays clear (the random number is drawn first: every other piece keeps its place and kind) */
         if (k < 0.3) propKit.trashCan(ctx, x, z); else if (k < 0.55) propKit.bench(ctx, x, z, rot + (sd > 0 ? Math.PI : 0));
         else if (k < 0.8) atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.28, z, 2.4, 0.96, 1.0, rot, 1 / 3); ctx.shrubs.push([x, 0.76, z, 1.9, 0.6, rot]); }, 1.2);
         else atGround(ctx, x + tx * 0.3, z + tz * 0.3, () => { const pt = B.v('paint', true); pt.setColor(0.1, 0.2, 0.5).box(x, 0.5, z, 0.5, 1.4, 0.5, rot); pt.setColor(0.6, 0.1, 0.08).box(x + tx * 0.6, 0.5, z + tz * 0.6, 0.5, 1.4, 0.5, rot); pt.setColor(1, 1, 1); B.c('metal').box(x + tx * 0.3, 0.5, z + tz * 0.3, 1.1, 1.4, 0.5, rot); }, 0.6);

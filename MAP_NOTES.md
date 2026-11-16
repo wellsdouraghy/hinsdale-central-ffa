@@ -519,7 +519,7 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - **Hidden tabs throttle QA.** Timers and frames slow down in a hidden pane: movement tests report "stuck" or "below
     ground" that are not real. Keep the game tab in front for anything that walks; raycast checks are unaffected.
   - **Two ground heights: the smooth one for building, the mesh one for standing.** `terrain.heightAt` is bilinear; the
-    drawn and collided mesh splits each cell along one diagonal, so on a twisted cell they differ (0.35 m max on Marin).
+    drawn and collided mesh splits each cell along one diagonal, so on a twisted cell they differ (QA measured up to 1.65 m on steep samples on Marin; 0.35 m was the figure on walkable ground).
     `world.groundY` is now `terrain.meshHeightAt` (exact on the mesh: flags, dummies, markers, bodies); builders, street
     grading and the map check keep the bilinear `ctx.groundY` / `heightAt`. Do not make `heightAt` itself barycentric:
     car placement and the graded cross-sections were tuned on the smooth surface (a car ended 1 m buried).
@@ -529,8 +529,8 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     asphalt all the way; the two carriageways run side by side 2-4 m apart in height, the designed surface steps between
     them over one lattice cell (45-50 deg), and the ground shader turns steep asphalt into grass. Look at the slope
     before touching the surface classes. A fork on a hill gets a retaining wall between the roadways (`goreWalls` in
-    marin/kit.js: clusters of steep carriageway points that have pavement both above and below, one strip with a sloped
-    top at the upper road, coping, rail). Requiring pavement on BOTH sides is what keeps it off road ends and off the foot
+    marin/kit.js: clusters of steep carriageway points that have pavement both above and below, one strip with straight
+    faces (least-squares lines) and a top one constant kerb height over the upper road, coping, rail). Requiring pavement on BOTH sides is what keeps it off road ends and off the foot
     of the field wall (two false clusters before that test).
   - **A solid mass is as deep as it is DRAWN.** `hedgeMass` swells 0.3-0.5 m past its collider and its nominal depth
     (half depth = 0.24 d + 0.22 + column radius): a row laid out on a fixed line beside a street that is not parallel to
@@ -558,17 +558,28 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     gate at the low end is 0.6 m above its sidewalk. The walk leaves the sidewalk where the two are level and runs along
     the wall to the gate (kerb + handrail where it stands above the bed, steps at the low end), instead of a ramp
     square to the wall that would need 7 m.
-  - **Retaining blocks are terraced** (`terraceBlocks` in marin/kit.js): at most 1.5 m per riser, 1 m treads, coping on
-    every edge, planting on treads of long walls, the rail on the top edge. A terrace is only as deep as the ground under
-    it allows; a level that the bank pokes through is skipped (the map check's retaining rule holds per terrace: front
-    = the tread below). 22 of the 23 old "taller than 1.5 m" warnings went (the last is outside the play area); the
-    Bryn Mawr terrace below adds 11 where its bank leaves no room for a tread.
-  - **A filled house terrace at a road needs room that the lattice does not have.** A 6 m fill ending one cell from the
-    shoulder is a 60-70 deg cone of grass. Stepped walls only fit if the fill is cut back first (`planTerraceCorner`:
-    cut to the foot level, keeping 2 m of uncut ground before any house wall, or the `houses` check sees a taller
-    wall), mitred round the corner (run A builds a level from its own setback on, run B from the far side of it).
-    Where the house wall stands closer than that, there is no room: the wall carries on unstepped along the frontage.
-    The better cure is upstream: a house whose footprint falls 10 m should show its lower floors, not sit on 6 m of fill.
+  - **Retaining blocks are terraced only where they are long** (`terraceBlocks` in marin/kit.js): at most 1.5 m per
+    riser, 1 m treads, coping on every edge, planting on the treads, the rail on the top edge; a level that the bank
+    pokes through is skipped. Blocks under 5 m wide (the cheek blocks at building corners) stay ONE wall with coping and
+    rail: stepped, they were giant stairs to nowhere (QA). Their "taller than 1.5 m" warnings are accepted.
+  - **Do not wall a problem that the house plan made (QA: "FIX FIRST").** A house whose footprint falls 10 m was planned
+    with three rows and stood on 6 m of fill ending one lattice cell from the road: a cone of grass. Stepped walls built
+    in 1 m slices round that corner came out as a concrete ziggurat (sawtooth plan, coping at random heights, rail in
+    fragments, a sheer 4.7 m tail wall) and looked worse than the grass. The cure is upstream: the house shows walk-out
+    lower floors on the downhill side (`HOUSE_LOWER` in marin/town.js adds rows, the map check counts them as storeys),
+    no fill, and the lot keeps its natural bank. If a tier is ever needed: one continuous run per side, one top height,
+    one mitre, one rail. Never assemble a wall from independent slices.
+  - **A 2 m lattice cannot put a 2.5 m step beside a 2.2 m sidewalk.** Along Mission Ave the pitch (a `hard` pad) kept its
+    bank on the designed walk. Cutting the walk zone back to its design level after `restore()` moves the ramp to the
+    cell at the fence, and the hedge covers exactly that ramp (from the fence line to where the ground has reached the
+    walk level, one row of columns where narrow: `hedgeMass` `oneRow`). The walk is clear from there, not full width
+    everywhere; full width needs the fence and pad 2 m further from the street.
+  - **Street furniture and designed entrances:** a random bench landed across the mouth of the new stair alley. Anything
+    placed by a seeded loop gets an exclusion test AFTER its random numbers are drawn (nothing else moves), and every
+    new entrance is walked along both walls, not only down the middle.
+  - **"Sunk" props: check the drawn mesh before moving anything.** The map check's `floating` for a car is measured from
+    the lowest ground in its radius (a neighbouring footprint's cut floor counts); the car at (71, 162) stands on the
+    mesh (roof 1.75 m above it).
   - **Close an after-shot loop against HEAD, same poses.** `git archive HEAD` into a scratch folder, a second Vite on
     another port, the same list of camera strings in both (each tested: nothing solid within 0.6 m, above the ground).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to

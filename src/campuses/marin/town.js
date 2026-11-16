@@ -24,6 +24,10 @@ const MAIN_STREETS = ['Fourth Street', 'Fifth Avenue', 'Mission Avenue'];
 const HOUSE_FIX = { 900888958: { eave: 4.6, rise: 4.8, lv: 1, col: [112, 84, 60], wall: 'wood_siding', roof: 'gable' } };
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([900888954]);
+// Houses whose footprint falls two storeys or more toward a road below them: they show that many walk-out lower floors
+// on the downhill side instead of standing on a terrace of fill (the house above Bryn Mawr Drive sat on 6 m of it: a cone
+// of grass, then a concrete ziggurat, at the road). The lot keeps the natural bank.
+const HOUSE_LOWER = { 975052239: 2 };
 
 function simplify(ring, tol = 0.6) {
   // drop tiny jogs so walls do not shatter into slivers (keeps corners sharper than `tol`)
@@ -79,8 +83,8 @@ function housePlan(ctx, ring, info, fa, id) {
   const lv = fa.lv || Math.max(1, Math.min(2, info.lv || 1)); const walls = lv >= 3 && fa.roof !== 'flat' ? 2 : Math.min(lv, 3);   // a third 'storey' under a pitched roof is the attic in the gable
   let top = fa.lv ? gF + walls * 2.9 + (lv >= 3 ? 0.8 : 0.3) : Math.min(Math.max(info.top ?? g.max + info.h, gF + 2.7), gF + 6.4);
   if (fix) top = gF + fix.eave;
-  const rows = walls + (fa.garage ? 1 : 0);              // + the garage level under the house where Street View shows one
-  return { top, rows, walls, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
+  const lower = HOUSE_LOWER[id] || 0; const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
+  return { top, rows, walls: walls + lower, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
 }
 // where the front door (and the garage door) stand on the street-side wall: fixed per house, so the plan can level an
 // apron in front of each sill before the house is built

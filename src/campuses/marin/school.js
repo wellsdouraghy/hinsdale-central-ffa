@@ -310,9 +310,9 @@ function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0]
   { const P = (a0, b0) => gp(53.1, 75.6, a0, b0); const bar = (a0, b0, a1, b1) => hillFence(ctx, [P(a0, b0), P(a1, b1)], { h: 2.1, black: true, every: 1.0 });
     bar(6, 19.0, 10, 19.0); bar(-17.2, 19.0, -19.4, 19.0); bar(18.6, 19.0, 20.6, 19.0);
     if (!ctx.streets || ![[-9, 20.4], [14.5, 20.4]].some(([a0, b0]) => ctx.streets.surface(...P(a0, b0)))) {
-      for (const [a0, w] of [[2.0, 3.6], [14.4, 7.4]]) { const c = P(a0, 20.4); hedgeMass(ctx, c[0], c[1], ctx.groundY(c[0], c[1]), w, 1.2, 0.95, ROT, 31 + Math.round(a0)); }
+      for (const [a0, w] of [[2.9, 2.6], [14.4, 7.4]]) { const c = P(a0, 20.4); hedgeMass(ctx, c[0], c[1], ctx.groundY(c[0], c[1]), w, 1.2, 0.95, ROT, 31 + Math.round(a0)); }
       // (west of the path: low clipped shrubs in the strip between the raised walk and the sidewalk)
-      for (let a0 = -16.6; a0 < -3; a0 += 4.5) { const c = P(a0 + 2.25, 21.4); if (!ctx.streets || !ctx.streets.surface(c[0], c[1])) ctx.shrubs.push([c[0], ctx.groundY(c[0], c[1]) + 0.05, c[1], 4.3, 0.55, ROT]); }
+      for (const [a0, len] of [[-16.6, 4.3], [-12.1, 4.3], [-7.6, 3.4]]) { const c = P(a0 + len / 2, 21.4); if (!ctx.streets || !ctx.streets.surface(c[0], c[1])) ctx.shrubs.push([c[0], ctx.groundY(c[0], c[1]) + 0.05, c[1], len, 0.55, ROT]); }   /* (the row ends a metre short of the path across the bed) */
       for (const [a0, b0] of [[8, 20.6], [19.6, 20.6]]) { const c = P(a0, b0); if (!ctx.streets || !ctx.streets.surface(c[0], c[1])) ctx.gen.trees.push([c[0], c[1], 0, 0.55]); } } }
   poolStairs(ctx);
 }   // on the pool deck (one level pad, flattened in sitework)
