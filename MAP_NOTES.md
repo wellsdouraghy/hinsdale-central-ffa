@@ -3,6 +3,90 @@
 Lessons from building Hinsdale Central and Marin Academy, mostly from independent QA reviews. Add to this file
 after every map QA round. The contract itself is in CAMPUSES.md; this file is the "what goes wrong and how to avoid it".
 
+## The rulebook: one-shot maps (read this first; it is the user's feedback turned into rules)
+
+The goal is that a new campus ships from the FIRST builder pass: the independent QA round should find nothing that is
+already written here. Every rule below comes from something the user (or a friend who went to that school) saw in
+the game and complained about. The detailed how-to for each is further down this file. A builder that hands over a
+map breaking one of these rules has not finished.
+
+**A. Real, not invented ("photorealistic", "the buildings around it are not real", "not two story")**
+1. Draw only what exists. Every building, street, field, tree line and sign comes from data: OSM, satellite, Google
+   3D tiles, USGS 3DEP and Street View. No invented neighbourhoods, tenants, shop names or "filler" buildings. Hinsdale
+   v1 added a made-up neighbourhood round the campus and the user had it removed; Marin's procedural surroundings were
+   called out by a friend from that school. Outside the play area, draw the real footprints from OSM, typed from
+   Street View; beyond that, use a low-detail backdrop, never invented detail.
+2. Every building's height and storeys are measured against the ground round its OWN footprint and cross-checked
+   against Street View (and OSM `building:levels`). Roof kind (flat / hip / gable), colours, material, storefronts and
+   real signage also come from Street View; the aerial roof class is wrong for low-pitched roofs.
+3. Building quality is the bar the user sets for Hinsdale ("much higher quality... way better"): real facade rhythm,
+   window rows only on real storeys, plain foundation below, no repeating slab texture, no blown-out whites.
+4. Sports facilities use real standard dimensions and markings: track lanes and curves, turf field lines, goals,
+   courts, nets and bleachers ("make some estimates based on common things"). Check the paint against the satellite.
+5. Each school is its own brand: logo or emblem, its colours, and teams = school mascot vs its main rival's mascot
+   (Hinsdale: Red Devils vs LT Lions; Marin is not the devil logo). Set this in the descriptor or brand.js on day one.
+
+**B. Topography ("get smarter about topography", "this should not be that hard to get topography right")**
+6. Hilly sites get real ground (3DEP bare-earth lidar for US campuses, never tile samples on a hill) on day one. A
+   flat map of a hilly campus is wrong.
+7. Earthworks happen in a fixed order, all of it before anything is placed:
+   1. campus pads (fields, courts, pool deck, plazas, regraded lots);
+   2. graded streets (`gradeStreets`);
+   3. building wall pads and `seatInteriors`;
+   4. `streets.restore()`;
+   5. cheek or retaining walls;
+   6. trees and props moved off the street design;
+   7. `ctx.paintSurface`.
+8. Terrain never touches a facade above its plinth: no grass over windows, no hill through a roof, no door in a bank.
+   Every building is seated on per-wall pads, and every door and garage gets a level apron.
+9. Streets and sidewalks are designed surfaces: a smooth profile on the road graph, a crown, a kerb, a parallel
+   sidewalk and a shoulder. Never drape them on lidar. Buildings adapt to the street, not the other way round.
+10. Everything shared that builds "up from y = 0" is suspect on a terrain campus (the pool got a 4 m wall). Water sits
+    on its deck at grade, with a normal coping, matched to the street it fronts.
+11. Steep ground beside play space gets a real structure: a retaining wall with coping and a rail over a 1.2 m drop,
+    real steps, or a graded and planted bank. A house on a steep lot shows walk-out floors; it never sits on fill, and
+    it is never wrapped in stepped concrete. Never assemble a wall from independent slices (the "ziggurat").
+12. Anything standing on a slope (landing, prop, fence panel, car, flag) is founded on its LOWEST ground and checked
+    against the drawn mesh (`world.groundY` = `meshHeightAt`), not the bilinear height.
+
+**C. Nothing out of place (QA leftovers the user would spot in seconds)**
+13. Nothing solid on a carriageway or sidewalk: trees, lamps, posts, benches, buses, hedges, fence panels, wall
+    blocks and ledges. Placement uses `streets.inRoad` / `toVerge` and the street design, and every sidewalk is walked
+    end to end.
+14. Nothing floating, buried or orphaned: no lone fence panel, slab, shrub or coping stub, and no prop half in the
+    ground. A run without neighbours is dropped.
+15. Look at every changed thing from eye level, from the street outside, from a roof and from the helicopter. A
+    fix that looks right from one side is not done.
+
+**D. Playable ("go on top of things", "move around swiftly")**
+16. Roofs are reachable (grapple, ladders, mantles) and escapable without the grapple. Nothing traps a player, and
+    no mechanic puts a player under a roof skin.
+17. Light posts, stadium lights and other tall poles are easy grapple targets. Every ladder (the water tower included)
+    climbs and exits.
+18. Stairs are climbable with the real controller in both directions: draw the risers and collide on the plane
+    through the nosings.
+19. CTF bases are on opposite sides of the map (about 250-300 m apart), fair, with cover, several approaches and no
+    one-sided overlook (a hill counts as an overlook).
+20. The helicopter spawns in a random, hidden spot; spots come from a scan, never picked by eye. Practice mode puts it
+    on the main open field.
+21. Chain-link and nets stop players but let bullets through.
+
+**E. Looks solid ("see-through spots", "glitching artifact on the walls")**
+22. No see-through roofs or walls, and no z-fighting seams or stray decals. Roofs are closed convex pieces with
+    double-sided skins, and the roofSkin, visualSolid and facadeSweep checks pass.
+23. Signs are readable at eye level and sit on clear wall, never over windows or behind pilasters.
+
+**Definition of done for a builder (one-shot):**
+- The map check has 0 fails, and every warning is fixed or explained.
+- The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
+  stair, gate, ladder and entrance with `__walk`, both ways.
+- Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
+- Every rule A1-E23 above is ticked off explicitly in the hand-off.
+
+Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
+finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
+(as a new rule here if it is general).
+
 ## Process that works
 
 1. **Data first.** OSM via Overpass (overpass-api.de; the maps.mail.ru mirror sometimes 504s), Esri World Imagery z19
