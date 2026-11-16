@@ -1,13 +1,17 @@
 // Marin Academy builder (San Rafael, CA): the school's buildings, the surrounding blocks, Championship Field, the pool,
 // the circle drive, car parks and street furniture. See CAMPUSES.md for the contract and tools/ for the data pipeline.
-import { addMaterials, minAreaOBB, gp, ANG, planWalls, applyPads, buildPadWalls, seatInteriors } from './kit.js';
+import { addMaterials, minAreaOBB, gp, ANG, planWalls, applyPads, planCheeks, buildPadWalls, seatInteriors } from './kit.js';
 import { shapeSDF } from '../../world/terrain.js';
+import { gradeStreets } from '../../world/streets.js';
+import { pointInRing } from '../../world/util.js';
 import { buildSchool, schoolWalls } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, turfWorld } from './grounds.js';
 import { addCampusWater } from '../../world/water.js';
 import { buildTerrain, terrainSampler } from './terrain.js';
 
+// carriageway widths by OSM class (kerb to kerb, as grounds.js lays the kerb furniture) and the sidewalk width
+const STREET_W = { primary: 15.0, secondary: 13.0, secondary_link: 8.0, tertiary: 11.5, residential: 8.5 }, SIDEWALK_W = 2.4;
 const CAR_FREE = [[108, -30], [62, -22], [76, -74], [12, -140], [-86, -44], [-20, -5], [84, 58], [-141, 131], [-30, 150], [-10, 180], [128, 172], [70, 150],
   [150, 62], [-160, 160], [100, 258], [-48, 240], [-196, 0], [196, 44], [13, 92], [-110, 96], [170, 110], [-150, -150], [60, -190], [180, -60]];
 
@@ -31,25 +35,41 @@ function sitework(ctx) {
   { const n = gp(7.7, 60.5, 0, -16), s2 = gp(7.7, 60.5, 0, 16); const yn = mean(R(n[0], n[1], 8, 3)), ys = mean(R(s2[0], s2[1], 8, 3)); const d = [s2[0] - n[0], s2[1] - n[1]], L2 = d[0] * d[0] + d[1] * d[1];
     ctx.flatten(R(7.7, 60.5, 10.6, 36.4), { y: (x, z) => yn + (ys - yn) * Math.max(-0.1, Math.min(1.1, ((x - n[0]) * d[0] + (z - n[1]) * d[1]) / L2)), blend: 1.5 }); }
   // aquatic centre: pool, deck and pool house on one level
-  { const c = gp(53.1, 75.6, 0.7, -5.2); const y = mean(R(...gp(53.1, 75.6, 0.7, 0), 34, 46)); ctx.flatten(R(c[0], c[1], 37.6, 60.6), { y, blend: 3 }); }
+  const poolPad = R(...gp(53.1, 75.6, 0.7, -0.1), 37.6, 50.4);   // the deck, from the pool house's deck front to the 5th Ave wall
   // the car park north of the gyms was graded level with the Athletic Center after the lidar flight (the 3D tiles show
   // a flat lot there; the DEM still has the old 15 % hillside): cut it into the hill at the gym's floor level
   { const lot = ctx.data.areas.find((q) => q.id === 652917772); if (lot) ctx.flatten({ outline: lot.outer[0] }, { y: 11.0, blend: 3.5 }); }
   // picnic plaza between the Science Center, the gyms and Foster Hall: level pads under the tables
   for (const [x, z] of [[2, -76], [8, -79.5], [-2, -82], [14, -74]]) ctx.flatten({ circle: { x, z, r: 2.4 } }, { blend: 2.5 });
+  // ---- Streets (MAP_NOTES "grade streets first"): after the campus pads, before any building pad. Every OSM street gets
+  // a smooth profile, a crowned carriageway, a kerb and parallel sidewalks; the building pads below may not move them
+  // (streets.restore() at the end), so a pad that differs from its sidewalk steps inside the lot.
+  const zoneShapes = [R(...G(21.9, -13.5), 11.2, 36), R(7.7, 60.5, 10.6, 36.4), poolPad, { outline: turfWorld(4.2) }].map((sh) => shapeSDF(sh).sd);
+  const zones = zoneShapes.map((sd) => (x, z) => sd(x, z) <= 0);
+  const streets = gradeStreets(ctx, ctx.data.roads.filter((r) => STREET_W[r.tags.highway] && r.line.length >= 2).map((r) => { const sw = r.tags.sidewalk; const none = sw === 'no' || sw === 'none';
+    return { id: r.id, name: r.tags.name, line: r.line, width: STREET_W[r.tags.highway], left: none || sw === 'right' ? 0 : SIDEWALK_W, right: none || sw === 'left' ? 0 : SIDEWALK_W }; }), { hillside: { width: 8.5, shoulder: 2.5 } /* the hill lanes keep their width: cars park at the same kerb line */, hard: [zones[3]] /* the field pad, to the face of its retaining block */, protect: [...zones, ((sd) => (x, z) => sd(x, z) <= 0)(shapeSDF({ outline: turfWorld(12) }).sd)] });   // (the field's retaining block stands 2..6.7 m outside the turf)
+  if (streets) streets.apply();
+  // aquatic centre: pool, deck and pool house on one level, at the level of the 5th Ave sidewalk it fronts (the Library's
+  // lowest floor opens onto it at that level too). Mission Ave is ~1.8 m higher: the pool house stands in that step
+  // (planned like every other building: street floor on Mission, a storey taller toward the deck)
+  if (streets) { let n = 0, sum = 0; for (const sg of [1]) for (let a = -15; a <= 15.01; a += 5) for (let k = 0; k <= 14; k++) { const p = gp(53.1, 75.6, 0.7 + a, 25.1 + k); const d = streets.design(p[0], p[1]); if (d && d.zone === 'walk') { n++; sum += d.y; break; } }
+    ctx.flatten(poolPad, { y: n ? sum / n : mean(R(...gp(53.1, 75.6, 0.7, 0), 34, 46)), blend: 4 }); }
   // ---- Seat every building (MAP_NOTES "seat every building on a pad"), AFTER the designed campus pads above: the walls
   // are planned on the ground as designed, each wall piece gets its own level strip (they win at the walls), a wall that
   // faces a designed pad takes that pad as its floor, and last the ground inside every footprint is cut to its floor.
-  const zoneShapes = [R(...G(21.9, -13.5), 11.2, 36), R(7.7, 60.5, 10.6, 36.4), R(...gp(53.1, 75.6, 0.7, -5.2), 37.6, 60.6), { outline: turfWorld(4.2) }].map((sh) => shapeSDF(sh).sd);
-  const zones = zoneShapes.map((sd) => (x, z) => sd(x, z) <= 0);
   const sw = schoolWalls(ctx);
   const rings = [...sw.map((w) => w[1]), ...ctx.data.buildings.filter((b) => ctx.gen.buildings[String(b.id)]?.play && b.outer[0].length >= 3).map((b) => b.outer[0])];
   for (const [name, ring, top, style, lv] of sw) planWalls(ctx, ring, lv === 'porch' ? porchY + 8.8 : top, style, { name, others: rings, zones, level: lv === 'porch' ? porchY : undefined });
   planTown(ctx, rings, zones);   // houses (fill / cut terraces, door aprons), shops and blocks
   applyPads(ctx);
+  ctx.flatten({ circle: { x: 39.3, z: 48.6, r: 2.0 } }, { blend: 1.5 });   // a level landing at the pool house's west door (it stands in the step between Mission Ave and the deck)
   seatInteriors(ctx);
   // a sliver between three buildings off 4th St (their OSM outlines do not quite touch): level ground there (laid last, over the wall pads), so it is an ordinary dead corner and not a hollow in a slope
   ctx.flatten({ circle: { x: 85.5, z: 168, r: 9.5 } }, { blend: 2.5 });
+  if (streets) { const bx = (ctx.allRings || rings).map((r) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const p of r) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); } return [r, x0, z0, x1, z1]; }); streets.solid.push((x, z) => bx.some((b) => x >= b[1] && x <= b[3] && z >= b[2] && z <= b[4] && pointInRing(x, z, b[0]))); 
+    // (no pad survives in the shoulder either: a wall that stands there takes the street's level as its floor, kit.js streetSide)
+    streets.restore(); }
+  planCheeks(ctx);
 }
 
 export function build(ctx, progress = () => {}) {
@@ -60,7 +80,7 @@ export function build(ctx, progress = () => {}) {
   // car layout was first laid out around (CAR_FREE: kept as they were, so no parked car changes place when the
   // helicopter list is edited)
   const c = ctx.campus || {};
-  ctx.keepClear = [[...(c.ctf?.red || [0, 0]), 9], [...(c.ctf?.blue || [0, 0]), 9], ...(c.practiceHeli ? [[c.practiceHeli.x, c.practiceHeli.z, 11]] : []), ...CAR_FREE.map((p) => [p[0], p[1], 10]), ...(c.heliPark || []).filter((p) => p[1] < 0.5).map((p) => [p[0], p[2], 10])];
+  ctx.keepClear = [[...(c.ctf?.red || [0, 0]), 9], [...(c.ctf?.blue || [0, 0]), 9], ...(c.practiceHeli ? [[c.practiceHeli.x, c.practiceHeli.z, 11]] : []), ...CAR_FREE.map((p) => [p[0], p[1], 10]), [78, 49, 6] /* the step beside the pool house */, ...(c.heliPark || []).filter((p) => p[1] < 0.5).map((p) => [p[0], p[2], 10])];
   progress(0.48, 'Building Marin Academy');
   buildPadWalls(ctx);   // retaining blocks where a building pad is cut deep into the hill
   buildSchool(ctx);

@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { ensureCCW, signedArea, pointInRing, makeCanvas, canvasTexture, mulberry32 } from '../../world/util.js';
 import { edgeFrame, quadFacing, wallRect, fbox, facade, roofUnit, STYLES, BRICK_S } from '../../world/facade.js';
 import { polyRoofOf } from '../roofs.js';
+import { shapeSDF } from '../../world/terrain.js';
 
 export const ANG = THREE.MathUtils.degToRad(7.2);       // the campus / downtown street grid is rotated 7.2 deg
 export const UX = Math.cos(ANG), UZ = Math.sin(ANG);     // grid "east" axis in world (x, z); grid "south" = (-UZ, UX)
@@ -116,10 +117,15 @@ export function addMaterials(ctx) {
   M.trimRed = std({ color: 0xb3261e, roughness: 0.6, metalness: 0.05 });
   M.awning = std({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
   for (const k of WALL_KINDS) { M['maW_' + k] = std({ map: houseWall(k, T.aniso), vertexColors: true, roughness: k === 'stucco' ? 0.93 : 0.85 }); M['maP_' + k] = std({ map: houseWall(k, T.aniso, false), vertexColors: true, roughness: 0.9 }); }
-  { // clipped evergreen hedge / tree belt: leaf-clump texture, mid green, a little self-light so the shaded side is not black
-    const S = 128, c = makeCanvas(S, S), g = c.getContext('2d'); const r = mulberry32(77); g.fillStyle = '#3d5a2c'; g.fillRect(0, 0, S, S);
-    for (let k = 0; k < 520; k++) { const x = r() * S, y = r() * S, rr = 2 + r() * 5; const t = r(); g.fillStyle = t < 0.45 ? `rgba(${22 + r() * 18 | 0},${44 + r() * 22 | 0},${16 + r() * 12 | 0},0.8)` : `rgba(${78 + r() * 40 | 0},${118 + r() * 46 | 0},${50 + r() * 26 | 0},0.7)`; for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { g.beginPath(); g.arc(x + ox, y + oy, rr, 0, 7); g.fill(); } }
-    M.maHedge = std({ map: canvasTexture(c, { aniso: T.aniso }), roughness: 1, emissive: 0x16240f, emissiveIntensity: 0.55 }); }
+  { // evergreen bank / hedge: irregular foliage (soft dark hollows + leaf dabs of many sizes in muted olive greens), tinted per
+    // mass through the vertex colour, a little self-light so the shaded side is not black
+    const S = 256, c = makeCanvas(S, S), g = c.getContext('2d'); const r = mulberry32(77); g.fillStyle = '#5b6a4b'; g.fillRect(0, 0, S, S);
+    const wrap = (fn) => { for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S], [S, S], [-S, -S], [S, -S], [-S, S]]) fn(ox, oy); };
+    for (let k = 0; k < 46; k++) { const x = r() * S, y = r() * S, rr = 14 + r() * 34; wrap((ox, oy) => { const gr = g.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, rr); gr.addColorStop(0, `rgba(24,34,20,${0.35 + r() * 0.3})`); gr.addColorStop(1, 'rgba(24,34,20,0)'); g.fillStyle = gr; g.fillRect(x + ox - rr, y + oy - rr, 2 * rr, 2 * rr); }); }
+    const tones = [[58, 74, 44], [74, 90, 56], [92, 106, 68], [46, 60, 38], [108, 118, 80], [66, 84, 60]];
+    for (let k = 0; k < 2600; k++) { const x = r() * S, y = r() * S, a = r() * Math.PI, l = 1.5 + r() * r() * 9, wd = 0.8 + r() * 2.4; const t = tones[Math.floor(r() * tones.length)]; const v = 0.8 + r() * 0.4; g.fillStyle = `rgba(${t[0] * v | 0},${t[1] * v | 0},${t[2] * v | 0},${0.45 + r() * 0.5})`;
+      wrap((ox, oy) => { g.save(); g.translate(x + ox, y + oy); g.rotate(a); g.beginPath(); g.ellipse(0, 0, l, wd, 0, 0, 7); g.fill(); g.restore(); }); }
+    M.maHedge = std({ map: canvasTexture(c, { aniso: T.aniso }), vertexColors: true, roughness: 1, emissive: 0x141c10, emissiveIntensity: 0.5 }); }
   M.maFrond = std({ color: 0x3f5a2a, roughness: 0.8, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
@@ -163,7 +169,7 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
     // storeys, doors and the base course from the ground up, so a wall on the uphill side is a storey shorter instead
     // of having its doors and windows buried in the hill.
     const planned = plan ? plan.edges.get(i) : null;   // seated pieces: each on its own level pad (planWalls)
-    for (const [p, q, dy0, shared] of (planned ? planned.map((pc) => [pc.p, pc.q, Math.max(0, Math.min(Math.max(pc.level, pc.shared ? -1e9 : edgeGround(ctx, pc.p, pc.q).max - 0.12) - base0, h - 2.6)), pc.shared])   /* the floor follows the pad as finally laid (a later campus pad may have raised it) */ : wallPieces(ctx, a, b, base0, h))) {
+    for (const [p, q, dy0, shared] of (planned ? planned.map((pc) => [pc.p, pc.q, Math.max(0, Math.min(Math.max(pc.level, pc.shared ? -1e9 : (streetSide(ctx, pc.p, pc.q) ? outsideMax(ctx, pc.p, pc.q) : midGround(ctx, pc.p, pc.q)) - 0.12) - base0, h - 2.6)), pc.shared])   /* the floor follows the pad as finally laid (a later campus pad may have raised it) */ : wallPieces(ctx, a, b, base0, h))) {
       const dy = dy0 < 0.05 ? 0 : dy0;
       if (dy > 0.05) { const Fb = edgeFrame(p[0], p[1], q[0], q[1]); const sb = sctx.B.v('brick', true); const tn = (st && st.tint) || [0.9, 0.9, 0.88]; sb.setColor(tn[0] * 0.86, tn[1] * 0.86, tn[2] * 0.86); wallRect(sb, Fb, 0, Fb.L, -0.6, dy + 0.02, 0, [u * BRICK_S, 0, (u + Fb.L) * BRICK_S, dy * BRICK_S]); sb.setColor(1, 1, 1); }   // foundation under a raised piece (shows where the ground dips at a step between two pads)
       const F = edgeFrame(p[0], p[1], q[0], q[1]);
@@ -186,7 +192,7 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
       if (!shared) (ctx.walls = ctx.walls || []).push({ id: opts.id || ringIn.id || ctx.siteName || null, a: p, b: q, floor: base0 + dy + ex, top: base0 + h, open: !plain && !(st && st.plain) });   // map check: seating
       // a planting bed only where the ground a metre out is the bed's level: across a bank it shows as a sliver of mulch
       const bedOff = marks && !cut ? (() => { const g1 = edgeGround(ctx, p, q, 1.0), fl = base0 + dy + ex; return g1.max - fl > 0.3 || fl - g1.min > 0.3; })() : false;
-      if (bedOff) { const [bk, np, nn, nu, nc] = marks[1]; bk.pos.length = np; bk.nor.length = nn; bk.uv.length = nu; if (bk.col) bk.col.length = nc; ctx.shrubs.length = nSh; }
+      if (bedOff) { for (const [bk, np, nn, nu, nc] of marks) { bk.pos.length = np; bk.nor.length = nn; bk.uv.length = nu; if (bk.col) bk.col.length = nc; } ctx.shrubs.length = nSh; }   // (the contact strip too: one quad per piece cannot follow a step, it would hang over it)
       if (cut) { for (const [bk, np, nn, nu, nc] of cut) { bk.pos.length = np; bk.nor.length = nn; bk.uv.length = nu; if (bk.col) bk.col.length = nc; } ctx.shrubs.length = nSh; }
       else if (marks) {   // contact shading, mulch and bed shrubs lie on the ground as it is (it dips at a step between two pads)
         for (const [bk, np] of marks) for (let k = np; k < bk.pos.length; k += 3) { const gy = ctx.groundY(bk.pos[k], bk.pos[k + 2]) + 0.03; if (bk.pos[k + 1] > gy + 0.1) bk.pos[k + 1] = gy; }
@@ -380,6 +386,13 @@ export function edgeGround(ctx, a, b, out = 0.5) {
   for (let i = 0; i <= k; i++) { const t = i / k; const y = ctx.groundY(a[0] + (b[0] - a[0]) * t + nx * out, a[1] + (b[1] - a[1]) * t + nz * out); min = Math.min(min, y); max = Math.max(max, y); sum += y; }
   return { min, max, mean: sum / (k + 1), n: k + 1 };
 }
+// highest ground along a wall, leaving out the last 2.5 m at each end of a long one (a step to the neighbour's pad, or a
+// cheek wall, stands there: it must not lift the whole wall's floor)
+/** A wall piece that stands at a graded street (its sidewalk or the shoulder behind it): the street does not move, so its floor takes the highest ground along it. */
+/** Highest ground just outside a wall (0.3 and 0.7 m out): at a street the ground steps at the wall line (the footprint is cut to the floor, the shoulder is not). */
+export function outsideMax(ctx, p, q) { const L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; const nx = (q[1] - p[1]) / L, nz = -(q[0] - p[0]) / L; const n = Math.max(2, Math.ceil(L / 1.0)); let m = -Infinity; for (let k = 0; k <= n; k++) for (const o of [0.3, 0.7]) m = Math.max(m, ctx.groundY(p[0] + (q[0] - p[0]) * k / n + nx * o, p[1] + (q[1] - p[1]) * k / n + nz * o)); return m; }
+export function streetSide(ctx, p, q) { if (!ctx.streets) return false; const L = Math.hypot(q[0] - p[0], q[1] - p[1]) || 1; const nx = (q[1] - p[1]) / L, nz = -(q[0] - p[0]) / L; for (const t of [0.02, 0.15, 0.5, 0.85, 0.98]) { const d = ctx.streets.design(p[0] + (q[0] - p[0]) * t + nx * 1.0, p[1] + (q[1] - p[1]) * t + nz * 1.0); if (d && (d.zone !== 'verge' || d.t === 0)) return true; } return false; }
+function midGround(ctx, p, q) { const L = Math.hypot(q[0] - p[0], q[1] - p[1]); if (L < 8) return edgeGround(ctx, p, q).max; const t = 2.5 / L; return edgeGround(ctx, [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t], [q[0] + (p[0] - q[0]) * t, q[1] + (p[1] - q[1]) * t]).max; }
 // wall a -> b cut into pieces that each start at their own ground: [[p, q, dy], ...], dy = that piece's base above `base0`
 function wallPieces(ctx, a, b, base0, h) {
   if (!ctx.terrain) return [[a, b, 0]];
@@ -417,12 +430,17 @@ export function planWalls(ctx, ringIn, topAbs, style, opts = {}) {
       if (opts.level !== undefined) level = opts.level;
       else if (zone) level = Math.min(ge.mean, topAbs - minH);
       else if (cls) { const two = Math.min(ge.mean, topAbs - 7.4), one = topAbs - 4.6; level = topAbs - ge.mean >= 7.4 ? two : Math.abs(ge.mean - one) <= Math.abs(ge.mean - two) ? one : two; }
-      else level = Math.min(ge.mean, topAbs - minH);
+      // (a wall that can start at any height sits at the LOW end of its ground: the uphill end is cut into the bank.
+      // Seating it at the mean made a mound of fill at the low end: an asphalt ramp up to the wall, a notch beside it.)
+      else level = Math.min(ge.min + 0.12, topAbs - minH);
       const nx = (q[1] - p[1]) / (L / n), nz = -(q[0] - p[0]) / (L / n); const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
       const shared = others.some((r) => r !== ringIn && r !== ring && pointInRing(m[0] + nx * 1.2, m[1] + nz * 1.2, r));   // a party wall: no ground outside it
-      pcs.push({ p, q, level, shared, natural: ge });
-      if (!shared) { plan.minLevel = Math.min(plan.minLevel, level); plan.maxLevel = Math.max(plan.maxLevel, level); plan.strips.push({ p, q, nx, nz, level, L: L / n, zone }); }
+      if (shared && !cls && !zone && opts.level === undefined) level = Math.min(ge.mean, topAbs - minH);   /* a party wall has no pad: it keeps the mean of its ground */
+      const pc = { p, q, level, shared, natural: ge }; pcs.push(pc);
+      if (!shared) { pc.strip = { p, q, nx, nz, level, L: L / n, zone, ring }; plan.strips.push(pc.strip); }
     }
+    if (!cls && opts.level === undefined) { for (let pass = 0; pass < 2; pass++) for (let k = 1; k < pcs.length; k++) if (!pcs[k].shared && !pcs[k - 1].shared && Math.abs(pcs[k].level - pcs[k - 1].level) < 0.9) { const lo = Math.min(pcs[k].level, pcs[k - 1].level); pcs[k].level = pcs[k - 1].level = lo; } }   // steps under 0.9 m between neighbouring pieces: one level
+    for (const pc of pcs) if (pc.strip) { pc.strip.level = pc.level; plan.minLevel = Math.min(plan.minLevel, pc.level); plan.maxLevel = Math.max(plan.maxLevel, pc.level); }
     plan.edges.set(i, pcs);
   }
   if (!Number.isFinite(plan.minLevel)) { plan.minLevel = ringGround(ctx, ring).min; plan.maxLevel = plan.minLevel; }
@@ -438,12 +456,48 @@ export function applyPads(ctx) {
   const snap = Float32Array.from(T.heights); const snapAt = (x, z) => { let fx = (x - T.x0) / T.cell, fz = (z - T.z0) / T.cell; let i = Math.max(0, Math.min(T.nx - 2, Math.floor(fx))), j = Math.max(0, Math.min(T.nz - 2, Math.floor(fz))); fx = Math.max(0, Math.min(1, fx - i)); fz = Math.max(0, Math.min(1, fz - j)); const k = j * T.nx + i; return (snap[k] * (1 - fx) + snap[k + 1] * fx) * (1 - fz) + (snap[k + T.nx] * (1 - fx) + snap[k + T.nx + 1] * fx) * fz; };
   const strips = all.filter((s) => !s.zone);
   for (const s of strips) s.nat = T.heightAt((s.p[0] + s.q[0]) / 2 + s.nx * (PAD_OUT + PAD_BLEND + 0.3), (s.p[1] + s.q[1]) / 2 + s.nz * (PAD_OUT + PAD_BLEND + 0.3));   // the hill beyond the pad, before it is cut
+  // Corridors: a wall with another building 1.2-5 m in front of it. The gap is one terrace, wall to wall (the piece's own
+  // level, short blend), and no LOWER pad may cut into it: the end of a lower wall's strip and its blend used to chew the
+  // gap between two buildings into lumps (an asphalt mound under a ladder, a notch at the neighbour's wall base).
+  const rings = ctx.allRings || [];
+  for (const st of strips) { st.gap = 0; const mx = (st.p[0] + st.q[0]) / 2, mz = (st.p[1] + st.q[1]) / 2; for (let dd = 0.6; dd <= 5.01 && !st.gap; dd += 0.3) { const x = mx + st.nx * dd, z = mz + st.nz * dd; if (!pointInRing(x, z, st.ring) && rings.some((r) => pointInRing(x, z, r))) st.gap = dd; } if (st.gap < 1.2 || pointInRing(mx + st.nx * 0.4, mz + st.nz * 0.4, st.ring)) st.gap = 0; }
+  const rectOf = (st) => (st.gap ? { cx: (st.p[0] + st.q[0]) / 2 + st.nx * st.gap / 2, cz: (st.p[1] + st.q[1]) / 2 + st.nz * st.gap / 2, w: st.L + 2.0, d: st.gap + 0.6, angle: Math.atan2(st.q[1] - st.p[1], st.q[0] - st.p[0]) } : null);
+  // ...nor into the strip of ANOTHER building's higher wall (the end of a lower wall's strip reached 1.2 m + its blend
+  // round the corner and cut a notch at the neighbour's base); steps between two pieces of one wall stay as they are.
+  for (const st of strips) { const o = (PAD_OUT - 1.0) / 2; st.core = shapeSDF({ rect: rectOf(st) || { cx: (st.p[0] + st.q[0]) / 2 + st.nx * o, cz: (st.p[1] + st.q[1]) / 2 + st.nz * o, w: st.L, d: PAD_OUT + 1.0, angle: Math.atan2(st.q[1] - st.p[1], st.q[0] - st.p[0]) } }).sd; st.mx = (st.p[0] + st.q[0]) / 2; st.mz = (st.p[1] + st.q[1]) / 2; }
   strips.sort((a, b) => b.level - a.level);
   // (a deep cut is laid one lattice cell wider: the level ground must reach BEHIND the face of the retaining block that
   // will stand at PAD_OUT, or the 2 m lattice ramps up in front of it)
-  for (const s of strips) { s.cut = s.nat - s.level > 1.7; const out = PAD_OUT + (s.cut ? 2.0 : 0), o = (out - 1.0) / 2; ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 2.4, d: out + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: s.level, blend: PAD_BLEND }); }
+  for (const s of strips) {
+    s.cut = !s.gap && s.nat - s.level > 1.7;
+    if (s.gap) { ctx.flatten({ rect: rectOf(s) }, { y: s.level, blend: 1.0 }); continue; }
+    const out = PAD_OUT + (s.cut ? 2.0 : 0), o = (out - 1.0) / 2; const keep = strips.filter((c) => c !== s && c.level > s.level + 0.5 && (c.gap || c.ring !== s.ring) && Math.hypot(c.mx - s.mx, c.mz - s.mz) < (c.L + s.L) / 2 + 9);
+    ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 2.4, d: out + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: keep.length ? (x, z) => { const u = ((x - s.p[0]) * (s.q[0] - s.p[0]) + (z - s.p[1]) * (s.q[1] - s.p[1])) / s.L, v = (x - s.p[0]) * s.nx + (z - s.p[1]) * s.nz; if (u >= 0 && u <= s.L && v >= -1 && v <= 1.6) return s.level; /* right at its own wall the lower pad wins: no buried glass */ return keep.some((c) => c.core(x, z) <= 0) ? T.heightAt(x, z) : s.level; } : s.level, blend: PAD_BLEND });
+  }
   for (const s of all) if (s.zone) { const o = (PAD_OUT - 1.0) / 2; ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 1.0, d: PAD_OUT + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: snapAt, blend: 1.6 }); }
   ctx.padCuts = strips.filter((s) => s.cut);
+  ctx._padStrips = strips;
+}
+/** Cheek walls, planned on the ground as finally laid (after the streets are restored): call after applyPads. */
+export function planCheeks(ctx) {
+  const T = ctx.terrain; const strips = ctx._padStrips; if (!T || !strips) return; const rings = ctx.allRings || [];
+  // Cheek walls: where a pad ends against ground a terrace higher (the next piece of the same wall, a neighbour's pad,
+  // the mouth of a corridor), a retaining block across the strip covers the lattice's ramp: a step between two terraces
+  // instead of asphalt climbing a wall.
+  const cheeks = [];
+  for (const st of strips) for (const sg of [1, -1]) {
+    const E = sg > 0 ? st.q : st.p; const tx = (st.q[0] - st.p[0]) / st.L * sg, tz = (st.q[1] - st.p[1]) / st.L * sg; const wd = st.gap ? st.gap : PAD_OUT; const ox = st.nx * wd / 2, oz = st.nz * wd / 2;
+    const gAt = (a) => T.heightAt(E[0] + tx * a + ox, E[1] + tz * a + oz);
+    const here = gAt(-Math.min(4.5, st.L * 0.6)); if (Math.abs(here - st.level) > 0.4) continue;
+    let hi = -Infinity; for (let a = 0.4; a <= 4.01; a += 0.4) hi = Math.max(hi, gAt(a)); if (hi - here < 0.4) continue;
+    // where the ramp really lies (before the end when the neighbour's pad is protected, beyond it otherwise)
+    let a0 = null, a1 = null; for (let a = -4; a <= 4.41; a += 0.2) { const g = gAt(a); if (a0 === null && g > here + 0.1) a0 = a; if (a0 !== null && g < hi - 0.15) a1 = a; } if (a0 === null) continue; if (a1 === null || a1 < a0) a1 = a0;
+    const f = a0 - 0.9, e = Math.max(a1 + 0.5, f + 1.6); if (e - f > 6.5) continue;
+    for (let a = f; a <= e + 0.01; a += 0.4) for (const b of [0.1, wd / 2, wd + 0.1]) hi = Math.max(hi, T.heightAt(E[0] + tx * a + st.nx * b, E[1] + tz * a + st.nz * b));   // nothing under the block stands above its top
+    const cx = E[0] + tx * (f + e) / 2 + ox, cz = E[1] + tz * (f + e) / 2 + oz; if (cheeks.some((c) => Math.hypot(c.x - cx, c.z - cz) < 2.2) || rings.some((r) => pointInRing(cx, cz, r))) continue;
+    cheeks.push({ x: cx, z: cz, tx: -tx, tz: -tz, nx: st.nx, nz: st.nz, len: e - f, gap: wd + 0.3, top: hi + 0.06, level: here });   // (tx, tz): toward the low side, where the face is
+  }
+  ctx.padCheeks = cheeks;
 }
 /**
  * Per-wall pads seat the WALLS, not the building: inside the footprint the hill is still there, and where it stands above
@@ -457,6 +511,18 @@ export function seatInteriors(ctx) {
 /** Retaining blocks (with a coping) along the pads that are cut deep into the hill; call after every flatten. */
 export function buildPadWalls(ctx) {
   const { B } = ctx; if (!ctx.terrain) return;
+  for (const c of ctx.padCheeks || []) {   // steps at the mouths of corridors between two buildings (applyPads)
+    /* final ground (later pads may have moved it): push the face out until the ground in front of it is the low terrace,
+       raise the top over whatever stands under the block; no clean step, no block */
+    { const W = c.gap - 0.3; let ok = false; const far = [c.x - c.tx * c.len / 2, c.z - c.tz * c.len / 2];
+      for (let k = 0; k < 8 && !ok; k++) { let m = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) m = Math.max(m, ctx.groundY(far[0] + c.tx * (c.len + 0.08) + c.nx * u, far[1] + c.tz * (c.len + 0.08) + c.nz * u)); if (m - c.level <= 0.1) ok = true; else c.len += 0.4; }
+      if (!ok || c.len > 7.5) continue; c.x = far[0] + c.tx * c.len / 2; c.z = far[1] + c.tz * c.len / 2;
+      let t = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) for (let v = 0; v <= c.len + 0.01; v += 0.2) t = Math.max(t, ctx.groundY(far[0] + c.tx * v + c.nx * u, far[1] + c.tz * v + c.nz * u)); c.top = Math.max(c.top, t + 0.06); if (c.top - c.level < 0.25) continue; }
+    const rot = Math.atan2(-c.tz, c.tx), h = c.top - (c.level - 0.5);
+    B.v('concrete').box(c.x, c.level - 0.5 + h / 2, c.z, c.len, h, c.gap, rot, 1 / 3); B.c('concrete').box(c.x, c.level - 0.5 + h / 2, c.z, c.len, h, c.gap, rot);
+    B.v('limestone').box(c.x + c.tx * (c.len / 2 - 0.16), c.top + 0.03, c.z + c.tz * (c.len / 2 - 0.16), 0.4, 0.07, c.gap, rot, 1 / 3);
+    (ctx.retaining = ctx.retaining || []).push({ x: c.x, z: c.z, tx: c.nx, tz: c.nz, fx: c.tx, fz: c.tz, w: c.gap - 0.3, d: c.len, top: c.top, frontY: c.level });
+  }
   for (const s of ctx.padCuts || []) {
     const mx = (s.p[0] + s.q[0]) / 2, mz = (s.p[1] + s.q[1]) / 2; const tx = (s.q[0] - s.p[0]) / s.L, tz = (s.q[1] - s.p[1]) / s.L; const D = 2.0 + PAD_BLEND + 0.3;
     const cx = mx + s.nx * (PAD_OUT + D / 2), cz = mz + s.nz * (PAD_OUT + D / 2); if ((ctx.allRings || []).some((r) => pointInRing(cx, cz, r) || pointInRing(mx + s.nx * (PAD_OUT + 0.3), mz + s.nz * (PAD_OUT + 0.3), r))) continue;
@@ -537,11 +603,22 @@ export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, signedArea, 
  * (x, z) centre, y base, w along `rot`, d deep, h tall.
  */
 export function hedgeMass(ctx, x, z, y, w, d, h, rot, seed = 1) {
-  const { B } = ctx; const hb = B.v('maHedge'); const r = mulberry32(Math.abs(Math.round(x * 31 + z * 17 + seed)) + 5); const c = Math.cos(rot), s = Math.sin(rot);
-  hb.box(x, y + h / 2 - 0.3, z, w, h + 0.6, d, rot, 1 / 2.4);
-  const n = Math.max(1, Math.round(w / 1.5));
-  for (let k = 0; k < n; k++) { const u = -w / 2 + (k + 0.5) * w / n + (r() - 0.5) * 0.5, v = (r() - 0.5) * d * 0.3; const px = x + u * c + v * s, pz = z - u * s + v * c; const rr = Math.min(d * 0.55, 0.75 + r() * 0.5), ch = 0.45 + r() * 0.65; hb.cyl(px, y + h - 0.25, pz, rr, rr * 0.45, ch + 0.25, 6, 1 / 2.4, true); }
-  for (const sd of [-1, 1]) for (let k = 0; k < n; k += 2) { const u = -w / 2 + (k + 0.5 + r() * 0.8) * w / n, yy = y + h * (0.3 + r() * 0.45); const px = x + u * c + sd * (d / 2) * s, pz = z - u * s + sd * (d / 2) * c; hb.box(px, yy, pz, 1.2 + r() * 0.8, 0.9 + r() * 0.8, 0.5, rot, 1 / 2.4); }
+  const { B } = ctx; const hb = B.v('maHedge', true); const r = mulberry32(Math.abs(Math.round(x * 31 + z * 17 + seed)) + 5); const c = Math.cos(rot), s = Math.sin(rot);
+  // An overgrown bank, not a clipped wall: a dark core (so nothing shows through) wrapped in two staggered rows of bushy
+  // columns of different girth, height and tone. The columns swell 0.3-0.5 m past the core on both faces, so the front is
+  // lumpy in depth; their tops are steep cones (nothing that looks like a ledge). Collision is the plain block below.
+  hb.setColor(0.42, 0.48, 0.4); hb.box(x, y + h * 0.42 - 0.3, z, w, h * 0.84 + 0.6, d * 0.5, rot, 1 / 3.1);
+  const n = Math.max(2, Math.round(w / 0.95));
+  for (let k = 0; k < n; k++) for (const row of [-1, 1]) {
+    if (row > 0 && r() < 0.12) continue;
+    const u = -w / 2 + (k + 0.5 + (row > 0 ? 0.5 : 0)) * w / n + (r() - 0.5) * 0.5, v = row * (d * 0.24 + r() * 0.22); if (Math.abs(u) > w / 2 + 0.2) continue;
+    const px = x + u * c + v * s, pz = z - u * s + v * c; const R = Math.min(0.7 + r() * 0.5, Math.max(0.35, d * 0.55)), H = Math.max(0.8, h * (0.72 + r() * 0.3)), cone = Math.min(1.5 + r() * 0.9, H * 0.45); /* short yard hedges get short crowns: a negative section height gives NaN normals, and one NaN pixel blacks out the whole frame through the bloom pass */ const t = 0.78 + r() * 0.4, wm = r() * 0.12;
+    hb.setColor(t * (0.92 + wm), t, t * (0.9 - wm));
+    hb.cyl(px, y - 0.3, pz, R * 0.8, R, (H - cone) * 0.45 + 0.3, 7, 1 / 3.1, false);                          // skirt
+    hb.cyl(px, y + (H - cone) * 0.45, pz, R, R * 0.92, (H - cone) * 0.55, 7, 1 / 3.1, false);                  // body
+    hb.cyl(px, y + H - cone, pz, R * 0.92, 0.22, cone, 7, 1 / 3.1, true);                                      // steep crown
+  }
+  hb.setColor(1, 1, 1);
   B.c('wood').box(x, y + h / 2 + 0.2, z, w, h + 1.6, d + 0.3, rot);
   for (let yy = 0.55; yy < h + 0.8; yy += 0.75) B.c('wood').box(x, y + yy, z, w - 0.1, 0.06, d - 0.1, rot);
 }

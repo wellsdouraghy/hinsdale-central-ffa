@@ -478,5 +478,29 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - Colours typed from Street View are too pure for a whole sunlit wall: desaturate ~25 % and cap the chroma (`tame`).
   - A local variable named like the plan object (`pl` = a bucket) turned every house wall into NaN without an error:
     after any builder refactor, scan the merged meshes for NaN positions (three.js only logs a bounding-sphere warning).
+  - **Grade streets first; streets and sidewalks are designed surfaces, never draped lidar.** Draped lidar gives a lumpy
+    carriageway, centre lines that snake over bumps, and (worse) every building pad beside a street pulls the sidewalk
+    up or down into a hump. Earthworks order on a hilly campus: campus pads -> `gradeStreets` (src/world/streets.js) ->
+    building pads -> `streets.restore()` -> cheek walls. Per street: the DEM along the centreline is low-passed ON THE
+    ROAD GRAPH (shared junction nodes; at a junction the through street's profile carries on and the side streets
+    attach, else every corner gets a hump), parabolic crown (a tent crown ripples on the 2 m lattice), kerb, parallel
+    sidewalk, a level shoulder behind it, then a blend to the terrain. Buildings adapt to the street: a wall at a
+    sidewalk takes the ground just OUTSIDE it as its floor (`streetSide` / `outsideMax` in marin/kit.js) and steps
+    inside the lot. Roads benched across a steep hillside are auto-detected (cross-slope) and lose their sidewalks.
+    Designed pads that must win over a shoulder go in `protect`, over a sidewalk in `hard` (the field's retaining block).
+    Map check `roads` (builder returns `ctx.streets`; flat campuses skip): bump (2nd difference over 4 m less the
+    vertical curve over 12 m), cross-slope, sidewalk steps, kerb range, and nothing moved after `restore()`.
+    Known limit: on the 2 m lattice the 15 cm kerb is a height difference with a one-cell face, not a vertical kerb.
+  - **Pads end at lattice ramps: plan the step, do not let it happen.** Corridors between two buildings are one terrace
+    wall to wall; no lower pad may cut into a higher neighbour's strip; where two terraces meet across a strip a cheek
+    block covers the ramp (`planCheeks`, checked against the final ground in `buildPadWalls`: no clean step, no block).
+    A wall that can start at any height sits at the LOW end of its ground (cut, never fill: fill made asphalt mounds
+    under ladders); a party wall keeps the mean (it has no pad, a low floor buries its neighbour's glass).
+  - **Shared code that builds "up from y = 0" is a wall on a campus whose ground is not at 0.** The pool coping
+    (src/world/water.js) was a box from y = 0 to the lip: on Marin's deck at -4 m that was a 4 m wall round the whole
+    pool, invisible from the air. After moving any pad, look at every shared prop on it from eye level.
+  - A `// comment` appended inside a one-line statement swallows the rest of the line (four times now): use `/* */`.
+  - An instanced skin for a solid mass (the evergreen belt) needs clamped dimensions: a negative cylinder height gives
+    NaN normals and the bloom pass blacks out the whole frame, not just the hedge.
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.

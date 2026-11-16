@@ -665,6 +665,32 @@ async function checkHouses() {
     counts: { houses: H.length, failing: fails.length, warning: warns.length, worstExcessM: r1(worst) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`houses: ${res.status} ${fails.length} too tall, ${warns.length} warnings (${H.length} houses)`); finishCheck('houses', res);
 }
+// Streets (world/streets.js, registry.streets): graded streets are designed surfaces. Every 1 m of every centreline in
+// the play area: profile bumpiness (2nd difference over 4 m), cross-slope, sidewalk continuity and kerb, and nothing
+// (a building pad, a yard) may have moved the carriageway or the sidewalks off their design.
+async function checkRoads() {
+  const SR = REG.streets; if (!SR || !SR.length || !world.terrain) { finishCheck('roads', { status: 'skip', note: 'no graded streets registered (world/streets.js gradeStreets)' }); return; }
+  const pb = world.playBounds, inP = (p) => p && p[0] >= pb.minX && p[0] <= pb.maxX && p[1] >= pb.minZ && p[1] <= pb.maxZ;
+  const fails = [], warns = []; const cnt = { bump: 0, crest: 0, cross: 0, walkStep: 0, kerb: 0, moved: 0 }; let stations = 0, worstBump = 0, worstCross = 0, worstMoved = 0, worstStep = 0;
+  const bad = (kind, name, p, v, warn) => { const e = { kind, street: name, at: [r1(p[0]), r2(GY(p[0], p[1])), r1(p[1])], value: r2(v) }; if (warn) { warns.push(e); return; } cnt[kind]++; fails.push(e); marks.push({ kind: 'vis', x0: p[0] - 1.5, z0: p[1] - 1.5, x1: p[0] + 1.5, z1: p[1] + 1.5 }); };
+  for (const st of SR) { const P = st.pts; const g = (p) => (p ? GY(p[0], p[1]) : NaN);
+    for (let k = 0; k < P.length; k++) { const s = P[k]; if (!inP(s.c)) continue; stations++; const gc = g(s.c);
+      if (k >= 4 && k + 4 < P.length && P[k - 4].c && P[k + 4].c && s.jd >= st.hw + 4) { const c4 = g(P[k - 4].c) - 2 * gc + g(P[k + 4].c);
+        // a bump is LOCAL: the 2nd difference over 4 m less what the street's own vertical curve explains (the 2nd
+        // difference over 12 m, scaled: a long crest or sag is not a bump); the vertical curve itself may not be sharper than 0.2 m
+        const m = Math.min(12, k, P.length - 1 - k); const c12 = m >= 7 && P[k - m].c && P[k + m].c ? (g(P[k - m].c) - 2 * gc + g(P[k + m].c)) * 16 / (m * m) : 0; const d2 = Math.abs(c4 - c12);
+        worstBump = Math.max(worstBump, d2); if (d2 > 0.08) bad('bump', st.name, s.c, d2); else if (d2 > 0.06) bad('bump', st.name, s.c, d2, true); if (Math.abs(c4) > 0.2) bad('crest', st.name, s.c, c4); }
+      for (const p of [s.c, s.eL, s.eR, s.wL, s.wR]) if (p) { const d = Math.abs(g(p) - p[2]); worstMoved = Math.max(worstMoved, d); if (d > (p[3] === 'road' ? 0.12 : 0.2)) bad('moved', st.name, p, d); }
+      if (s.jd < st.hw + 12) continue;   // inside an intersection the arms blend into one surface: no cross-section there
+      for (const e of [s.eL, s.eR]) if (e) { const cs = Math.abs(gc - g(e)) / (st.hw * 0.5); worstCross = Math.max(worstCross, cs); if (cs > 0.04) bad('cross', st.name, e, cs * 100); }
+      for (const [w, e, side] of [[s.wL, s.eL, 'wL'], [s.wR, s.eR, 'wR']]) { if (!w) continue; const gw = g(w);
+        if (e) { const kb = gw - g(e); if (kb < -0.1 || kb > 0.5) bad('kerb', st.name, w, kb); }
+        const pw = k ? P[k - 1][side] : null; if (pw && Math.hypot(pw[0] - w[0], pw[1] - w[1]) < 1.6) { const stp = Math.abs(gw - g(pw)); worstStep = Math.max(worstStep, stp); if (stp > 0.2) bad('walkStep', st.name, w, stp); } }
+    } }
+  const res = { status: status(fails.length, warns.length), what: 'Graded streets (registry.streets, every 1 m of each centreline in the play area): the centreline profile may not bump (2nd difference over 4 m, less the vertical curve of the street over 12 m, > 0.08 m; the vertical curve itself > 0.2 m over 4 m; not inside an intersection, where the arms blend), the carriageway cross-slope may not exceed 4 %, a sidewalk may not step more than 0.2 m per metre nor leave the kerb range (-0.1..0.5 m over the road edge), and no pad may have moved the carriageway (> 0.12 m) or a sidewalk (> 0.2 m) off its design.',
+    counts: { streets: SR.length, stations, failing: fails.length, ...cnt, worstBumpM: r2(worstBump), worstCrossPct: r1(worstCross * 100), worstWalkStepM: r2(worstStep), worstMovedM: r2(worstMoved) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`roads: ${res.status} ${fails.length} failing samples on ${stations} stations`); finishCheck('roads', res);
+}
 async function checkRetaining() {
   const Rb = REG.retaining || []; if (!Rb.length || !world.terrain) { finishCheck('retaining', { status: 'skip', note: 'no retaining blocks registered (ctx.retaining)' }); return; }
   const fails = [], warns = []; let maxPoke = 0;
@@ -678,8 +704,10 @@ async function checkRetaining() {
     if (poke > 0.25) { fails.push({ at, poke: r2(poke), samples: n, note: 'terrain pokes through a retaining block (front face or top): make the block deeper than the pad blend + one lattice cell' }); marks.push({ kind: 'vis', x0: b.x - 1.5, z0: b.z - 1.5, x1: b.x + 1.5, z1: b.z + 1.5 }); }
     else if (n) warns.push({ at, poke: r2(poke), samples: n });
   }
+  // a wall taller than 1.5 m around a designed pad reads as a pit (a pool deck in a box): only blocks registered with allowTall (a sports field cut into a hill) may be
+  let tall = 0; for (const b of Rb) if (!b.allowTall && b.top - b.frontY > 1.5) { tall++; warns.push({ at: [r1(b.x), r2(b.top), r1(b.z)], heightM: r2(b.top - b.frontY), note: 'retaining wall taller than 1.5 m (not allowTall): grade the ground in or step it' }); }
   const res = { status: status(fails.length, warns.length), what: 'Retaining blocks registered by the builder (ctx.retaining): the terrain may not rise above the pad level right in front of the block face (> 0.12 m) nor above its top inside the footprint; > 0.25 m fails.',
-    counts: { blocks: Rb.length, failing: fails.length, warning: warns.length, maxPokeM: r2(maxPoke) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+    counts: { blocks: Rb.length, failing: fails.length, warning: warns.length, maxPokeM: r2(maxPoke), tallerThan1_5m: tall }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`retaining: ${res.status} ${fails.length} blocks with terrain through them`); finishCheck('retaining', res);
 }
 // Building seating: the ground just outside every registered wall (ctx.walls: { id, a, b (CCW ring edge), floor, top, open })
@@ -687,10 +715,12 @@ async function checkRetaining() {
 async function checkSeating() {
   const W = REG.walls || []; if (!W.length || !world.terrain) { finishCheck('seating', { status: 'skip', note: 'no walls registered (ctx.walls) or flat campus' }); return; }
   const by = new Map(); let nS = 0;
+  // (the ground under a retaining block is not what stands against the wall there: the block is)
+  const Rb = REG.retaining || []; const underBlock = (x, z) => Rb.some((b) => { const dx = x - b.x, dz = z - b.z; return Math.abs(dx * b.tx + dz * b.tz) <= b.w / 2 + 0.3 && Math.abs(dx * b.fx + dz * b.fz) <= b.d / 2 + 0.3; });
   for (const w of W) {
     const L = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]); if (L < 1.2) continue; const nx = (w.b[1] - w.a[1]) / L, nz = -(w.b[0] - w.a[0]) / L; const n = Math.max(2, Math.round(L));
     let over = 0, worst = 0, at = null, poke = 0, low = 0;
-    for (let k = 0; k <= n; k++) { const t = (0.35 + (L - 0.7) * k / n) / L; const x = w.a[0] + (w.b[0] - w.a[0]) * t + nx * 0.4, z = w.a[1] + (w.b[1] - w.a[1]) * t + nz * 0.4; if (!inPB(x, z, -30)) continue; const g = GY(x, z); nS++;
+    for (let k = 0; k <= n; k++) { const t = (0.35 + (L - 0.7) * k / n) / L; const x = w.a[0] + (w.b[0] - w.a[0]) * t + nx * 0.4, z = w.a[1] + (w.b[1] - w.a[1]) * t + nz * 0.4; if (!inPB(x, z, -30) || underBlock(x, z)) continue; const g = GY(x, z); nS++;
       const e = g - w.floor; if (e > 0.3) { over++; if (e > worst) { worst = e; at = [r1(x), r2(g), r1(z)]; } } else if (e > 0.15) low++; if (g > w.top - 0.3) poke++; }
     if (!over && !poke && !low) continue;
     const key = w.id ?? (Math.round(w.a[0] / 20) + ',' + Math.round(w.a[1] / 20)); let b = by.get(key); if (!b) { b = { id: w.id ?? null, walls: 0, bermedOpen: 0, bermedBlank: 0, poking: 0, lowOnly: 0, worst: 0, at: null }; by.set(key, b); }
@@ -732,6 +762,7 @@ async function checkFacadeSweep() {
   const VS = buildVisual(); const { pos, triMesh, info } = VS; const hilly = !!world.terrain;
   const a = V(), b = V(), c = V(), e1 = V(), e2 = V(), n = V(), p = V(), d = V();
   const glassCells = new Map(), gapCells = new Map(); let nGlass = 0, nWall = 0;
+  const Rb = REG.retaining || []; const underBlock = (x, z) => Rb.some((b) => { const dx = x - b.x, dz = z - b.z; return Math.abs(dx * b.tx + dz * b.tz) <= b.w / 2 + 0.6 && Math.abs(dx * b.fx + dz * b.fz) <= b.d / 2 + 0.6; });
   const hit = (cells, pt, extra) => { const k = Math.floor(pt.x / 4) + ',' + Math.floor(pt.z / 4); let cl = cells.get(k); if (!cl) { cl = { n: 0, at: P3(pt), worst: 0, key: extra.key }; cells.set(k, cl); } cl.n++; if (extra.m > cl.worst) { cl.worst = r2(extra.m); cl.at = P3(pt); } };
   let lastYield = performance.now();
   for (let t = 0; t < VS.nTris; t++) {
@@ -740,6 +771,7 @@ async function checkFacadeSweep() {
     e1.subVectors(b, a); e2.subVectors(c, a); n.crossVectors(e1, e2); const area2 = n.length(); if (area2 < 0.2) continue; n.divideScalar(area2); if (Math.abs(n.y) > 0.3) continue; n.y = 0; n.normalize();
     const lo = a.y <= b.y && a.y <= c.y ? a : b.y <= c.y ? b : c; const ymax = Math.max(a.y, b.y, c.y);
     if (glass) {
+      if (underBlock(a.x, a.z) || underBlock(c.x, c.z)) continue;   // (a retaining block stands against the wall there)
       nGlass++; { let side = 1; for (const sg of [1, -1]) { p.copy(a).add(b).add(c).multiplyScalar(1 / 3).addScaledVector(n, sg * 0.5); d.copy(n).multiplyScalar(-sg); const h = S.first(p, d, 1.2); if (h && h.face && h.face.normal.dot(d) < -0.3) { side = sg; break; } } n.multiplyScalar(side); }
       p.copy(a).add(b).add(c).multiplyScalar(1 / 3).addScaledVector(n, 0.35); const g = GY(p.x, p.z); const m = g - lo.y;
       if (m > 0.25) { p.y = g; hit(glassCells, p, { m, key }); }
@@ -1181,7 +1213,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'roads', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1225,7 +1257,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['roads', checkRoads], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

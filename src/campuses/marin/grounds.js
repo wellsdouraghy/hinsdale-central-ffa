@@ -62,11 +62,14 @@ function perimeter(ctx, pts, opts = {}) {
       const p = [a[0] + tx * L * k / n, a[1] + tz * L * k / n], q = [a[0] + tx * L * (k + 1) / n, a[1] + tz * L * (k + 1) / n]; const d0 = dist + L * k / n, d1 = dist + L * (k + 1) / n; const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
       // ground behind the block (beyond the pad's blend): the wall top for this panel
       let top = -Infinity; for (const t of [0, 0.5, 1]) top = Math.max(top, wallTop(ctx, p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, nx, nz));
+      if (top > 0.7) for (let t = 0; t <= 1.001; t += 0.25) for (let o = 0.3; o <= WALL_D; o += 0.55) top = Math.max(top, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o));   // nothing under the block stands above it (a graded sidewalk at its back)
       const wall = top > 0.7; const lift = wall ? top + 0.12 : null; const rot = Math.atan2(-tz, tx); const w = L / n + 0.04;
       if (wall) { const m = [mid[0] + nx * WALL_D / 2, mid[1] + nz * WALL_D / 2]; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WALL_D, rot, 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WALL_D, rot);
         B.v('limestone').box(mid[0] + nx * 0.05, lift + 0.03, mid[1] + nz * 0.05, w, 0.06, 0.34, rot, 1 / 3);
-        (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WALL_D, top: lift, frontY: 0 }); }   // map check: retaining
+        (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WALL_D, top: lift, frontY: 0, allowTall: true }); }   // map check: retaining
       // (flush behind the fence line: a strip between fence and hedge would be a slot a player can drop into)
+      // (every third panel of the belt a real conifer rises out of it: an instanced tree planted on the wall top)
+      if (opts.hedge && opts.hedge(mid, wall ? lift : 0) && (k + i) % 3 === 1) { const o2 = wall ? 1.9 : 1.6; const by = wall ? lift : gY(ctx, mid[0] + nx * o2, mid[1] + nz * o2); ctx.gen.trees.push([+(mid[0] + nx * o2).toFixed(1), +(mid[1] + nz * o2).toFixed(1), 1, 0.62 + (((k * 7 + i * 3) % 5) * 0.07), +(by + 0.2).toFixed(2)]); }
       if (opts.hedge && opts.hedge(mid, wall ? lift : 0)) { const o = wall ? 1.45 : 1.2; hedgeBlock(ctx, mid[0] + nx * o, mid[1] + nz * o, wall ? lift : gY(ctx, mid[0] + nx * o, mid[1] + nz * o), w + 0.3, 2.3, 5.5, rot, 0); }
       const open = opts.fence === false || gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
       if (open) { flush(); continue; }
@@ -265,7 +268,7 @@ function frontOfCampus(ctx) {
   for (const [x, z, r] of [[2, -76, 0.2], [8, -79.5, -0.3], [-2, -82, 0.9], [14, -74, 0.1]]) propKit.picnicTable(ctx, x, z, r);
   for (const [x, z, len, rot] of [[3.5, -66.5, 5, ROT + Math.PI / 2], [3, -44, 6, ROT + Math.PI / 2], [-33, -66, 6, ROT + Math.PI / 2]]) atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.2, z, len, 1.2, 1.3, rot, 1 / 3); ctx.shrubs.push([x, 0.8, z, len - 0.8, 0.75, rot]); }, len / 2);
   propKit.dumpster(ctx, -27, -101.5, ROT); propKit.dumpster(ctx, 52, -132, ROT + Math.PI / 2, [0.1, 0.16, 0.3]); propKit.dumpster(ctx, -72, 46.5, ROT + Math.PI / 2);
-  propKit.utilityBox(ctx, 17.5, -105, ROT); propKit.utilityBox(ctx, -66, 2, ROT);
+  ctx.onGround([17.5, -105, 1.5], () => propKit.utilityBox(ctx, 17.5, -105, ROT)); propKit.utilityBox(ctx, -66, 2, ROT);
 }
 
 // ------------------------------------------------------------------------------------------ vehicles

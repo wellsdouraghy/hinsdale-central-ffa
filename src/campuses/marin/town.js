@@ -5,7 +5,7 @@
 // facades.js (read from Google Street View, tools/streetview.py + facades.py). Nothing is a random skin any more:
 // a building Street View cannot see takes the look of its nearest classified neighbour of the same kind.
 // Outside the play area only cheap context shells without collision.
-import { hedgeMass, planWalls, ringKey, sited, atGround, onSlope, edgeGround, ringGround, groundLadder, wallTint, WALL_KINDS, ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK } from './kit.js';
+import { hedgeMass, planWalls, ringKey, sited, atGround, onSlope, edgeGround, ringGround, groundLadder, wallTint, WALL_KINDS, ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK , outsideMax } from './kit.js';
 import * as THREE from 'three';
 import { STYLES } from '../../world/facade.js';
 import { eaveOverhang } from '../roofs.js';
@@ -195,7 +195,7 @@ function shop(ctx, ring, info, rnd, b, fa) {
     const h0 = top - base; roofY = h0 - 0.45;
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], c = ring[(i + 1) % ring.length]; const L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 0.05) continue;
-      const F = edgeFrame(a[0], a[1], c[0], c[1]); const S = 1 / 2.2; const pc = wp && wp.edges.get(i) ? wp.edges.get(i)[0] : null; const ge = edgeGround(ctx, a, c); let dy = Math.max(0, Math.min((pc ? Math.max(pc.level, pc.shared ? -1e9 : ge.max - 0.12) : ge.min - 0.05) - base, h0 - 3.6)); if (dy <= (pc ? 0.05 : 0.3)) dy = 0; const h = h0 - dy;
+      const F = edgeFrame(a[0], a[1], c[0], c[1]); const S = 1 / 2.2; const pc = wp && wp.edges.get(i) ? wp.edges.get(i)[0] : null; const ge = edgeGround(ctx, a, c); let dy = Math.max(0, Math.min((pc ? Math.max(pc.level, pc.shared ? -1e9 : (ctx.streets ? Math.max(ge.max, outsideMax(ctx, a, c)) : ge.max) - 0.12)   /* (graded streets do not move: the ground just outside the wall, its ends by a sidewalk included, sets the floor) */ : ge.min - 0.05) - base, h0 - 3.6)); if (dy <= (pc ? 0.05 : 0.3)) dy = 0; const h = h0 - dy;
       if (dy > 0.05) { wb.setColor(tint[0] * 0.8, tint[1] * 0.8, tint[2] * 0.8); wallRect(wb, F, 0, L, -0.6, dy + 0.02, 0, [u * S, 0, (u + L) * S, dy * S]); }   // foundation under a raised wall
       const mid = F.P(L / 2, 0, 3.0); const open = ctx.surfaceAt(mid[0], mid[2]) !== 'grass';
       const front = L > 5 && facesStreet(ctx, F) && !(ctx.playRings || []).some((r) => r.id !== b.id && pointInRing(mid[0], mid[2], r));

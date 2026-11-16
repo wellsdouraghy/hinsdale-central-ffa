@@ -213,7 +213,7 @@ export function addWater(ctx, opts = {}) {
       const a = ccw[i], b = ccw[(i + 1) % ccw.length]; const len = Math.hypot(b[0] - a[0], b[1] - a[1]); if (len < 0.05) continue;
       const tx = (b[0] - a[0]) / len, tz = (b[1] - a[1]) / len, nx = tz, nz = -tx;      // outward for a CCW ring
       const mx = (a[0] + b[0]) / 2 + nx * cop.w / 2, mz = (a[1] + b[1]) / 2 + nz * cop.w / 2; const rot = Math.atan2(-tz, tx);
-      B.v(key).box(mx, top / 2, mz, len + cop.w * 2, top, cop.w, rot, 1 / 3);
+      B.v(key).box(mx, (top + base - 0.3) / 2, mz, len + cop.w * 2, top - base + 0.3, cop.w, rot, 1 / 3);   // from just under the deck (base: the ground under the pool; 0 on flat campuses) to the lip. It was built up from y = 0: on a deck below y = 0 that made a wall as tall as the deck is deep round the whole pool
       // gutter slot + waterline tile band on the inner face
       B.v('blackMetal').box((a[0] + b[0]) / 2 - nx * 0.03, level + 0.012, (a[1] + b[1]) / 2 - nz * 0.03, len, 0.02, 0.07, rot);
       B.v('paint', true).setColor(0.05, 0.16, 0.42).box((a[0] + b[0]) / 2 + nx * 0.004, level + (top - level) * 0.5, (a[1] + b[1]) / 2 + nz * 0.004, len, top - level - 0.02, 0.012, rot);
@@ -238,7 +238,7 @@ export function addWater(ctx, opts = {}) {
     const len = laneAxis ? W : L, span = laneAxis ? L : W; const pt = B.v('paint', true), g = B.v('galv');
     for (const d of [4.57, len - 4.57]) {
       const P = (s) => (laneAxis ? toWorld(s, d) : toWorld(d, s)); const a = P(-0.9), b = P(span + 0.9); const y = level + 1.85;
-      for (const p of [a, b]) g.cyl(p[0], 0, p[1], 0.035, 0.035, y + 0.1, 6, 1, true);
+      for (const p of [a, b]) g.cyl(p[0], base, p[1], 0.035, 0.035, y + 0.1 - base, 6, 1, true);
       g.tube([a[0], y, a[1]], [b[0], y, b[1]], 0.012, 4);
       const n = Math.floor(span / 0.45); const cols = opts.flagColors || [[0.72, 0.06, 0.05], [0.92, 0.92, 0.9]];
       for (let i = 0; i < n; i++) { const p0 = P((i + 0.08) * span / n), p1 = P((i + 0.92) * span / n), pm = P((i + 0.5) * span / n); const c = cols[i % cols.length]; pt.setColor(c[0], c[1], c[2]); pt.tri([p0[0], y, p0[1]], [p1[0], y, p1[1]], [pm[0], y - 0.34, pm[1]]); pt.tri([p1[0], y, p1[1]], [p0[0], y, p0[1]], [pm[0], y - 0.34, pm[1]]); }

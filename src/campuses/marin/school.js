@@ -6,7 +6,7 @@
 // Ave), white modern boxes (Science + Innovation Center, Visual Arts), the barrel-vaulted Old Gym with its solar array
 // and the Athletic Center with its curved roof and translucent sea-green walls.
 import * as THREE from 'three';
-import { sited, atGround, onSlope, edgeGround, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
+import { sited, atGround, onSlope, edgeGround, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence } from './kit.js';
 import { doorFromKit, roofUnit } from '../../world/facade.js';
 import { propKit } from '../../world/props.js';
 import { paintedQuad } from '../../world/fields.js';
@@ -296,21 +296,26 @@ function pacAt(ctx, rings, h, base) {
 }
 
 // ============================================================================================ aquatic centre
-function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0], c[1], () => aquaticCenterAt(ctx), 6, 'mean'); }   // on the pool deck (one level pad, flattened in sitework)
+const POOL_HOUSE = rect(58.6, 45.6, 33.5, 9.4), POOL_HOUSE_TOP = 0.9;   // roof ~3.3 m over the Mission Ave sidewalk, ~5.1 m over the deck
+function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0], c[1], () => aquaticCenterAt(ctx), 6, 'mean');
+  sited(ctx, POOL_HOUSE, (base) => flatBuilding(ctx, POOL_HOUSE, POOL_HOUSE_TOP - base, 'maLow', { roof: 'white' }));
+  // pool fence along the west (Library) and east (car park) deck edges, a gate gap in each
+  const F = (a0, b0, a1, b1) => hillFence(ctx, [gp(53.1, 75.6, a0, b0), gp(53.1, 75.6, a1, b1)], { h: 1.8, black: true, every: 2.4 });
+  F(-17.2, -18.4, -17.2, 4); F(-17.2, 8.5, -17.2, 24.4); F(18.6, -24, 18.6, -8); F(18.6, -3.5, 18.6, 24.4);
+}   // on the pool deck (one level pad, flattened in sitework)
 function aquaticCenterAt(ctx) {
   const { B } = ctx;
   // pool house along Mission Ave (changing rooms / office), white flat roof
-  const house = rect(58.6, 45.6, 33.5, 9.4);
-  flatBuilding(ctx, house, 4.6, 'maLow', { roof: 'white' });
+  // (built in aquaticCenter: it stands in the step between Mission Ave and the deck, on its own wall pads)
   // The pool itself is the shared water feature (descriptor `water`, see src/world/water.js): 25 yd lanes running
   // east-west, starting blocks along the east deck as in the imagery. Only the blocks are built (and solid) here.
   const pc = [53.1, 75.6]; const wc = [53.5, 73.6], pw = 23.6, pl = 33.6, lanes = 14;
   for (let i = 0; i < lanes; i++) { const p = gp(wc[0], wc[1], pw / 2 + 0.62, -pl / 2 + (i + 0.5) * pl / lanes); B.v('whitePanel').box(p[0], 0.4, p[1], 0.6, 0.58, 0.55, ROT); B.v('panelGray').box(p[0], 0.72, p[1], 0.7, 0.06, 0.62, ROT); B.c('concrete').box(p[0], 0.37, p[1], 0.65, 0.75, 0.6, ROT); }
   // deck enclosure: stucco wall toward 5th Ave and Cottage side, bleachers on the east deck, shade canopy, scoreboard
-  const wall = (a0, b0, a1, b1, h = 2.3) => { const p = gp(pc[0], pc[1], (a0 + a1) / 2, (b0 + b1) / 2); const L = Math.hypot(a1 - a0, b1 - b0); const rot = ROT + (Math.abs(b1 - b0) > Math.abs(a1 - a0) ? Math.PI / 2 : 0); B.v('stucco', true).setColor(0.93, 0.93, 0.9).box(p[0], h / 2, p[1], L, h, 0.25, rot, 0.45); B.v('whitePanel').box(p[0], h + 0.04, p[1], L + 0.1, 0.08, 0.36, rot); B.c('concrete').box(p[0], h / 2, p[1], L, h, 0.25, rot); };
-  wall(-17.2, 24.4, 6, 24.4, 3.0); wall(10, 24.4, 18.6, 24.4, 3.0);          // south (5th Ave): the 3 m white wall Street View shows, with a gate gap
-  wall(-17.2, -18.4, -17.2, 4); wall(-17.2, 8.5, -17.2, 24.4);     // west (toward the Library) with a gate gap
-  wall(18.6, -24, 18.6, -8); wall(18.6, -3.5, 18.6, 24.4);         // east (toward the car park)
+  const wall = (a0, b0, a1, b1, h = 2.3, dn = 0) => { const p = gp(pc[0], pc[1], (a0 + a1) / 2, (b0 + b1) / 2); const L = Math.hypot(a1 - a0, b1 - b0); const rot = ROT + (Math.abs(b1 - b0) > Math.abs(a1 - a0) ? Math.PI / 2 : 0); B.v('stucco', true).setColor(0.93, 0.93, 0.9).box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot, 0.45); B.v('whitePanel').box(p[0], h + 0.04, p[1], L + 0.1, 0.08, 0.36, rot); B.c('concrete').box(p[0], (h - dn) / 2, p[1], L, h + dn, 0.25, rot); };
+  wall(-17.2, 24.4, 6, 24.4, 3.0, 0.8); wall(10, 24.4, 18.6, 24.4, 3.0, 0.8);          // south (5th Ave): the 3 m white wall Street View shows, with a gate gap
+  // (west and east: a 1.8 m black pool fence, built on the finished ground in aquaticCenter below. The deck is at street
+  // level; tall stucco walls on three sides made a pit of it.)
   B.v('stucco', true).setColor(1, 1, 1);
   const bl = gp(pc[0], pc[1], -13.9, -19); bleachers(ctx, { x: bl[0], z: bl[1], dir: Math.atan2(-UX, -UZ), len: 21, rows: 4, run: 0.66, rise: 0.3, frontH: 0 });   // west deck, facing the blocks
   { // scoreboard at the south end
@@ -333,7 +338,7 @@ export function schoolWalls(ctx) {
     ['Visual Arts Center', ring(652917785), 4.7, 'maVisArts'], ['Campus building 1460794276', ring(1460794276), 13.9, 'maLow'], ['Service building', ring(652917784), 18.7, 'maService'],
     ['Leadership Center', rect(-12.4, 61.0, 10.6, 51.6), 5.6, 'maMission'], ['Leadership Center east wing', rect(-2.3, 54.6, 10.4, 30.4), 5.4, 'maMission'],
     ['Library', rect(29.9, 60.4, 12.9, 42.4), 5.9, 'maMission'], ['Library west wing', rect(18.9, 58.6, 9.6, 34.6), 5.3, 'maMission'],
-    ['Performing Arts Center', ring(652917778), 7.7, 'maPac'], ['Performing Arts low block', ring(652917777), 5.6, 'maLowCream'], ['Founders Hall', ring(652917779), 7.4, 'maCream'],
+    ['Performing Arts Center', ring(652917778), 7.7, 'maPac'], ['Performing Arts low block', ring(652917777), 5.6, 'maLowCream'], ['Founders Hall', ring(652917779), 7.4, 'maCream'], ['Pool house', POOL_HOUSE, POOL_HOUSE_TOP, 'maLow'],
   ];
 }
 
