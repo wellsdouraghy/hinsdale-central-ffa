@@ -67,7 +67,14 @@ function perimeter(ctx, pts, opts = {}) {
       let WD = WALL_D; const tall = top > 0.7; if (tall && ctx.streets) for (let o = 0.6; o <= WALL_D; o += 0.1) { const zs = [0, 0.5, 1].map((t) => ctx.streets.design(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); if (zs.some((d) => d && d.zone === 'road')) { WD = Math.max(1.2, o - 0.1); break; } if (o >= 2.3 && zs.some((d) => d && d.zone === 'walk')) { WD = o; break; } }
       if (tall) { if (WD < WALL_D) top = -Infinity; for (let t = 0; t <= 1.001; t += 0.25) for (const o of [0.3, 0.85, 1.4, 1.95, 2.5, 3.05, 3.6, 4.15, 4.7, WD].filter((v) => v <= WD)) top = Math.max(top, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); }   // nothing under the block stands above it (a graded sidewalk at its back)
       const wall = tall && top > (WD < WALL_D ? 0.15 : 0.7); const lift = wall ? top + (WD < WALL_D ? 0.04 : 0.12) : null; const rot = Math.atan2(-tz, tx); const w = L / n + 0.04;
-      if (wall) { const m = [mid[0] + nx * WD / 2, mid[1] + nz * WD / 2]; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot, 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot);
+      // (a block that ends at a sidewalk has a top that falls with the street: level per 3 m panel it stood 0.13-0.27 m proud of the walk at its low end)
+      let lp = null, lq = null; if (wall && WD < WALL_D) { const at = (t) => { let m = -Infinity; for (const o of [WD - 0.6, WD - 0.3, WD]) m = Math.max(m, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); return m + 0.02; }; lp = at(0); lq = at(1); const lm = at(0.5) - (lp + lq) / 2; if (lm > 0.02) { lp += lm; lq += lm; } }   /* (the top is the walk's own level at the block's outer edge) */
+      if (wall && lp !== null) { const C = (t, o, y) => [p[0] + (q[0] - p[0]) * t + nx * o, y, p[1] + (q[1] - p[1]) * t + nz * o]; const e = 0.02 / (L / n);
+        for (const bk of [B.v('concrete'), B.c('concrete')]) { const uv = bk === B.c('concrete') ? undefined : [[0, 0], [1, 0], [1, 0.8], [0, 0.8]];
+          quadFacing(bk, C(-e, 0, lp), C(1 + e, 0, lq), C(1 + e, WD, lq), C(-e, WD, lp), [0, 1, 0], uv); quadFacing(bk, C(-e, 0, -0.4), C(1 + e, 0, -0.4), C(1 + e, 0, lq), C(-e, 0, lp), [-nx, 0, -nz], uv); quadFacing(bk, C(-e, WD, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(-e, WD, lp), [nx, 0, nz], uv);
+          quadFacing(bk, C(-e, 0, -0.4), C(-e, WD, -0.4), C(-e, WD, lp), C(-e, 0, lp), [-tx, 0, -tz], uv); quadFacing(bk, C(1 + e, 0, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(1 + e, 0, lq), [tx, 0, tz], uv); }
+        const m = [mid[0] + nx * WD / 2, mid[1] + nz * WD / 2]; (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WD, top: Math.max(lp, lq), frontY: 0, allowTall: true }); }
+      else if (wall) { const m = [mid[0] + nx * WD / 2, mid[1] + nz * WD / 2]; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot, 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot);
         B.v('limestone').box(mid[0] + nx * 0.05, lift + 0.03, mid[1] + nz * 0.05, w, 0.06, 0.34, rot, 1 / 3);
         (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WD, top: lift, frontY: 0, allowTall: true }); }   // map check: retaining
       // (flush behind the fence line: a strip between fence and hedge would be a slot a player can drop into)
@@ -76,7 +83,7 @@ function perimeter(ctx, pts, opts = {}) {
       if (opts.hedge && opts.hedge(mid, wall ? lift : 0)) { const o = wall ? 1.45 : 1.2; hedgeBlock(ctx, mid[0] + nx * o, mid[1] + nz * o, wall ? lift : gY(ctx, mid[0] + nx * o, mid[1] + nz * o), w + 0.3, 2.3, 5.5, rot, 0); }
       const open = opts.fence === false || gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
       if (open) { flush(); continue; }
-      const y0 = wall ? lift : gY(ctx, p[0], p[1]), y1 = wall ? lift : gY(ctx, q[0], q[1]); const o = wall ? 0.25 : 0;
+      const y0 = wall ? (lp ?? lift) : gY(ctx, p[0], p[1]), y1 = wall ? (lq ?? lift) : gY(ctx, q[0], q[1]); const o = wall ? 0.25 : 0;
       const P0 = [p[0] + nx * o, p[1] + nz * o, y0], P1 = [q[0] + nx * o, q[1] + nz * o, y1];
       if (run.length && (Math.abs(run[run.length - 1][2] - y0) > 0.02 || Math.hypot(run[run.length - 1][0] - P0[0], run[run.length - 1][1] - P0[1]) > 0.05)) flush();
       if (!run.length) run.push(P0); run.push(P1);

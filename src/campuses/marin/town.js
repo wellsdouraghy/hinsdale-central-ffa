@@ -5,7 +5,7 @@
 // facades.js (read from Google Street View, tools/streetview.py + facades.py). Nothing is a random skin any more:
 // a building Street View cannot see takes the look of its nearest classified neighbour of the same kind.
 // Outside the play area only cheap context shells without collision.
-import { hedgeMass, planWalls, ringKey, sited, atGround, onSlope, edgeGround, ringGround, groundLadder, wallTint, WALL_KINDS, ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK , outsideMax } from './kit.js';
+import { hedgeMass, guardRail, planWalls, ringKey, sited, atGround, onSlope, edgeGround, ringGround, groundLadder, wallTint, WALL_KINDS, ANG, CLAY, makeCanvas, canvasTexture, wallLadder, polyRoof, kitWalls, flatBuilding, hipRoof, minAreaOBB, tileTint, srgb, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, signedArea, pointInRing, mulberry32, SKIN_STUCCO, SKIN_BRICK , outsideMax } from './kit.js';
 import * as THREE from 'three';
 import { STYLES } from '../../world/facade.js';
 import { eaveOverhang } from '../roofs.js';
@@ -125,7 +125,7 @@ function house(ctx, ring, info, rnd, fa, id) {
         for (let k = 0; k < n; k++) { const u0 = L * k / n, u1 = L * (k + 1) / n; const gb = Math.max(0, edgeGround(ctx, [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]).max - base);
           const rk = Math.max(1, Math.min(plan.rows, Math.floor((eave - gb + 0.05) / 2.9))), ybk = Math.max(0, eave - rk * 2.9); rowsDrawn = Math.max(rowsDrawn, rk);
           wallRect(w, F, u0, u1, ybk, eave, 0, [k, (ybk - eave) / 2.9, k + 1, 0]); if (ybk > 0.02) { pl.setColor(...dark); wallRect(pl, F, u0, u1, 0, ybk, 0, [k, (0 - eave) / 2.9, k + 1, (ybk - eave) / 2.9]); }
-          (lowerBays = lowerBays || []).push({ F, u: u0, g: gb, L }); }
+          (lowerBays = lowerBays || []).push({ F, u: u0, g: gb, L, k, yb: ybk }); }
       } else {
       if (L > 3.2 && !bermed) wallRect(w, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, n, 0]); else { pl.setColor(...tint); wallRect(pl, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, L / 4, 0]); }
       if (yb > 0.02) { pl.setColor(...dark); wallRect(pl, F, 0, L, 0, yb, 0, [0, (0 - eave) / 2.9, L / 4, (yb - eave) / 2.9]); }   // foundation / under-floor wall
@@ -134,11 +134,25 @@ function house(ctx, ring, info, rnd, fa, id) {
       if (!(ctx.allRings || []).some((r) => r !== ring && pointInRing((a[0] + b[0]) / 2 + F.nx * 1.2, (a[1] + b[1]) / 2 + F.nz * 1.2, r))) (ctx.walls = ctx.walls || []).push({ id, a, b, floor: base + yb, top: base + eave, open: L > 3.2 && !bermed });   // map check: seating
     }
     w.setColor(1, 1, 1); pl.setColor(1, 1, 1);
-    if (lowerBays) {   // the walk-out door: on the lowest floor, between two windows (a bay joint), with a landing and a small roof
-      const lb = lowerBays.filter((q) => q.u > 1 && q.u < q.L - 1).sort((p, q) => p.g - q.g)[0];
-      if (lb) { const F = lb.F, ud = lb.u, dp = F.P(ud, 0, 0.7); atGround(ctx, dp[0], dp[2], () => { tb.setColor(...trim); fbox(tb, F, ud - 0.62, ud + 0.62, 0.2, 2.45, 0, 0.05, 1, 0, 'fst'); fbox(B.v('frame'), F, ud - 0.5, ud + 0.5, 0.25, 2.35, 0.05, 0.08, 1, 0, 'fst');
-        fbox(B.v('concrete'), F, ud - 1.3, ud + 1.3, -0.9, 0.22, 0, 1.5, 1 / 3, 0, 'fst'); const c = F.P(ud, 0, 0.75); B.c('concrete').box(c[0], -0.34, c[2], 2.6, 1.12, 1.5, F.rotY);
-        fbox(tb, F, ud - 1.3, ud + 1.3, 2.6, 2.76, 0, 1.4, 1, 0, 'fstb'); const pr = F.P(ud, 2.68, 0.7); B.c('wood').box(pr[0], 2.68, pr[2], 2.6, 0.16, 1.4, F.rotY); for (const du of [-1.2, 1.2]) { const q = F.P(ud + du, 0, 1.3); tb.box(q[0], 1.2, q[2], 0.12, 2.8, 0.12, F.rotY); } tb.setColor(1, 1, 1); }, 0.9); } }
+    if (lowerBays) {
+      // The walk-out door: at a bay joint (plain wall between two windows) where both bays stand on the same floor and that
+      // floor is nearest the ground; its sill IS that floor. A concrete landing founded 0.3 m below the lowest ground under
+      // it, steps down to the bank on the uphill side (drawn risers, collision = the plane through the nosings), a guard
+      // rail on the outer edge and the downhill end, a panelled door with a handle.
+      let best = null; for (let i = 1; i < lowerBays.length; i++) { const A = lowerBays[i - 1], Bb = lowerBays[i]; if (A.F !== Bb.F || Bb.k !== A.k + 1 || Math.abs(A.yb - Bb.yb) > 0.01) continue; const gap = Bb.yb - Math.max(A.g, Bb.g); if (gap > -0.06 && (!best || gap < best.gap)) best = { gap, F: Bb.F, ud: Bb.u, sill: Bb.yb }; }
+      if (best) { const { F, ud, sill } = best; const lg = (u, o) => { const q = F.P(u, 0, o); return ctx.groundY(q[0], q[2]) - base; }; const conc = B.v('concrete'), col = B.c('concrete');
+        let lowG = Infinity; for (let u = -1.3; u <= 1.31; u += 0.325) for (const o of [0.05, 0.75, 1.5]) lowG = Math.min(lowG, lg(ud + u, o));
+        { const c = F.P(ud, 0, 0.75), y0 = lowG - 0.3; conc.box(c[0], (y0 + sill) / 2, c[2], 2.6, sill - y0, 1.5, F.rotY, 1 / 3); col.box(c[0], (y0 + sill) / 2, c[2], 2.6, sill - y0, 1.5, F.rotY); }
+        const sg = lg(ud + 2.6, 0.75) >= lg(ud - 2.6, 0.75) ? 1 : -1; let n = 0; while (n < 14 && sill - n * 0.17 > lg(ud + sg * (1.3 + n * 0.3), 0.75) + 0.05) n++;
+        if (n) { let lo = Infinity; for (let i = 0; i <= n; i++) for (const o of [0.1, 0.75, 1.4]) lo = Math.min(lo, lg(ud + sg * (1.3 + i * 0.3), o));
+          for (let i = 1; i <= n; i++) { const c = F.P(ud + sg * (1.3 + (i - 0.5) * 0.3), 0, 0.75), y = sill - i * 0.17, y0 = lo - 0.3; if (y > y0) conc.box(c[0], (y0 + y) / 2, c[2], 0.3, y - y0, 1.3, F.rotY, 1 / 3); }
+          const Q = (u, o, y) => { const q = F.P(u, y, o); return q; }; quadFacing(col, Q(ud + sg * 1.3, 0.1, sill), Q(ud + sg * 1.3, 1.4, sill), Q(ud + sg * (1.3 + n * 0.3), 1.4, sill - n * 0.17), Q(ud + sg * (1.3 + n * 0.3), 0.1, sill - n * 0.17), [0, 1, 0]); }
+        { const a0 = F.P(ud - 1.28, 0, 1.44), a1 = F.P(ud + 1.28, 0, 1.44); guardRail(ctx, a0[0], a0[2], a1[0], a1[2], sill); const e0 = F.P(ud - sg * 1.28, 0, 0.08), e1 = F.P(ud - sg * 1.28, 0, 1.44); guardRail(ctx, e0[0], e0[2], e1[0], e1[2], sill); }
+        tb.setColor(...trim); fbox(tb, F, ud - 0.62, ud + 0.62, sill, sill + 2.25, 0, 0.05, 1, 0, 'fst'); tb.setColor(0.2, 0.12, 0.09); fbox(tb, F, ud - 0.5, ud + 0.5, sill + 0.02, sill + 2.13, 0.05, 0.08, 1, 0, 'fst');
+        tb.setColor(0.27, 0.17, 0.13); for (const [x0, x1, y0, y1] of [[-0.38, -0.05, 0.2, 0.95], [0.05, 0.38, 0.2, 0.95], [-0.38, -0.05, 1.1, 1.95], [0.05, 0.38, 1.1, 1.95]]) fbox(tb, F, ud + x0, ud + x1, sill + y0, sill + y1, 0.08, 0.095, 1, 0, 'fst');   // four raised panels
+        fbox(B.v('aluminum'), F, ud + 0.36, ud + 0.42, sill + 0.98, sill + 1.1, 0.08, 0.13, 1, 0, 'fstb');
+        tb.setColor(...trim); fbox(tb, F, ud - 1.3, ud + 1.3, sill + 2.4, sill + 2.56, 0, 1.4, 1, 0, 'fstb'); { const pr = F.P(ud, sill + 2.48, 0.7); B.c('wood').box(pr[0], pr[1], pr[2], 2.6, 0.16, 1.4, F.rotY); } tb.setColor(1, 1, 1);
+        (ctx.buildNotes2 = ctx.buildNotes2 || []).push({ id, door: F.P(ud, 0, 0.75), sill: base + sill, lowG: base + lowG, steps: n, uphill: sg, foot: F.P(ud + sg * (1.3 + n * 0.3 + 0.8), 0, 0.75) }); } }
     if (fr && fr.F.L > 4.5) {
       const F = fr.F; const garage = fa.garage && F.L > 8; rnd(); const ud = doorU(F.L, fa, id); const dp = F.P(ud, 0, 0.7);
       atGround(ctx, dp[0], dp[2], () => {   // front door, stoop and porch roof at the street-side ground

@@ -596,6 +596,14 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
       16.0), never nearer: the ramp takes the cell before the first cut node.
     - Narrow cheek walls are registered `allowTall` (accepted as built); gore-wall tops follow the road cross-line by
       cross-line (sampling a metre each way on a 24 % street made a 0.5 m kerb).
+    - **Anything standing on a bank is founded on its LOWEST ground.** The walk-out door's landing was built from the
+      highest ground within its radius: its underside hung 0.5 m over the falling bank and its top stood up to 1.65 m
+      above the grass with no way up. A landing is a box from 0.3 m below the lowest ground under its footprint up to the
+      door's sill, the sill is the floor line of the bay it stands in (not the ground), steps go down on the uphill
+      side until they meet the ground (nosing-plane collision, walked with `__walk` both ways), and the outer edge and
+      the downhill end get a rail. Measure it: cast down on the landing, compare with the mesh under it.
+    - **A block beside a sloping walk has a sloping top.** One level top per 3 m panel on an 8 % street is a 0.25 m ledge
+      at the low end: the top is the walk's level at the block's outer edge at each end of the panel (quads, not a box).
   - **Close an after-shot loop against HEAD, same poses.** `git archive HEAD` into a scratch folder, a second Vite on
     another port, the same list of camera strings in both (each tested: nothing solid within 0.6 m, above the ground).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to

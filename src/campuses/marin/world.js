@@ -106,7 +106,6 @@ export function build(ctx, progress = () => {}) {
   progress(0.48, 'Building Marin Academy');
   buildPadWalls(ctx);   // retaining blocks where a building pad is cut deep into the hill
   goreWalls(ctx);       // ...and between two carriageways at different heights (a fork on the hill)
-  ctx.buildNotes = { gores: ctx.goreWallStats, poolStair: ctx.poolStair };
   buildSchool(ctx);
   progress(0.58, 'Building San Rafael');
   buildTown(ctx);
@@ -122,4 +121,5 @@ export function build(ctx, progress = () => {}) {
   if (ctx.terrain) for (const sh of ctx.shrubs) if (sh[4] === 0.85) sh[1] = Math.min(sh[1], ctx.groundY(sh[0], sh[2]) + 0.05);
   buildTerrain(ctx);     // hills outside the play area (visual backdrop)
   addCampusWater(ctx);   // the aquatic centre pool (descriptor `water`)
+  ctx.buildNotes = { gores: ctx.goreWallStats, poolStair: ctx.poolStair, doors: ctx.buildNotes2 };
 }
