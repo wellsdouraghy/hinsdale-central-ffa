@@ -561,7 +561,7 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - **Retaining blocks are terraced only where they are long** (`terraceBlocks` in marin/kit.js): at most 1.5 m per
     riser, 1 m treads, coping on every edge, planting on the treads, the rail on the top edge; a level that the bank
     pokes through is skipped. Blocks under 5 m wide (the cheek blocks at building corners) stay ONE wall with coping and
-    rail: stepped, they were giant stairs to nowhere (QA). Their "taller than 1.5 m" warnings are accepted.
+    rail: stepped, they were giant stairs to nowhere (QA). They are registered `allowTall`.
   - **Do not wall a problem that the house plan made (QA: "FIX FIRST").** A house whose footprint falls 10 m was planned
     with three rows and stood on 6 m of fill ending one lattice cell from the road: a cone of grass. Stepped walls built
     in 1 m slices round that corner came out as a concrete ziggurat (sawtooth plan, coping at random heights, rail in
@@ -580,6 +580,22 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - **"Sunk" props: check the drawn mesh before moving anything.** The map check's `floating` for a car is measured from
     the lowest ground in its radius (a neighbouring footprint's cut floor counts); the car at (71, 162) stands on the
     mesh (roof 1.75 m above it).
+  - **Final round (QA on 4170c68):**
+    - A sight-blocker that is dropped "for lack of room" opens a base to the street. Where the Mission Ave hedge has no
+      bank to stand on (the street is level with the pitch or above it) it is one row on the field wall's block, right
+      behind the fence. Check `overlook` AND look through every fence after trimming planting.
+    - **A retaining block ends where the sidewalk begins.** The field wall's 4.7 m block took its top from all the ground
+      under it and stood 0.4-0.5 m proud across the walk (a forward walk stopped on it). At a graded street it is as
+      deep as the strip to the walk (2.3 m at the least: the pad's ramp), top = the ground under that footprint, and the
+      walk beyond is set to its design (raise from 2.1 m behind the block's face on, so no ramp starts in front of it).
+      Walk every sidewalk end to end with `__walk`.
+    - **Walk-out floors are drawn bay by bay.** Counting rows from the highest ground along a whole wall left a blank
+      base of 4.5 m at the low end. A `HOUSE_LOWER` house steps its window rows down with the ground one module at a
+      time and has a door with a landing on its lowest floor, at a bay joint (between two windows).
+    - A cut after `restore()` can start one lattice cell from anything that must stay level (18.0 for a turf edge at
+      16.0), never nearer: the ramp takes the cell before the first cut node.
+    - Narrow cheek walls are registered `allowTall` (accepted as built); gore-wall tops follow the road cross-line by
+      cross-line (sampling a metre each way on a 24 % street made a 0.5 m kerb).
   - **Close an after-shot loop against HEAD, same poses.** `git archive HEAD` into a scratch folder, a second Vite on
     another port, the same list of camera strings in both (each tested: nothing solid within 0.6 m, above the ground).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to

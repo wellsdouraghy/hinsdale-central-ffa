@@ -78,7 +78,7 @@ function sitework(ctx) {
     ctx.flatten({ rect: { cx: G(am, st.bTop + run / 2)[0], cz: G(am, st.bTop + run / 2)[1], w: st.a1 - st.a0 + 0.4, d: run + 0.8, angle: ANG } }, { blend: 0.5, y: (x, z) => { const b = -x * UZ + z * UX; return Math.min(T.heightAt(x, z), Math.max(botY, topY - (b - st.bTop) / st.tread * riser) - 0.18); } }); }
   // (2) Mission Ave runs 2.5 m below the pitch along its south side, and the field pad (a `hard` zone) kept its bank on the
   // designed sidewalk there. The walk gets its designed level back (cut only); the bank moves under the hedge at the fence.
-  if (streets) { const c = G(78, 20.4); ctx.flatten({ rect: { cx: c[0], cz: c[1], w: 98, d: 4.4, angle: ANG } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const b = -x * UZ + z * UX; if (b < 18.2) return h; const d = streets.design(x, z); return d && d.zone === 'walk' ? Math.min(h, d.y) : h; } }); }
+  if (streets) { const c = G(78, 20.4); ctx.flatten({ rect: { cx: c[0], cz: c[1], w: 98, d: 4.4, angle: ANG } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const b = -x * UZ + z * UX; if (b < 18.0) return h; const d = streets.design(x, z); if (!d || d.zone !== 'walk') return h; return h > d.y || b >= 19.7 ? d.y : h; } }); }   // (cut from 18.0: a lattice cell south of the turf edge, the most the 2 m lattice allows; at the east end, where the street is ABOVE the pitch, the walk is raised to its design from 19.7 on: 2.1 m behind the face of the field wall's block, which covers the ramp)
   if (streets) {
     // everything respects the designed section: the ground texture is painted from it (asphalt on the carriageways,
     // concrete on the sidewalks, whatever the satellite classes say under tree crowns), and every tree the canopy

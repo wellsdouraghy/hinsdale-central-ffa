@@ -111,7 +111,7 @@ function house(ctx, ring, info, rnd, fa, id) {
   const trim = fa.trim ? lin(fa.trim) : [0.85, 0.84, 0.8];
   const roofTint = fa.roofMat === 'clay_tile' ? CLAY : tileTint(fa.roofCol && fa.roofMat !== 'membrane' ? fa.roofCol.map((v) => Math.max(v, 70)) : info.col);
   sited(ctx, ring, (base) => {
-    const eave = top - base; const w = B.v('maW_' + kind, true), pl = B.v('maP_' + kind, true); const tb = B.v('paint', true);
+    const eave = top - base; const w = B.v('maW_' + kind, true), pl = B.v('maP_' + kind, true); const tb = B.v('paint', true); let lowerBays = null;
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i], b = ring[(i + 1) % ring.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.05) continue;
       const F = edgeFrame(a[0], a[1], b[0], b[1]); const ge = edgeGround(ctx, a, b); const lo = Math.max(0, ge.min - base);
@@ -119,12 +119,26 @@ function house(ctx, ring, info, rnd, fa, id) {
       const rows = Math.max(1, Math.min(plan.rows, Math.floor((eave - hi + 0.3) / 2.9))); const yb = Math.max(0, eave - rows * 2.9); rowsDrawn = Math.max(rowsDrawn, rows);
       const bermed = eave - hi < 2.6;   // the hill stands above this wall's sill line: a blank wall, no windows (bermed side)
       w.setColor(...tint);
+      if (HOUSE_LOWER[id] && L > 3.2 && !bermed) {
+        // walk-out floors: the rows of windows step down with the ground, bay by bay (one module each), so the house stands on
+        // the bank with its lower floors open to it and no blank base taller than a storey's sill
+        for (let k = 0; k < n; k++) { const u0 = L * k / n, u1 = L * (k + 1) / n; const gb = Math.max(0, edgeGround(ctx, [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]).max - base);
+          const rk = Math.max(1, Math.min(plan.rows, Math.floor((eave - gb + 0.05) / 2.9))), ybk = Math.max(0, eave - rk * 2.9); rowsDrawn = Math.max(rowsDrawn, rk);
+          wallRect(w, F, u0, u1, ybk, eave, 0, [k, (ybk - eave) / 2.9, k + 1, 0]); if (ybk > 0.02) { pl.setColor(...dark); wallRect(pl, F, u0, u1, 0, ybk, 0, [k, (0 - eave) / 2.9, k + 1, (ybk - eave) / 2.9]); }
+          (lowerBays = lowerBays || []).push({ F, u: u0, g: gb, L }); }
+      } else {
       if (L > 3.2 && !bermed) wallRect(w, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, n, 0]); else { pl.setColor(...tint); wallRect(pl, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, L / 4, 0]); }
       if (yb > 0.02) { pl.setColor(...dark); wallRect(pl, F, 0, L, 0, yb, 0, [0, (0 - eave) / 2.9, L / 4, (yb - eave) / 2.9]); }   // foundation / under-floor wall
+      }
       tb.setColor(...trim); fbox(tb, F, -0.06, L + 0.06, eave - 0.22, eave, 0, 0.06, 1, 0, 'fsb');
       if (!(ctx.allRings || []).some((r) => r !== ring && pointInRing((a[0] + b[0]) / 2 + F.nx * 1.2, (a[1] + b[1]) / 2 + F.nz * 1.2, r))) (ctx.walls = ctx.walls || []).push({ id, a, b, floor: base + yb, top: base + eave, open: L > 3.2 && !bermed });   // map check: seating
     }
     w.setColor(1, 1, 1); pl.setColor(1, 1, 1);
+    if (lowerBays) {   // the walk-out door: on the lowest floor, between two windows (a bay joint), with a landing and a small roof
+      const lb = lowerBays.filter((q) => q.u > 1 && q.u < q.L - 1).sort((p, q) => p.g - q.g)[0];
+      if (lb) { const F = lb.F, ud = lb.u, dp = F.P(ud, 0, 0.7); atGround(ctx, dp[0], dp[2], () => { tb.setColor(...trim); fbox(tb, F, ud - 0.62, ud + 0.62, 0.2, 2.45, 0, 0.05, 1, 0, 'fst'); fbox(B.v('frame'), F, ud - 0.5, ud + 0.5, 0.25, 2.35, 0.05, 0.08, 1, 0, 'fst');
+        fbox(B.v('concrete'), F, ud - 1.3, ud + 1.3, -0.9, 0.22, 0, 1.5, 1 / 3, 0, 'fst'); const c = F.P(ud, 0, 0.75); B.c('concrete').box(c[0], -0.34, c[2], 2.6, 1.12, 1.5, F.rotY);
+        fbox(tb, F, ud - 1.3, ud + 1.3, 2.6, 2.76, 0, 1.4, 1, 0, 'fstb'); const pr = F.P(ud, 2.68, 0.7); B.c('wood').box(pr[0], 2.68, pr[2], 2.6, 0.16, 1.4, F.rotY); for (const du of [-1.2, 1.2]) { const q = F.P(ud + du, 0, 1.3); tb.box(q[0], 1.2, q[2], 0.12, 2.8, 0.12, F.rotY); } tb.setColor(1, 1, 1); }, 0.9); } }
     if (fr && fr.F.L > 4.5) {
       const F = fr.F; const garage = fa.garage && F.L > 8; rnd(); const ud = doorU(F.L, fa, id); const dp = F.P(ud, 0, 0.7);
       atGround(ctx, dp[0], dp[2], () => {   // front door, stoop and porch roof at the street-side ground
