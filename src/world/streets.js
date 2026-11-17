@@ -86,8 +86,12 @@ export function gradeStreets(ctx, roads, opts = {}) {
       const side = (x - px) * -s.tz + (z - pz) * s.tx >= 0 ? 1 : -1;   // +1: right of the direction of travel (+x east, +z south)
       const sw = side > 0 ? (s.r.right || 0) : (s.r.left || 0); if (d > s.hw + sw + s.r.shoulder + BLEND) continue;
       const o = best.get(s.r); if (o && o.d <= d) continue; const f = uc / s.L;
-      best.set(s.r, { d, s, sw, yc: s.a.y + (s.b.y - s.a.y) * f, jd: s.a.jd + (s.b.jd - s.a.jd) * f, end: (u < 0 && s.first && s.a.nb.length === 1) || (u > s.L && s.last && s.b.nb.length === 1) }); }
+      best.set(s.r, { d, s, sw, yc: s.a.y + (s.b.y - s.a.y) * f, jd: s.a.jd + (s.b.jd - s.a.jd) * f, end: (u < 0 && s.first && s.a.nb.length === 1) || (u > s.L && s.last && s.b.nb.length === 1), weak: (u < 0 && s.first && s.a.nb.length === 2) || (u > s.L && s.last && s.b.nb.length === 2) }); }
     if (!best.size) return null;
+    // Past the end of a way that simply carries on as another way (one street in several pieces): the piece that runs alongside
+    // the point defines the section. The round cap of the piece that ended has less crown there, and blending it in dipped the
+    // centre line by up to the crown height (8 cm) for a few metres at every joint.
+    if (best.size > 1) { const base = (r) => String(r.id).split(':')[0]; for (const [r, b] of best) if (b.weak) { let on = false; for (const [r2, b2] of best) if (r2 !== r && !b2.weak && (base(r2) === base(r) || (r.name && r2.name === r.name))) { on = true; break; } if (on) best.delete(r); } }   // (only when a piece of the SAME street covers the point: another street's sidewalk must not take over the roadway)
     let zone = 'verge'; const c = [];
     for (const b of best.values()) { const hw = b.s.hw; const cf = Math.max(0, Math.min(1, (b.jd - hw) / (hw + 4)));   // crown: none inside an intersection, full one road width out
       const edge = b.yc - CROWN * hw * cf; const k = b.sw ? KERB : 0;
@@ -115,6 +119,7 @@ export function gradeStreets(ctx, roads, opts = {}) {
   /** Lay the streets, sidewalks and verges into the terrain (once, before the building pads). */
   st.apply = () => { const B = box(); ctx.flatten(B, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = design(x, z); if (!d) return h; if (d.zone === 'road' || (d.zone === 'walk' && !hard.some((p) => p(x, z)))) return d.y; if (d.zone === 'walk' || d.t >= 1 || protect.some((p) => p(x, z))) return h; return d.y + (h - d.y) * smooth(d.t); } }); };
   /** After the last pad: the carriageways and sidewalks back to their design (pads resolve their difference inside the lot). */
+  st.resurvey = () => { st.stations = stations(); };   // after a designed cut / fill beside a street that is meant to change it (map check `roads` compares with this survey)
   st.restore = () => { const B = box(); ctx.flatten(B, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = design(x, z); if (!d || st.solid.some((p) => p(x, z))) return h; if (d.zone === 'road' || (d.zone === 'walk' && !hard.some((p) => p(x, z)))) return d.y; if (d.zone === 'walk') return h; return d.t > 0 || protect.some((p) => p(x, z)) || st.keep.some((p) => p(x, z)) ? h : d.y; } }); st.stations = stations(); };   // (shoulder: level with the sidewalk unless a wall pad stands there, st.keep)
   // ---- stations for the map check: every 1 m of every centreline, with the designed heights across the section
   function stations() {

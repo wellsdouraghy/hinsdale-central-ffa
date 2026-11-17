@@ -24,10 +24,16 @@ const MAIN_STREETS = ['Fourth Street', 'Fifth Avenue', 'Mission Avenue'];
 const HOUSE_FIX = { 900888958: { eave: 4.6, rise: 4.8, lv: 1, col: [112, 84, 60], wall: 'wood_siding', roof: 'gable' } };
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([900888954]);
-// Houses whose footprint falls two storeys or more toward a road below them: they show that many walk-out lower floors
-// on the downhill side instead of standing on a terrace of fill (the house above Bryn Mawr Drive sat on 6 m of it: a cone
-// of grass, then a concrete ziggurat, at the road). The lot keeps the natural bank.
-const HOUSE_LOWER = { 975052239: 2 };
+// Houses on a bank above the road they front: Street View counted their storeys from that road below, so the eave is the
+// MEASURED roof (gen top: tile roof samples), not "street-side ground + storeys", and the lower of those storeys is a
+// walk-out floor: rows of windows step down with the ground bay by bay, a door with a landing on the lowest floor, no
+// terrace of fill, and the lot keeps its natural bank. The value is the number of walk-out floors.
+// (975052239, above Bryn Mawr Drive: its footprint falls 3.8 m, one storey uphill and two toward the road. On the DEM
+// that was stretched north-south it "fell 10 m" and was drawn four storeys tall with two walk-out floors.)
+const HOUSE_LOWER = { 975052239: 1 };
+// ...and the street such a house fronts where the nearest centre line is the wrong one (975052239: Bonnie Brae Drive
+// runs 2 m nearer but 8 m above the roof; Street View shows the garage and the brick steps up from Bryn Mawr Drive)
+const HOUSE_FRONT = { 975052239: 'Bryn Mawr Drive' };
 
 function simplify(ring, tol = 0.6) {
   // drop tiny jogs so walls do not shatter into slivers (keeps corners sharper than `tol`)
@@ -44,10 +50,10 @@ function simplify(ring, tol = 0.6) {
 }
 
 // street side of a footprint: the wall that faces the nearest street (door, garage, storefront, fence go there)
-function frontEdge(ctx, ring, main = false) {
+function frontEdge(ctx, ring, main = false, id = 0) {
   let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
   let best = null, bestMain = null;
-  for (const [a, b, , name] of ctx.streetSegs) { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cz - a[1]) * dz) / (dx * dx + dz * dz || 1))); const qx = a[0] + dx * t, qz = a[1] + dz * t, d = Math.hypot(cx - qx, cz - qz); if (!best || d < best.d) best = { d, qx, qz }; if (MAIN_STREETS.includes(name) && (!bestMain || d < bestMain.d)) bestMain = { d, qx, qz }; }
+  for (const [a, b, , name] of ctx.streetSegs) { if (HOUSE_FRONT[id] && name !== HOUSE_FRONT[id]) continue; const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((cx - a[0]) * dx + (cz - a[1]) * dz) / (dx * dx + dz * dz || 1))); const qx = a[0] + dx * t, qz = a[1] + dz * t, d = Math.hypot(cx - qx, cz - qz); if (!best || d < best.d) best = { d, qx, qz }; if (MAIN_STREETS.includes(name) && (!bestMain || d < bestMain.d)) bestMain = { d, qx, qz }; }
   // a shop on a corner fronts the main street (4th St, 5th Ave, Mission Ave), not the side street that happens to be nearer
   if (main && bestMain && bestMain.d < 32) best = bestMain;
   if (!best) return null; const ux = (best.qx - cx) / (best.d || 1), uz = (best.qz - cz) / (best.d || 1);
@@ -79,18 +85,19 @@ function palm(ctx, x, z, big, rnd) {
 // a one- or two-storey house stands), so the ground under and round the house is filled up to `pad` (and cut down to
 // `cut` where the hill would bury the eave): the terrace every real hillside house is built on.
 function housePlan(ctx, ring, info, fa, id) {
-  const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.max; const fix = HOUSE_FIX[id];
+  const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring, false, id); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.max; const fix = HOUSE_FIX[id];
   const lv = fa.lv || Math.max(1, Math.min(2, info.lv || 1)); const walls = lv >= 3 && fa.roof !== 'flat' ? 2 : Math.min(lv, 3);   // a third 'storey' under a pitched roof is the attic in the gable
   let top = fa.lv ? gF + walls * 2.9 + (lv >= 3 ? 0.8 : 0.3) : Math.min(Math.max(info.top ?? g.max + info.h, gF + 2.7), gF + 6.4);
   if (fix) top = gF + fix.eave;
-  const lower = HOUSE_LOWER[id] || 0; const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
+  const lower = HOUSE_LOWER[id] || 0; if (lower && info.top != null) top = Math.max(info.top, g.max + 2.7);   /* a house above its road: the measured eave */
+  const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
   return { top, rows, walls: walls + lower, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
 }
 // where the front door (and the garage door) stand on the street-side wall: fixed per house, so the plan can level an
 // apron in front of each sill before the house is built
 const doorU = (L, fa, id) => (fa.garage && L > 8 ? L * 0.72 : L * (0.3 + ((id * 2654435761 % 1000) / 1000) * 0.4));
 function houseAprons(ctx, ring, fa, id) {
-  const fr = frontEdge(ctx, ring); if (!fr || fr.F.L <= 4.5) return; const F = fr.F; const pts = [F.P(doorU(F.L, fa, id), 0, 1.3)]; if (fa.garage && F.L > 8) pts.push(F.P(F.L * 0.28, 0, 1.6));
+  const fr = frontEdge(ctx, ring, false, id); if (!fr || fr.F.L <= 4.5) return; const F = fr.F; const pts = [F.P(doorU(F.L, fa, id), 0, 1.3)]; if (fa.garage && F.L > 8) pts.push(F.P(F.L * 0.28, 0, 1.6));
   for (const p of pts) ctx.flatten({ circle: { x: p[0], z: p[2], r: 2.3 } }, { y: ctx.terrain.maxIn(p[0] - F.nx * 1.0, p[2] - F.nz * 1.0, 0.8), blend: 2.0 });   // level with the ground at the wall, 3 m of apron, eased into the drive
 }
 function housePad(ctx, ring, pl) {
@@ -104,7 +111,7 @@ function housePad(ctx, ring, pl) {
 // house: wall module in the real material and colour, storeys counted from the street side; on a slope the house
 // stands on its pad (housePlan) and shows at most its own storeys (+ garage level) downhill, blank foundation below
 function house(ctx, ring, info, rnd, fa, id) {
-  const { B } = ctx; const fr = frontEdge(ctx, ring); const plan = (ctx.townPlan && ctx.townPlan.houses.get(id)) || housePlan(ctx, ring, info, fa, id); const fix = HOUSE_FIX[id];
+  const { B } = ctx; const fr = frontEdge(ctx, ring, false, id); const plan = (ctx.townPlan && ctx.townPlan.houses.get(id)) || housePlan(ctx, ring, info, fa, id); const fix = HOUSE_FIX[id];
   // (if a neighbour's terrace was laid over this one, the hill may stand above the planned eave: the roof clears it)
   const top = Math.max(plan.top, ringGround(ctx, ring).max + 1.0); let rowsDrawn = 0;
   const kind = WALL_KINDS.includes(fa.wall) ? fa.wall : 'stucco'; const col = tame(fa.col || [214, 206, 188]); const tint = wallTint(col).map((v) => v * 1.12), dark = wallTint(col.map((v) => v * 0.84));

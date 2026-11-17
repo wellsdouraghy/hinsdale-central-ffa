@@ -69,11 +69,13 @@ function perimeter(ctx, pts, opts = {}) {
       const wall = tall && top > (WD < WALL_D ? 0.15 : 0.7); const lift = wall ? top + (WD < WALL_D ? 0.04 : 0.12) : null; const rot = Math.atan2(-tz, tx); const w = L / n + 0.04;
       // (a block that ends at a sidewalk has a top that falls with the street: level per 3 m panel it stood 0.13-0.27 m proud of the walk at its low end)
       let lp = null, lq = null; if (wall && WD < WALL_D) { const at = (t) => { let m = -Infinity; for (const o of [WD - 0.6, WD - 0.3, WD]) m = Math.max(m, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); return m + 0.02; }; lp = at(0); lq = at(1); const lm = at(0.5) - (lp + lq) / 2; if (lm > 0.02) { lp += lm; lq += lm; } }   /* (the top is the walk's own level at the block's outer edge) */
+      // (where the walk is so near the pitch that its ramp starts in front of the fence line, the face stands 0.7 m nearer the turf)
+      const o0 = wall && lp !== null && [0, 0.5, 1].some((t) => ctx.groundY(p[0] + (q[0] - p[0]) * t - nx * 0.1, p[1] + (q[1] - p[1]) * t - nz * 0.1) > 0.12) ? -0.7 : 0;
       if (wall && lp !== null) { const C = (t, o, y) => [p[0] + (q[0] - p[0]) * t + nx * o, y, p[1] + (q[1] - p[1]) * t + nz * o]; const e = 0.02 / (L / n);
         for (const bk of [B.v('concrete'), B.c('concrete')]) { const uv = bk === B.c('concrete') ? undefined : [[0, 0], [1, 0], [1, 0.8], [0, 0.8]];
-          quadFacing(bk, C(-e, 0, lp), C(1 + e, 0, lq), C(1 + e, WD, lq), C(-e, WD, lp), [0, 1, 0], uv); quadFacing(bk, C(-e, 0, -0.4), C(1 + e, 0, -0.4), C(1 + e, 0, lq), C(-e, 0, lp), [-nx, 0, -nz], uv); quadFacing(bk, C(-e, WD, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(-e, WD, lp), [nx, 0, nz], uv);
-          quadFacing(bk, C(-e, 0, -0.4), C(-e, WD, -0.4), C(-e, WD, lp), C(-e, 0, lp), [-tx, 0, -tz], uv); quadFacing(bk, C(1 + e, 0, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(1 + e, 0, lq), [tx, 0, tz], uv); }
-        const m = [mid[0] + nx * WD / 2, mid[1] + nz * WD / 2]; (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WD, top: Math.max(lp, lq), frontY: 0, allowTall: true }); }
+          quadFacing(bk, C(-e, o0, lp), C(1 + e, o0, lq), C(1 + e, WD, lq), C(-e, WD, lp), [0, 1, 0], uv); quadFacing(bk, C(-e, o0, -0.4), C(1 + e, o0, -0.4), C(1 + e, o0, lq), C(-e, o0, lp), [-nx, 0, -nz], uv); quadFacing(bk, C(-e, WD, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(-e, WD, lp), [nx, 0, nz], uv);
+          quadFacing(bk, C(-e, o0, -0.4), C(-e, WD, -0.4), C(-e, WD, lp), C(-e, o0, lp), [-tx, 0, -tz], uv); quadFacing(bk, C(1 + e, o0, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(1 + e, o0, lq), [tx, 0, tz], uv); }
+        const m = [mid[0] + nx * (WD + o0) / 2, mid[1] + nz * (WD + o0) / 2]; (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WD - o0, top: Math.max(lp, lq), frontY: 0, allowTall: true }); }
       else if (wall) { const m = [mid[0] + nx * WD / 2, mid[1] + nz * WD / 2]; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot, 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot);
         B.v('limestone').box(mid[0] + nx * 0.05, lift + 0.03, mid[1] + nz * 0.05, w, 0.06, 0.34, rot, 1 / 3);
         (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WD, top: lift, frontY: 0, allowTall: true }); }   // map check: retaining
@@ -175,7 +177,10 @@ function field(ctx) {
   // (Street View from the lane above): an evergreen belt on the wall top closes that overlook for sight and bullets.
   // The same belt runs along every stretch of wall more than 2.2 m high (the whole north end: the gym plaza looks down
   // on the pitch from there too); the aerial photo shows the tree line on that bank.
-  const belt = (m, lift) => (m[0] > 92 && m[1] < -27) || lift > 2.2;
+  // (and wherever the ground 10 m behind the edge stands 3.5 m or more over the pitch, whatever the wall at the edge: on the
+  // correctly registered DEM the north wall is 1-2 m lower than it was drawn, and the gym plaza looked straight down on the red base)
+  const cT = G(79, -30); const high = (m) => { const dx = m[0] - cT[0], dz = m[1] - cT[1], l = Math.hypot(dx, dz) || 1; return [6, 10, 14].some((o) => gY(ctx, m[0] + dx / l * o, m[1] + dz / l * o) >= 3.5); };
+  const belt = (m, lift) => (m[0] > 92 && m[1] < -27) || lift > 2.2 || (m[1] < -40 && high(m));
   perimeter(ctx, [P[1], P[0], P[5]], { gaps: [[38, 43], [118, 122]], hedge: belt });        // south (Mission Ave) + east
   perimeter(ctx, [P[5], P[4], P[3], P[2]], { gaps: [[20, 24], [100, 126]], hedge: belt });   // north-east, north, north-west
   // west side north of the spectator terrace (below the Science Center): the wall carries on, no fence (campus side)
@@ -316,7 +321,7 @@ function vehicles(ctx) {
   };
   const car = (x, z, heading) => {
     if (!inPlay(x, z)) return; if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
-    if (ctx.terrain && ctx.terrain.slopeAt(x, z) > 0.115) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }
+    if (ctx.terrain && [[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([dx, dz]) => ctx.terrain.slopeAt(x + dx, z + dz) > 0.115)) {   /* (anywhere under the car, not only at its centre) */ rnd(); rnd(); rnd(); placed.push([x, z]); return; }
     // ...nor across a step in the ground: the car is laid on the plane through its middle (onSlope), and beside a pad edge that plane is not the ground (one sat 0.75 m deep)
     if (ctx.terrain && ctx.terrain.meshHeightAt) { const g = ctx.groundY, y0 = g(x, z), gx = (g(x + 2, z) - g(x - 2, z)) / 4, gz = (g(x, z + 2) - g(x, z - 2)) / 4, c = Math.cos(heading), s = Math.sin(heading);
       if ([[2.2, 0.9], [2.2, -0.9], [-2.2, 0.9], [-2.2, -0.9], [0, 0]].some(([l, w]) => { const px = x + l * c + w * s, pz = z - l * s + w * c; return Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.35; })) { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }   // nobody parks on a bank (and a car cannot be laid on more than ~11 %)

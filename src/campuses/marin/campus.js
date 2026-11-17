@@ -56,7 +56,7 @@ export default {
     // trunks >= 11.5 m, never on a street): car parks first, then the pitch and lawns
     [-6, 0, -152], [22, 0, -140], [-90, 0, -44], [82, 0, 68], [122, 0, 136], [-150, 0, 144], [6, 0, 144], [-26, 0, 160], [-138, 0, 48],
     [74, 0, -68], [114, 0, 20], [50, 0, -8], [14, 0, 88], [26, 0, 176], [34, 0, -112],
-    [22, 15.85, -52],   // flat roof: the Science + Innovation Center penthouse (absolute deck height; the west classroom block roof is covered by its solar array)
+    [22, 15.5, -52],   // flat roof: the Science + Innovation Center penthouse (absolute deck height; the west classroom block roof is covered by its solar array)
   ],
   // walkable flood-fill seeds (CAMPUSES.md). Spelled out so the reachable area does not depend on the helicopter list:
   // the flag bases, the practice pad and open ground around campus.

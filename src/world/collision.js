@@ -154,7 +154,8 @@ export function computeSpawns(ctx, collisionMeshes, count = 32) {
     return true;
   };
   // terrain: spawns (and CTF bases / team spawns, which use clearCell below) only on gentle ground
-  const gentle = T ? (x, z) => T.slopeAt(x, z) <= SPAWN_MAX_GRADE : null;
+  // (a spawn stands on the drawn mesh: on a twisted lattice cell the mesh and the smooth height differ, and the player would start in the air or in the ground)
+  const gentle = T ? (x, z) => T.slopeAt(x, z) <= SPAWN_MAX_GRADE && (!T.meshHeightAt || Math.abs(T.meshHeightAt(x, z) - T.heightAt(x, z)) <= 0.06) : null;
   ctx.walkGrid = { x0, z0, nx, nz, cell, state, wallClear, gentle, groundY: gy, standY: T ? T.standY : gy };
   // optional campus spawn region (keeps FFA spawns near the action without shrinking the play area)
   const sb = ctx.campus?.spawnBounds;
