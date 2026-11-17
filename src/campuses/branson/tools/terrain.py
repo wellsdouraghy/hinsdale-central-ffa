@@ -81,7 +81,15 @@ STEP = 2.0
 xs = np.arange(SAT[0], SAT[1] + 0.01, STEP); zs = np.arange(SAT[2], SAT[3] + 0.01, STEP)
 Xg, Zg = np.meshgrid(xs, zs)
 sm = ndi.gaussian_filter(NEAR.a, 0.9)        # 1 m lidar noise / kerb steps: ~1 m gaussian before the 2 m resample
-Hn = Dem(sm, 480, 450).at(Xg, Zg) - Y0
+# Regraded since the lidar flight: Tom Ryan Field was extended south (the imagery and the 3D tiles show level turf where the
+# DEM still has Ross Creek's old channel and the toe of the wooded hill; the creek now runs in a culvert). The hillside
+# behind the field and the gym is moved 13 m south (cut back), fading out to the west of the gym, east of the field and
+# toward the houses on Ivy Drive; the filled channel itself is levelled by the builder's field pad.
+def sstep(t): t = np.clip(t, 0, 1); return t * t * (3 - 2 * t)
+def regrade_shift(x, z):
+    x = np.asarray(x, float); z = np.asarray(z, float)
+    return 13.0 * sstep((x + 145) / 20) * sstep((30 - x) / 30) * sstep((z - 104) / 10) * sstep((198 - z) / 45)
+Hn = Dem(sm, 480, 450).at(Xg, Zg - regrade_shift(Xg, Zg)) - Y0
 edge = np.minimum(np.minimum(Xg - SAT[0], SAT[1] - Xg), np.minimum(Zg - SAT[2], SAT[3] - Zg))
 w = np.clip(edge / 40.0, 0, 1); w = w * w * (3 - 2 * w)
 Hf = Hn * w + backdrop(Xg, Zg) * (1 - w)
@@ -92,7 +100,7 @@ print('terrain.bin', cm.shape[::-1], 'range', Hf.min().round(1), Hf.max().round(
 gy, gx = np.gradient(Hf, STEP); slope = np.degrees(np.arctan(np.hypot(gx, gy)))
 inp = (Zg > PLAY['minZ']) & (Zg < PLAY['maxZ']) & (Xg > PLAY['minX']) & (Xg < PLAY['maxX'])
 print('play-area slope: >20deg %.1f%%  >35deg %.1f%%  >42deg %.1f%%' % tuple(100 * (slope[inp] > t).mean() for t in (20, 35, 42)))
-def ground(x, z): return Dem(sm, 480, 450).at(x, z) - Y0
+def ground(x, z): return Dem(sm, 480, 450).at(x, np.asarray(z, float) - regrade_shift(x, z)) - Y0
 
 # ------------------------------------------------------------------ building heights against the ground round each footprint
 TH = json.load(open(os.path.join(HERE, 'data', 'tile_heights.json')))
