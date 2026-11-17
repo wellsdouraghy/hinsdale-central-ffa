@@ -32,7 +32,7 @@ phi = math.radians(LAT0)
 M_LAT = 111132.92 - 559.82 * math.cos(2 * phi) + 1.175 * math.cos(4 * phi)
 M_LON = 111412.84 * math.cos(phi) - 93.5 * math.cos(3 * phi)
 SAT = (-330.0, 330.0, -300.0, 300.0)
-PLAY = dict(minX=-215, maxX=82, minZ=-100, maxZ=195)
+PLAY = dict(minX=-215, maxX=82, minZ=-100, maxZ=172)
 ANG = math.radians(7.2); UX, UZ = math.cos(ANG), math.sin(ANG)
 def G(a, b): return (a * UX - b * UZ, a * UZ + b * UX)
 

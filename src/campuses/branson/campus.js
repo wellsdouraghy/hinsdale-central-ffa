@@ -39,11 +39,11 @@ export default {
   ctf: { red: [-188, -28], blue: [68, -28] },
   practiceHeli: { x: -36, z: 95, yaw: 0 },
   spawnCenter: [-60, 30],
-  spawnBounds: { minX: -205, maxX: 76, minZ: -88, maxZ: 140 },
+  spawnBounds: { minX: -205, maxX: 76, minZ: -88, maxZ: 126 },   // (not on the wooded hill south of the field)
   sky: { horizonHaze: 1 },
   ground: { asphaltDeblur: 1 },
   // hidden-helicopter candidates [x, y, z]: found with a scan (dev/world.html __heliScan), y = 0 ground
-  heliPark: [[-88, 0, -53], [-18, 0, -23], [-88, 0, 47], [7, 0, 62], [-38, 0, 67], [-78, 0, 82], [-13, 0, 87], [-48, 0, 97], [-73, 0, 117], [-23, 0, 117], [-88, 0, -23], [27, 0, 87]],
+  heliPark: [[-88, 0, -53], [-18, 0, -23], [-88, 0, 47], [7, 0, 62], [-38, 0, 67], [-78, 0, 82], [-13, 0, 87], [-48, 0, 97], [-73, 0, 117], [-88, 0, -23], [27, 0, 87], [52, 0, 67]],   // (the last: Prize Day Field, the lawn east of the pitch; sitework keeps its trees 12.5 m back)
   walkSeeds: [[-188, -28], [68, -28], [-160, 133], [28, -22], [-36, 95], [-95, 48], [-10, -18], [-110, -50], [-112, 30], [-60, 20]],
   // Menu camera tour: camera path + look-at path (Catmull-Rom), field of view, caption. -z = north.
   tour: [

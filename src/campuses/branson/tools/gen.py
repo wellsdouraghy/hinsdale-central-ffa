@@ -29,7 +29,7 @@ A = np.asarray(img).astype(np.float32)
 H, W, _ = A.shape
 X0, X1, Z0, Z1 = -330.0, 330.0, -300.0, 300.0
 sx = W / (X1 - X0); sz = H / (Z1 - Z0)
-PLAY = dict(minX=-215, maxX=82, minZ=-100, maxZ=195)
+PLAY = dict(minX=-215, maxX=82, minZ=-100, maxZ=172)
 LEAN = (0.0, 0.0)          # this imagery is close to nadir: footprints sit on the roofs
 random.seed(11); np.random.seed(11)
 # open play space the canopy scan must keep clear (x0, z0, x1, z1): the car-park loop, the dining terrace, the visitor lot, the quad lawn

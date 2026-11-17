@@ -20,6 +20,6 @@ BUILDINGS = [
     (9000000006, dict(building='school', name='Douglas Fine Arts Center (link)', part='arts_link'), obb(47.5, 10.5, 6, 5, -9)),
 ]
 AREAS = [
-    (9000000101, dict(leisure='pitch', sport='soccer', surface='artificial_turf', name='Tom Ryan Field'), obb(FIELD['cx'], FIELD['cz'], FIELD['L'] + 8, FIELD['W'] + 7, FIELD['ang'])),
+    (9000000101, dict(leisure='pitch', sport='soccer', surface='artificial_turf', name='Tom Ryan Field'), obb(FIELD['cx'], FIELD['cz'], FIELD['L'] + 5, FIELD['W'] + 5, FIELD['ang'])),
     (9000000102, dict(leisure='pitch', sport='tennis', name='Tennis Courts'), obb(TENNIS['cx'], TENNIS['cz'], 36.6, 33.5, TENNIS['ang'])),
 ]

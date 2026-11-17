@@ -9,8 +9,8 @@ export const obb = (cx, cz, w, d, deg) => { const c = Math.cos(deg * RAD), s = M
 /** Point in a rotated frame: `a` along the bearing, `b` across (to the right of it seen from above, i.e. +z for bearing 0). */
 export const along = (o, a, b) => { const c = Math.cos(o.ang * RAD), s = Math.sin(o.ang * RAD); return [o.cx + a * c - b * s, o.cz + a * s + b * c]; };
 
-// Tom Ryan Field: painted lines 94.3 x 52.9 m (103 x 58 yd), bearing -4.26 deg; the turf carpet runs 4 m / 3.5 m past them
-export const FIELD = { cx: -35.9, cz: 95.1, ang: -4.26, L: 94.3, W: 52.9, turfL: 102.3, turfW: 59.9 };
+// Tom Ryan Field: painted lines 94.3 x 52.9 m (103 x 58 yd), bearing -4.26 deg; the turf carpet runs 2.5 m past them (the car-park loop comes that close at the north-west corner)
+export const FIELD = { cx: -35.9, cz: 95.1, ang: -4.26, L: 94.3, W: 52.9, turfL: 99.3, turfW: 57.9 };
 export const fieldRing = (d = 0) => obb(FIELD.cx, FIELD.cz, FIELD.turfL + 2 * d, FIELD.turfW + 2 * d, FIELD.ang);
 // the two tennis courts north of the Commons (one slab, courts side by side)
 export const TENNIS = { cx: -96.7, cz: -27.2, ang: 32.2, w: 36.6, d: 33.5 };

@@ -11,7 +11,7 @@ const RAD = Math.PI / 180;
 // the Alumni Steps: from Katharine Branson Hall's south lawn down the bank to the car-park loop (graded in sitework)
 export const ALUMNI_STEPS = [{ a: [-70, 12], b: [-76, 33], w: 2.4 }];
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
-export const CAR_FREE = [[-95, 48], [-10, -18], [-112, 30]];
+export const CAR_FREE = [[-112, 30]];
 const gY = (ctx, x, z) => (ctx.groundY ? ctx.groundY(x, z) : 0);
 const TURF_GREEN = '#3a7a3e';
 
@@ -45,7 +45,8 @@ function field(ctx) {
   // South side: the pitch is cut into the toe of the wooded hill. A retaining wall (terraced, planted) holds the bank
   // 2 m outside the turf; where there is no bank to hold, a black ball-stop fence.
   const R2 = fieldRing(2.0); const south = [R2[3], R2[2]];
-  const panels = retainRun(ctx, south, [F.cx, F.cz], { d: 4.7, frontY: 0, min: 0.7 });
+  const nRet = (ctx.retaining || []).length; const panels = retainRun(ctx, south, [F.cx, F.cz], { d: 4.7, frontY: 0, min: 0.7 });
+  for (let k = nRet; k < (ctx.retaining || []).length; k++) ctx.retaining[k].allowTall = true;   // the pitch's wall: terraced wherever the bank lets a tread in, one taller riser where the toe of the hill is too steep for one
   { let run = []; const flush = () => { if (run.length > 1) hillFence(ctx, run, { h: 3.0, black: true, every: 3 }); run = []; };
     for (const p of panels) { if (p.top !== null || (ctx.buildingRings || []).some((r) => pointInRing(p.mid[0], p.mid[1], r))) { flush(); continue; } if (!run.length) run.push(p.p); run.push(p.q); } flush(); }
   // east end: a 6 m ball-stop net on four tall posts behind the goal (grapple targets), open at both corners
@@ -115,7 +116,7 @@ function vehicles(ctx) {
   // visitor parking in front of Katharine Branson Hall
   row([-11, -12.6], [12, -7.6], 1, 0.7); row([-20.5, -19.5], [-12, -13.2], 1, 0.6);
   // student / staff loop round the rain garden: nose-out on the outer kerb of the south and east arcs, and on the island's south edge
-  { const cx = -89, cz = 49.5, ra = 18 + 5.6, rb = 12.5 + 5.6; let th = 8 * RAD; while (th < 172 * RAD) { const x = cx + ra * Math.cos(th), z = cz + rb * Math.sin(th); const nx = Math.cos(th) / ra, nz = Math.sin(th) / rb; car(x, z, Math.atan2(-nz, nx), 0.8); th += 2.8 / Math.hypot(ra * Math.sin(th), rb * Math.cos(th)); } }
+  { const cx = -89, cz = 49.5, ra = 18 + 4.6, rb = 12.5 + 4.6; let th = -20 * RAD; while (th < 200 * RAD) { const x = cx + ra * Math.cos(th), z = cz + rb * Math.sin(th); const nx = Math.cos(th) / ra, nz = Math.sin(th) / rb; car(x, z, Math.atan2(-nz, nx), 0.8); th += 2.8 / Math.hypot(ra * Math.sin(th), rb * Math.cos(th)); } }
   ctx.carCount = n;
 }
 
@@ -163,7 +164,7 @@ function streetscape(ctx) {
     if (!(r.tags.name === 'Park Drive' || r.id === 570965051)) continue; const w = streetWidth(r); let side = 1, carry = 9;
     for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; let d = carry; for (; d < L; d += 24) { lamp(a[0] + tx * d - tz * side * (w / 2 + 1.1), a[1] + tz * d + tx * side * (w / 2 + 1.1)); side = -side; } carry = d - L; }
   }
-  for (const [x, z] of [[-128, -30.5], [-110, -55], [-152, -46], [-2, -6], [-24, -30], [-118, 36], [-96, 30], [-150, 100], [-158, 124], [40, -30], [22, -6], [-66, 70], [-20, 62], [20, 64]]) lamp(x, z);
+  for (const [x, z] of [[-128, -30.5], [-110, -55], [-152, -46], [-2, -6], [-24, -30], [-118, 36], [-96, 30], [-150, 100], [-176, 142], [40, -30], [22, -6], [-66, 70], [-20, 62], [20, 64]]) lamp(x, z);
   // Park Drive crosses Ross Creek on a culvert between the loop and the quad ("the Bridge"): timber-look rails where the
   // carriageway stands more than 0.8 m above the creek bed beside it
   if (S) for (const r of data.roads) {
@@ -188,7 +189,7 @@ function campusLife(ctx) {
   }
   for (const st of ALUMNI_STEPS) { const r = buildStairs(ctx, st); (ctx.stairNotes = ctx.stairNotes || []).push({ ...st, ...r }); }
   // benches on Katharine Branson Hall's south lawn and by the quad
-  for (const [x, z, rot] of [[-46, 14, 0.6], [-18, 26, -0.7], [-150, 128, 1.1], [-166, 142, -0.5]]) { if ((ctx.buildingRings || []).some((r) => pointInRing(x, z, r)) || (ctx.terrain && ctx.terrain.maxIn(x, z, 1.1) - ctx.terrain.minIn(x, z, 1.1) > 0.15)) continue; propKit.bench(ctx, x, z, rot); }
+  for (const [x, z, rot] of [[-46, 14, 0.6], [-18, 26, -0.7], [-172, 128, 1.1]]) { if ((ctx.buildingRings || []).some((r) => pointInRing(x, z, r)) || (ctx.terrain && ctx.terrain.maxIn(x, z, 1.1) - ctx.terrain.minIn(x, z, 1.1) > 0.15)) continue; propKit.bench(ctx, x, z, rot); }
 }
 
 // ------------------------------------------------------------------------------------------ the play-area edge

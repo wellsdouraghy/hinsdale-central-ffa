@@ -692,3 +692,38 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     another port, the same list of camera strings in both (each tested: nothing solid within 0.6 m, above the ground).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.
+
+## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
+
+- **The lidar can be older than the campus.** 3DEP showed Ross Creek's channel and the toe of a wooded hill where the
+  satellite and the 3D tiles have the south half of Tom Ryan Field. Print the tile surface next to the DEM over every
+  field and car park before trusting either (a table of numbers on a 4 m grid shows it at once). Cure, in two places:
+  the hillside is moved in tools/terrain.py (`regrade_shift`: the DEM is read 13 m further north behind the field, faded
+  out to the sides), and the builder's first pad fills the old channel (`max(ground, level)`), then the field pad.
+- **Stale coarse 3D tiles hang hundreds of metres up.** A straight-down ray took a parent tile 600 m above the campus as
+  the first hit in 40 % of the cells: drop hits above a sane height in the sampler (dev/branson-tiles.js).
+- **Tiles cannot see the ground under closed canopy.** Low values under trees are sagging mesh, not ground; high values
+  are crowns. On a wooded site read roofs and open ground from the tiles, never the forest floor.
+- **OSM may not have the school at all.** Here only a node: no campus polygon, no pitch, and the two newest buildings
+  missing. Hand-digitise them from the photo in one data file with its own id range (tools/data/extra.py, merged by
+  osm.py), so gen.py, the Street View plan and the builder all see ordinary buildings / areas.
+- **A building that backs onto a steep hill: cut a bench, then a bank.** Wall pads alone gave retaining blocks 13-16 m
+  high behind the quad. Before the wall pads, cut the ground to the floor for 7.4 m behind the walls (the depth the pad's
+  retaining block would take) and let it rise from there at 36 deg (`bank` in school.js / sitework): no block, a level
+  service strip, a planted bank; the lidar wins wherever it is lower.
+- **Pick CTF bases with the overlook count, before building round them.** The lower campus (quad, loop) lies under a
+  10 m plateau and a 34 m hill: 250+ cells of high ground with a line to any base there. A ten-line console loop over
+  candidate points (terrain-only line of sight, same thresholds as the map check) found the two ends of the plateau with
+  0 cells each in a minute. The hill above the quad stays outside the play bounds.
+- **Smoothing a street polyline must keep junction vertices.** Corner-cutting the campus drive removed the vertex a side
+  street shared with it: the two no longer met on a node and the cross-slope test failed at the junction. Keep every
+  vertex that another graded street also has.
+- **A protected pad swallows a road that touches it.** A generous "keep the shoulder off the field" zone (9 m past the
+  turf) covered the car-park loop: 11 % cross-slope. Protect the pad you built, not a margin round it.
+- **Hedges are the street in some towns.** Ross has no sidewalks and no kerbs; every lot is behind a 2.5-3 m clipped hedge
+  (Street View showed hedges in 13 of 15 views and no house). Draw them as solid runs fitted against the street design,
+  with gaps at the driveways so no yard is sealed (the terrain check needs a way out of every hollow).
+- **Helicopter spots: hand the pipeline the scan.** With an empty `heliPark` the builder passes every level 5 m cell that
+  is clear of the streets (car parks first); the shared exact test picks; the accepted spots are then written into the
+  descriptor so parked cars keep clear of them. Keep spare candidates after the first twelve: one that passes at 7 m
+  only shows up as a warning.
