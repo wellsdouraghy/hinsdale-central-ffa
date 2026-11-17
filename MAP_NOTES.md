@@ -76,12 +76,28 @@ map breaking one of these rules has not finished.
     double-sided skins, and the roofSkin, visualSolid and facadeSweep checks pass.
 23. Signs are readable at eye level and sit on clear wall, never over windows or behind pilasters.
 
+**F. Verified against the source (Branson QA: the terrain was squashed 26% north-south and nobody noticed)**
+24. Validate the DEM before building on it. The 3DEP `exportImage` call with `bboxSR=4326&imageSR=4326` and a pixel
+    size whose aspect differs from the bbox's DEGREE aspect silently grows the extent (square pixels in degrees):
+    a 960 x 900 m request at lat 38 came back 960 x 1137 m. Request in a metric `imageSR` (UTM) or read the extent
+    from the GeoTIFF tags / `f=json`, never assume it. Then spot-check ~20 USGS point elevations across the map (edges
+    included) against `terrain.heightAt`; mean error over ~1.5 m fails the bake.
+25. If terrain disagrees with the tiles or imagery and the "fix" is to shift a hill, regrade a toe or fit a bias that
+    changes across the map, stop: that is a registration bug in the data, not a real effect.
+26. Count buildings per cluster against a top-down Google 3D tiles shot, not only OSM / county footprints (OSM missed
+    a whole quad building). If the school publishes a campus map, tick off every numbered item on it (bridge, named
+    tree, gate, garden...) as built or deliberately omitted, in the hand-off.
+27. Signature facades (the main hall's entrance, the gym front) and every school roof's colour and material are
+    matched against a tiles oblique or photo in a side-by-side screenshot included in the hand-off. Building name
+    signs go where the real ones are.
+28. Hedges are continuous extruded walls at their real height, never rows of separate cones or blobs.
+
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-E23 above is ticked off explicitly in the hand-off.
+- Every rule A1-F28 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
