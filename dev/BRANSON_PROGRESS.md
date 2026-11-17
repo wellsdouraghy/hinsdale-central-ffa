@@ -45,3 +45,33 @@ osm.py data/osm_raw.json -> sat.py -> (dev/branson-tiles.html: __dumpHeights fin
 - map check warnings left: two hedge-hidden houses 0.3-0.4 m over the storey limit on their downhill wall, bermed blank
   walls of the house west of the Commons, 6-7 cm profile bumps on Park Drive by the Fine Arts Center, one roadblock on
   the slope of Ivy Drive
+
+## PAUSED 2026-11-17 (user's usage limit; resume this weekend)
+
+State: QA round 1 said NOT SHIP (screenshots dev/shots/qa-branson/, untracked). Fix round started; only item 1 is done
+(130b4c4: DEM re-baked with the real extent, 52 USGS points mean |err| 0.16 m, regrade shift / varying tile bias /
+channel fill removed). Everything below is still TO DO, then a fresh independent QA, release test, deploy.
+
+QA findings still open (coords in game metres):
+2. Missing quad building: modern faceted white-rimmed ~22 x 18 m at (-149,163); count clusters against a tiles top-down (F26).
+3. House 976135755 at (-152,53): was buried to the eaves; re-check on the new DEM (tiles ~7-8 m tall).
+4. Gym east front: glazed gabled entrance with arched window, lean-to colonnades both sides, stepped roofs, tan roof + solar.
+5. Ross Creek + footbridge (campus map item 12) at (-141,88) gym lot -> quad; remove the asphalt smear and mound.
+6. Roof colours: KBH and quad bright terracotta tile; Commons light grey standing seam + solar; gym tan (F27 side by side).
+7. Katharine Branson Hall: white two-storey west wing, arched windows, entrance archway/porch; SW addition flat roof.
+8. Blue Atlas Cedar (campus map item 3) on the car-park island ~(-5,-35).
+9. White ground-class blotches: Commons terrace (-112,30), KBH apron (-8,24), tennis lot (-70,-48), field NW corner.
+10. Fernhill hedges: continuous clipped walls 3-4 m (F28), not cones.
+11. Real building-name signs where the real ones are (E23); Hinsdale-level sign count.
+12. Mounds at (-140,106), (-130,90) by Park Drive (may be gone after the re-bake).
+13. Backdrop: no gridded city blocks to the north or white dome houses; wooded valley, denser canopy.
+14. Fernhill double-yellow centre line, clean road edges.  15. Commons north planter tiers (-140,-15) -> bank + one wall.
+16. Turf wedge at (-86,67).  17. Map-check warnings: barrier (-33.6,173.2), houses 975106084/975108094, Park Dr bumps (19-20,4-10).
+18. New House (52,-14): grey gabled house with dormers.
+Builder's own weak list: car-park stall/centre lines and realistic car counts; Fernhill house colours from Street View or
+tiles obliques; hidden heli spots (not 7 of 12 on the field, with margin); turf pad under the gym; walk every perimeter,
+street and roof; re-check CTF bases on the corrected ground.
+
+Marin (live) has the same squashed-DEM bug. Paused fix: branch worktree-agent-afcaa04df291ec9ac (worktree
+.claude/worktrees/agent-afcaa04df291ec9ac), WIP commit 959e26c, re-bake done, earthworks re-fit half done, NOT verified.
+Finish it, re-verify every earlier Marin fix, independent QA, then merge + deploy.
