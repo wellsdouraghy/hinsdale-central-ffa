@@ -15,7 +15,7 @@ export default {
   legal: 'Fan-made campus game. Not affiliated with The Branson School.',
   ...BRANSON_BRAND,   // short, palette, emblem, teams (Bulls vs Marin Academy Wildcats), letters: see brand.js
   // local frame: x east, z south, metres; height = ellipsoid height of y = 0 (the Tom Ryan Field turf) for 3D tiles
-  origin: { lat: 37.96545, lon: -122.56545, height: -16.1 },
+  origin: { lat: 37.96545, lon: -122.56545, height: -16.28 },
   tileRegistration: [[-40, 95], [-60, 90], [-20, 100], [-50, 105], [-30, 82], [-10, 92]],   // on the pitch: the only large level ground at y = 0
   files: {
     campus: 'campuses/branson/campus.json',

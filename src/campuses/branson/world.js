@@ -23,9 +23,6 @@ function smoothLine(r, fixed) { let L = r.line; if (!SMOOTH.has(r.id)) return L;
 function sitework(ctx) {
   const T = ctx.terrain; if (!T) return;
   // ---- 1. campus pads
-  // The lower campus was regraded after the lidar flight (tools/terrain.py moves the hillside; here the old channel of
-  // Ross Creek, now in a culvert under the field, is filled to the level of the lawns round the pitch)
-  ctx.flatten({ rect: { cx: -13, cz: 95, w: 150, d: 66, angle: 0 } }, { y: (x, z) => Math.max(T.heightAt(x, z), -0.3), blend: 7 });
   // Tom Ryan Field: dead level (y = 0 by definition). The pad reaches 4.2 m past the turf: one lattice cell behind the
   // face of the retaining wall on the south side (2 m out), its 2.3 m blend wholly under that wall's 4.7 m block.
   ctx.flatten({ outline: fieldRing(4.2) }, { y: 0, blend: 2.3 });

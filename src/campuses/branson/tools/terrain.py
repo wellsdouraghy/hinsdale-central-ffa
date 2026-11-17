@@ -3,8 +3,8 @@
 
 Source: USGS 3DEP (public domain, bare-earth lidar DEM, no roofs / trees), fetched from the National Map ImageServer and
 cached under tools/data/dem/ (not committed). Google 3D-tiles samples (tools/data/tile_heights.json) are used only for
-ROOF heights: on open ground they agree with the DEM to ~0.5 m after a constant offset, but their coarse LODs smear the
-steep hillside north-east of campus by up to 20 m, and they cannot see the ground under canopies.
+ROOF heights: on open ground they agree with the DEM to ~0.3 m after ONE constant offset (-16.28 m); they cannot see the
+ground under canopies. Validate every bake with tools/validate_dem.py (rule F24: USGS point elevations vs terrain.bin).
 
 Writes
   public/campuses/branson/terrain.bin   int16 little-endian, centimetres above the Tom Ryan Field (y = 0), 2 m grid
@@ -36,25 +36,39 @@ PLAY = dict(minX=-215, maxX=82, minZ=-100, maxZ=172)
 ANG = math.radians(7.2); UX, UZ = math.cos(ANG), math.sin(ANG)
 def G(a, b): return (a * UX - b * UZ, a * UZ + b * UX)
 
-def fetch(name, half_x, half_z, px_x, px_z):
-    p = os.path.join(HERE, 'data', 'dem', name)
-    if not os.path.exists(p):
+def fetch(name, half_x, half_z, res):
+    """3DEP exportImage in EPSG:4326. ArcGIS keeps SQUARE pixels in DEGREES: a pixel size whose aspect differs from the
+    bbox's degree aspect silently grows the extent (rule F24: the first bake asked 960 x 900 px for a 960 x 900 m box and
+    got 960 x 1137 m back, read as 900: the ground was squashed 26 % north-south). So: the size is computed from the
+    bbox in degrees (res metres per pixel north-south), and the extent the server actually used is read back with
+    f=json and stored next to the tiff; Dem maps by that extent, never by the request."""
+    p = os.path.join(HERE, 'data', 'dem', name); pj = p + '.extent.json'
+    if not (os.path.exists(p) and os.path.exists(pj)):
         os.makedirs(os.path.dirname(p), exist_ok=True)
         w, e, s, n = LON0 - half_x / M_LON, LON0 + half_x / M_LON, LAT0 - half_z / M_LAT, LAT0 + half_z / M_LAT
-        url = ('https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage?bbox=%.7f,%.7f,%.7f,%.7f'
-               '&bboxSR=4326&imageSR=4326&size=%d,%d&format=tiff&pixelType=F32&interpolation=RSP_BilinearInterpolation&f=image') % (w, s, e, n, px_x, px_z)
+        dpp = res / M_LAT; px, pz = round((e - w) / dpp), round((n - s) / dpp)
+        url = ('https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage?bbox=%.8f,%.8f,%.8f,%.8f'
+               '&bboxSR=4326&imageSR=4326&size=%d,%d&format=tiff&pixelType=F32&interpolation=RSP_BilinearInterpolation&f=json') % (w, s, e, n, px, pz)
         req = urllib.request.Request(url, headers={'User-Agent': 'campus-terrain-bake'})
-        open(p, 'wb').write(urllib.request.urlopen(req, timeout=180).read())
-    return tifffile.imread(p).astype(np.float64)
+        meta = json.load(urllib.request.urlopen(req, timeout=180))
+        open(p, 'wb').write(urllib.request.urlopen(urllib.request.Request(meta['href'], headers={'User-Agent': 'campus-terrain-bake'}), timeout=180).read())
+        json.dump(dict(extent=meta['extent'], width=meta['width'], height=meta['height']), open(pj, 'w'))
+    a = tifffile.imread(p).astype(np.float64); m = json.load(open(pj)); ex = m['extent']
+    assert a.shape == (m['height'], m['width']), (a.shape, m)
+    ext = ((ex['xmin'] - LON0) * M_LON, (ex['xmax'] - LON0) * M_LON, (LAT0 - ex['ymax']) * M_LAT, (LAT0 - ex['ymin']) * M_LAT)   # x0, x1, z0 (north), z1 (south)
+    pxm = ((ext[1] - ext[0]) / a.shape[1], (ext[3] - ext[2]) / a.shape[0])
+    print('%s: %d x %d px, extent x %.1f..%.1f z %.1f..%.1f m, pixel %.2f x %.2f m' % (name, a.shape[1], a.shape[0], *ext, *pxm))
+    assert abs(ext[0] + half_x) < 2 and abs(ext[1] - half_x) < 2 and abs(ext[2] + half_z) < 2 and abs(ext[3] - half_z) < 2, 'DEM extent differs from the request: %r' % (ext,)
+    return a, ext
 class Dem:
-    def __init__(self, a, hx, hz): self.a, self.hx, self.hz = a, hx, hz
+    def __init__(self, a, ext): self.a, self.ext = a, ext
     def at(self, x, z):
-        a = self.a; x = np.asarray(x, float); z = np.asarray(z, float)
-        fx = np.clip((x + self.hx) / (2 * self.hx) * a.shape[1] - 0.5, 0, a.shape[1] - 1.001); fz = np.clip((z + self.hz) / (2 * self.hz) * a.shape[0] - 0.5, 0, a.shape[0] - 1.001)
+        a = self.a; x0, x1, z0, z1 = self.ext; x = np.asarray(x, float); z = np.asarray(z, float)
+        fx = np.clip((x - x0) / (x1 - x0) * a.shape[1] - 0.5, 0, a.shape[1] - 1.001); fz = np.clip((z - z0) / (z1 - z0) * a.shape[0] - 0.5, 0, a.shape[0] - 1.001)
         i = np.floor(fx).astype(int); j = np.floor(fz).astype(int); u = fx - i; v = fz - j
         return a[j, i] * (1 - u) * (1 - v) + a[j, i + 1] * u * (1 - v) + a[j + 1, i] * (1 - u) * v + a[j + 1, i + 1] * u * v
-NEAR = Dem(fetch('dem_1m.tif', 480, 450, 960, 900), 480, 450)        # 1 m
-FAR = Dem(fetch('dem_10m.tif', 1700, 1700, 340, 340), 1700, 1700)    # 10 m
+NEAR = Dem(*fetch('dem_1m_v2.tif', 480, 450, 1.0))       # 1 m north-south (0.79 m east-west)
+FAR = Dem(*fetch('dem_10m_v2.tif', 1700, 1700, 10.0))    # 10 m
 
 D = json.load(open(os.path.join(OUT, 'campus.json')))
 gen = json.load(open(os.path.join(OUT, 'gen.json')))
@@ -70,7 +84,7 @@ print('field level (NAVD88 m)', round(Y0, 2), 'samples', len(pts))
 TS, TN, T0 = 20.0, 151, -1500.0
 tx = T0 + np.arange(TN) * TS; TXg, TZg = np.meshgrid(tx, tx)
 inner = (np.abs(TXg) < 440) & (np.abs(TZg) < 410)
-TER = np.where(inner, ndi.gaussian_filter(NEAR.a, 6)[np.clip(((TZg + 450) / 900 * 900).astype(int), 0, 899), np.clip(((TXg + 480) / 960 * 960).astype(int), 0, 959)], FAR.at(TXg, TZg)) - Y0
+TER = np.where(inner, Dem(ndi.gaussian_filter(NEAR.a, 6), NEAR.ext).at(TXg, TZg), FAR.at(TXg, TZg)) - Y0
 def backdrop(x, z):
     fx = np.clip((np.asarray(x, float) - T0) / TS, 0, TN - 1.001); fz = np.clip((np.asarray(z, float) - T0) / TS, 0, TN - 1.001)
     i = np.floor(fx).astype(int); j = np.floor(fz).astype(int); a = fx - i; b = fz - j
@@ -81,15 +95,8 @@ STEP = 2.0
 xs = np.arange(SAT[0], SAT[1] + 0.01, STEP); zs = np.arange(SAT[2], SAT[3] + 0.01, STEP)
 Xg, Zg = np.meshgrid(xs, zs)
 sm = ndi.gaussian_filter(NEAR.a, 0.9)        # 1 m lidar noise / kerb steps: ~1 m gaussian before the 2 m resample
-# Regraded since the lidar flight: Tom Ryan Field was extended south (the imagery and the 3D tiles show level turf where the
-# DEM still has Ross Creek's old channel and the toe of the wooded hill; the creek now runs in a culvert). The hillside
-# behind the field and the gym is moved 13 m south (cut back), fading out to the west of the gym, east of the field and
-# toward the houses on Ivy Drive; the filled channel itself is levelled by the builder's field pad.
-def sstep(t): t = np.clip(t, 0, 1); return t * t * (3 - 2 * t)
-def regrade_shift(x, z):
-    x = np.asarray(x, float); z = np.asarray(z, float)
-    return 13.0 * sstep((x + 145) / 20) * sstep((30 - x) / 30) * sstep((z - 104) / 10) * sstep((198 - z) / 45)
-Hn = Dem(sm, 480, 450).at(Xg, Zg - regrade_shift(Xg, Zg)) - Y0
+SM = Dem(sm, NEAR.ext)
+Hn = SM.at(Xg, Zg) - Y0
 edge = np.minimum(np.minimum(Xg - SAT[0], SAT[1] - Xg), np.minimum(Zg - SAT[2], SAT[3] - Zg))
 w = np.clip(edge / 40.0, 0, 1); w = w * w * (3 - 2 * w)
 Hf = Hn * w + backdrop(Xg, Zg) * (1 - w)
@@ -100,7 +107,7 @@ print('terrain.bin', cm.shape[::-1], 'range', Hf.min().round(1), Hf.max().round(
 gy, gx = np.gradient(Hf, STEP); slope = np.degrees(np.arctan(np.hypot(gx, gy)))
 inp = (Zg > PLAY['minZ']) & (Zg < PLAY['maxZ']) & (Xg > PLAY['minX']) & (Xg < PLAY['maxX'])
 print('play-area slope: >20deg %.1f%%  >35deg %.1f%%  >42deg %.1f%%' % tuple(100 * (slope[inp] > t).mean() for t in (20, 35, 42)))
-def ground(x, z): return Dem(sm, 480, 450).at(x, np.asarray(z, float) - regrade_shift(x, z)) - Y0
+def ground(x, z): return SM.at(x, z) - Y0
 
 # ------------------------------------------------------------------ building heights against the ground round each footprint
 TH = json.load(open(os.path.join(HERE, 'data', 'tile_heights.json')))
@@ -108,27 +115,21 @@ BLD = unary_union([Polygon(b['outer'][0]).buffer(0).buffer(2.0) for b in D['buil
 prepare(BLD)
 def grid(g): return np.array([[np.nan if v is None else v for v in r] for r in g['rows']], float), g['x0'], g['z0'], g['step']
 def calibrated(g):
-    """Tile surface -> metres above y = 0. The tile heights carry a bias that changes across the map (about -13 m on the
-    flat blocks, 3 m more on the hillside north of the gyms, worse on the steep north-east slope where only coarse tile
-    LODs load), so the offset to the DEM is fitted LOCALLY on open ground next to each building: smooth tile cells clear
-    of every OSM footprint, outliers against the neighbourhood median dropped, gaussian weights (sigma 16 m)."""
+    """Tile surface -> metres above y = 0: ONE constant offset, the median of (tile - DEM) on open ground (smooth tile
+    cells clear of every OSM footprint). With the DEM registered properly the offset is the same everywhere (-16.28 m,
+    100 m block medians within +-0.3 m); the first bake fitted a bias "that changes across the map", which was the
+    squashed DEM (rule F25). The spread is printed and a block more than 1 m off the median is reported."""
     Hm, x0, z0, st = g; X, Z = np.meshgrid(x0 + np.arange(Hm.shape[1]) * st, z0 + np.arange(Hm.shape[0]) * st)
     T = np.nan_to_num(Hm, nan=0.0)
     rough = np.sqrt(np.maximum(ndi.uniform_filter(T * T, 3) - ndi.uniform_filter(T, 3) ** 2, 0))
     open_ = (rough < 0.3) & ~np.isnan(Hm) & ~contains_xy(BLD, X, Z)
-    d = Hm - ground(X, Z)
-    # neighbourhood median on 24 m blocks (3 x 3 blocks around each cell), then the outlier cut
-    nb = max(1, int(round(24 / st))); by, bx = -(-Hm.shape[0] // nb), -(-Hm.shape[1] // nb); bm = np.full((by, bx), np.nan)
-    for j in range(by):
-        for i in range(bx):
-            sl = (slice(max(0, (j - 1) * nb), (j + 2) * nb), slice(max(0, (i - 1) * nb), (i + 2) * nb)); v = d[sl][open_[sl]]
-            if len(v) >= 6: bm[j, i] = np.median(v)
-    med = np.repeat(np.repeat(bm, nb, 0), nb, 1)[:Hm.shape[0], :Hm.shape[1]]
-    open_ &= np.abs(d - np.nan_to_num(med, nan=1e9)) < 1.5
-    num = ndi.gaussian_filter(np.where(open_, d, 0.0), 16 / st); den = ndi.gaussian_filter(open_.astype(float), 16 / st)
-    glob = float(np.median(d[open_]))
-    off = np.where(den > 0.01, num / np.maximum(den, 1e-6), glob)
-    print('tile offset: median %.2f, local %.2f..%.2f, open cells %d' % (glob, off.min(), off.max(), open_.sum()))
+    d = Hm - ground(X, Z); off = float(np.median(d[open_])); blocks = []
+    for bz in range(-300, 300, 100):
+        for bx in range(-300, 300, 100):
+            m = open_ & (X >= bx) & (X < bx + 100) & (Z >= bz) & (Z < bz + 100)
+            if m.sum() >= 20: blocks.append((float(np.median(d[m])) - off, bx, bz))
+    bad = [b for b in blocks if abs(b[0]) > 1.0]
+    print('tile offset: %.2f (open cells %d, p10..p90 %.2f..%.2f, 100 m blocks %.2f..%.2f)%s' % (off, open_.sum(), *np.percentile(d[open_], [10, 90]), min(b[0] for b in blocks) + off, max(b[0] for b in blocks) + off, ' BLOCKS OFF BY > 1 m: %r' % bad if bad else ''))
     return Hm - off, x0, z0, st
 FINE = calibrated(grid(TH['fine'])); WIDE = calibrated(grid(TH['wide']))
 def roof_samples(g, P_, ring_in):

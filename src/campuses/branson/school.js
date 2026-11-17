@@ -15,16 +15,16 @@ const WOOD = { brick: 'maP_wood_siding', limestone: 'whitePanel' };
 const GYM_ROOF = tileTint([156, 146, 132]), METAL_ROOF = tileTint([138, 142, 144]);
 const SPEC = [
   { id: 975106452, key: 'kbh', name: 'Katharine Branson Hall', top: 14.9, style: 'brKbh', roof: 'tile', rise: 3.2, ov: 0.7, tol: 0.9, level: 10.3 },
-  { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'tile', rise: 4.4, ov: 0.8, tint: GYM_ROOF, skin: WOOD, minH: 6.5, level: 0.3, bank: true },
+  { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'tile', rise: 4.4, ov: 0.8, tint: GYM_ROOF, skin: WOOD, minH: 6.5, level: 0.5 },
   { id: 9000000001, key: 'commonsN', name: 'The Commons (north wing)', top: 6.0, style: 'brCommons', roof: 'flat', ladder: true },
   { id: 9000000002, key: 'commonsHall', name: 'The Commons', top: 6.4, style: 'brHall', roof: 'gable', rise: 3.5, ov: 0.9, tint: METAL_ROOF, gableTint: [0.66, 0.6, 0.5] },
   { id: 9000000003, key: 'commonsS', name: 'The Commons (south wing)', top: 6.0, style: 'brCommons', roof: 'flat' },
   { id: 9000000004, key: 'artsW', name: 'Douglas Fine Arts Center', top: 15.6, style: 'brArts', roof: 'flat', ladder: true },
   { id: 9000000005, key: 'artsE', name: 'Maxwell Music Hall', top: 14.3, style: 'brArts', roof: 'flat', ladder: true },
   { id: 9000000006, key: 'artsLink', name: 'Douglas Fine Arts Center (link)', top: 13.4, style: 'brArtsLow', roof: 'flat' },
-  { id: 976479989, key: 'study', name: 'Study Hall', top: 6.0, style: 'brQuadLow', roof: 'tile', rise: 2.2, ov: 0.6, level: 2.3, bank: true },
-  { id: 976475035, key: 'richardson', name: 'Richardson Hall / New Oaks', top: 7.0, style: 'brKbh', roof: 'tile', rise: 2.4, ov: 0.6, level: 2.4, bank: true },
-  { id: 978513427, key: 'tallant', name: 'Tallant Science Center', top: 7.2, style: 'brKbh', roof: 'tile', rise: 2.4, ov: 0.6, tol: 0.8, level: 2.6, bank: true },
+  { id: 976479989, key: 'study', name: 'Study Hall', top: 6.0, style: 'brQuadLow', roof: 'tile', rise: 2.2, ov: 0.6, level: 1.8 },
+  { id: 976475035, key: 'richardson', name: 'Richardson Hall / New Oaks', top: 7.0, style: 'brKbh', roof: 'tile', rise: 2.4, ov: 0.6, level: 1.8 },
+  { id: 978513427, key: 'tallant', name: 'Tallant Science Center', top: 7.2, style: 'brKbh', roof: 'tile', rise: 2.4, ov: 0.6, tol: 0.8, level: 2.1 },
 ];
 export const SCHOOL_IDS = new Set(SPEC.map((s) => s.id));
 
