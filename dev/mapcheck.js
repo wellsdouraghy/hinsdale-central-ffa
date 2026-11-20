@@ -716,7 +716,12 @@ async function checkMounds() {
   const fails = [], warns = []; let n = 0, worst = 0; const hits = [];
   for (let z = PB.minZ + 4; z <= PB.maxZ - 4; z += 1) for (let x = PB.minX + 4; x <= PB.maxX - 4; x += 1) {
     const sf = world.surfaceAt(x, z); if (sf !== 'asphalt' && sf !== 'concrete') continue; n++;
-    const g = GY(x, z); const e = Math.min(g - GY(x + 3, z), g - GY(x - 3, z), g - GY(x, z + 3), g - GY(x, z - 3)); if (e <= 0.15) continue;
+    // (really on paving: a single stray asphalt cell of the class map on a grass bank is not)
+    { let pv = 0; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const q = world.surfaceAt(x + dx, z + dz); if (q === 'asphalt' || q === 'concrete') pv++; } if (pv < 2) continue; }
+    const g = GY(x, z); let e = Math.min(g - GY(x + 3, z), g - GY(x - 3, z), g - GY(x, z + 3), g - GY(x, z - 3)); if (e <= 0.15) continue;
+    // (and along the diagonals: a lane on a narrow embankment that runs diagonally to the grid is higher than its four axis
+    // neighbours without being a mound; Branson's creek causeway)
+    e = Math.min(e, g - GY(x + 2.1, z + 2.1), g - GY(x - 2.1, z - 2.1), g - GY(x + 2.1, z - 2.1), g - GY(x - 2.1, z + 2.1)); if (e <= 0.15) continue;
     if (S.first(V(x, g + 4, z), DOWN, 3.95)) continue;
     hits.push([x, z, g, e]); worst = Math.max(worst, e);
   }
