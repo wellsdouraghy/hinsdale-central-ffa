@@ -9,7 +9,7 @@ const RAD = Math.PI / 180;
 export const BR_CLAY = [9.5, 4.3, 2.7];        // bright terracotta barrel tile (Katharine Branson Hall, the quad): 3D tiles obliques
 export const BR_TAN = [6.6, 5.1, 3.6];        // the gym's tan composition shingle
 export const BR_SEAM = [6.6, 6.4, 5.9];       // the Commons: light grey standing seam
-export const WHITE = [0.8, 0.79, 0.75];         // white stucco, toned down (no blown-out whites)
+export const WHITE = [0.72, 0.71, 0.68];         // white stucco, toned down (no blown-out whites)
 export const CREAM = [0.86, 0.75, 0.52];
 
 /** Edge frames of a CCW ring whose outward normal really points out (tested against the centroid). */

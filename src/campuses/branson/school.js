@@ -20,9 +20,9 @@ const SPEC = [
   { id: 975106452, key: 'kbh', part: 'main', name: 'Katharine Branson Hall', top: 14.9, style: 'brKbh', roof: 'tile', rise: 3.6, ov: 0.7, tol: 0.9, level: 10.3, tint: BR_CLAY },
   { id: 975106452, key: 'kbhWhite', part: 'white', name: 'Katharine Branson Hall (west wing)', top: 16.6, style: 'brKbh', roof: 'custom', tol: 0.9, level: 10.3 },
   { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'custom', skin: WOOD, minH: 6.5, level: 0.5 },
-  { id: 9000000001, key: 'commonsN', name: 'The Commons (north wing)', top: 6.0, style: 'brCommons', roof: 'flat', ladder: true, level: 2.3, bank: { strip: 2.6, slope: 0.95 } },   // (the glen's north bank: a plain planted bank behind a narrow service strip, not planter tiers)
-  { id: 9000000002, key: 'commonsHall', name: 'The Commons', top: 6.4, style: 'brHall', roof: 'custom' },
-  { id: 9000000003, key: 'commonsS', name: 'The Commons (south wing)', top: 6.0, style: 'brCommons', roof: 'flat' },
+  { id: 9000000001, key: 'commonsN', name: 'The Commons (north wing)', top: 6.0, style: 'brCommons', roof: 'flat', ladder: true, level: 2.3, bank: { strip: 7.4, slope: 0.95 } },   // (the glen's north bank: a plain planted bank behind a narrow service strip, not planter tiers)
+  { id: 9000000002, key: 'commonsHall', name: 'The Commons', top: 6.4, style: 'brHall', roof: 'custom', level: 2.3, bank: { strip: 7.4, slope: 0.95 } },
+  { id: 9000000003, key: 'commonsS', name: 'The Commons (south wing)', top: 6.0, style: 'brCommons', roof: 'flat', level: 2.3, bank: { strip: 7.4, slope: 0.95 } },
   { id: 9000000004, key: 'artsW', name: 'Douglas Fine Arts Center', top: 15.6, style: 'brArts', roof: 'flat', ladder: true },
   { id: 9000000005, key: 'artsE', name: 'Maxwell Music Hall', top: 14.3, style: 'brArts', roof: 'flat', ladder: true },
   { id: 9000000006, key: 'artsLink', name: 'Douglas Fine Arts Center (link)', top: 13.4, style: 'brArtsLow', roof: 'flat' },
@@ -51,7 +51,8 @@ const cache = new WeakMap();
 export function schoolWalls(ctx) {
   let list = cache.get(ctx.data);
   if (!list) { list = []; let kbh = null; for (const s of SPEC) { const b = ctx.data.buildings.find((q) => q.id === s.id); if (!b) continue; let ring = simplify(b.outer[0], s.tol || 0.5);
-      if (s.part) { kbh = kbh || splitKbh(ring); ring = kbh[s.part]; }
+      // (the county footprint has a 2 m wide, 5 m deep slot at (-34, -30) that the building does not have: a player dropping off the roof wedged in it)
+      if (s.part) { if (!kbh) { ring = ring.filter((p) => Math.hypot(p[0] + 34, p[1] + 31) > 1.6 && Math.hypot(p[0] + 36, p[1] + 29) > 1.6); kbh = splitKbh(ring); } ring = kbh[s.part]; }
       ring.id = s.name; list.push({ ...s, ring }); } cache.set(ctx.data, list); }
   return list;
 }

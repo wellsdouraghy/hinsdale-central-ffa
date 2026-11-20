@@ -1,12 +1,208 @@
-{"note": "Per-building attributes read from Google Street View (tools/streetview.py views, 2025-04 imagery) and the Google 3D tiles. Keys = OSM way ids. Every house round Branson is hidden from the street by 2.5-3 m clipped hedges, fences and redwoods (visible: no): storeys come from the measured heights, roof colours from the aerial imagery, walls take the period styles of Ross (painted wood siding, brown shingle, cream stucco). Edit here, then run tools/facades.py.",
+{
+ "note": "Per-building attributes read from Google Street View (tools/streetview.py views, 2025-04 imagery) and the Google 3D tiles. Keys = OSM way ids. Every house round Branson is hidden from the street by 2.5-3 m clipped hedges, fences and redwoods (visible: no): storeys come from the measured heights, roof colours from the aerial imagery, walls take the period styles of Ross (painted wood siding, brown shingle, cream stucco). Edit here, then run tools/facades.py. 2026-11: walls / roofs of the hedge-hidden houses re-read from Google 3D-tiles obliques (visible = tiles).",
  "buildings": {
-  "974153830": {"visible": "no", "kind": "house", "lv": 2, "wall": "wood_siding", "col": "#d9d4c6", "trim": "#f2f0ea", "roof": "hip", "roofMat": "comp_shingle", "roofCol": "#5f5d5a", "garage": false, "yard": {"fence": "wood", "hedge": 2.4}, "trees": [{"type": "palm", "big": true}, {"type": "broadleaf", "big": true}], "conf": 0.4, "notes": "Glenwood / Fernhill corner: dark wood fence, bamboo and laurel hedge, a Canary palm in the yard; white house glimpsed in the 3D tiles."},
-  "974153831": {"visible": "no", "kind": "house", "lv": 1, "wall": "shingle", "col": "#6e5a48", "trim": "#e8e2d4", "roof": "gable", "roofMat": "comp_shingle", "roofCol": "#55524e", "yard": {"fence": "wood", "hedge": 2.0}, "trees": [{"type": "redwood", "big": true}], "conf": 0.35, "notes": "Black horizontal board fence with a clipped hedge above it on Glenwood."},
-  "975104506": {"visible": "no", "kind": "house", "lv": 2, "wall": "wood_siding", "col": "#cfc7b4", "trim": "#f0ede6", "roof": "hip", "roofMat": "comp_shingle", "roofCol": "#6b655d", "yard": {"fence": "wood", "hedge": 2.0}, "conf": 0.3},
-  "975106084": {"visible": "partial", "kind": "house", "lv": 2, "wall": "wood_siding", "col": "#e4e1d8", "trim": "#f4f3ee", "roof": "gable", "roofMat": "comp_shingle", "roofCol": "#5c5b5a", "yard": {"fence": "none", "hedge": 2.4}, "trees": [{"type": "broadleaf", "big": true}], "conf": 0.55, "notes": "White two-storey house behind a double clipped hedge (low box hedge at the road, 2.5 m laurel behind), white gate piers."},
-  "975108094": {"visible": "partial", "kind": "house", "lv": 2, "wall": "shingle", "col": "#7a6a56", "trim": "#e9e4d8", "roof": "gable", "roofMat": "comp_shingle", "roofCol": "#6a6258", "yard": {"fence": "none", "hedge": 2.4}, "trees": [{"type": "broadleaf", "big": true}], "conf": 0.4, "notes": "Roof ridges of a brown shingled house above a 3 m hedge on Fernhill."},
-  "976135755": {"visible": "no", "kind": "house", "lv": 1, "wall": "wood_siding", "col": "#8c7c68", "trim": "#e6e0d2", "roof": "hip", "roofMat": "comp_shingle", "roofCol": "#6a625a", "yard": {"fence": "none", "hedge": 0}, "trees": [{"type": "redwood", "big": true}], "conf": 0.35, "notes": "House in the redwoods west of the Commons; grey-brown hip roofs in the 3D tiles."},
-  "976477404": {"visible": "no", "kind": "house", "lv": 1, "wall": "shingle", "col": "#6f5e4c", "trim": "#e6e0d2", "roof": "gable", "roofMat": "comp_shingle", "roofCol": "#5a5651", "yard": {"fence": "none", "hedge": 0}, "trees": [{"type": "redwood", "big": true}], "conf": 0.3, "notes": "Cottage in a redwood grove off Fernhill."},
-  "976780620": {"visible": "no", "kind": "house", "lv": 1, "wall": "wood_siding", "col": "#d8d2c2", "trim": "#f0ede6", "roof": "hip", "roofMat": "comp_shingle", "roofCol": "#5f5d5a", "yard": {"fence": "wood", "hedge": 2.0}, "conf": 0.3},
-  "975107317": {"visible": "no", "kind": "house", "lv": 1, "wall": "stucco", "col": "#ddd3bc", "trim": "#f0ede6", "roof": "hip", "roofMat": "comp_shingle", "roofCol": "#6b655d", "yard": {"fence": "none", "hedge": 2.0}, "conf": 0.3}
- }}
+  "974153830": {
+   "visible": "tiles",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#dcd9d0",
+   "trim": "#f2f0ea",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#55575c",
+   "garage": false,
+   "yard": {
+    "fence": "wood",
+    "hedge": 2.4
+   },
+   "trees": [
+    {
+     "type": "palm",
+     "big": true
+    },
+    {
+     "type": "broadleaf",
+     "big": true
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Glenwood / Fernhill corner: dark wood fence, bamboo and laurel hedge, a Canary palm in the yard; white house glimpsed in the 3D tiles."
+  },
+  "974153831": {
+   "visible": "no",
+   "kind": "house",
+   "lv": 1,
+   "wall": "shingle",
+   "col": "#6e5a48",
+   "trim": "#e8e2d4",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#55524e",
+   "yard": {
+    "fence": "wood",
+    "hedge": 2.0
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "big": true
+    }
+   ],
+   "conf": 0.35,
+   "notes": "Black horizontal board fence with a clipped hedge above it on Glenwood."
+  },
+  "975104506": {
+   "visible": "no",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#cfc7b4",
+   "trim": "#f0ede6",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6b655d",
+   "yard": {
+    "fence": "wood",
+    "hedge": 2.0
+   },
+   "conf": 0.3
+  },
+  "975106084": {
+   "visible": "tiles",
+   "kind": "house",
+   "lv": 2,
+   "wall": "stucco",
+   "col": "#d8cdb8",
+   "trim": "#f4f3ee",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#a07f6c",
+   "yard": {
+    "fence": "none",
+    "hedge": 2.4
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "big": true
+    }
+   ],
+   "conf": 0.55,
+   "notes": "White two-storey house behind a double clipped hedge (low box hedge at the road, 2.5 m laurel behind), white gate piers."
+  },
+  "975108094": {
+   "visible": "tiles",
+   "kind": "house",
+   "lv": 2,
+   "wall": "wood_siding",
+   "col": "#8f9aa0",
+   "trim": "#e9e4d8",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#9a7868",
+   "yard": {
+    "fence": "none",
+    "hedge": 2.4
+   },
+   "trees": [
+    {
+     "type": "broadleaf",
+     "big": true
+    }
+   ],
+   "conf": 0.4,
+   "notes": "Roof ridges of a brown shingled house above a 3 m hedge on Fernhill."
+  },
+  "976135755": {
+   "visible": "tiles",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#8c7c68",
+   "trim": "#e6e0d2",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6a625a",
+   "yard": {
+    "fence": "none",
+    "hedge": 0
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "big": true
+    }
+   ],
+   "conf": 0.35,
+   "notes": "House in the redwoods west of the Commons; grey-brown hip roofs in the 3D tiles."
+  },
+  "976477404": {
+   "visible": "no",
+   "kind": "house",
+   "lv": 1,
+   "wall": "shingle",
+   "col": "#6f5e4c",
+   "trim": "#e6e0d2",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5a5651",
+   "yard": {
+    "fence": "none",
+    "hedge": 0
+   },
+   "trees": [
+    {
+     "type": "redwood",
+     "big": true
+    }
+   ],
+   "conf": 0.3,
+   "notes": "Cottage in a redwood grove off Fernhill."
+  },
+  "976780620": {
+   "visible": "no",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#d8d2c2",
+   "trim": "#f0ede6",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5f5d5a",
+   "yard": {
+    "fence": "wood",
+    "hedge": 2.0
+   },
+   "conf": 0.3
+  },
+  "975107317": {
+   "visible": "no",
+   "kind": "house",
+   "lv": 1,
+   "wall": "stucco",
+   "col": "#ddd3bc",
+   "trim": "#f0ede6",
+   "roof": "hip",
+   "roofMat": "comp_shingle",
+   "roofCol": "#6b655d",
+   "yard": {
+    "fence": "none",
+    "hedge": 2.0
+   },
+   "conf": 0.3
+  },
+  "975107315": {
+   "visible": "tiles",
+   "kind": "house",
+   "lv": 2,
+   "wall": "shingle",
+   "col": "#7d6a55",
+   "trim": "#e8e2d4",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#5c5a58",
+   "garage": false
+  }
+ }
+}
