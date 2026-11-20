@@ -696,6 +696,28 @@ async function checkRoads() {
     counts: { streets: SR.length, stations, failing: fails.length, ...cnt, worstBumpM: r2(worstBump), worstCrossPct: r1(worstCross * 100), worstWalkStepM: r2(worstStep), worstMovedM: r2(worstMoved) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`roads: ${res.status} ${fails.length} failing samples on ${stations} stations`); finishCheck('roads', res);
 }
+// Mound on paving (rulebook 30; Marin: a 0.6 m asphalt hump at the foot of the pool stairs, left by two wall pads). Terrain
+// campuses only. Every metre of the play area: a point whose surface class is asphalt or concrete and that stands more than
+// 0.15 m above the ground 3 m away along ALL four axes is a mound (a road crown is 6 cm over 3 m; a crest or a ramp is higher
+// than its neighbours on two sides at most). Ground hidden under a solid (a stair mass, a retaining block, a roof) is skipped.
+async function checkMounds() {
+  if (!world.terrain || !world.surfaceAt) { finishCheck('mounds', { status: 'skip', note: 'flat campus (no terrain)' }); return; }
+  const fails = []; let n = 0, worst = 0; const hits = [];
+  for (let z = PB.minZ + 4; z <= PB.maxZ - 4; z += 1) for (let x = PB.minX + 4; x <= PB.maxX - 4; x += 1) {
+    const sf = world.surfaceAt(x, z); if (sf !== 'asphalt' && sf !== 'concrete') continue; n++;
+    const g = GY(x, z); const e = Math.min(g - GY(x + 3, z), g - GY(x - 3, z), g - GY(x, z + 3), g - GY(x, z - 3)); if (e <= 0.15) continue;
+    if (S.first(V(x, g + 4, z), DOWN, 3.95)) continue;
+    hits.push([x, z, g, e]); worst = Math.max(worst, e);
+  }
+  // cluster (3 m) and report the peak of each
+  const used = new Uint8Array(hits.length);
+  for (let i = 0; i < hits.length; i++) { if (used[i]) continue; const cl = [i]; used[i] = 1; for (let h = 0; h < cl.length; h++) for (let j = 0; j < hits.length; j++) if (!used[j] && Math.hypot(hits[j][0] - hits[cl[h]][0], hits[j][1] - hits[cl[h]][1]) <= 3) { used[j] = 1; cl.push(j); }
+    let pk = cl[0]; for (const k of cl) if (hits[k][3] > hits[pk][3]) pk = k; const [x, z, g, e] = hits[pk];
+    fails.push({ at: [r1(x), r2(g), r1(z)], aboveNeighboursM: r2(e), points: cl.length, surface: world.surfaceAt(x, z), note: 'mound on paving: flatten it (a pad or a wall strip left a hump)' }); marks.push({ kind: 'vis', x0: x - 1.5, z0: z - 1.5, x1: x + 1.5, z1: z + 1.5 }); }
+  const res = { status: status(fails.length, 0), what: 'Mound on paving: a point on asphalt / concrete (1 m grid over the play area) more than 0.15 m above the ground 3 m away along all four axes fails; ground under a solid is skipped. Terrain campuses only.',
+    counts: { pavedSamples: n, mounds: fails.length, worstM: r2(worst) }, failures: fails.slice(0, 60), warnings: [] };
+  log(`mounds: ${res.status} ${fails.length} mounds on paving`); finishCheck('mounds', res);
+}
 async function checkRetaining() {
   const Rb = REG.retaining || []; if (!Rb.length || !world.terrain) { finishCheck('retaining', { status: 'skip', note: 'no retaining blocks registered (ctx.retaining)' }); return; }
   const fails = [], warns = []; let maxPoke = 0;
@@ -1218,7 +1240,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'roads', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1262,7 +1284,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['roads', checkRoads], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

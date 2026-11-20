@@ -274,7 +274,7 @@ function courtSteps(ctx) {
       const south = u0 >= Math.min(wallA, st.a0) - 0.01 && u1 <= Math.max(wallA, st.a1) + 0.01;   // the stretch that faces the forecourt (the rest stands against a wing's north wall)
       if (south) quadFacing(cope, P3(u0, bS - 0.32, h0 + 0.04), P3(u1, bS - 0.32, h1 + 0.04), P3(u1, bS + 0.03, h1 + 0.04), P3(u0, bS + 0.03, h0 + 0.04), [0, 1, 0], [[0, 0], [w / 3, 0], [w / 3, 0.12], [0, 0.12]]);
       // a clipped hedge along the back of the bed (low: it must not hide the windows behind)
-      { const m = G((u0 + u1) / 2, bS - 1.0); ctx.shrubs.push([m[0], (h0 + h1) / 2 + 0.04, m[1], w + 0.05, 0.7, ROT]); } }
+      { const m = G((u0 + u1) / 2, bS - 1.0); hedgeMass(ctx, m[0], m[1], Math.min(h0, h1), w + 0.03, 0.7, 0.75 + Math.abs(h1 - h0), ROT, i); } }
     ivy.setColor(1, 1, 1);
     // the two ends: the wall along the flight (with its coping) and the outer end
     for (const [u, h, nrm, inner] of [[a0, hs[0], [-UX, 0, -UZ], a0 === st.a1], [a1, hs[n], [UX, 0, UZ], a1 === st.a0]]) { for (const bk of [conc, col]) quadFacing(bk, P3(u, bN, y0), P3(u, bS, y0), P3(u, bS, h), P3(u, bN, h), nrm, bk === col ? undefined : [[0, 0], [(bS - bN) / 3, 0], [(bS - bN) / 3, 0.8], [0, 0.8]]);
@@ -284,7 +284,7 @@ function courtSteps(ctx) {
     { const e0 = Math.max(a0, Math.min(wallA, st.a0)), e1 = Math.min(a1, Math.max(wallA, st.a1)); const p0 = G(e0 + 0.1, bS - 0.14), p1 = G(e1 - 0.1, bS - 0.14); if (hMax - ps.botY > 1.2) guardRail(ctx, p0[0], p0[1], p1[0], p1[1], Math.max(top(e0), top(e1)) + 0.02); }
   }
   // the lawn strip in front of the two wings carries its clipped hedge against the wall too (Street View: about 1.2 m)
-  for (const [u0, u1, bW] of [[-9.6, st.gapA[0] - 2.3, 38.9], [st.gapA[1] + 2.3, 30.6, 38.1]]) for (let u = u0; u < u1 - 0.5; u += 2.6) { const w = Math.min(2.6, u1 - u), m = G(u + w / 2, bW - 0.45); ctx.shrubs.push([m[0], ctx.groundY(m[0], m[1]) + 0.05, m[1], w, 1.1, ROT]); }
+  for (const [u0, u1, bW] of [[-9.6, st.gapA[0] - 2.3, 38.9], [st.gapA[1] + 2.3, 30.6, 38.1]]) for (let u = u0; u < u1 - 0.5; u += 2.6) { const w = Math.min(2.6, u1 - u), m = G(u + w / 2, bW - 0.5); let lo = Infinity, hi = -Infinity; for (const da of [-w / 2, 0, w / 2]) { const q = G(u + w / 2 + da, bW - 0.5); const g = ctx.groundY(q[0], q[1]); lo = Math.min(lo, g); hi = Math.max(hi, g); } hedgeMass(ctx, m[0], m[1], lo, w + 0.03, 0.7, 1.15 + (hi - lo), ROT, Math.round(u)); }
   // paving of the forecourt between the foot of the flight and the courtyard terrace
   { const pv = ctx.B.v('maPaver'); const y = (a, b) => { const q = G(a, b); return [q[0], ctx.groundY(q[0], q[1]) + 0.03, q[1]]; }; const b1 = 41.2; const cuts = [st.gapA[0], st.a0, st.a1, st.gapA[1]];
     for (let i = 0; i < 3; i++) for (let a = cuts[i]; a < cuts[i + 1] - 0.01; a += 1.9) { const a1 = Math.min(a + 1.9, cuts[i + 1]); const b0 = i === 0 ? st.westB : i === 2 ? st.eastB : st.bBot; quadFacing(pv, y(a, b0), y(a1, b0), y(a1, b1), y(a, b1), [0, 1, 0], [[a / 2.4, b0 / 2.4], [a1 / 2.4, b0 / 2.4], [a1 / 2.4, b1 / 2.4], [a / 2.4, b1 / 2.4]]); } }

@@ -75,7 +75,11 @@ function sitework(ctx) {
   // (the car park north of the gyms needs no pad: on the correctly registered DEM it is a level lot at 11.4 m, 0.8 % fall.
   // The "15 % hillside regraded after the lidar flight" that used to be flattened here was the DEM stretched north-south.)
   // picnic plaza between the Science Center, the gyms and Foster Hall: level pads under the tables
-  for (const [x, z] of [[2, -76], [8, -79.5], [-2, -82], [14, -74], [12.5, -69] /* the bike rack */, [0, -72] /* the red flag base */, [-47.5, -2], [-46.5, -12] /* benches */, [-27, -101.5] /* dumpster */, [17.5, -105] /* utility box */]) ctx.flatten({ circle: { x, z, r: 3.0 } }, { blend: 2.5 });   // (3 m: on the 2 m lattice a 2.4 m pad was one node and its table still stood 0.4 m in the slope)
+  // picnic plaza between the Science Center, the gyms and Foster Hall: ONE level terrace under the tables, the bike rack and
+  // the red flag base (separate 2-3 m pads on a 19 % slope each took their own level: a table stood 0.7 m in the step
+  // between two of them), and small pads under single props on sloping paving
+  ctx.flatten(R(5, -77, 19, 13), { blend: 3 });
+  for (const [x, z] of [[-47.5, -2], [-46.5, -12] /* benches */, [-27, -101.5] /* dumpster */, [17.5, -105] /* utility box */]) ctx.flatten({ circle: { x, z, r: 3.0 } }, { blend: 2.5 });
   // ---- Streets (MAP_NOTES "grade streets first"): after the campus pads, before any building pad. Every OSM street gets
   // a smooth profile, a crowned carriageway, a kerb and parallel sidewalks; the building pads below may not move them
   // (streets.restore() at the end), so a pad that differs from its sidewalk steps inside the lot.
@@ -145,7 +149,7 @@ function sitework(ctx) {
     // concrete on the sidewalks, whatever the satellite classes say under tree crowns), and every tree the canopy
     // scan put on a carriageway (or within 0.6 m of one) moves behind the sidewalk on its side, or goes
     // (and the strip between the Cottage Ave sidewalk and the Leadership Center's sunk west wall is a lawn bank, not the car park the photo's shadow reads as)
-    const lawn = shapeSDF(R(...gp(-12.4, 61.0, -8.0, 0), 5.4, 51.6)).sd;
+    const lawn = shapeSDF(R(...gp(-12.4, 61.0, -8.0, 0), 6.0, 51.6)).sd;   /* (to the wall line: the 0.3 m left over read as a strip of asphalt up the bank) */
     // (and the frontage of the Leadership Center and the Library on Mission Ave: Street View shows a lawn strip with a clipped
     // hedge against the wall between the sidewalk and the buildings, not paving)
     const front = [R(...G(-0.2, 37.3), 19.6, 3.9), R(...G(32.6, 36.9), 22.4, 3.1)].map((sh) => shapeSDF(sh).sd);
@@ -156,6 +160,8 @@ function sitework(ctx) {
     ctx.gen.trees = out.filter((t) => !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
   }
   recutHouses(ctx);
+  // a hump on the concrete yard at G St / 5th Ave left where two wall pads meet (map check `mounds`): shaved to the ground round it
+  { const x = -145, z = 54, lv = Math.max(T.heightAt(x + 3.5, z), T.heightAt(x - 3.5, z), T.heightAt(x, z + 3.5), T.heightAt(x, z - 3.5)); ctx.flatten({ circle: { x, z, r: 2.6 } }, { blend: 1.5, y: (px, pz) => Math.min(T.heightAt(px, pz), lv + 0.05) }); }
   planCheeks(ctx);
 }
 

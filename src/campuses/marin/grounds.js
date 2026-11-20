@@ -291,13 +291,13 @@ function frontOfCampus(ctx) {
   for (const [x, z] of [[-41, 6], [-41.5, -14], [-30, -27], [-6, -27.5], [1, -12], [2.5, 8], [-27, 15.5], [-4, 16.5], [-52, -30], [-60, -50]]) atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min');
   for (const [x, z, r] of [[-47.5, -2, ROT + Math.PI / 2], [-46.5, -12, ROT + Math.PI / 2], [-24, -29.5, ROT], [-10, -28, ROT]]) propKit.bench(ctx, x, z, r);
   for (const [x, z] of [[-46, 3], [-14, -29.5], [3, -22]]) propKit.trashCan(ctx, x, z);
-  propKit.bikeRack(ctx, -1.5, -24, ROT + Math.PI / 2); propKit.bikeRack(ctx, 12.5, -69, ROT);
+  propKit.bikeRack(ctx, -1.5, -24, ROT + Math.PI / 2); propKit.bikeRack(ctx, 4, -82, ROT);
   // stone seat wall round the south half of the circle lawn (cover) + the plaque boulder in the middle
   const cx = -20.3, cz = -4.6, R = 15.2;
   for (let k = 0; k < 9; k++) { const a0 = 0.18 * Math.PI + k * 0.071 * Math.PI, a1 = a0 + 0.06 * Math.PI; if (k === 4) continue; const xa = cx + Math.cos(a0) * R, za = cz + Math.sin(a0) * R, xb = cx + Math.cos(a1) * R, zb = cz + Math.sin(a1) * R; const L = Math.hypot(xb - xa, zb - za); atGround(ctx, (xa + xb) / 2, (za + zb) / 2, () => B.solidBox('limestone', 'concrete', (xa + xb) / 2, 0.18, (za + zb) / 2, L + 0.05, 0.76, 0.5, Math.atan2(-(zb - za), xb - xa), 1 / 3), L / 2); }
   atGround(ctx, cx + 2, cz + 6, () => { B.v('concrete').cyl(cx + 2, -0.2, cz + 6, 0.9, 0.6, 1.1, 7, 1 / 3, true); B.c('concrete').box(cx + 2, 0.35, cz + 6, 1.5, 1.1, 1.5); }, 0.8, 'min');
   // plaza between Science, the gyms and Foster: picnic tables, planters, bins
-  for (const [x, z, r] of [[2, -76, 0.2], [8, -79.5, -0.3], [-2, -82, 0.9], [14, -74, 0.1]]) propKit.picnicTable(ctx, x, z, r);
+  for (const [x, z, r] of [[2, -76, 0.2], [8, -79.5, -0.3], [-2, -82, 0.9], [8.5, -74, 0.1]]) propKit.picnicTable(ctx, x, z, r);
   for (const [x, z, len, rot] of [[3.5, -66.5, 5, ROT + Math.PI / 2], [3, -44, 6, ROT + Math.PI / 2], [-33, -66, 6, ROT + Math.PI / 2]]) atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.2, z, len, 1.2, 1.3, rot, 1 / 3); ctx.shrubs.push([x, 0.8, z, len - 0.8, 0.75, rot]); }, len / 2);
   propKit.dumpster(ctx, -27, -101.5, ROT); propKit.dumpster(ctx, 52, -132, ROT + Math.PI / 2, [0.1, 0.16, 0.3]); propKit.dumpster(ctx, -72, 46.5, ROT + Math.PI / 2);
   ctx.onGround([17.5, -105, 1.5], () => propKit.utilityBox(ctx, 17.5, -105, ROT)); propKit.utilityBox(ctx, -66, 2, ROT);

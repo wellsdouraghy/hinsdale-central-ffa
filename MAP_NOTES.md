@@ -137,7 +137,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
-- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, mounds, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
   visualSolid, roofSkin, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
@@ -775,6 +775,43 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - **Google 3D tiles from a dev page on another port:** the key is restricted to the referrer of the default dev server.
     Load `dev/<id>-tiles.html` from that server and post the canvas to your own receiver; do not forward requests with a
     spoofed Referer.
+- **QA of the terrain-fix round (NOT SHIP, then fixed): what the builder's own verification missed.**
+  - **A stair is fitted to the DESIGNED walk, not to the ground at its head.** The pool stairs took their top from the
+    terrain a metre behind the landing; after the re-bake that ground was a lattice ramp 0.4 m below the re-graded
+    sidewalk. Both flights now go through one `fitFlight` (marin/world.js): top = `streets.design` of the walk behind its
+    back edge, an apron from the walk to the top riser, nothing cut under the top tread, the floor from the foot to the
+    terrace cut level. The builder's walk test had started half way down the flight: **start a stair test on the
+    sidewalk and end it on the terrace, on every lane (both walls and the middle), both ways.** Do not aim a walk test
+    at a bench: three "failures" on the spectator terrace were the benches on its deck.
+  - **Cover that exists only to pass the overlook check is invented (A1).** The evergreen belt on the field wall was tied
+    to wall height, then to the ground behind; the tiles show open woodland there and Street View looks straight across
+    the pitch from Bryn Mawr Drive. Without it the red base on the pitch was overlooked from 1584 m2 (blue: 0). The base
+    moved to the plaza between the gyms, the Science Center and Foster Hall (buildings on every side, 259 m from blue,
+    overlook 0 / 0). **Ask "what hides this base in reality?" before placing it, not after the check fails.**
+  - **A clipped hedge is one extruded wall (rule 28).** `hedgeMass` drew bushy columns with cone tops and swelled 0.3-0.5 m
+    past its collider: on Mission Ave the cones stood on the back half of the sidewalk. It is now a plain body with a
+    narrower shoulder, exactly as deep as its collider; `hedgeRun` runs a hedge through stations with a sloping foot and
+    top (Mission Ave: fitted between the fence line and the back of the designed walk, never on it).
+  - **A retaining wall has ONE top.** A level top per 3 m panel is a sawtooth with notches of bank between the teeth.
+    `perimeter` (marin/grounds.js) is two passes: what each panel needs, then the upper envelope with a slope of at most
+    15 % (forward and backward sweep), sloping quads, one coping, corner wedges at the same top. A wall ends by tapering,
+    never in a step. Street detection must run for EVERY panel: the tapering end of a tall neighbour ran out across the
+    Mission Ave sidewalk as a 4.7 m deep block.
+  - **A block whose top is level on a street that falls 7 % is a wedge.** The blocks beside the courtyard steps are now
+    planted beds whose top runs with the sidewalk (ivy, a low clipped hedge, a wall and coping only on the forecourt side
+    and along the flight). Cheek blocks under 0.75 m are banks, not walls (0.5 m plinths stood on the frontage). A wall
+    whose floor is more than 1.2 m above the ground beyond it gets no pad at all: filled up to the floor it was a
+    2.6 m berm against the Leadership Center and a mound on the paving beside it; the foundation shows instead.
+  - **Hill lanes have no sidewalks (tiles), whatever the cross-slope rule says:** `NO_WALK` by street name. That also
+    removed the 6-8 cm centre-line bumps on Bonnie Brae (they were the walk / no-walk joints).
+  - **Furniture goes behind the walk, not "on the kerb side of it":** planters, benches and bins at 3.3 m from the kerb
+    with a design-zone test, signal masts through `toVerge`, lamps 0.4 m from the kerb, no car bumper over a walk
+    (six points of the car against `streets.design`).
+  - **Separate small pads on a slope make steps between them.** Four 2.4 m pads on the 19 % gym plaza each took their own
+    level; a table stood 0.7 m deep in the step. One terrace under the group.
+  - **New map-check rule `mounds`** (dev/mapcheck.js): a paved point more than 0.15 m above the ground 3 m away along all
+    four axes, not under a solid. It found the hump at the foot of the pool stairs, a berm beside the Leadership Center
+    and a pad joint in a concrete yard.
 
 ## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
 

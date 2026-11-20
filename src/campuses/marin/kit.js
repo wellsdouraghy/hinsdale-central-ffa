@@ -471,6 +471,7 @@ export function applyPads(ctx) {
   for (const s of strips) {
     s.cut = !s.gap && s.nat - s.level > 1.7;
     if (s.gap) { ctx.flatten({ rect: rectOf(s) }, { y: s.level, blend: 1.0 }); continue; }
+    if (s.level - s.nat > 1.2) continue;   // a floor more than 1.2 m above the ground beyond it gets NO pad: the foundation shows (plain wall below the sills). Filled up to the floor it was a 2.6 m berm against the Leadership Center, a mound on the paving beside it.
     const out = PAD_OUT + (s.cut ? 2.0 : 0), o = (out - 1.0) / 2; const keep = strips.filter((c) => c !== s && c.level > s.level + 0.5 && (c.gap || c.ring !== s.ring) && Math.hypot(c.mx - s.mx, c.mz - s.mz) < (c.L + s.L) / 2 + 9);
     ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 2.4, d: out + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: keep.length ? (x, z) => { const u = ((x - s.p[0]) * (s.q[0] - s.p[0]) + (z - s.p[1]) * (s.q[1] - s.p[1])) / s.L, v = (x - s.p[0]) * s.nx + (z - s.p[1]) * s.nz; if (u >= 0 && u <= s.L && v >= -1 && v <= 1.6) return s.level; /* right at its own wall the lower pad wins: no buried glass */ return keep.some((c) => c.core(x, z) <= 0) ? T.heightAt(x, z) : s.level; } : s.level, blend: PAD_BLEND });
   }
@@ -524,7 +525,7 @@ export function buildPadWalls(ctx) {
     { const W = c.gap - 0.3; let ok = false; const far = [c.x - c.tx * c.len / 2, c.z - c.tz * c.len / 2];
       for (let k = 0; k < 8 && !ok; k++) { let m = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) m = Math.max(m, ctx.groundY(far[0] + c.tx * (c.len + 0.08) + c.nx * u, far[1] + c.tz * (c.len + 0.08) + c.nz * u)); if (m - c.level <= 0.1) ok = true; else c.len += 0.4; }
       if (!ok || c.len > 7.5) continue; c.x = far[0] + c.tx * c.len / 2; c.z = far[1] + c.tz * c.len / 2;
-      let t = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) for (let v = 0; v <= c.len + 0.01; v += 0.2) t = Math.max(t, ctx.groundY(far[0] + c.tx * v + c.nx * u, far[1] + c.tz * v + c.nz * u)); c.top = Math.max(c.top, t + 0.06); if (c.top - c.level < 0.25) continue; }
+      let t = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) for (let v = 0; v <= c.len + 0.01; v += 0.2) t = Math.max(t, ctx.groundY(far[0] + c.tx * v + c.nx * u, far[1] + c.tz * v + c.nz * u)); c.top = Math.max(c.top, t + 0.06); if (c.top - c.level < 0.75) continue; }   /* (a step under 0.75 m is a bank, not a wall: 0.5 m cheek blocks stood like plinths on the Mission Ave frontage) */
     terraceBlocks(ctx, { x: c.x + c.tx * c.len / 2, z: c.z + c.tz * c.len / 2, tx: c.nx, tz: c.nz, fx: c.tx, fz: c.tz, w: c.gap, regW: c.gap - 0.3, d: c.len, frontY: c.level, top: c.top, allowTall: true });   // (a 2-3 m wide cheek at a building corner stays one wall with coping and rail: stepped, it was a giant stair to nowhere; QA accepted them as they stand)
   }
   for (const s of ctx.padCuts || []) {
