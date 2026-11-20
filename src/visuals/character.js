@@ -144,8 +144,11 @@ const HOLD = {
 let flashGeo = null, bandGeo = null, glintTex = null;
 
 // Scope glint: a small sun reflection on the front lens of a scoped sniper rifle, so a camping sniper can be spotted.
-// Only seen from in front of the scope (fades out past ~35 deg off its axis), keeps a small, roughly constant screen
-// size out to long range and never shows through walls. Deliberately subtle.
+// Directional like Fortnite's: driven by the angle between the sniper's networked aim (yaw + pitch, not the
+// third-person rifle pose) and the direction from the lens to the viewer: full within GLINT_FULL of the aim line,
+// gone by GLINT_ZERO, nothing from the side or behind. Fades in/out with the scope (aim.k), keeps a small, roughly
+// constant screen size out to long range and never shows through walls. Never drawn for its own player (the local
+// player has no third-person body; the scoped kill cam hides the killer's).
 function glintTexture() {
   if (glintTex) return glintTex;
   const S = 128, c = document.createElement('canvas'); c.width = c.height = S;
@@ -169,21 +172,22 @@ function glintTexture() {
   return glintTex;
 }
 
-const _gl = new THREE.Vector3(), _gm = new THREE.Vector3(), _gc = new THREE.Vector3();
-function makeScopeGlint(gun) {
+const _gl = new THREE.Vector3(), _gc = new THREE.Vector3();
+const GLINT_FULL = Math.cos(10 * Math.PI / 180), GLINT_ZERO = Math.cos(24 * Math.PI / 180);
+// aim: { dir (world unit vector the sniper is aiming along), k (0..1 scope fade) }, kept up to date by update()
+function makeScopeGlint(gun, aim) {
   const mat = new THREE.SpriteMaterial({ map: glintTexture(), color: 0xfff1d6, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false });
   const sp = new THREE.Sprite(mat);
   sp.position.copy(gun.anchors.lens).add(_v1.set(0, 0, 0.03));
   sp.renderOrder = 12; sp.visible = false;
-  const muzzle = gun.anchors.muzzle, lens = gun.anchors.lens, seed = Math.random() * 10;
+  const lens = gun.anchors.lens, seed = Math.random() * 10;
   sp.onBeforeRender = (r, s, cam) => {
-    gun.root.localToWorld(_gl.copy(lens)); gun.root.localToWorld(_gm.copy(muzzle));
-    _gm.sub(_gl).normalize();                                        // the scope's optical axis (world)
+    gun.root.localToWorld(_gl.copy(lens));
     _gc.setFromMatrixPosition(cam.matrixWorld).sub(_gl);
     const d = _gc.length(); _gc.divideScalar(Math.max(d, 1e-4));
-    const facing = seg(_gm.dot(_gc), 0.82, 0.97);                    // ~35 deg cone in front of the lens, full near the axis
+    const facing = seg(aim.dir.dot(_gc), GLINT_ZERO, GLINT_FULL);    // only when the sniper is aiming (nearly) at this camera
     const t = performance.now() / 1000 + seed;
-    mat.opacity = facing * (0.7 + 0.12 * Math.sin(t * 2.3) + 0.06 * Math.sin(t * 7.1)) * seg(d, 3, 9);   // not in your face up close
+    mat.opacity = aim.k * facing * (0.7 + 0.12 * Math.sin(t * 2.3) + 0.06 * Math.sin(t * 7.1)) * seg(d, 3, 9);   // not in your face up close
     mat.rotation = t * 0.15;
     // ~1.6 deg across (a small star with a few pixels of bright core) at any range out to ~200 m
     const size = THREE.MathUtils.clamp(d * 0.028, 0.3, 5.6) * (0.9 + 0.1 * Math.sin(t * 3.7));
@@ -267,9 +271,10 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
     }
     gun = guns[id]; gunId = id; gun.root.visible = true;
     flash.position.copy(gun.anchors.muzzle).add(_v1.set(0, 0, -0.06));
-    if (gun.anchors.lens && !glint) glint = makeScopeGlint(gun);
+    if (gun.anchors.lens && !glint) glint = makeScopeGlint(gun, glintAim);
   }
   let glint = null;
+  const glintAim = { dir: new THREE.Vector3(0, 0, -1), k: 0 };
   setGun('ar');
 
   // rig (filled in when the model has loaded)
@@ -626,7 +631,14 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       boostT = Math.max(0, boostT - dt / 0.42); tuckT = Math.max(0, tuckT - dt / 0.6);
       flinchT = damp(flinchT, 0, 9, dt); kick = damp(kick, 0, 20, dt); fireHold = Math.max(0, fireHold - dt);
       st._ladY = root.position.y;
-      if (glint) glint.visible = gunId === 'sniper' && alive && !controlled && adsT > 0.8 && sat(st.ads || 0) > 0.85;
+      if (glint) {
+        // fully scoped in with the sniper: quick fade in (~0.1 s) and out; aim line from the networked yaw / pitch
+        const on = gunId === 'sniper' && alive && !controlled && adsT > 0.8 && sat(st.ads || 0) > 0.85;
+        glintAim.k = on ? Math.min(1, glintAim.k + dt / 0.1) : Math.max(0, glintAim.k - dt / 0.08);
+        const cp = Math.cos(pitch);
+        glintAim.dir.set(-sy * cp, Math.sin(pitch), -cy * cp);
+        glint.visible = glintAim.k > 0.001;
+      }
       if (!rig || controlled) return;
 
       // --- lean: into acceleration and turns on the ground (about the feet); along the cable / dash in the air
