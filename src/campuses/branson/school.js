@@ -18,9 +18,9 @@ const CONC = [0.6, 0.59, 0.56], ARTS_WHITE = [0.74, 0.74, 0.72], SEDUM = [0.36, 
 // Roof colours and materials are matched to 3D-tiles obliques (rule F27): bright terracotta tile on Katharine Branson Hall
 // and the quad, tan shingle + solar on the gym, light grey standing seam + solar on the Commons.
 const SPEC = [
-  { id: 975106452, key: 'kbh', part: 'main', name: 'Katharine Branson Hall', top: 15.3, style: 'brKbh', roof: 'tile', rise: 4.7, ov: 0.7, tol: 0.9, level: 10.3, tint: BR_CLAY },
+  { id: 975106452, key: 'kbh', part: 'main', name: 'Katharine Branson Hall', top: 14.4, style: 'brKbh', roof: 'tile', rise: 4.7, ov: 0.7, tol: 0.9, level: 10.3, tint: BR_CLAY },
   { id: 975106452, key: 'kbhWhite', part: 'white', name: 'Katharine Branson Hall (west wing)', top: 16.6, style: 'brKbh', roof: 'custom', tol: 0.9, level: 10.3 },
-  { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'custom', skin: WOOD, minH: 6.5, level: 0.5 },
+  { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'custom', skin: WOOD, minH: 6.5, level: 0.5, bank: { strip: 7.4, slope: 0.95 } },   // (bank: the ground at its west and north doors is graded to the floor, no pad blocks)
   { id: 9000000001, key: 'commonsN', name: 'The Commons (north wing)', top: 6.0, style: 'brCommons', roof: 'flat', ladder: true, level: 2.3, bank: { strip: 7.4, slope: 0.95 } },   // (the glen's north bank: a plain planted bank behind a narrow service strip, not planter tiers)
   { id: 9000000002, key: 'commonsHall', name: 'The Commons', top: 6.4, style: 'brHall', roof: 'custom', level: 2.3, bank: { strip: 7.4, slope: 0.95 } },
   { id: 9000000003, key: 'commonsS', name: 'The Commons (south wing)', top: 6.0, style: 'brCommons', roof: 'flat', level: 2.3, bank: { strip: 7.4, slope: 0.95 } },
@@ -98,13 +98,14 @@ function kbhWhite(ctx, s, h) {
   const D = 3.6; const a2 = [a[0] + nx * D, a[1] + nz * D], b2 = [b[0] + nx * D, b[1] + nz * D];
   const upper = ring.map((p, i) => (i === i0 ? a2 : i === i1 ? b2 : p)); const loggia = [a, b, b2, a2];
   plainBlock(ctx, upper, 0, h, WHITE); plainBlock(ctx, loggia, 0, 3.7, WHITE, [0.55, 0.53, 0.5]);
-  { const c = [(cx + a2[0]) / 2 + nx * 3, (cz + a2[1]) / 2 + nz * 3]; const pt = B.v('stucco', true); pt.setColor(...WHITE); pt.box(c[0], h + 1.2, c[1], 6.5, 2.4, 5.0, Math.atan2(-(b[1] - a[1]), b[0] - a[0]), 0.45); pt.setColor(1, 1, 1); B.c('concrete').box(c[0], h + 1.2, c[1], 6.5, 2.4, 5.0, Math.atan2(-(b[1] - a[1]), b[0] - a[0])); }
+  { const rot = Math.atan2(-(b[1] - a[1]), b[0] - a[0]); const c = [-46.5, -8.5]; const pt = B.v('stucco', true); pt.setColor(...WHITE); pt.box(c[0], h + 1.05, c[1], 10.5, 2.1, 9.0, rot, 0.45); pt.setColor(1, 1, 1); B.c('concrete').box(c[0], h + 1.05, c[1], 10.5, 2.1, 9.0, rot); }   // the taller east part of the wing (tiles: 18.7 against 16.6 on the west side)
   for (const F of outFrames(loggia)) { if (F.nx * nx + F.nz * nz > 0.5) continue; if (F.L > 6) archRow(ctx, F, 0.9, F.L - 0.9, 0.25, 1.9, 1.75, 3.1, { trim: [0.74, 0.73, 0.7] }); else archOpening(ctx, F, F.L / 2, 0.25, 1.7, 1.75, { trim: [0.74, 0.73, 0.7] }); }
   for (const F of outFrames(upper)) { const mx = F.ax + F.tx * F.L / 2 + F.nx * 1.2, mz = F.az + F.tz * F.L / 2 + F.nz * 1.2; if (F.L < 3.2 || pointInRing(mx, mz, loggia) || (ctx.buildingRings || []).some((r) => r !== ring && pointInRing(mx, mz, r))) { if (F.L >= 3.2 && pointInRing(mx, mz, loggia)) winRow(ctx, F, 0.8, F.L - 0.8, 4.3, h - 0.8, 1.3, 2.6); continue; }
     winRow(ctx, F, 0.8, F.L - 0.8, 1.0, 2.7, 1.3, 2.6); winRow(ctx, F, 0.8, F.L - 0.8, 4.3, h - 0.8, 1.3, 2.6); }
 }
 // arched entrance porches of the hall: on the visitor-lot side (the two flights of steps in the re-entrant corner) and on the lawn side
-const KBH_ROOFS = [[[[-39.1, -23.5], [-0.5, 5.1], [-10.7, 18.9], [-49.3, -9.7]], 19.9], [[[-52, -27], [-43, -37.5], [-30, -27], [-39, -17]], 18.2], [[[-44, -40], [-45, -54], [-35, -69], [-21, -58], [-19, -42], [-30, -28]], 18.4]];   // [footprint part, ridge height above the field]
+const KBH_ROOFS = [[[[-46.3, -28.8], [-0.5, 5.1], [-10.7, 18.9], [-56.5, -15.0]], 19.4], [[[-52, -27], [-43, -37.5], [-25, -20], [-34, -9.5]], 18.6]];   // [footprint part, ridge height above the field]: the long south-east wing (its ridge runs on north-west to the white wing) and the link to the north block
+const KBH_NORTH = [[-44, -40], [-45, -54], [-41, -60], [-35, -69], [-21, -58], [-19, -42], [-30, -28], [-40, -37]];   // the north block: one hip over its own outline, ridge 18.4, white roof monitor on the ridge
 const KBH_PORCH = [[[-31, -18], [-22, -11]], [[-33, 5], [-41, -1]]];
 function kbhPorches(ctx, s) {
   const { B } = ctx; const ring = s.ring;
@@ -136,12 +137,14 @@ export function buildSchool(ctx) {
       if (s.key === 'artsW') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all }); const box = boxOn(ring, -9); const r = gableRoof(ctx, box, h, 1.3, { tint: [4.6, 4.7, 4.9], ov: 0.3, gableTint: ARTS_WHITE }); solarOn(ctx, r, -box.L / 2 + 1, box.L / 2 - 1, 0.8, r.hw - 0.8); return; }
       if (s.key === 'artsE') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all }); roofCover(ctx, ring, h + 0.01, [0.72, 0.72, 0.7]); const box = boxOn(ring, -9); solarFlat(ctx, box, h + 0.12, -box.L / 2 + 1.2, box.L / 2 - 1.2, -box.W / 2 + 1.0, box.W / 2 - 1.0); flats.push({ s, ring, roofAbs: base + h }); return; }
       if (s.roof === 'flat') { const green = s.key.startsWith('commons'); stuccoWalls(ctx, ring, h, { color: green ? CONC : ARTS_WHITE, storeys: 1, w: 2.2, pitch: 3.2, others: all }); roofCover(ctx, ring, h + 0.01, green ? SEDUM : [0.72, 0.72, 0.7]); flats.push({ s, ring, roofAbs: base + h }); return; }
-      if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: [0.66, 0.6, 0.5], storeys: 1, w: 2.7, pitch: 3.2, others: all }); const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { tint: BR_SEAM, ov: 0.9, gableTint: [0.66, 0.6, 0.5] }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
+      if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: [0.66, 0.6, 0.5], storeys: 1, w: 2.7, pitch: 3.2, others: all, glazedEnds: 12, gableRise: 3.5 }); /* both gable ends are glass: the west one over the service yard */ const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { tint: BR_SEAM, ov: 0.9, gableTint: [0.66, 0.6, 0.5] }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
       // Katharine Branson Hall and the quad: cream stucco under clay tile, tall windows in a regular rhythm (arched on the hall), arched doors
-      stuccoWalls(ctx, ring, h, { cap: [0.3, 0.22, 0.18], color: [0.93, 0.8, 0.54], arched: s.key === 'kbh', storeys: s.key === 'kbh' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, trim: [0.8, 0.78, 0.72] });
+      stuccoWalls(ctx, ring, h, { floor: s.level !== undefined ? Math.max(0, s.level - base) : 0, cap: [0.3, 0.22, 0.18], color: [0.93, 0.8, 0.54], arched: s.key === 'kbh', storeys: s.key === 'kbh' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, trim: [0.8, 0.78, 0.72] });
       // Katharine Branson Hall: three hips with the RIDGE heights of the tiles (rule F32: 19.8 over the south-east wing, 19.0 over the
       // middle, 18.4 over the north block); one pitch over the whole plan left the wings 3.5 m low
-      if (s.key === 'kbh') { for (const [quad, rise] of KBH_ROOFS) hipRoof(ctx, quad, h, rise - s.top, { tint: BR_CLAY, overhang: s.ov, fill: true }); kbhPorches(ctx, s); }
+      if (s.key === 'kbh') { for (const [quad, rise] of KBH_ROOFS) hipRoof(ctx, quad, h, rise - s.top, { tint: BR_CLAY, overhang: s.ov, fill: true }); polyRoof(ctx, KBH_NORTH, h, 18.2 - s.top, { tint: BR_CLAY, overhang: s.ov, fill: true });
+        { const pt = B.v('paint', true); pt.setColor(0.74, 0.74, 0.72); pt.box(-33.5, 17.9 - base, -50.6, 3.4, 1.1, 9.0, 0.12); pt.setColor(1, 1, 1); B.c('concrete').box(-33.5, 17.9 - base, -50.6, 3.4, 1.1, 9.0, 0.12); }
+        kbhPorches(ctx, s); }
       else polyRoof(ctx, ring, h, s.rise, { tint: s.tint || BR_CLAY, overhang: s.ov, fill: true });
       if (s.key === 'newOaks') {   // the solar array on its south-west slope (nadir tiles)
         const p1 = [-190, 152], t = Math.SQRT1_2; const P = (u, d) => [p1[0] + t * u + t * d, h + 0.42 + 0.262 * (d - 1.2), p1[1] + t * u - t * d];   // (plane measured on the built roof: 7.52 at 1.2 m in, 0.262 per metre)

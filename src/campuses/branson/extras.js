@@ -35,18 +35,24 @@ const buried = (ctx, F, u, y) => ctx.groundY && ctx.groundY(F.ax + F.tx * u + F.
  */
 export function stuccoWalls(ctx, ringIn, h, opts = {}) {
   const ring = ensureCCW(ringIn); const color = opts.color || CREAM; plainBlock(ctx, ring, opts.y0 ?? -0.6, h, color, opts.cap || null, opts.bucket || 'stucco');
-  if (ctx.terrain) { const base = ctx.B.off ? ctx.B.off.y : 0; const plan = ctx.wallPlans ? ctx.wallPlans.get(ringKey(ring)) : null; (ctx.footprints = ctx.footprints || []).push({ id: opts.id || ringIn.id || ctx.siteName || null, ring, roof: base + h, floor: plan ? plan.maxLevel : base }); }   // map check: interior, fill
-  const st = opts.storeys || Math.max(1, Math.round(h / 3.3)); const fh = h / st; const others = opts.others || []; const inAny = (x, z) => others.some((r) => r !== ringIn && pointIn(x, z, r));
+  const base = ctx.B.off ? ctx.B.off.y : 0;
+  if (ctx.terrain) { const plan = ctx.wallPlans ? ctx.wallPlans.get(ringKey(ring)) : null; (ctx.footprints = ctx.footprints || []).push({ id: opts.id || ringIn.id || ctx.siteName || null, ring, roof: base + h, floor: plan ? plan.maxLevel : base }); }   // map check: interior, fill
+  const others = opts.others || []; const inAny = (x, z) => others.some((r) => r !== ringIn && pointIn(x, z, r));
   for (const F of outFrames(ring)) { if (F.L < 2.6) continue; const mx = F.ax + F.tx * F.L / 2, mz = F.az + F.tz * F.L / 2; if (inAny(mx + F.nx * 0.8, mz + F.nz * 0.8)) continue;
+    // the floor this wall's openings stand on: the building's floor (opts.floor, local) or the ground at the wall, whichever is
+    // higher, so no sill is ever below grade and no wall stays blank because the datum is lower than the ground here
+    let gw = -1e9; if (ctx.groundY) for (const t of [0.1, 0.5, 0.9]) gw = Math.max(gw, ctx.groundY(F.ax + F.tx * F.L * t + F.nx * 0.5, F.az + F.tz * F.L * t + F.nz * 0.5) - base); const f0 = Math.max(opts.floor || 0, gw > -1e8 ? gw : 0, 0);
+    const hh = h - f0; if (hh < 2.4) continue; const st = Math.max(1, Math.min(opts.storeys || 9, Math.round(hh / 3.3))); const fh = hh / st;
+    if (opts.glazedEnds && F.L < opts.glazedEnds) { archOpening(ctx, F, F.L / 2, f0 + 0.25, Math.min(F.L - 2.4, 7), Math.max(1.6, hh - 0.4 - Math.min(F.L - 2.4, 7) / 2 + (opts.gableRise || 0) * 0.6), { trim: [0.75, 0.75, 0.73], mullions: 5, bars: [f0 + 1.3, f0 + 2.4, f0 + 3.5] }); continue; }
     const door = F.L > (opts.doorMin || 13); const m = 1.0;
-    for (let s = 0; s < st; s++) { const y = s * fh; const w = opts.w || 1.15, pitch = opts.pitch || 2.7;
-      if (s === 0 && opts.arched) { const n = Math.max(1, Math.floor((F.L - 2 * m) / pitch)); const stp = (F.L - 2 * m) / n; for (let k = 0; k < n; k++) { const u = m + stp * (k + 0.5); if (buried(ctx, F, u, 0.7)) continue; if (door && k === (n >> 1)) archOpening(ctx, F, u, 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); else archOpening(ctx, F, u, 0.75, w, Math.min(1.75, fh - 1.9), { trim: opts.trim, mullions: 2, bars: [1.6] }); } }
-      else { if (s === 0 && door && !buried(ctx, F, F.L / 2, 0.3)) { archOpening(ctx, F, F.L / 2, 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); if (F.L / 2 - 1.6 - m > pitch) { tallRow(ctx, F, m, F.L / 2 - 1.6, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); tallRow(ctx, F, F.L / 2 + 1.6, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } }
+    for (let s = 0; s < st; s++) { const y = f0 + s * fh; const w = opts.w || 1.15, pitch = opts.pitch || 2.7;
+      if (s === 0 && opts.arched) { const n = Math.max(1, Math.floor((F.L - 2 * m) / pitch)); const stp = (F.L - 2 * m) / n; for (let k = 0; k < n; k++) { const u = m + stp * (k + 0.5); if (door && k === (n >> 1)) archOpening(ctx, F, u, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); else archOpening(ctx, F, u, y + 0.75, w, Math.min(1.75, fh - 1.9), { trim: opts.trim, mullions: 2, bars: [y + 1.6] }); } }
+      else { if (s === 0 && door) { archOpening(ctx, F, F.L / 2, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); if (F.L / 2 - 1.6 - m > pitch) { tallRow(ctx, F, m, F.L / 2 - 1.6, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); tallRow(ctx, F, F.L / 2 + 1.6, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } }
         else tallRow(ctx, F, m, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } } }
   return ring;
 }
 const pointIn = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
-function tallRow(ctx, F, u0, u1, y0, y1, w, pitch) { const n = Math.max(0, Math.floor((u1 - u0) / pitch)); if (!n) return; const stp = (u1 - u0) / n; for (let k = 0; k < n; k++) { const u = u0 + stp * (k + 0.5); if (buried(ctx, F, u, y0)) continue; winRow(ctx, F, u - w / 2 - 0.05, u + w / 2 + 0.05, y0, y1, w, w); } }   // (one window: the span is a little over one pitch)
+function tallRow(ctx, F, u0, u1, y0, y1, w, pitch) { const n = Math.max(0, Math.floor((u1 - u0) / pitch)); if (!n) return; const stp = (u1 - u0) / n; for (let k = 0; k < n; k++) { const u = u0 + stp * (k + 0.5); winRow(ctx, F, u - w / 2 - 0.05, u + w / 2 + 0.05, y0, y1, w, w); } }   // (one window: the span is a little over one pitch)
 const QF = (b, p0, p1, p2, p3, ua, ub, uc, ud) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2]; const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx]; if (n[0] * QF.n[0] + n[2] * QF.n[1] >= 0) b.quad(p0, p1, p2, p3, ua, ub, uc, ud); else b.quad(p0, p3, p2, p1, ua, ud, uc, ub); };
 QF.n = [0, 0];
 const triF = (b, p0, p1, p2, n) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2]; const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx; if (cx * n[0] + cy * n[1] + cz * n[2] >= 0) b.tri(p0, p1, p2, [0.5, 0.5], [0.5, 1], [0.4, 1]); else b.tri(p0, p2, p1, [0.5, 0.5], [0.4, 1], [0.5, 1]); };
@@ -161,3 +167,18 @@ export function dormer(ctx, roof, o, u, sd, w = 2.4, opts = {}) {
   const len = Math.min(Math.abs(vF) - 0.3, Math.abs(vF - vB) + (opts.rise ?? 0.95) * roof.hw / roof.rise + 0.2); const cc = W(u, vF - sd * (len / 2 - 0.15), 0);
   gableRoof(ctx, { cx: cc[0], cz: cc[2], ang: o.ang + 90, L: len, W: w }, yE, opts.rise ?? 0.95, { tint: opts.tint, ov: 0.25, ovEnd: 0.25, gableBucket: 'stucco', gableTint: tn, ends: sd > 0 ? [false, true] : [true, false] });
 }
+
+/** Concrete kerb along the edges of a paved outline (a hard edge between paving and planting, rule F42), following the ground.
+ * Skipped where the far side is paved too (surfaceAt asphalt / concrete) unless opts.all. No collision (12 cm). */
+export function kerb(ctx, ringIn, opts = {}) {
+  const ring = ensureCCW(ringIn); const w = opts.w || 0.22, hgt = opts.h || 0.12; const pt = ctx.B.v('paint', true); const col = opts.color || [0.5, 0.5, 0.48]; const g = (x, z) => ctx.groundY(x, z);
+  for (const F of outFrames(ring)) { const n = Math.max(1, Math.ceil(F.L / 1.6));
+    for (let k = 0; k < n; k++) { const u0 = F.L * k / n, u1 = F.L * (k + 1) / n, um = (u0 + u1) / 2; const px = F.ax + F.tx * um + F.nx * 0.9, pz = F.az + F.tz * um + F.nz * 0.9; const s = ctx.surfaceAt(px, pz);
+      if (!opts.all && (s === 'asphalt' || s === 'concrete')) continue; if (opts.skip && opts.skip(px, pz)) continue;
+      const P = (u, o, dy) => { const x = F.ax + F.tx * u + F.nx * o, z = F.az + F.tz * u + F.nz * o; return [x, g(x, z) + dy, z]; };
+      pt.setColor(col[0], col[1], col[2]); quadFacing(pt, P(u0, -w / 2, hgt), P(u1, -w / 2, hgt), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [0, 1, 0]);
+      pt.setColor(col[0] * 0.8, col[1] * 0.8, col[2] * 0.8); quadFacing(pt, P(u0, w / 2, -0.05), P(u1, w / 2, -0.05), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [F.nx, 0, F.nz]); quadFacing(pt, P(u0, -w / 2, -0.05), P(u1, -w / 2, -0.05), P(u1, -w / 2, hgt), P(u0, -w / 2, hgt), [-F.nx, 0, -F.nz]); } }
+  pt.setColor(1, 1, 1);
+}
+/** Closed ring round a polyline of width w (for kerbing a drive drawn as a line). */
+export function lineRing(pts, w) { const L = [], R = []; for (let i = 0; i < pts.length; i++) { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; const nx = -(b[1] - a[1]) / d * w / 2, nz = (b[0] - a[0]) / d * w / 2; L.push([pts[i][0] + nx, pts[i][1] + nz]); R.push([pts[i][0] - nx, pts[i][1] - nz]); } return [...L, ...R.reverse()]; }

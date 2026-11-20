@@ -34,8 +34,12 @@ def tone(sel, fallback):
     return np.median(macro[sel], axis=0) if sel.sum() > 50 else np.array(fallback, np.float32)
 T_GRASS = tone(grass & inplay, (86, 110, 60)); T_ASPH = tone(asph & inplay, (92, 92, 94)); T_PAVER = np.array((150, 143, 131), np.float32); T_TURF = tone(syn, (58, 122, 62)); T_BED = np.array((90, 85, 75), np.float32)
 def noise(n, amp): return ndi.gaussian_filter(rng.standard_normal((H, W)), 2.5)[n][:, None] * amp * 6
-def paint(sel, c, t, amp=4):
+def paint(sel, c, t, amp=4, hard=False):
     if not sel.any(): return
+    if hard:   # a crisp outline (rule F42: paving has an edge; the builder lays a kerb on it)
+        tex = t[None, None, :] + ndi.gaussian_filter(rng.standard_normal((H, W)), 9.0)[..., None] * amp * 9; macro[sel] = tex[sel]
+        mask[sel] = np.array({GRASS: (0, 0, 0, 255), ASPH: (255, 0, 0, 255), CONC: (0, 255, 0, 255), SYN: (0, 0, 255, 255), DIRT: (0, 0, 0, 0)}[c], np.float32)
+        cs = np.array(Image.fromarray((sel * 255).astype(np.uint8)).resize((cW, cH), Image.BILINEAR)) > 127; cls[cs] = c; return
     edge = np.clip(ndi.gaussian_filter(ndi.binary_dilation(sel, iterations=3).astype(np.float32), 1.5) * 1.6, 0, 1)[..., None]   # soft join, the old outline fully covered
     tex = t[None, None, :] + ndi.gaussian_filter(rng.standard_normal((H, W)), 9.0)[..., None] * amp * 9
     macro[:] = macro * (1 - edge) + tex * edge
@@ -45,7 +49,7 @@ def paint(sel, c, t, amp=4):
 # 1. the pitch
 F = extra.FIELD; new_turf = poly_mask(extra.obb(F['cx'], F['cz'], F['L'] + 5, F['W'] + 4, F['ang']))
 old = syn & ~new_turf & inplay
-paint(ndi.binary_dilation(old, iterations=2) & ~new_turf, GRASS, T_GRASS); paint(new_turf, SYN, T_TURF, 1)
+paint(ndi.binary_dilation(old, iterations=2) & ~new_turf, GRASS, T_GRASS); paint(new_turf, SYN, T_TURF, 1, True)
 # 2. paving from digitised outlines. The classifier's asphalt / concrete in the play area is mostly tree shadow, roof
 # spill and glare (amoeba blobs round every building). Truth instead: the car parks and service drives traced from nadir
 # 3D-tiles views (tools/data/extra.py PAVED), OSM service ways, and the streets (the engine paints those from the street
@@ -78,11 +82,12 @@ thin = ndi.binary_dilation(thin, iterations=1) & conc & osm_paths               
 to_g = strict & ((asph & ~lots & ~streets) | (conc & ~thin & ~keep & ~courts & ~lots))
 to_a = strict & lots & ~asph
 n_g, n_a = int(to_g.sum() / ppm ** 2), int(to_a.sum() / ppm ** 2)
-paint(to_g, GRASS, T_GRASS); paint(strict & lots, ASPH, T_ASPH, 2)
-paint(garden, DIRT, np.array((128, 106, 84), np.float32), 3)                    # the island's boulder garden: mulch
+paint(to_g, GRASS, T_GRASS); paint(strict & lots, ASPH, T_ASPH, 2, True)
+paint(garden, DIRT, np.array((96, 84, 62), np.float32), 2, True)                    # the island's boulder garden: mulch
 print('play area: %d m2 of false paving -> lawn, %d m2 of car park filled in' % (n_g, n_a))
 # 3. real paved places get one even class and tone (terrace: stone pavers; arts court: pale pavers + a brick square; quad strips)
-paint(terrace, CONC, T_PAVER, 1); paint(paths, CONC, T_PAVER, 1); paint(plaza, CONC, np.array((158, 142, 126), np.float32), 1); paint(brick, CONC, np.array((142, 92, 74), np.float32), 1)
+paint(terrace, CONC, T_PAVER, 1, True); paint(paths, CONC, T_PAVER, 1, True); paint(plaza, CONC, np.array((158, 142, 126), np.float32), 1, True); paint(brick, CONC, np.array((142, 92, 74), np.float32), 1, True)
+paint(poly_mask(extra.POOL_DECK) & ~bld, CONC, np.array((150, 140, 124), np.float32), 1, True)
 # no blown-out paving anywhere in the photo (driveways and patios outside the play area included)
 conc = (mask[..., 1] > 100); lum = macro.mean(axis=2); hot = (lum > 150) & ndi.binary_dilation(conc, iterations=3)
 macro[hot] = macro[hot] * (150.0 / lum[hot])[:, None]

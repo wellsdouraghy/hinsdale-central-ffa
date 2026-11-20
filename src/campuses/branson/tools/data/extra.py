@@ -24,7 +24,7 @@ BUILDINGS = [
     # Tallant Science Center: the faceted modern building at the south end of the quad (OSM / county footprints lack it;
     # outline from the 2 m tile-height grid: flat roof at 9.5-10 m, checked against the nadir tiles view)
     (9000000007, dict(building='school', name='Tallant Science Center', part='tallant'),
-     [[-152, 159], [-139, 159], [-133, 163], [-133, 169], [-138, 171.5], [-141, 173.5], [-146, 175.5], [-151, 177.5], [-153, 182], [-156.5, 182], [-158.5, 178], [-157.5, 171.5], [-155.5, 165], [-153.5, 161]]   # (west side kept 1 m clear of New Oaks' footprint)),
+     [[-152, 159], [-139, 159], [-133, 163], [-133, 169], [-138, 171.5], [-141, 173.5], [-146, 175.5], [-151, 177.5], [-153, 182], [-156.5, 182], [-158.5, 178], [-157.5, 171.5], [-155.5, 165], [-153.5, 161]]),   # (west side kept 1 m clear of New Oaks' footprint)
 ]
 AREAS = [
     (9000000101, dict(leisure='pitch', sport='soccer', surface='artificial_turf', name='Tom Ryan Field'), obb(FIELD['cx'], FIELD['cz'], FIELD['L'] + 5, FIELD['W'] + 4, FIELD['ang'])),
@@ -35,6 +35,7 @@ AREAS = [
 # the engine from the street design): the car park north of the tennis shed, the visitor lot in front of Katharine Branson
 # Hall, the gym service drive down to the Bridge.
 PAVED = [
+    [(-156.3, -3.5), (-149.2, -11.8), (-145.3, -8.7), (-137.4, -2.3), (-145.3, 8.3), (-146, 10.7), (-150, 9.9), (-152.4, 5.2), (-157.9, 2)],   # the Commons' service yard under its west gable
     [(-181.5, -27.5), (-153, -43.2), (-110.3, -55.2), (-105.7, -38.8), (-149, -26.8), (-176, -12.5)],   # faculty car park along Fernhill (aisle + stalls both sides)
     [(-95.9, -56.5), (-77.8, -60.5), (-75.5, -64.6), (-58.6, -68.1), (-58, -62.9), (-66.1, -58.8), (-51.6, -44.8), (-46.9, -47.7), (-46.3, -36.7), (-53.3, -35.5), (-66.1, -42.5), (-82.4, -53.6), (-92.9, -52.4)],
     [(-30, -26.7), (-16, -33.2), (-12.5, -25), (-5.5, -20.3), (12, -21.5), (13.1, -6.4), (15.5, -1.7), (12, -0.5), (0.3, -5.2), (-16, -8.7), (-23, -13.3), (-30, -22.7)],
@@ -51,7 +52,12 @@ ARTS_PLAZA = [[27.6, -8.5], [34.3, -11.3], [42.6, -10.0], [45.4, 1.6], [32.3, 4.
 ARTS_LAWN = [[28.5, -5.9], [32.5, -5.9], [32.5, 1.4], [28.5, 1.4]]
 ARTS_BRICK = [[35.5, -6.3], [40.6, -6.3], [40.6, -1.0], [35.5, -1.0]]
 # asphalt drive along Katharine Branson Hall's south front, and the paved strips of the quad (line, width)
-PAVED_LINES = [([[-73.1, 3.0], [-60.3, 3.0], [-48.6, 8.8], [-34.7, 11.7], [-23.0, 20.5]], 3.6)]
+PAVED_LINES = [([[-176.9, 5.2], [-166.6, 14.6], [-156.3, 21.0], [-150.0, 30.5]], 3.4), ([[-73.1, 3.0], [-60.3, 3.0], [-48.6, 8.8], [-34.7, 11.7], [-23.0, 20.5]], 3.6)]
 PATHS = [([[-165.8, 127.2], [-158.8, 117.3]], 5.0), ([[-176.3, 138.8], [-167.0, 149.3], [-153.0, 156.3]], 3.5), ([[-153.0, 122.5], [-146.0, 148.2]], 3.0)]
 # OSM service ways: paved width (the faculty car park is an aisle with stalls on both sides)
 SERVICE_W = {570965048: 5.0, 570965046: 6.0, 570965047: 4.5, 785563172: 4.0}
+
+# The neighbour's swimming pool north of Fernhill Ave (nadir tiles): water, paved deck, pool house
+POOL = [[-189, -73], [-183, -71.5], [-186, -60], [-192, -61.5]]
+POOL_DECK = [[-196, -76], [-179, -73.5], [-181, -69], [-185, -58], [-196, -59.5], [-196.5, -70]]
+POOL_HOUSE = [[-195, -58], [-188, -58], [-188, -54], [-195, -54]]
