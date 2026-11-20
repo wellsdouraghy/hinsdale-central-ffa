@@ -711,11 +711,11 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
 
 ## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
 
-- **The lidar can be older than the campus.** 3DEP showed Ross Creek's channel and the toe of a wooded hill where the
-  satellite and the 3D tiles have the south half of Tom Ryan Field. Print the tile surface next to the DEM over every
-  field and car park before trusting either (a table of numbers on a 4 m grid shows it at once). Cure, in two places:
-  the hillside is moved in tools/terrain.py (`regrade_shift`: the DEM is read 13 m further north behind the field, faded
-  out to the sides), and the builder's first pad fills the old channel (`max(ground, level)`), then the field pad.
+- **RETRACTED: "the lidar can be older than the campus".** The first build read Ross Creek's channel and a hill toe under
+  the south half of the pitch and "cured" it with a 13 m regrade shift and a channel fill. The lidar was right; the bake had
+  squashed it 26 % north-south (rule F24). On the corrected DEM the creek runs behind the pitch and the gym, the quad is on
+  flat ground, and tile heights differ from the DEM by ONE constant (-16.28 m, 100 m blocks within 0.3 m). If two sources
+  disagree by metres over a whole area, print both on a grid and look for a scale / offset pattern before inventing history.
 - **Stale coarse 3D tiles hang hundreds of metres up.** A straight-down ray took a parent tile 600 m above the campus as
   the first hit in 40 % of the cells: drop hits above a sane height in the sampler (dev/branson-tiles.js).
 - **Tiles cannot see the ground under closed canopy.** Low values under trees are sagging mesh, not ground; high values
@@ -743,3 +743,42 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   is clear of the streets (car parks first); the shared exact test picks; the accepted spots are then written into the
   descriptor so parked cars keep clear of them. Keep spare candidates after the first twelve: one that passes at 7 m
   only shows up as a warning.
+- **Fix round after the first QA (terrain squashed, NOT SHIP). What it taught:**
+  - *Validate with points, in a script that stays in the repo.* `tools/validate_dem.py`: 36 lattice points + 16 named spots
+    against USGS EPQS; mean |error| 0.16 m after the fix (5.0 m before). ArcGIS `exportImage`: size the request from the bbox
+    in DEGREES and read the extent back with `f=json` (the `href` is the tiff); assert it against the request.
+  - *The photo can be sheared, the tiles are not.* The Esri image showed the pitch as a parallelogram (touchlines -5.3 deg,
+    goal lines 9.6 deg); a nadir 3D-tiles view gave a true rectangle (-8.94 deg, 94.6 x 51.2 m, centre 3 m away). The first
+    build's compromise rectangle put turf on the lawn at one corner and the field pad under the gym at another. Measure
+    pitches, courts and anything that must be rectangular from a nadir tiles shot (camera straight down, narrow fov: metres =
+    pixels / (viewport height / (2 h tan(fov / 2)))), and check the corners make 90 degrees.
+  - *A footprint the map lacks is in the tile-height grid.* Tallant Science Center was missing from OSM and the county data;
+    the 2 m roof-height table (roof 9-10 m over ground 2 m) gave its outline in one print. Print (tile - ground) round every
+    cluster and compare with the footprints before building (rule F26).
+  - *The ground classifier is not a paving map on a wooded campus.* Tree shadow, roof spill and glare came out as asphalt
+    and concrete "amoebas" round every building (10 000 m2 of them). `tools/ground_fix.py` now rewrites the play area from
+    truth: car parks and service drives traced from nadir tiles (tools/data/extra.py `PAVED`), OSM service ways, streets by
+    the engine, thin OSM paths kept, everything else lawn; repainted pixels take the neighbour class's median tone with
+    low-frequency noise and a soft edge that fully covers the old outline (a 1 px rim of the old class reads as a ring).
+  - *Half the scanned trees drew as 7 m ornamentals* (the tree system picks the young variant under scale 0.82) and a wooded
+    valley looked like a park. `tools/canopy_fill.py` gives every tree its height from the tiles (scale = canopy height /
+    model height, conifer over 27 m) and fills canopy that has no trunk; the backdrop draws canopy on flat land too (no
+    street grid, no roof boxes, no pale houses on the hills: at that distance Ross shows no roofs).
+  - *Split a county footprint where the real building changes.* Katharine Branson Hall is one polygon: the clay-tiled hall
+    and the white flat-roofed wing were cut along the line seen from above (school.js `splitKbh`), each with its own roof and
+    wall treatment; a 2 m slot in the same polygon (a digitising artefact) wedged a player who dropped off the roof: delete
+    slots narrower than a doorway from footprints.
+  - *Roof tints are not colours.* The shingle texture is dark and slightly purple: a "tan" of 2.5 rendered grey-mauve and
+    terracotta 3.7 rendered maroon. Tints of 6-9.5 were needed (extras.js BR_CLAY / BR_TAN / BR_SEAM); always judge beside
+    the tiles oblique, never by the number.
+  - *A bench and a bank instead of planter tiers* now takes parameters (`bank: { strip, slope }` in the school SPEC): the strip
+    must be at least the pad's retaining depth (7.4 m) or the stepped blocks come back.
+  - *Helicopter spots in car parks cost the cars.* Each ground spot clears parked cars for 10 m; one spot in a small lot
+    empties it. Put hidden spots on lawns behind buildings and keep at most one per car park. Tree trunks are kept 11.5 m
+    back from every descriptor spot in sitework (scan trees and the forest fill alike), so a denser canopy cannot fail them.
+  - *A street on a hillside just inside the bounds still gets checked.* Extending the play area 12 m south for one building
+    brought Ivy Drive in: one round of corner cutting cured its cross-slope at the bends; two rounds made 9 cm profile bumps.
+  - *Dev helpers:* `dev/world.html?recv=<port>` + `__s(name, cam, fov)` and `dev/branson-tiles.html?recv=<port>` + `__r(...)`
+    post JPEGs to a local receiver; `__fit(1280, 800)` sizes the renderer in a hidden pane. Several vite servers sharing one
+    node_modules answer 504 "Outdated Optimize Dep" after one of them re-optimises: restart yours and reload.
+
