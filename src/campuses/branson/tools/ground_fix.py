@@ -50,11 +50,11 @@ paint(ndi.binary_dilation(old, iterations=2) & ~new_turf, GRASS, T_GRASS); paint
 # spill and glare (amoeba blobs round every building). Truth instead: the car parks and service drives traced from nadir
 # 3D-tiles views (tools/data/extra.py PAVED), OSM service ways, and the streets (the engine paints those from the street
 # design); thin concrete (OSM paths), the courts and the dining terrace stay; everything else in play is lawn.
-strict = (wx > PLAY[0] - 6) & (wx < PLAY[1] + 6) & (wz > PLAY[2] - 6) & (wz < PLAY[3] + 6)
+strict = (wx > PLAY[0] - 30) & (wx < PLAY[1] + 30) & (wz > PLAY[2] - 30) & (wz < PLAY[3] + 30)   # (30 m beyond the bounds: what a player sees over the fence)
 lots = np.zeros((H, W), bool)
 for pts in extra.PAVED: lots |= poly_mask(pts)
-for cx, cz, ra, rb, ia, ib in extra.PAVED_RINGS:
-    e = ((wx - cx) / ra) ** 2 + ((wz - cz) / rb) ** 2 <= 1; i = ((wx - cx) / ia) ** 2 + ((wz - cz) / ib) ** 2 <= 1; lots |= e & ~i
+garden = poly_mask(extra.LOOP_GARDEN); lots |= poly_mask(extra.LOOP_OUTER)
+for pts, wd in extra.PAVED_LINES: lots |= line_mask(pts, wd)
 streets = np.zeros((H, W), bool)
 for r in D['roads']:
     hw = r['tags'].get('highway')
@@ -63,22 +63,31 @@ for r in D['roads']:
 bld = np.zeros((H, W), bool)
 for b_ in D['buildings']:
     if len(b_['outer'][0]) >= 3: bld |= poly_mask(b_['outer'][0])
-lots &= ~ndi.binary_dilation(bld, iterations=2)
+lots &= ~ndi.binary_dilation(bld, iterations=2); lots &= ~garden
 asph = mask[..., 0] > 128; conc = mask[..., 1] > 128
-keep = poly_mask([(-106 + 9.5 * math.cos(a / 12 * math.pi), 31 + 9.5 * math.sin(a / 12 * math.pi)) for a in range(24)])
+terrace = poly_mask(extra.TERRACE) & ~bld; plaza = poly_mask(extra.ARTS_PLAZA) & ~poly_mask(extra.ARTS_LAWN) & ~bld; brick = poly_mask(extra.ARTS_BRICK)
+paths = np.zeros((H, W), bool)
+for pts, wd in extra.PATHS: paths |= line_mask(pts, wd)
+osm_paths = np.zeros((H, W), bool)
+for r in D['roads']:
+    if r['tags'].get('highway') in ('cycleway', 'footway', 'path', 'pedestrian', 'steps'): osm_paths |= line_mask(r['line'], 7)
+paths &= ~bld; keep = terrace | plaza | paths
 courts = poly_mask(extra.obb(extra.TENNIS['cx'], extra.TENNIS['cz'], 36.6 + 3, 33.5 + 3, extra.TENNIS['ang']))
 thin = conc & ~ndi.binary_opening(conc, iterations=max(1, int(1.6 * ppm)))      # paths under ~3 m wide
-thin = ndi.binary_dilation(thin, iterations=1) & conc
+thin = ndi.binary_dilation(thin, iterations=1) & conc & osm_paths                 # (a thin strip away from any mapped path is glare, not paving)
 to_g = strict & ((asph & ~lots & ~streets) | (conc & ~thin & ~keep & ~courts & ~lots))
 to_a = strict & lots & ~asph
 n_g, n_a = int(to_g.sum() / ppm ** 2), int(to_a.sum() / ppm ** 2)
 paint(to_g, GRASS, T_GRASS); paint(strict & lots, ASPH, T_ASPH, 2)
+paint(garden, DIRT, np.array((128, 106, 84), np.float32), 3)                    # the island's boulder garden: mulch
 print('play area: %d m2 of false paving -> lawn, %d m2 of car park filled in' % (n_g, n_a))
-# 3. the dining terrace + tone
-paint(keep, CONC, T_PAVER, 1)
-conc = (mask[..., 1] > 128) & inplay; lum = macro[conc].mean(axis=1) if conc.any() else np.array([0.0])
-hot = conc & (macro.mean(axis=2) > 168); macro[hot] = macro[hot] * (168.0 / macro[hot].mean(axis=1))[:, None]
-print('concrete tone: median %.0f, capped %d px' % (float(np.median(lum)), int(hot.sum())))
+# 3. real paved places get one even class and tone (terrace: stone pavers; arts court: pale pavers + a brick square; quad strips)
+paint(terrace, CONC, T_PAVER, 1); paint(paths, CONC, T_PAVER, 1); paint(plaza, CONC, np.array((158, 142, 126), np.float32), 1); paint(brick, CONC, np.array((142, 92, 74), np.float32), 1)
+# no blown-out paving anywhere in the photo (driveways and patios outside the play area included)
+conc = (mask[..., 1] > 100); lum = macro.mean(axis=2); hot = (lum > 150) & ndi.binary_dilation(conc, iterations=3)
+macro[hot] = macro[hot] * (150.0 / lum[hot])[:, None]
+far = conc & ~strict; lum = macro.mean(axis=2); hot2 = far & (lum > 112); macro[hot2] = macro[hot2] * (112.0 / lum[hot2])[:, None]   # driveways and patios outside the play area: no bright blobs seen from the air
+print('paving toned down: %d px' % int(hot.sum()))
 # 4. Ross Creek bed
 Hh = np.fromfile(os.path.join(OUT, 'terrain.bin'), '<i2').reshape(301, 331) * 0.01
 ter = np.array(Image.fromarray(Hh.astype(np.float32)).resize((W, H), Image.BILINEAR)); bank = ndi.maximum_filter(ndi.gaussian_filter(ter, 2), size=int(14 * ppm))

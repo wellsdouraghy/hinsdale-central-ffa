@@ -98,13 +98,28 @@ map breaking one of these rules has not finished.
     axes is a defect (map check "mound on paving").
 31. Cover added to make the CTF overlook check pass must be real (A1) and must stay off sidewalks and roads (C13). If
     only invented cover would make a base fair, move the base instead.
+32. Check roof RIDGE heights against the tiles, not only eaves: a single-pitch roof on a wide plan sits metres low
+    (Katharine Branson Hall was 3.5 m short).
+33. Outside graded streets and pads the ground stays within ~2 m of the source DEM; a house on a steep lot gets
+    walk-out storeys on natural ground, never a fill mound under its pad.
+34. Plazas, loops, terraces and car parks take their outline from the imagery. A flatten circle or ellipse makes an
+    invented shape with fuzzy, blown-out edges.
+35. Never put the satellite photo on a modelled roof (it bakes in tree shadows). Named landmark trees go through the
+    tree kit, never ad-hoc low-poly geometry.
+36. Each signature building gets its own facade style, matched side by side with tiles or photos. One shared
+    "office" style across historic and modern buildings reads as generic.
+37. Never re-baseline the street survey after cutting or filling beside a street. Every sidewalk point stays within
+    0.15 m of `streetDesign(x, z).y` (map check, 0.5 m grid); Marin's walk grew 0.5 m sawtooth humps that the roads
+    and mounds checks both missed.
+38. Where a retaining wall or fence run ends at a street corner, `__walk` that corner both ways on both sidewalks: run
+    ends are where pits, wedges and stray fence posts appear.
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F31 above is ticked off explicitly in the hand-off.
+- Every rule A1-F38 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
@@ -885,4 +900,34 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - *Dev helpers:* `dev/world.html?recv=<port>` + `__s(name, cam, fov)` and `dev/branson-tiles.html?recv=<port>` + `__r(...)`
     post JPEGs to a local receiver; `__fit(1280, 800)` sizes the renderer in a hidden pane. Several vite servers sharing one
     node_modules answer 504 "Outdated Optimize Dep" after one of them re-optimises: restart yours and reload.
+- **Fix round after the second QA (NOT SHIP: a house on a fill mound, an invented car-park loop, a low and generic main hall):**
+  - *Ridge heights from the tiles, per wing.* `polyRoof` runs one pitch over the whole plan, so a 17 m wing next to a 27 m block
+    came out 3.5 m low. Katharine Branson Hall now has one hip per wing with the RIDGE height read off the tile grid
+    (school.js `KBH_ROOFS`); check built roofs with a downward ray at the tile's ridge points, not by eye.
+  - *Houses never stand on fill.* `housePad` is cut-only now; the fall along the walls becomes walk-out floors (up to two) and
+    the eave is capped over the low side, so a 45 degree lot gets a bench cut uphill instead of a 9 m mound downhill. The map
+    check warns when a house has ground more than 1 m above the source DEM round its walls, and for any ground more than 2 m above
+    the source away from asphalt and footprints (`terrain.sourceAt`, checkHouses). Its first run also showed pads filling
+    the creek beside Richardson Hall: footprints registered with `ctx.footprints` are exempt, everything else is a mound.
+  - *No flatten-circle plazas, no ellipse car parks.* Trace the outline from a nadir tiles shot (pixels to metres from camera
+    height and fov) into tools/data/extra.py AND kit.js: the loop is OUTER minus the island garden with a stall row inside its
+    south half, the terrace is a polygon with a 3 x 3 table grid, the arts court a paved polygon with a lawn panel and a brick
+    square. Stalls that open straight off a graded lane need the car placement's road test switched off for that row.
+  - *No satellite photo on a modelled roof* (baked tree shadows, blur): flat roofs get a plain cover in the real colour
+    (sedum, white membrane, grey) plus the solar arrays as geometry.
+  - *Signature buildings get their own facade style.* The generic kit's ribbon windows read as an office block on a 1920s
+    Mediterranean hall. `stuccoWalls` (extras.js): plain stucco, tall windows in a regular rhythm per storey, arched on the
+    hall, arched doors, nothing on party walls, nothing where the ground stands above the sill. It also removed the kit's
+    streak bands and stray decals. Use the point-in-ring test for a wall's outward side: the centroid test put windows on
+    the inside of every re-entrant wall of a concave plan.
+  - *Landmark trees through the tree kit* (`gen.trees.push([x, z, kind, scale])` in sitework, scale = height / 15.5): a hand-built
+    crown read as a blue cone. Likewise far-ridge crowns: half-sunk domes, not cones (sawtooth skyline).
+  - *A dormer's roof must run back until its ridge meets the main slope*; stopping where the eaves meet it leaves a hole the
+    roof-skin check finds. Two digitised footprints that overlap by a metre fail the same check: keep them apart.
+  - *`floor((w + 0.02) / (w + 0.02))` is 0 often enough* to delete every window of a facade: never derive a count of one from
+    a float division.
+  - *A pad level 0.16 m above a street's designed end is a mound on paving* (the bridgehead): level bridge decks and aprons
+    to the street design, flatten only the side that is not a street.
+  - *Cover is measured, not guessed.* The map check's base cover (16 rays, 30 m, chest height) disagreed with a quick ray
+    count that included the ground mesh. Try candidates with `&only=spawns,overlook` and read `checks.spawns.bases`.
 

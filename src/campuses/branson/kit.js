@@ -14,6 +14,12 @@ export const along = (o, a, b) => { const c = Math.cos(o.ang * RAD), s = Math.si
 // the turf carpet runs 2.5 m past the goal lines and 2 m past the touchlines
 export const FIELD = { cx: -33.2, cz: 92.3, ang: -8.94, L: 94.6, W: 51.2, turfL: 99.6, turfW: 55.2 };
 export const fieldRing = (d = 0) => obb(FIELD.cx, FIELD.cz, FIELD.turfL + 2 * d, FIELD.turfW + 2 * d, FIELD.ang);
+// Outlines traced from nadir Google 3D-tiles views (the same numbers as tools/data/extra.py, which paints the ground from them)
+export const TERRACE = [[-120.4, 26.4], [-112.4, 17.6], [-108.0, 21.2], [-103.2, 23.6], [-98.4, 27.2], [-92.0, 28.8], [-88.0, 34.8], [-95.2, 37.2], [-101.6, 40.8], [-106.8, 44.4], [-109.6, 42.0], [-115.2, 34.0]];
+export const TERRACE_TABLES = [[-107.4, 26.0], [-104.0, 29.1], [-99.8, 32.6], [-109.7, 29.8], [-107.0, 32.0], [-103.7, 35.0], [-113.0, 33.0], [-109.7, 35.6], [-106.1, 38.6]];
+export const LOOP_GARDEN = [[-103.6, 51.6], [-100.8, 47.6], [-95.2, 44.0], [-87.2, 41.6], [-80.0, 42.0], [-76.2, 45.6], [-77.6, 47.2], [-84.0, 49.2], [-88.0, 51.6], [-92.0, 53.6], [-98.4, 56.0], [-102.8, 54.8]];
+export const LOOP_ROWS = [[[-100.0, 57.8], [-84.8, 53.6]], [[-83.2, 52.4], [-78.0, 47.6]], [[-68.0, 52.0], [-75.2, 61.2]], [[-75.2, 61.2], [-84.8, 66.1]], [[-84.8, 66.1], [-92.8, 68.0]]];
+export const ARTS_PLAZA = [[27.6, -8.5], [34.3, -11.3], [42.6, -10.0], [45.4, 1.6], [32.3, 4.0], [29.2, 2.0]];
 // the two tennis courts north of the Commons (one slab, courts side by side)
 export const TENNIS = { cx: -96.7, cz: -27.2, ang: 32.2, w: 36.6, d: 33.5 };
 export const tennisRing = (d = 0) => obb(TENNIS.cx, TENNIS.cz, TENNIS.w + 2 * d, TENNIS.d + 2 * d, TENNIS.ang);
@@ -134,7 +140,7 @@ export function stairGrade(ctx, spec) {
 export function buildStairs(ctx, spec) {
   const { B } = ctx; const { a, b, w } = spec; if (spec.ya === undefined) return null; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const nx = -tz, nz = tx;
   const drop = spec.ya - spec.yb; const n = Math.max(2, Math.round(drop / 0.16)); const riser = drop / n, tread = L / n; const rot = Math.atan2(-tz, tx);
-  const conc = B.v('concrete'), lime = B.v('limestone');
+  const conc = B.v(spec.brick ? 'brickRed' : 'concrete'), lime = B.v('limestone');
   // steps: each a box from below the ramp up to its tread level (the nosing line runs from (a, ya) to (b, yb))
   for (let k = 0; k < n; k++) { const u = tread * (k + 0.5), yTop = spec.ya - riser * k; const cx = a[0] + tx * u, cz = a[1] + tz * u;
     conc.box(cx, yTop - 0.35, cz, tread + 0.02, 0.7, w, rot, 1 / 3); lime.box(a[0] + tx * (tread * (k + 1) - 0.05), yTop + 0.006, a[1] + tz * (tread * (k + 1) - 0.05), 0.1, 0.012, w, rot, 1 / 3); }

@@ -286,6 +286,7 @@ export async function createTerrain(campus, { sat = campus.sat, playBounds = cam
     get maxY() { let m = -Infinity; for (let k = 0; k < H.length; k++) if (H[k] > m) m = H[k]; return m; },
     range0: { min, max },
     heightAt, meshHeightAt, normalAt, slopeAt, gradAt, minIn, maxIn, standY, footprint, flatten,
+    sourceAt: sample,   // the baked source DEM, before any flatten (map check: fill mounds)
     groundGeometry, refreshGeometry, texture,
   };
 }

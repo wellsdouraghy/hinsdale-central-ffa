@@ -24,7 +24,7 @@ BUILDINGS = [
     # Tallant Science Center: the faceted modern building at the south end of the quad (OSM / county footprints lack it;
     # outline from the 2 m tile-height grid: flat roof at 9.5-10 m, checked against the nadir tiles view)
     (9000000007, dict(building='school', name='Tallant Science Center', part='tallant'),
-     [[-153, 159], [-139, 159], [-133, 163], [-133, 169], [-138, 171.5], [-141, 173.5], [-146, 175.5], [-151, 177.5], [-153, 182], [-157, 182], [-161, 178], [-161, 171], [-159, 165], [-155, 161]]),
+     [[-152, 159], [-139, 159], [-133, 163], [-133, 169], [-138, 171.5], [-141, 173.5], [-146, 175.5], [-151, 177.5], [-153, 182], [-156.5, 182], [-158.5, 178], [-157.5, 171.5], [-155.5, 165], [-153.5, 161]]   # (west side kept 1 m clear of New Oaks' footprint)),
 ]
 AREAS = [
     (9000000101, dict(leisure='pitch', sport='soccer', surface='artificial_turf', name='Tom Ryan Field'), obb(FIELD['cx'], FIELD['cz'], FIELD['L'] + 5, FIELD['W'] + 4, FIELD['ang'])),
@@ -40,7 +40,18 @@ PAVED = [
     [(-30, -26.7), (-16, -33.2), (-12.5, -25), (-5.5, -20.3), (12, -21.5), (13.1, -6.4), (15.5, -1.7), (12, -0.5), (0.3, -5.2), (-16, -8.7), (-23, -13.3), (-30, -22.7)],
     [(-112, 58), (-102.7, 62.7), (-96.8, 70.9), (-109.1, 72.6), (-121.3, 76.7), (-122.5, 93), (-120.7, 95.3), (-126.6, 95.9), (-134.1, 84.3), (-143.5, 88.3), (-144.6, 86), (-134.1, 80.8), (-123.6, 70.9)],
 ]
-# the loop round the rain garden: carriageway + the parking bays on its outer side (cx, cz, outer a, b, inner a, b)
-PAVED_RINGS = [(-89.0, 49.5, 27.0, 20.5, 12.5, 8.0)]
+# The car-park loop (nadir tiles, 12.5 px/m): a one-way lane round an island whose north half is a boulder garden and whose
+# south half is a stall row; a second stall row on the outer south-east kerb. Asphalt = LOOP_OUTER minus LOOP_GARDEN.
+LOOP_OUTER = [[-106.8, 44.4], [-101.6, 40.8], [-95.2, 37.2], [-87.2, 35.2], [-75.2, 35.6], [-66.4, 37.8], [-62.4, 39.8], [-68.4, 45.2], [-70.3, 47.6], [-65.2, 53.2], [-67.6, 58.8], [-72.8, 64.4], [-79.2, 68.8], [-87.2, 70.4], [-93.6, 70.0], [-95.6, 66.0], [-101.6, 65.3], [-107.2, 62.4], [-109.7, 58.0], [-110.4, 53.2], [-109.2, 47.6]]
+LOOP_GARDEN = [[-103.6, 51.6], [-100.8, 47.6], [-95.2, 44.0], [-87.2, 41.6], [-80.0, 42.0], [-76.2, 45.6], [-77.6, 47.2], [-84.0, 49.2], [-88.0, 51.6], [-92.0, 53.6], [-98.4, 56.0], [-102.8, 54.8]]
+# the Commons' dining terrace: a paved stone plaza between the hall's south-east end and the loop
+TERRACE = [[-120.4, 26.4], [-112.4, 17.6], [-108.0, 21.2], [-103.2, 23.6], [-98.4, 27.2], [-92.0, 28.8], [-88.0, 34.8], [-95.2, 37.2], [-101.6, 40.8], [-106.8, 44.4], [-109.6, 42.0], [-115.2, 34.0]]
+# the paved court between New House and the Fine Arts studios, its lawn panel and the brick square with the sculpture
+ARTS_PLAZA = [[27.6, -8.5], [34.3, -11.3], [42.6, -10.0], [45.4, 1.6], [32.3, 4.0], [29.2, 2.0]]
+ARTS_LAWN = [[28.5, -5.9], [32.5, -5.9], [32.5, 1.4], [28.5, 1.4]]
+ARTS_BRICK = [[35.5, -6.3], [40.6, -6.3], [40.6, -1.0], [35.5, -1.0]]
+# asphalt drive along Katharine Branson Hall's south front, and the paved strips of the quad (line, width)
+PAVED_LINES = [([[-73.1, 3.0], [-60.3, 3.0], [-48.6, 8.8], [-34.7, 11.7], [-23.0, 20.5]], 3.6)]
+PATHS = [([[-165.8, 127.2], [-158.8, 117.3]], 5.0), ([[-176.3, 138.8], [-167.0, 149.3], [-153.0, 156.3]], 3.5), ([[-153.0, 122.5], [-146.0, 148.2]], 3.0)]
 # OSM service ways: paved width (the faculty car park is an aisle with stalls on both sides)
 SERVICE_W = {570965048: 5.0, 570965046: 6.0, 570965047: 4.5, 785563172: 4.0}
