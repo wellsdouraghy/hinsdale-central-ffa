@@ -1,6 +1,6 @@
 # Campus Combat: multi-campus contract
 
-> Before building or reworking a campus, read MAP_NOTES.md, starting with "The rulebook: one-shot maps" (the user's feedback as rules A1-F28; a builder hand-off ticks every one), then the lessons from previous builds and QA reviews.
+> Before building or reworking a campus, read MAP_NOTES.md, starting with "The rulebook: one-shot maps" (the user's feedback as rules A1-F31; a builder hand-off ticks every one), then the lessons from previous builds and QA reviews.
 > Before handing a campus to QA, run the map check (`dev/mapcheck.html?campus=<id>&mute=1`, see MAP_NOTES.md "Map check") and get it to no `fail`.
 
 One game, many campuses. Gameplay, networking, UI and the generic world pipeline are shared; each campus supplies

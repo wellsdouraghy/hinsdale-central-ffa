@@ -91,13 +91,20 @@ map breaking one of these rules has not finished.
     matched against a tiles oblique or photo in a side-by-side screenshot included in the hand-off. Building name
     signs go where the real ones are.
 28. Hedges are continuous extruded walls at their real height, never rows of separate cones or blobs.
+29. After any terrain re-bake or regrade, `__walk` EVERY existing flight of steps, landing and gate both ways, not only
+    the new ones: hand-built stairs keep their old heights while the street and ground move under them (Marin's pool
+    stairs ended 0.4 m below the re-graded sidewalk and nothing in the map check caught it).
+30. No mounds on paving: a point on asphalt or concrete more than 0.15 m above its neighbours 3 m away along all four
+    axes is a defect (map check "mound on paving").
+31. Cover added to make the CTF overlook check pass must be real (A1) and must stay off sidewalks and roads (C13). If
+    only invented cover would make a base fair, move the base instead.
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F28 above is ticked off explicitly in the hand-off.
+- Every rule A1-F31 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
