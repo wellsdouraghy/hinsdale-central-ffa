@@ -139,7 +139,7 @@ function sitework(ctx) {
     const lawn = shapeSDF(R(...gp(-12.4, 61.0, -8.0, 0), 5.4, 51.6)).sd;
     if (ctx.paintSurface) ctx.paintSurface((x, z) => streets.surface(x, z) || (lawn(x, z) <= 0 ? 'grass' : null));
     const solid = streets.solid[0] || (() => false); const out = [];
-    for (const t of ctx.gen.trees || []) { const p = streets.toVerge(t[0], t[1], 1.0); if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
+    for (const t of ctx.gen.trees || []) { const dz = streets.design(t[0], t[1]); const p = streets.toVerge(t[0], t[1], dz && dz.zone === 'walk' ? 3.2 : 1.0);   /* (a trunk on a sidewalk moves behind it too: several streets have walks now that had none on the stretched ground) */ if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // (and a tree deep inside a car park: asphalt 2.5 m all round it)
     ctx.gen.trees = out.filter((t) => !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
   }

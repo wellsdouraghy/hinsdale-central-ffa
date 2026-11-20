@@ -89,7 +89,7 @@ function housePlan(ctx, ring, info, fa, id) {
   const lv = fa.lv || Math.max(1, Math.min(2, info.lv || 1)); const walls = lv >= 3 && fa.roof !== 'flat' ? 2 : Math.min(lv, 3);   // a third 'storey' under a pitched roof is the attic in the gable
   let top = fa.lv ? gF + walls * 2.9 + (lv >= 3 ? 0.8 : 0.3) : Math.min(Math.max(info.top ?? g.max + info.h, gF + 2.7), gF + 6.4);
   if (fix) top = gF + fix.eave;
-  const lower = HOUSE_LOWER[id] || 0; if (lower && info.top != null) top = Math.max(info.top, g.max + 2.7);   /* a house above its road: the measured eave */
+  const lower = HOUSE_LOWER[id] || 0; if (lower && info.top != null) top = info.top + 0.5;   /* a house above its road: the measured eave (gen top is the low quartile of the roof samples); where the bank behind stands higher it is cut down to a terrace (housePad `cut`), not the house raised */
   const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
   return { top, rows, walls: walls + lower, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
 }

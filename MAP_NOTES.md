@@ -359,6 +359,10 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     is missing), reproject to the campus frame (x east, z south, metres from `origin`), subtract the ground level,
     write PNG / .bin as above. 3DEP is bare earth already (no roofs / trees), but check it against the tiles: it can
     predate grading work.
+    **Validate the registration before anything is built on it:** read the extent back from the GeoTIFF tags (the
+    ImageServer returns square-degree pixels whatever `size` you ask for), and compare the baked file with >= 20 USGS
+    epqs point elevations across the play area and its edges (mean error <= 1.5 m). Marin shipped five rounds on a DEM
+    stretched 26 % north-south ("DEM registration" in the Marin section; tools/terrain.py does both on every run).
   - Cover the whole satellite rectangle (`extent` = `sat`) so the drawn ground and the backdrop meet; when the campus
     has its own backdrop sampler, pass it as `outside` and give `blend` 20-40 m: no seam or cliff at the edge.
 - **Flatten (descriptor `flatten` or `ctx.flatten`, BEFORE placing anything):** sports fields, courts, tracks, car parks
@@ -442,16 +446,18 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
 
 ## Marin on real terrain (lessons from the rebuild; scripts in src/campuses/marin/tools/)
 
-- **Ground source: USGS 3DEP beat the 3D tiles.** The National Map ImageServer (`3DEPElevation/ImageServer/exportImage`,
-  bbox in EPSG:4326, `format=tiff&pixelType=F32`, no key) returns bare-earth lidar at 1 m: no roofs, no canopies, no min
-  filter needed. The tile samples agree with it to ~0.5 m on open flat ground after a constant offset, but **their offset
-  drifts across the map** (3 m on the hillside streets, 20 m on a steep wooded slope where only coarse LODs load). Never
-  take absolute ground heights from tile samples on a hill; use them for roofs only (tools/terrain.py).
-- **Check the DEM against current imagery for regrading.** The lidar predated one car park (a 15 % hillside in the DEM, a
-  flat lot in the tiles: residual of a plane fit 1.0 m, where every real lot had < 0.35 m) and the north tip of the pitch.
-  A plane fit per OSM `amenity=parking` polygon finds these in seconds; flatten them to the level of the building they serve.
-- **Building heights (the "not two storey" report).** Roof = tile samples inside the footprint, shifted by an offset
-  fitted LOCALLY on open ground next to it (smooth tile cells clear of every footprint, gaussian 16 m); ground = DEM on
+- **Ground source: USGS 3DEP.** The National Map ImageServer (`3DEPElevation/ImageServer/exportImage`, `format=tiff&pixelType=F32`,
+  no key) returns bare-earth lidar at 1 m: no roofs, no canopies, no min filter needed. On open ground the 3D-tiles
+  samples agree with it to ~0.3 m after ONE constant offset (ellipsoid vs NAVD88: -13.6 m here, the same in every
+  quadrant). *This bullet used to say the tile offset "drifts across the map" by 3-20 m and that the lidar "predated the
+  regrading" of a car park and of the pitch. Both were wrong: the DEM had been fetched stretched 26 % north-south (see
+  "DEM registration" at the end of this section). On the correctly placed DEM the offset is constant, that car park is a
+  level lot (0.8 % fall) and the pitch is flat to 4 cm.* Tiles are still for roofs only: they cannot see the ground under
+  canopies.
+- **A plane fit per OSM `amenity=parking` polygon is a registration test.** Real lots are planes to < 0.2 m rms; a lot that
+  reads as a 15 % hillside means the DEM is misplaced, not that the lot was regraded. Do not flatten it away: find out why.
+- **Building heights (the "not two storey" report).** Roof = tile samples inside the footprint, shifted by the one
+  constant tile-to-DEM offset (median over smooth tile cells clear of every footprint); ground = DEM on
   the outline. Store the roof as an ABSOLUTE height plus the ground min / max. The old "roof minus the lowest ground
   nearby" read 34 of 144 buildings a storey too tall (one-storey houses on a 3 m fall became two storeys on every side);
   the gyms were 9 / 12.4 m and are 7 / 9 m. OSM had no `building:levels` here: Street View is the cross-check.
@@ -692,3 +698,57 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     another port, the same list of camera strings in both (each tested: nothing solid within 0.6 m, above the ground).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.
+- **DEM registration (the terrain-fix round; tools/terrain.py). Every hill was 26 % too far from the origin north-south.**
+  - **What went wrong.** `exportImage` was asked for a 960 x 900 m box as 960 x 900 px with `bboxSR = imageSR = 4326`. The
+    server keeps SQUARE DEGREE pixels and silently grows the extent to fit the size: the tiff covered 960 x 1137 m, the
+    sampler assumed 900 m. The ground at z in the game was the real ground at 1.26 z. Near the origin nothing showed; at the
+    play-area edge hills stood 45 m from where they are, the far backdrop DEM was stretched the same way.
+  - **How it hid for five QA rounds.** Every symptom got its own explanation and its own fix: "the tile offset drifts across
+    the map" (a locally fitted offset), "the lidar predates the regrading" (a car park flattened by hand, y = 11), "a house
+    whose footprint falls 10 m" (walk-out floors, then a ziggurat), a 4 m retaining wall round the north of the pitch, gore
+    walls at a fork that is 2 m high, not 4. **Three unrelated-looking compensations in one bake are one bug upstream.**
+  - **The rule.** Build the request from ONE pixel size in degrees and a whole number of pixels each way (or ask for a metric
+    `imageSR`), READ the georeferencing back from the GeoTIFF tags (ModelPixelScale / ModelTiepoint) instead of assuming it,
+    assert the pixel aspect, and validate the BAKED file against independent point elevations on every run: 63 USGS epqs
+    points over the satellite rectangle (cached), the bake fails over 1.5 m mean. Before: mean 2.60 m, max 16.9 m (play
+    area 1.94 / 16.9). After: mean 0.04 m, max 0.27 m. Also print the tile-to-DEM offset by quadrant: it must be one number.
+  - **After a re-bake, re-measure everything that was typed in from the old ground.** Hand-entered absolute heights (the
+    school's roof tops, the helicopter deck, a pad's `y`) carry the old error: the roofs were up to 1.4 m off, the service
+    building 3 m. Keep such numbers in ONE table with their source (`TOP` in school.js). For hip roofs the eave is the LOW
+    end of the tile samples (10th percentile), for flat roofs the median; "the delta of the old value" is not a measurement.
+  - **A house above its road: the eave is the measured roof, the front is the road it is seen from.** "Street-side ground +
+    the storeys Street View shows" put the hill house four storeys up, because the nearest centre line was the lane ABOVE
+    its roof and Street View had counted the storeys from the road below. `HOUSE_FRONT` names the street, `HOUSE_LOWER`
+    takes the measured eave; the bank behind is cut to a terrace, the house is not raised to clear it.
+  - **Real ground moves the steps to where they are.** The courtyard between the Library and the Leadership Center lies
+    1.6 m below Mission Ave; on the stretched DEM that step lay out in the street and vanished in the grading. Now it is at
+    the building line: a flight in the frontage strip (`COURT_STAIR`, shared `stairFlight` with the pool stairs), a
+    retaining block either side, a forecourt at courtyard level. Lattice bookkeeping that made it work: the level pad
+    starts a lattice ROW behind the back of the walk (not "2 m": look at where the rows fall on the rotated grid), the
+    blocks cover the row that ramps, a block's return in front of a neighbouring wall is a plain mass (registering it as
+    a retaining face makes the map check sample "in front" of it inside the building), and the ground just INSIDE a
+    footprint next to a lower terrace must be cut too, or the lattice carries street level through the wall onto the
+    windows that face the terrace.
+  - **A sidewalk needs room, per stretch of street.** With real cross-slopes fewer streets are "benched hill lanes", so more
+    of them got sidewalks: two walks squeezed into the 6 m between the carriageways of a fork became one 30 deg ramp, a walk
+    on a 17 % lane kinked at every vertex. `walkRoom` (marin/world.js) splits a road at its OSM vertices and drops the walk
+    on a side where the strip to the next carriageway cannot hold both walks and a 1 : 1.5 bank, or where the lane climbs
+    more than 12 %. Splitting a street into pieces exposed an engine artefact: past the end of a piece the round cap has
+    less crown, and blending it with the piece alongside dipped the centre line 8 cm (streets.js now drops the cap when a
+    piece of the SAME street covers the point; never when only another street does: its sidewalk took over the roadway).
+  - **The walk beside a level pad, both ways.** The Mission Ave rule (walk cut back to its design after `restore()`) is now
+    one rule round the whole pitch: cut where it stands above the design, raise from a lattice cell behind the block's face
+    on, and raise the verge node just inside a walk that stands above the pitch, so the walk is level over its full width
+    and the ramp lies under the block (Bryn Mawr Drive runs 3-5 m above the east side). Anything that changes a street
+    after `restore()` on purpose calls `streets.resurvey()`, or the map check reports it as "moved".
+  - **Sight-blockers follow the ground, not the wall.** The evergreen belt was tied to "wall higher than 2.2 m". With the
+    north wall 1-2 m lower on the real ground, the gym plaza looked straight down on the red base (overlook: 117 m2 vs 0).
+    The belt now also stands wherever the ground 6-14 m behind the field edge is 3.5 m or more above the pitch.
+  - **Small things the re-bake flushed out:** a sign placed at a fixed share of a wall's height landed on the clerestory when
+    the wall grew 3 m (place it a fixed distance under the eave); cars were tested for slope at their centre only (test the
+    footprint); a team spawn on a twisted lattice cell stood 16 cm off the drawn mesh (collision.js: spawns only where mesh
+    and smooth height agree to 6 cm); trees were moved off carriageways but not off the new sidewalks (`toVerge` with the
+    walk's width when the design says 'walk').
+  - **Google 3D tiles from a dev page on another port:** the key is restricted to the referrer of the default dev server.
+    Load `dev/<id>-tiles.html` from that server and post the canvas to your own receiver; do not forward requests with a
+    spoofed Referer.
