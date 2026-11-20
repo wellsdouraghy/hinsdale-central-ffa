@@ -13,9 +13,9 @@ import { buildTerrain, terrainSampler } from './terrain.js';
 
 // Park Drive and the loop are drawn in OSM with a few long chords: two rounds of corner cutting (end points kept, so
 // the junction nodes still coincide) before the street is designed on them
-const SMOOTH = new Set([12187517, 570965050, 570965049, 570965051]);
+const SMOOTH = new Set([12187517, 570965050, 570965049, 570965051, 12186851]);   // (+ Ivy Drive: its OSM corners on the hillside tilt the cross-section)
 function smoothLine(r, fixed) { let L = r.line; if (!SMOOTH.has(r.id)) return L; const key = (p) => Math.round(p[0] * 10) + ',' + Math.round(p[1] * 10);
-  for (let k = 0; k < 2; k++) { const o = [L[0]]; for (let i = 1; i < L.length - 1; i++) { const a = L[i - 1], v = L[i], b = L[i + 1]; if (fixed.has(key(v))) { o.push(v); continue; } o.push([a[0] * 0.25 + v[0] * 0.75, a[1] * 0.25 + v[1] * 0.75], [b[0] * 0.25 + v[0] * 0.75, b[1] * 0.25 + v[1] * 0.75]); } o.push(L[L.length - 1]); L = o; } return L; }
+  for (let k = 0; k < (r.id === 12186851 ? 1 : 2); k++) { const o = [L[0]]; for (let i = 1; i < L.length - 1; i++) { const a = L[i - 1], v = L[i], b = L[i + 1]; if (fixed.has(key(v))) { o.push(v); continue; } o.push([a[0] * 0.25 + v[0] * 0.75, a[1] * 0.25 + v[1] * 0.75], [b[0] * 0.25 + v[0] * 0.75, b[1] * 0.25 + v[1] * 0.75]); } o.push(L[L.length - 1]); L = o; } return L; }
 
 // Earthworks, in the fixed order of the rulebook (B7), all before anything is placed:
 //   1 campus pads -> 2 graded streets -> 3 building wall pads + seatInteriors -> 4 streets.restore() -> 5 cheek /
@@ -28,6 +28,8 @@ function sitework(ctx) {
   ctx.flatten({ outline: fieldRing(3.0) }, { y: 0, blend: 2.3 });
   // the tennis courts: one level slab
   ctx.tennisY = ctx.flatten({ outline: tennisRing(1.6) }, { blend: 3 });
+  // the organic garden's raised beds stand on a level plot of Katharine Branson Hall's south-west lawn
+  ctx.flatten({ rect: { cx: -63.9, cz: 18.7, w: 11, d: 11.5, angle: 0.1 } }, { blend: 3.5 });
   // the dining terrace in front of the Commons hall (tables under umbrellas)
   ctx.terraceY = ctx.flatten({ circle: { x: -106, z: 31, r: 9 } }, { blend: 3 });
   // Buildings that back onto the steep wooded hill (the gym and the quad): the hill behind them is cut to a planted
@@ -35,7 +37,7 @@ function sitework(ctx) {
   // `retaining`: "grade the ground in or step it"). Laid before the wall pads; the lidar ground wins where it is lower.
   const sw0 = schoolWalls(ctx);
   for (const w of sw0) { if (!w.bank) continue; const sd = shapeSDF({ outline: w.ring }).sd; const c = centroid(w.ring); let R = 0; for (const p of w.ring) R = Math.max(R, Math.hypot(p[0] - c[0], p[1] - c[1]));
-    ctx.flatten({ circle: { x: c[0], z: c[1], r: R + 46 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z), d = sd(x, z); return Math.min(h, d <= 7.4 ? w.level + 0.06 : w.level + 0.06 + (d - 7.4) * 0.72); } }); }   // (the bank starts beyond the wall pad's retaining depth: a level service strip behind the building, no block)
+    ctx.flatten({ circle: { x: c[0], z: c[1], r: R + 46 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z), d = sd(x, z); const st = w.bank.strip ?? 7.4, sl = w.bank.slope ?? 0.72; return Math.min(h, d <= st ? w.level + 0.06 : w.level + 0.06 + (d - st) * sl); } }); }   // (the bank starts beyond the wall pad's retaining depth: a level service strip behind the building, no block)
   const zoneShapes = [{ outline: fieldRing(3.0) }, { outline: tennisRing(1.6) }, { circle: { x: -106, z: 31, r: 9 } }].map((sh) => shapeSDF(sh).sd);
   const zones = zoneShapes.map((sd) => (x, z) => sd(x, z) <= 0);
   // ---- 2. streets: Fernhill Ave, Park Drive (the campus drive from the gate down to the loop and on to the bridge),
@@ -75,7 +77,7 @@ function sitework(ctx) {
     for (const t of ctx.gen.trees || []) { const p = streets.toVerge(t[0], t[1], 1.0); if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // no tree on the pitch pad, the courts, the dining terrace, the steps, or deep inside a car park
     const stairs = ALUMNI_STEPS.map((s) => shapeSDF({ rect: { cx: (s.a[0] + s.b[0]) / 2, cz: (s.a[1] + s.b[1]) / 2, w: Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) + 5, d: s.w + 4, angle: Math.atan2(s.b[1] - s.a[1], s.b[0] - s.a[0]) } }).sd);
-    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && Math.hypot(t[0] + 1, t[1] + 33) > 13.5 /* the Blue Atlas Cedar's crown */ && !(t[0] > -69 && t[0] < -58.5 && t[1] > 12 && t[1] < 25) /* the organic garden */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
+    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && !(ctx.campus.heliPark || []).some((p) => p[1] < 0.5 && Math.hypot(t[0] - p[0], t[1] - p[2]) < 11.6) && Math.hypot(t[0] + 1, t[1] + 33) > 13.5 /* the Blue Atlas Cedar's crown */ && !(t[0] > -69 && t[0] < -58.5 && t[1] > 12 && t[1] < 25) /* the organic garden */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
       && !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
   }
   // The hill south of the field, the gym and the quad is closed-canopy oak, bay and redwood forest (imagery, 3D tiles); the
@@ -83,6 +85,7 @@ function sitework(ctx) {
   { const rnd = mulberry32(1917); const trees = ctx.gen.trees = ctx.gen.trees || []; const sds = sw.map((w) => shapeSDF({ outline: w.ring }).sd); const fieldSd = shapeSDF({ outline: fieldRing(7.5) }).sd;
     for (let z = 122; z < 232; z += 6.5) for (let x = -200; x < 120; x += 6.5) { const px = x + (rnd() - 0.5) * 4.4, pz = z + (rnd() - 0.5) * 4.4, k = rnd(), sc = 0.72 + rnd() * 0.5;
       if (T.slopeAt(px, pz) < 0.3 || fieldSd(px, pz) < 0 || sds.some((sd) => sd(px, pz) < 5) || (streets && streets.inRoad(px, pz, 2.5))) continue;
+      if ((ctx.campus.heliPark || []).some((p) => Math.hypot(px - p[0], pz - p[2]) < 11.6)) continue;
       if ((ctx.allRings || []).some((r) => pointInRing(px, pz, r) || pointInRing(px + 3, pz, r) || pointInRing(px - 3, pz, r) || pointInRing(px, pz + 3, r) || pointInRing(px, pz - 3, r))) continue;
       if (trees.some((t) => Math.abs(t[0] - px) < 4.6 && Math.abs(t[1] - pz) < 4.6 && Math.hypot(t[0] - px, t[1] - pz) < 4.6)) continue;
       trees.push([+px.toFixed(1), +pz.toFixed(1), k < 0.3 ? 1 : 0, +sc.toFixed(2)]); } }

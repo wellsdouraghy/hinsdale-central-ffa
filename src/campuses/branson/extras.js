@@ -8,7 +8,7 @@ import { propKit } from '../../world/props.js';
 const RAD = Math.PI / 180;
 export const BR_CLAY = [9.5, 4.3, 2.7];        // bright terracotta barrel tile (Katharine Branson Hall, the quad): 3D tiles obliques
 export const BR_TAN = [6.6, 5.1, 3.6];        // the gym's tan composition shingle
-export const BR_SEAM = [6.2, 6.4, 6.5];       // the Commons: light grey standing seam
+export const BR_SEAM = [6.6, 6.4, 5.9];       // the Commons: light grey standing seam
 export const WHITE = [0.8, 0.79, 0.75];         // white stucco, toned down (no blown-out whites)
 export const CREAM = [0.86, 0.75, 0.52];
 
@@ -111,7 +111,7 @@ export function tileRim(ctx, ringIn, yTop, w = 2.0, drop = 0.3, tint = BR_CLAY) 
  * from the south, i.e. the board's normal points +z); stands on the ground, registered as a prop.
  */
 export function nameBoard(ctx, x, z, deg, lines, opts = {}) {
-  const { B } = ctx; const w = opts.w || 2.3, h = opts.h || (lines.length > 1 ? 0.95 : 0.6), y0 = opts.y0 ?? 0.75; const rot = deg * RAD; const tx = Math.cos(rot), tz = -Math.sin(rot);
+  const { B } = ctx; const w = opts.w || 2.3, h = opts.h || (lines.length > 1 ? 0.95 : 0.6), y0 = opts.y0 ?? (lines.length > 1 ? 0.95 : 1.15); const rot = deg * RAD; const tx = Math.cos(rot), tz = -Math.sin(rot);
   return atGround(ctx, x, z, () => {
     const pt = B.v('paint', true); pt.setColor(0.03, 0.12, 0.34); pt.box(x, y0 + h / 2, z, w, h, 0.1, rot); pt.setColor(0.16, 0.16, 0.17);
     for (const sd of [-1, 1]) pt.box(x + tx * sd * (w / 2 - 0.12), (y0 + h) / 2, z + tz * sd * (w / 2 - 0.12), 0.1, y0 + h + 0.06, 0.1, rot);
@@ -121,4 +121,18 @@ export function nameBoard(ctx, x, z, deg, lines, opts = {}) {
     for (const sd of [1, -1]) { const a = [x - tx * sd * w / 2, z - tz * sd * w / 2], b = [x + tx * sd * w / 2, z + tz * sd * w / 2]; const F = edgeFrame(a[0], a[1], b[0], b[1]); wallDecal(ctx, tex, F, F.L / 2, y0 + h / 2, w - 0.1, h - 0.08, 0.056, { opaque: false }); }
     propKit.registerProp(ctx, 'sign', x, z, rot, w, 0.14, y0 + h);
   }, 0.5, 'min');
+}
+
+/** Gabled dormer on a gable roof (from gableRoof): at u along the ridge, on the slope of sign sd; w wide, its face `back`
+ * metres up the slope from the eave line. Front wall with a window, two cheeks, its own little gable roof. */
+export function dormer(ctx, roof, o, u, sd, w = 2.4, opts = {}) {
+  const { B } = ctx; const vF = sd * (roof.hw - (opts.back ?? 1.6)), yF = roof.yAt(vF), hF = opts.h ?? 1.5; const st = B.v('stucco', true); const tn = opts.wall || WHITE; st.setColor(tn[0], tn[1], tn[2]);
+  const W = roof.W; const yE = yF + hF; const vB = sd * Math.max(0.2, roof.hw * (1 - (yE - roof.eaveY) / roof.rise));   // where the dormer's eave line meets the main slope
+  const a = W(u - w / 2, vF, yF), b = W(u + w / 2, vF, yF), c = W(u + w / 2, vF, yE), d = W(u - w / 2, vF, yE); const n = W(0, sd, 0), n0 = W(0, 0, 0); const nrm = [n[0] - n0[0], 0, n[2] - n0[2]];
+  quadFacing(st, a, b, c, d, nrm); quadFacing(B.c('concrete'), a, b, c, d, nrm);
+  for (const s2 of [-1, 1]) { const p0 = W(u + s2 * w / 2, vF, yF), p1 = W(u + s2 * w / 2, vF, yE), p2 = W(u + s2 * w / 2, vB, yE); st.tri(p0, p1, p2); st.tri(p1, p0, p2); }
+  st.setColor(1, 1, 1);
+  const gl = B.v('glass'); const g0 = W(u - w / 2 + 0.45, vF + sd * 0.04, yF + 0.3), g1 = W(u + w / 2 - 0.45, vF + sd * 0.04, yF + 0.3), g2 = W(u + w / 2 - 0.45, vF + sd * 0.04, yE - 0.15), g3 = W(u - w / 2 + 0.45, vF + sd * 0.04, yE - 0.15); quadFacing(gl, g0, g1, g2, g3, nrm, [[0, 0], [1, 0], [1, 1], [0, 1]]);
+  const len = Math.abs(vF - vB) + 0.3; const cc = W(u, (vF + vB) / 2 + sd * 0.15, 0);
+  gableRoof(ctx, { cx: cc[0], cz: cc[2], ang: o.ang + 90, L: len, W: w }, yE, opts.rise ?? 0.95, { tint: opts.tint, ov: 0.25, ovEnd: 0.25, gableBucket: 'stucco', gableTint: tn, ends: sd > 0 ? [false, true] : [true, false] });
 }

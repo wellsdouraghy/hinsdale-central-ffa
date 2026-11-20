@@ -17,13 +17,13 @@ const tame = (rgb) => { if (!rgb) return rgb; const l = (rgb[0] + rgb[1] + rgb[2
 const MAIN_STREETS = [];
 // single buildings Street View shows differently from the generic house: First Presbyterian's hall on E St is a brown
 // wood-sided hall under one steep gable
-const HOUSE_FIX = {};
+const HOUSE_FIX = { 976135755: { top: 12.65, rise: 2.4 } };   // (the house west of the Commons: eave height from the 3D tiles, absolute)
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([]);
 // Houses whose footprint falls two storeys or more toward a road below them: they show that many walk-out lower floors
 // on the downhill side instead of standing on a terrace of fill (the house above Bryn Mawr Drive sat on 6 m of it: a cone
 // of grass, then a concrete ziggurat, at the road). The lot keeps the natural bank.
-const HOUSE_LOWER = {};
+const HOUSE_LOWER = { 976135755: 1 };   // the house west of the Commons: one storey toward the hill, a walk-out floor toward the glen (tiles: eave 3.1 m over the uphill ground, 6 m over the downhill ground)
 
 function simplify(ring, tol = 0.6) {
   // drop tiny jogs so walls do not shatter into slivers (keeps corners sharper than `tol`)
@@ -78,7 +78,7 @@ function housePlan(ctx, ring, info, fa, id) {
   const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.max; const fix = HOUSE_FIX[id];
   const lv = fa.lv || Math.max(1, Math.min(2, info.lv || 1)); const walls = lv >= 3 && fa.roof !== 'flat' ? 2 : Math.min(lv, 3);   // a third 'storey' under a pitched roof is the attic in the gable
   let top = fa.lv ? gF + walls * 2.9 + (lv >= 3 ? 0.8 : 0.3) : Math.min(Math.max(info.top ?? g.max + info.h, gF + 2.7), gF + 6.4);
-  if (fix) top = gF + fix.eave;
+  if (fix) top = fix.top ?? gF + fix.eave;
   const lower = HOUSE_LOWER[id] || 0; const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
   return { top, rows, walls: walls + lower, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
 }

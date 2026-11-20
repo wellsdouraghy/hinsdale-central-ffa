@@ -45,6 +45,7 @@ export function addStyles() {
     brCommons: { kind: 'lowmod', bay: 4.6, frame: 'frameAlu', top: 'panel', tint: [0.6, 0.59, 0.56] },                // board-formed concrete wings
     brHall: { kind: 'modern', bay: 4.8, frame: 'frameAlu', top: 'panel', tint: [0.66, 0.6, 0.5] },                   // the Commons hall: glass under a metal gable
     brArts: { kind: 'modern', bay: 4.9, frame: 'frameAlu', top: 'panel', tint: [0.9, 0.89, 0.86] },
+    brNewHouse: { kind: 'class', bay: 3.6, frame: 'frame', top: 'stone', tint: [0.6, 0.62, 0.64] },                     // New House: grey clapboard, white trim
     brArtsLow: { kind: 'lowmod', bay: 4.4, frame: 'frameAlu', top: 'panel', tint: [0.62, 0.62, 0.6] },
   });
 }

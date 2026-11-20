@@ -10,7 +10,7 @@
 //   Academic quad            across Ross Creek (ground ~2.2): cream stucco, clay tile; 6.0 / 7.0 / 7.2
 import { sited, kitWalls, flatBuilding, hipRoof, polyRoof, groundLadder, edgeFrame, pointInRing, ensureCCW } from '../marin/kit.js';
 import { simplify } from './kit.js';
-import { BR_CLAY, BR_TAN, BR_SEAM, WHITE, CREAM, outFrames, plainBlock, archOpening, archRow, winRow, boxOn, gableRoof, solarOn, leanTo, tileRim, inset, nameBoard } from './extras.js';
+import { dormer, BR_CLAY, BR_TAN, BR_SEAM, WHITE, CREAM, outFrames, plainBlock, archOpening, archRow, winRow, boxOn, gableRoof, solarOn, leanTo, tileRim, inset, nameBoard } from './extras.js';
 
 const WOOD = { brick: 'maP_wood_siding', limestone: 'whitePanel' };
 const BROWN = [0.5, 0.38, 0.27];
@@ -20,7 +20,7 @@ const SPEC = [
   { id: 975106452, key: 'kbh', part: 'main', name: 'Katharine Branson Hall', top: 14.9, style: 'brKbh', roof: 'tile', rise: 3.6, ov: 0.7, tol: 0.9, level: 10.3, tint: BR_CLAY },
   { id: 975106452, key: 'kbhWhite', part: 'white', name: 'Katharine Branson Hall (west wing)', top: 16.6, style: 'brKbh', roof: 'custom', tol: 0.9, level: 10.3 },
   { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'custom', skin: WOOD, minH: 6.5, level: 0.5 },
-  { id: 9000000001, key: 'commonsN', name: 'The Commons (north wing)', top: 6.0, style: 'brCommons', roof: 'flat', ladder: true },
+  { id: 9000000001, key: 'commonsN', name: 'The Commons (north wing)', top: 6.0, style: 'brCommons', roof: 'flat', ladder: true, level: 2.3, bank: { strip: 2.6, slope: 0.95 } },   // (the glen's north bank: a plain planted bank behind a narrow service strip, not planter tiers)
   { id: 9000000002, key: 'commonsHall', name: 'The Commons', top: 6.4, style: 'brHall', roof: 'custom' },
   { id: 9000000003, key: 'commonsS', name: 'The Commons (south wing)', top: 6.0, style: 'brCommons', roof: 'flat' },
   { id: 9000000004, key: 'artsW', name: 'Douglas Fine Arts Center', top: 15.6, style: 'brArts', roof: 'flat', ladder: true },
@@ -29,7 +29,9 @@ const SPEC = [
   { id: 976479989, key: 'study', name: 'Study Hall', top: 6.0, style: 'brQuadLow', roof: 'tile', rise: 2.2, ov: 0.6, level: 1.8, tint: BR_CLAY },
   { id: 976475035, key: 'richardson', name: 'Richardson Hall', top: 7.0, style: 'brKbh', roof: 'tile', rise: 2.4, ov: 0.6, level: 1.8, tint: BR_CLAY },
   { id: 978513427, key: 'newOaks', name: 'New Oaks', top: 7.2, style: 'brKbh', roof: 'tile', rise: 2.4, ov: 0.6, tol: 0.8, level: 2.1, tint: BR_CLAY },
-  { id: 9000000007, key: 'tallant', name: 'Tallant Science Center', top: 9.6, style: 'brArts', roof: 'custom', level: 2.2, tol: 0.2, ladder: true },
+  { id: 9000000007, key: 'tallant', name: 'Tallant Science Center', top: 9.6, style: 'brArts', roof: 'custom', level: 2.2, tol: 0.2, ladder: true, bank: {} },   // (its south-east corner is cut into the toe of the hill: a level strip, then a planted 36 deg bank)
+  // New House (campus map item 5): a grey gabled house with dormers on Circle Drive (3D-tiles oblique)
+  { id: 976780018, key: 'newHouse', name: 'New House', top: 15.9, style: 'brNewHouse', roof: 'custom', skin: WOOD, level: 10.0, tol: 1.2 },
 ];
 export const SCHOOL_IDS = new Set(SPEC.map((s) => s.id));
 
@@ -123,6 +125,9 @@ export function buildSchool(ctx) {
       const h = s.top - base;
       if (s.key === 'gym') return gym(ctx, s, h);
       if (s.key === 'kbhWhite') return kbhWhite(ctx, s, h);
+      if (s.key === 'newHouse') { kitWalls(ctx, ring, h, s.style, { skin: s.skin, id: s.name }); B.c('concrete').prism(ring, 0, h, 1, true); (ctx.buildingRings = ctx.buildingRings || []).push(ring);
+        const GREY = [1.55, 1.6, 1.7], wall = [0.6, 0.62, 0.64]; const box = boxOn(ring, -16.4); const r = gableRoof(ctx, box, h, 3.4, { tint: GREY, ov: 0.5, gableBucket: 'stucco', gableTint: wall });
+        for (const [u, sd, w] of [[-4.2, 1, 3.0], [1.2, 1, 2.2], [5.4, 1, 2.2], [-3, -1, 2.2], [3.5, -1, 2.2]]) dormer(ctx, r, box, u, sd, w, { tint: GREY, wall }); return; }
       if (s.key === 'tallant') { const r = flatBuilding(ctx, ring, h, s.style, { id: s.name }); tileRim(ctx, ring, h - 0.02, 2.2, 0.34); flats.push({ s, ring, roofAbs: base + r.roofY }); return; }
       if (s.roof === 'flat') { const r = flatBuilding(ctx, ring, h, s.style, { skin: s.skin, id: s.name }); flats.push({ s, ring, roofAbs: base + r.roofY }); return; }
       kitWalls(ctx, ring, h, s.style, { skin: s.skin, id: s.name });

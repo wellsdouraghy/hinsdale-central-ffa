@@ -110,7 +110,7 @@ function vehicles(ctx) {
     if (x < pb.minX + 3 || x > pb.maxX - 3 || z < pb.minZ + 3 || z > pb.maxZ - 3) return;
     if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
     if (ctx.surfaceAt(x, z) !== 'asphalt' || (S && S.inRoad(x, z, 1.2))) return;
-    if (ctx.terrain && ctx.terrain.slopeAt(x, z) > 0.1) return;
+    if (ctx.terrain && (ctx.terrain.slopeAt(x, z) > 0.1 || ctx.terrain.maxIn(x, z, 2.4) - ctx.terrain.minIn(x, z, 2.4) > 0.3)) return;
     const c = Math.cos(heading), s = Math.sin(heading); const corners = [[2.3, 1.0], [2.3, -1.0], [-2.3, 1.0], [-2.3, -1.0]].map(([l, w]) => [x + l * c + w * s, z - l * s + w * c]);
     if (ctx.terrain && ctx.terrain.meshHeightAt) { const g = ctx.groundY, y0 = g(x, z), gx = (g(x + 2, z) - g(x - 2, z)) / 4, gz = (g(x, z + 2) - g(x, z - 2)) / 4; if (corners.some(([px, pz]) => Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.3)) return; }
     if (corners.some(([px, pz]) => (ctx.buildingRings || []).some((r) => pointInRing(px, pz, r)) || (S && S.inRoad(px, pz, 0.3)))) return;
@@ -277,7 +277,7 @@ function cedar(ctx) {
 // standing by that building's entrance. Skipped if the spot is on a road or in a footprint.
 const BOARDS = [
   [-9.5, -5.5, -36, ['KATHARINE', 'BRANSON HALL']], [-97, 24.5, 40, ['THE COMMONS']], [26, 14, 90, ['DOUGLAS', 'FINE ARTS CENTER']], [62, 25.5, 9, ['MAXWELL', 'MUSIC HALL']],
-  [50, 0.8, 15, ['NEW HOUSE']], [30, -44, -20, ['CROSSWAYS']], [-86.5, 70.5, 12, ['GYM COMPLEX']], [-40, 61, 9, ['TOM RYAN FIELD']],
+  [47.5, 2.2, 15, ['NEW HOUSE']], [30, -44, -20, ['CROSSWAYS']], [-86.5, 70.5, 12, ['GYM COMPLEX']], [-40, 61, 9, ['TOM RYAN FIELD']],
   [-155.5, 108, 60, ['STUDY HALL']], [-153.8, 124, 65, ['RICHARDSON HALL']], [-162.9, 149.9, -45, ['NEW OAKS']], [-146, 155.3, 0, ['TALLANT', 'SCIENCE CENTER']],
   [-66.5, 9.5, 20, ['ALUMNI STEPS']], [-64, 13.2, 0, ['ORGANIC GARDEN']],
 ];
