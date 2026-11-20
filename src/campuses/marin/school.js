@@ -350,7 +350,7 @@ export const POOL_STAIR = { a0: 43.76, a1: 47.03, bWalk: 35.3, apron: 0.6, tread
 // behind a gateway on the street): a flight in the frontage strip between the back of the walk (b = bWalk) and the
 // forecourt (level from b = bBot on), retaining blocks either side. Earthworks in world.js sitework (ctx.courtStair).
 export const COURT_STAIR = { a0: 13.9, a1: 17.1, bWalk: 35.3, bBot: 38.6, tread: 0.28, landing: 0, apron: 0.3 /* at the least: the apron runs from the back of the walk to the top riser */, warp: true, gapA: [9.76, 21.29], westB: 39.26, eastB: 38.45 };
-const POOL_HOUSE = rect(58.6, 45.6, 33.5, 9.4), POOL_HOUSE_TOP = 1.3;   // roof ~3.1 m over the Mission Ave sidewalk, ~5.2 m over the deck (tile roof samples: 1.2-1.3)
+const POOL_HOUSE = rect(58.46, 46.69, 33.5, 7.2) /* (its north wall stood 2 m into the Mission Ave sidewalk: 7.2 m deep from the same deck front) */, POOL_HOUSE_TOP = 1.3;   // roof ~3.1 m over the Mission Ave sidewalk, ~5.2 m over the deck (tile roof samples: 1.2-1.3)
 function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0], c[1], () => aquaticCenterAt(ctx), 6, 'mean');
   sited(ctx, POOL_HOUSE, (base) => flatBuilding(ctx, POOL_HOUSE, POOL_HOUSE_TOP - base, 'maLow', { roof: 'white' }));
   // pool fence along the west (Library) and east (car park) deck edges, a gate gap in each

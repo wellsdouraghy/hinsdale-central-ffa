@@ -471,7 +471,6 @@ export function applyPads(ctx) {
   for (const s of strips) {
     s.cut = !s.gap && s.nat - s.level > 1.7;
     if (s.gap) { ctx.flatten({ rect: rectOf(s) }, { y: s.level, blend: 1.0 }); continue; }
-    if (s.level - s.nat > 1.2) continue;   // a floor more than 1.2 m above the ground beyond it gets NO pad: the foundation shows (plain wall below the sills). Filled up to the floor it was a 2.6 m berm against the Leadership Center, a mound on the paving beside it.
     const out = PAD_OUT + (s.cut ? 2.0 : 0), o = (out - 1.0) / 2; const keep = strips.filter((c) => c !== s && c.level > s.level + 0.5 && (c.gap || c.ring !== s.ring) && Math.hypot(c.mx - s.mx, c.mz - s.mz) < (c.L + s.L) / 2 + 9);
     ctx.flatten({ rect: { cx: (s.p[0] + s.q[0]) / 2 + s.nx * o, cz: (s.p[1] + s.q[1]) / 2 + s.nz * o, w: s.L + 2.4, d: out + 1.0, angle: Math.atan2(s.q[1] - s.p[1], s.q[0] - s.p[0]) } }, { y: keep.length ? (x, z) => { const u = ((x - s.p[0]) * (s.q[0] - s.p[0]) + (z - s.p[1]) * (s.q[1] - s.p[1])) / s.L, v = (x - s.p[0]) * s.nx + (z - s.p[1]) * s.nz; if (u >= 0 && u <= s.L && v >= -1 && v <= 1.6) return s.level; /* right at its own wall the lower pad wins: no buried glass */ return keep.some((c) => c.core(x, z) <= 0) ? T.heightAt(x, z) : s.level; } : s.level, blend: PAD_BLEND });
   }
@@ -522,6 +521,7 @@ export function buildPadWalls(ctx) {
   for (const c of ctx.padCheeks || []) {   // steps at the mouths of corridors between two buildings (applyPads)
     /* final ground (later pads may have moved it): push the face out until the ground in front of it is the low terrace,
        raise the top over whatever stands under the block; no clean step, no block */
+    if ((ctx.noCheek || []).some((f) => f(c.x, c.z) || f(c.x + c.tx * c.len / 2, c.z + c.tz * c.len / 2) || f(c.x - c.tx * c.len / 2, c.z - c.tz * c.len / 2))) continue;   // a designed flight of steps holds this step (a cheek block filled the head of the pool stairs)
     { const W = c.gap - 0.3; let ok = false; const far = [c.x - c.tx * c.len / 2, c.z - c.tz * c.len / 2];
       for (let k = 0; k < 8 && !ok; k++) { let m = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) m = Math.max(m, ctx.groundY(far[0] + c.tx * (c.len + 0.08) + c.nx * u, far[1] + c.tz * (c.len + 0.08) + c.nz * u)); if (m - c.level <= 0.1) ok = true; else c.len += 0.4; }
       if (!ok || c.len > 7.5) continue; c.x = far[0] + c.tx * c.len / 2; c.z = far[1] + c.tz * c.len / 2;

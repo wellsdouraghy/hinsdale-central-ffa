@@ -119,8 +119,15 @@ export function gradeStreets(ctx, roads, opts = {}) {
   /** Lay the streets, sidewalks and verges into the terrain (once, before the building pads). */
   st.apply = () => { const B = box(); ctx.flatten(B, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = design(x, z); if (!d) return h; if (d.zone === 'road' || (d.zone === 'walk' && !hard.some((p) => p(x, z)))) return d.y; if (d.zone === 'walk' || d.t >= 1 || protect.some((p) => p(x, z))) return h; return d.y + (h - d.y) * smooth(d.t); } }); };
   /** After the last pad: the carriageways and sidewalks back to their design (pads resolve their difference inside the lot). */
-  st.resurvey = () => { st.stations = stations(); };   // after a designed cut / fill beside a street that is meant to change it (map check `roads` compares with this survey)
-  st.restore = () => { const B = box(); ctx.flatten(B, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = design(x, z); if (!d || st.solid.some((p) => p(x, z))) return h; if (d.zone === 'road' || (d.zone === 'walk' && !hard.some((p) => p(x, z)))) return d.y; if (d.zone === 'walk') return h; return d.t > 0 || protect.some((p) => p(x, z)) || st.keep.some((p) => p(x, z)) ? h : d.y; } }); st.stations = stations(); };   // (shoulder: level with the sidewalk unless a wall pad stands there, st.keep)
+  /** The level a lattice node beside a sidewalk takes: the design of the nearest walk point within a cell (2.1 m), or null. */
+  st.skirtAt = (x, z) => { let best = null, bd = Infinity; for (const r of [0.7, 1.4, 2.1]) for (let k = 0; k < 8; k++) { const an = k * Math.PI / 4 + (r > 1 ? 0.39 : 0), q = design(x + Math.cos(an) * r, z + Math.sin(an) * r); if (q && q.zone === 'walk' && r < bd) { bd = r; best = q.y; } } return best; };
+  st.restore = () => { const B = box(); ctx.flatten(B, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = design(x, z); if (!d) return h; if (d.zone === 'road' || (d.zone === 'walk' && !hard.some((p) => p(x, z)))) return d.y; /* (even inside a footprint that overlaps the street: the node shapes the walk outside the wall) */ if (d.zone === 'walk' || st.solid.some((p) => p(x, z))) return h; return d.t > 0 || protect.some((p) => p(x, z)) || st.keep.some((p) => p(x, z)) ? h : d.y; } });
+    // The skirt: every lattice node within a cell of a sidewalk takes the walk's level (the nearest walk point's design), whatever
+    // stands there (a wall pad, a footprint's interior). On the 2 m lattice a walk is only as level as the nodes round it: one
+    // node of a pad just behind the back edge pulled the walk up half a metre every time the walk line crossed a lattice row
+    // (sawtooth humps every 16 m on a street 7 deg off the grid). Designed pads (`protect`) are left to the builder.
+    ctx.flatten(B, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = design(x, z); if (d && (d.zone === 'road' || d.zone === 'walk')) return h; if (protect.some((p) => p(x, z))) return h; const y = st.skirtAt(x, z); return y !== null && Math.abs(h - y) > 0.1 ? y : h; } });
+    st.stations = stations(); };   // (shoulder: level with the sidewalk unless a wall pad stands there, st.keep)
   // ---- stations for the map check: every 1 m of every centreline, with the designed heights across the section
   function stations() {
     const out = [];

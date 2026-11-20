@@ -152,7 +152,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
-- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, mounds, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, mounds, walkDesign, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
   visualSolid, roofSkin, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
@@ -778,7 +778,7 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     one rule round the whole pitch: cut where it stands above the design, raise from a lattice cell behind the block's face
     on, and raise the verge node just inside a walk that stands above the pitch, so the walk is level over its full width
     and the ramp lies under the block (Bryn Mawr Drive runs 3-5 m above the east side). Anything that changes a street
-    after `restore()` on purpose calls `streets.resurvey()`, or the map check reports it as "moved".
+    after `restore()` used to call `streets.resurvey()`: RETRACTED (second QA below), do such changes before `restore()`.
   - **Sight-blockers follow the ground, not the wall.** The evergreen belt was tied to "wall higher than 2.2 m". With the
     north wall 1-2 m lower on the real ground, the gym plaza looked straight down on the red base (overlook: 117 m2 vs 0).
     The belt now also stands wherever the ground 6-14 m behind the field edge is 3.5 m or more above the pitch.
@@ -827,6 +827,31 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - **New map-check rule `mounds`** (dev/mapcheck.js): a paved point more than 0.15 m above the ground 3 m away along all
     four axes, not under a solid. It found the hump at the foot of the pool stairs, a berm beside the Leadership Center
     and a pad joint in a concrete yard.
+- **Second QA of the terrain-fix round (v6): sidewalks on the 2 m lattice.**
+  - **A walk is only as level as every lattice node within a cell of it.** Mission Ave's walk runs 7 deg off the grid, 3 m
+    from the pitch and 1.7 m below it: each time its back edge crossed a lattice row, a pad node just behind it pulled the
+    walk up half a metre (a sawtooth every 16 m). `streets.restore()` now ends with a SKIRT pass: every non-road node within
+    2.1 m of a walk point takes that walk's design level, footprint interiors and wall pads included (`streets.skirtAt`);
+    road and walk nodes are restored even inside a footprint. Designed pads (`protect`) do it themselves: round the pitch a
+    node is raised or lowered from 2 m outside the turf, and only lowered nearer than that.
+  - **Then the step needs a structure, not terrain.** Where the street is lower than the pitch the last cell at the turf
+    edge dips: a planted margin (pitch-level slab, ivy, the hedge on its street side, collision under the turf edge) covers
+    it, and the gate gap gets a landing and a concrete ramp. Where the street is higher, the field wall's block moves its
+    face toward the turf until the ground in front of it is level, and carries on UNDER a walk that dips toward the pitch
+    (the walk there is the block's top). No `hard` exception: a pad that narrows a sidewalk made the corner pit.
+  - **Never re-baseline the street survey after a cut or fill** (`resurvey()` is gone): it turned "the walk moved" into a
+    pass. Do the designed changes BEFORE `restore()`; what restore surveys is what ships.
+  - **New map-check rule `walkDesign`:** every walk-zone point (0.5 m grid) against `streetDesign(x, z).y`, > 0.15 m fails.
+    Skipped: ground under a solid, the 0.6 m kerb strip, seams where two streets' walks meet at different levels. It found
+    22 places on the first run (the pit 2.05 m, the humps 1.3 m, a building in the walk, the pool house 2 m into the walk).
+  - **Every earthwork change can wake a dormant generator.** The skirt raised the nodes at the head of the pool stairs,
+    `planCheeks` then saw a clean step between two wall pads and filled the head of the flight with a cheek block: all
+    six lanes failed, and only the stair re-walk caught it. Designed flights register `ctx.noCheek`.
+  - **A sidewalk does not run through a building.** `walkRoom` now works per 12 m stretch and drops the walk on a side where
+    more than a quarter of it lies inside a footprint (974487547 stands at the kerb). The pool house was 2 m into the
+    Mission Ave walk: 7.2 m deep from the same deck front.
+  - **Helicopter pads are scanned at load** (`heliScan`, world.js): 2 m grid, lots first, then pitch, concrete, lawns;
+    relief, streets, footprints and trunks pre-tested; the pipeline's exact test decides (19 pads). No typed list.
 
 ## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
 

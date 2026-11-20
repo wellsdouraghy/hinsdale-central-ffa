@@ -732,6 +732,34 @@ async function checkMounds() {
     counts: { pavedSamples: n, mounds: fails.length, warning: warns.length, worstM: r2(worst) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`mounds: ${res.status} ${fails.length} mounds on paving`); finishCheck('mounds', res);
 }
+// Sidewalks on their design (Marin QA: sawtooth humps of 0.5 m on a walk, a walk that dropped 1.5 m into a pit at a corner;
+// the station-based `roads` check missed both, and re-surveying after a cut hid them). Every point of the play area whose
+// street design zone is 'walk' (0.5 m grid) against streetDesign(x, z).y: more than 0.15 m off fails. Ground under a solid
+// (a stair apron, a block) is skipped. Clustered (3 m); the worst point of each cluster is reported.
+async function checkWalkDesign() {
+  const SD = REG.streetDesign; if (!world.terrain || !SD) { finishCheck('walkDesign', { status: 'skip', note: 'no graded streets (registry.streetDesign) or flat campus' }); return; }
+  const hits = []; let n = 0, worst = 0;
+  for (let z = PB.minZ + 2; z <= PB.maxZ - 2; z += 0.5) for (let x = PB.minX + 2; x <= PB.maxX - 2; x += 0.5) {
+    const d = SD(x, z); if (!d || d.zone !== 'walk') continue; n++; const g = GY(x, z), e = g - d.y; if (Math.abs(e) <= 0.15) continue;
+    // (not within 0.6 m of the roadway: on the 2 m lattice the 15 cm kerb is a slope one cell wide, see `roads`)
+    if ([[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]].some(([dx, dz]) => { const q = SD(x + dx, z + dz); return q && q.zone === 'road'; })) continue;
+    if (S.first(V(x, Math.max(g, d.y) + 40, z), DOWN, 40.3)) continue;   // under a solid (down to 0.3 m below the design): a stair apron, a block that carries the walk, a building that stands in the walk
+    // (not where the design itself steps: at a corner the walks of two streets meet at different levels and the lattice blends them)
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => { const q = SD(x + dx, z + dz); return q && q.zone === 'walk' && Math.abs(q.y - d.y) > 0.15; })) continue;
+    hits.push([x, z, g, e]); worst = Math.max(worst, Math.abs(e));
+  }
+  const fails = [], wdWarns = []; const used = new Uint8Array(hits.length); const cell = new Map(); hits.forEach((h, i) => { const k = Math.floor(h[0] / 3) + ',' + Math.floor(h[1] / 3); let l = cell.get(k); if (!l) cell.set(k, l = []); l.push(i); });
+  for (let i = 0; i < hits.length; i++) { if (used[i]) continue; const cl = [i]; used[i] = 1;
+    for (let h = 0; h < cl.length; h++) { const cx = Math.floor(hits[cl[h]][0] / 3), cz = Math.floor(hits[cl[h]][1] / 3); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const j of cell.get((cx + a) + ',' + (cz + b)) || []) if (!used[j] && Math.hypot(hits[j][0] - hits[cl[h]][0], hits[j][1] - hits[cl[h]][1]) <= 3) { used[j] = 1; cl.push(j); } }
+    let pk = cl[0]; for (const k of cl) if (Math.abs(hits[k][3]) > Math.abs(hits[pk][3])) pk = k; const [x, z, g, e] = hits[pk];
+    const rec = { at: [r1(x), r2(g), r1(z)], offDesignM: r2(e), points: cl.length, note: 'sidewalk off its design: a pad, a cut or a wall strip moved it' };
+    if (cl.length <= 2 && Math.abs(e) <= 0.2) { wdWarns.push(rec); continue; }   // (one or two grid points within 5 cm of the limit: lattice noise, a warning)
+    fails.push(rec); marks.push({ kind: 'vis', x0: x - 1.5, z0: z - 1.5, x1: x + 1.5, z1: z + 1.5 }); }
+  fails.sort((a, b) => Math.abs(b.offDesignM) - Math.abs(a.offDesignM));
+  const res = { status: status(fails.length, wdWarns.length), what: 'Sidewalks on their design: every walk-zone point of the graded streets in the play area (0.5 m grid) against streetDesign(x, z).y; more than 0.15 m off fails (one or two points of at most 0.2 m warn; ground under a solid, the kerb strip and seams between two streets are skipped).',
+    counts: { walkSamples: n, offDesignPoints: hits.length, clusters: fails.length, warning: wdWarns.length, worstM: r2(worst) }, failures: fails.slice(0, 80), warnings: wdWarns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`walkDesign: ${res.status} ${fails.length} places where a sidewalk is off its design`); finishCheck('walkDesign', res);
+}
 async function checkRetaining() {
   const Rb = REG.retaining || []; if (!Rb.length || !world.terrain) { finishCheck('retaining', { status: 'skip', note: 'no retaining blocks registered (ctx.retaining)' }); return; }
   const fails = [], warns = []; let maxPoke = 0;
@@ -1254,7 +1282,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'walkDesign', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1298,7 +1326,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['walkDesign', checkWalkDesign], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

@@ -362,7 +362,7 @@ export function planTown(ctx, rings = [], zones = []) {
  *  (grass half way up a blank wall, the foundation beds dropped because the ground stood above the floor). */
 export function recutHouses(ctx) {
   const T = ctx.terrain, S = ctx.streets; if (!T || !ctx.townPlan) return;
-  for (const [ring, pl] of ctx.townPlan.pads || []) { if (!pl.inside || !(pl.g.max - pl.cut > 0.2)) continue; let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
+  for (const [ring, pl] of ctx.townPlan.pads || []) {   /* (every house, beyond the boundary too: a cut spills nothing, and the ground that buries a wall is often a NEIGHBOUR's fill, not this lot's own hill) */ let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
     const out = ring.map(([x, z]) => { const d = Math.hypot(x - cx, z - cz) || 1; return [x + (x - cx) / d * 1.6, z + (z - cz) / d * 1.6]; });
     ctx.flatten({ outline: out }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); if (S) { const d = S.design(x, z); if (d && (d.zone === 'road' || d.zone === 'walk')) return h; } return Math.min(h, pl.cut); } }); }
 }
