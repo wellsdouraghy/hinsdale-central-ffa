@@ -108,13 +108,18 @@ map breaking one of these rules has not finished.
     tree kit, never ad-hoc low-poly geometry.
 36. Each signature building gets its own facade style, matched side by side with tiles or photos. One shared
     "office" style across historic and modern buildings reads as generic.
+37. Never re-baseline the street survey after cutting or filling beside a street. Every sidewalk point stays within
+    0.15 m of `streetDesign(x, z).y` (map check, 0.5 m grid); Marin's walk grew 0.5 m sawtooth humps that the roads
+    and mounds checks both missed.
+38. Where a retaining wall or fence run ends at a street corner, `__walk` that corner both ways on both sidewalks: run
+    ends are where pits, wedges and stray fence posts appear.
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F36 above is ticked off explicitly in the hand-off.
+- Every rule A1-F38 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
