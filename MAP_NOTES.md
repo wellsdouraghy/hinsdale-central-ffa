@@ -98,13 +98,23 @@ map breaking one of these rules has not finished.
     axes is a defect (map check "mound on paving").
 31. Cover added to make the CTF overlook check pass must be real (A1) and must stay off sidewalks and roads (C13). If
     only invented cover would make a base fair, move the base instead.
+32. Check roof RIDGE heights against the tiles, not only eaves: a single-pitch roof on a wide plan sits metres low
+    (Katharine Branson Hall was 3.5 m short).
+33. Outside graded streets and pads the ground stays within ~2 m of the source DEM; a house on a steep lot gets
+    walk-out storeys on natural ground, never a fill mound under its pad.
+34. Plazas, loops, terraces and car parks take their outline from the imagery. A flatten circle or ellipse makes an
+    invented shape with fuzzy, blown-out edges.
+35. Never put the satellite photo on a modelled roof (it bakes in tree shadows). Named landmark trees go through the
+    tree kit, never ad-hoc low-poly geometry.
+36. Each signature building gets its own facade style, matched side by side with tiles or photos. One shared
+    "office" style across historic and modern buildings reads as generic.
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F31 above is ticked off explicitly in the hand-off.
+- Every rule A1-F36 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
