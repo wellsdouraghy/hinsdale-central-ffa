@@ -1,7 +1,7 @@
 // Host-side match authority: players, teams, health, damage validation, kills, scores, flags, respawns, timer.
 // Runs in the host's browser (online) or locally (practice). Transport-agnostic: emits messages via `out`.
 import { WEAPON_STATS, maxShotDamage, MELEE } from './weapons.js';
-import { CTF, CtfRules, ctfSpawnList, ctfBases, otherTeam, TEAMS } from './ctf.js';
+import { CTF, CTF_SPAWN, CtfRules, ctfSpawnList, ctfBases, otherTeam, TEAMS } from './ctf.js';
 import { CLASSES, DEFAULT_CLASS, classOf, meleeDamageFor } from './classes.js';
 import { Projectile, NADE, blastDamage } from './grenades.js';
 import { StreakRules } from './streaks.js';
@@ -174,6 +174,7 @@ export class Authority {
       teamScore: this.mode === 'tdm' ? { ...this.teamScore } : null,
       crates: this.streaks.snapshot(),
       heli: this.heli ? this.heli.snapshot() : null,
+      orders: this.teamMode ? { red: this.bots.orderOf('red').o, blue: this.bots.orderOf('blue').o } : null,
     };
   }
 
@@ -243,6 +244,14 @@ export class Authority {
       case 'team':
         this.switchTeam(p, msg.team);
         break;
+      case 'order': {
+        // Team order for this player's team's bots (host-authoritative; broadcast so every HUD shows it).
+        const t = now();
+        if (!this.teamMode || !p.team || p.bot || t - (p.orderT || -9) < 0.4) return;
+        p.orderT = t;
+        if (this.bots.setOrder(p.team, msg.o, p.id)) this.out({ t: 'order', team: p.team, o: msg.o, by: p.id, name: p.name });
+        break;
+      }
       case 'heliEnter': case 'heliExit': case 'heliBail': case 'hst': case 'rocket': case 'heliCrash': case 'heliRotor':
         this.heli?.handle(p, msg);
         break;
@@ -433,6 +442,7 @@ export class Authority {
     if (isDummy(p)) { pos = p.botPos; yaw = p.botYaw; }
     else if (this.practice && this.practiceSpawn && !this.teamMode && !p.ai) { pos = this.practiceSpawn.pos; yaw = this.practiceSpawn.yaw; }
     else ({ pos, yaw } = this.pickSpawn(p));
+    if (p.ai) this.bots.preSpawn(p);   // a bot's class for this life is settled before the spawn message / frag count
     p.alive = true;
     p.hp = 100;
     p.armor = 0;
@@ -460,7 +470,7 @@ export class Authority {
     const tdm = this.mode === 'tdm' && p.team;
     const sinceStart = now() - this.matchStartT;
     const opening = tdm && (sinceStart < 8 || (p.life === 0 && sinceStart < 30));
-    const pts = (this.ctf || opening) && p.team ? ctfSpawnList(this.world, p.team) : this.world.spawnPoints;
+    const pts = (this.ctf || opening) && p.team ? ctfSpawnList(this.world, p.team, !this.ctf) : this.world.spawnPoints;
     const enemies = [...this.players.values()].filter((o) => o !== p && o.alive && o.pos && (!this.teamMode || o.team !== p.team));
     const mates = tdm ? [...this.players.values()].filter((o) => o !== p && o.alive && o.pos && o.team === p.team) : [];
     const scored = pts.map((s) => {
@@ -485,6 +495,23 @@ export class Authority {
         this.teamAnchor[p.team] = { s: anchor, t: this.matchStartT };
       }
       pool = [{ s: this._nearSpot(this.teamAnchor[p.team].s) }];
+    }
+    if (this.ctf && p.team && enemies.length) {
+      // CTF: never next to a living enemy (CTF_SPAWN.enemyNear) or in an enemy's sight within CTF_SPAWN.enemySight
+      // when any spot avoids it (all of the team's spots are considered, not just the top few).
+      const hs = this.bots.hitscan;
+      const bad = (s) => enemies.some((e) => {
+        const d = Math.hypot(s.x - e.pos[0], s.z - e.pos[2]);
+        if (d < CTF_SPAWN.enemyNear) return true;
+        if (d > CTF_SPAWN.enemySight) return false;
+        _fq.set(e.pos[0], e.pos[1] + 1.6, e.pos[2]);
+        _fd.set(s.x, s.y + 1.6, s.z).sub(_fq);
+        const len = _fd.length();
+        return !hs.castWorld(_fq, _fd.normalize(), len - 0.5);
+      });
+      const safe = pool.filter((c) => !bad(c.s));
+      if (safe.length) pool = safe;
+      else { const all = scored.filter((c) => !bad(c.s)); if (all.length) pool = all.slice(0, 3); }
     }
     if (tdm && !opening && enemies.length) {
       // Drop candidates an enemy can see (top few only: raycasts are not free).

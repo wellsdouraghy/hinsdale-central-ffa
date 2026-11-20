@@ -76,12 +76,35 @@ map breaking one of these rules has not finished.
     double-sided skins, and the roofSkin, visualSolid and facadeSweep checks pass.
 23. Signs are readable at eye level and sit on clear wall, never over windows or behind pilasters.
 
+**F. Verified against the source (Branson QA: the terrain was squashed 26% north-south and nobody noticed)**
+24. Validate the DEM before building on it. The 3DEP `exportImage` call with `bboxSR=4326&imageSR=4326` and a pixel
+    size whose aspect differs from the bbox's DEGREE aspect silently grows the extent (square pixels in degrees):
+    a 960 x 900 m request at lat 38 came back 960 x 1137 m. Request in a metric `imageSR` (UTM) or read the extent
+    from the GeoTIFF tags / `f=json`, never assume it. Then spot-check ~20 USGS point elevations across the map (edges
+    included) against `terrain.heightAt`; mean error over ~1.5 m fails the bake.
+25. If terrain disagrees with the tiles or imagery and the "fix" is to shift a hill, regrade a toe or fit a bias that
+    changes across the map, stop: that is a registration bug in the data, not a real effect.
+26. Count buildings per cluster against a top-down Google 3D tiles shot, not only OSM / county footprints (OSM missed
+    a whole quad building). If the school publishes a campus map, tick off every numbered item on it (bridge, named
+    tree, gate, garden...) as built or deliberately omitted, in the hand-off.
+27. Signature facades (the main hall's entrance, the gym front) and every school roof's colour and material are
+    matched against a tiles oblique or photo in a side-by-side screenshot included in the hand-off. Building name
+    signs go where the real ones are.
+28. Hedges are continuous extruded walls at their real height, never rows of separate cones or blobs.
+29. After any terrain re-bake or regrade, `__walk` EVERY existing flight of steps, landing and gate both ways, not only
+    the new ones: hand-built stairs keep their old heights while the street and ground move under them (Marin's pool
+    stairs ended 0.4 m below the re-graded sidewalk and nothing in the map check caught it).
+30. No mounds on paving: a point on asphalt or concrete more than 0.15 m above its neighbours 3 m away along all four
+    axes is a defect (map check "mound on paving").
+31. Cover added to make the CTF overlook check pass must be real (A1) and must stay off sidewalks and roads (C13). If
+    only invented cover would make a base fair, move the base instead.
+
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-E23 above is ticked off explicitly in the hand-off.
+- Every rule A1-F31 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
@@ -752,3 +775,77 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - **Google 3D tiles from a dev page on another port:** the key is restricted to the referrer of the default dev server.
     Load `dev/<id>-tiles.html` from that server and post the canvas to your own receiver; do not forward requests with a
     spoofed Referer.
+
+## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
+
+- **RETRACTED: "the lidar can be older than the campus".** The first build read Ross Creek's channel and a hill toe under
+  the south half of the pitch and "cured" it with a 13 m regrade shift and a channel fill. The lidar was right; the bake had
+  squashed it 26 % north-south (rule F24). On the corrected DEM the creek runs behind the pitch and the gym, the quad is on
+  flat ground, and tile heights differ from the DEM by ONE constant (-16.28 m, 100 m blocks within 0.3 m). If two sources
+  disagree by metres over a whole area, print both on a grid and look for a scale / offset pattern before inventing history.
+- **Stale coarse 3D tiles hang hundreds of metres up.** A straight-down ray took a parent tile 600 m above the campus as
+  the first hit in 40 % of the cells: drop hits above a sane height in the sampler (dev/branson-tiles.js).
+- **Tiles cannot see the ground under closed canopy.** Low values under trees are sagging mesh, not ground; high values
+  are crowns. On a wooded site read roofs and open ground from the tiles, never the forest floor.
+- **OSM may not have the school at all.** Here only a node: no campus polygon, no pitch, and the two newest buildings
+  missing. Hand-digitise them from the photo in one data file with its own id range (tools/data/extra.py, merged by
+  osm.py), so gen.py, the Street View plan and the builder all see ordinary buildings / areas.
+- **A building that backs onto a steep hill: cut a bench, then a bank.** Wall pads alone gave retaining blocks 13-16 m
+  high behind the quad. Before the wall pads, cut the ground to the floor for 7.4 m behind the walls (the depth the pad's
+  retaining block would take) and let it rise from there at 36 deg (`bank` in school.js / sitework): no block, a level
+  service strip, a planted bank; the lidar wins wherever it is lower.
+- **Pick CTF bases with the overlook count, before building round them.** The lower campus (quad, loop) lies under a
+  10 m plateau and a 34 m hill: 250+ cells of high ground with a line to any base there. A ten-line console loop over
+  candidate points (terrain-only line of sight, same thresholds as the map check) found the two ends of the plateau with
+  0 cells each in a minute. The hill above the quad stays outside the play bounds.
+- **Smoothing a street polyline must keep junction vertices.** Corner-cutting the campus drive removed the vertex a side
+  street shared with it: the two no longer met on a node and the cross-slope test failed at the junction. Keep every
+  vertex that another graded street also has.
+- **A protected pad swallows a road that touches it.** A generous "keep the shoulder off the field" zone (9 m past the
+  turf) covered the car-park loop: 11 % cross-slope. Protect the pad you built, not a margin round it.
+- **Hedges are the street in some towns.** Ross has no sidewalks and no kerbs; every lot is behind a 2.5-3 m clipped hedge
+  (Street View showed hedges in 13 of 15 views and no house). Draw them as solid runs fitted against the street design,
+  with gaps at the driveways so no yard is sealed (the terrain check needs a way out of every hollow).
+- **Helicopter spots: hand the pipeline the scan.** With an empty `heliPark` the builder passes every level 5 m cell that
+  is clear of the streets (car parks first); the shared exact test picks; the accepted spots are then written into the
+  descriptor so parked cars keep clear of them. Keep spare candidates after the first twelve: one that passes at 7 m
+  only shows up as a warning.
+- **Fix round after the first QA (terrain squashed, NOT SHIP). What it taught:**
+  - *Validate with points, in a script that stays in the repo.* `tools/validate_dem.py`: 36 lattice points + 16 named spots
+    against USGS EPQS; mean |error| 0.16 m after the fix (5.0 m before). ArcGIS `exportImage`: size the request from the bbox
+    in DEGREES and read the extent back with `f=json` (the `href` is the tiff); assert it against the request.
+  - *The photo can be sheared, the tiles are not.* The Esri image showed the pitch as a parallelogram (touchlines -5.3 deg,
+    goal lines 9.6 deg); a nadir 3D-tiles view gave a true rectangle (-8.94 deg, 94.6 x 51.2 m, centre 3 m away). The first
+    build's compromise rectangle put turf on the lawn at one corner and the field pad under the gym at another. Measure
+    pitches, courts and anything that must be rectangular from a nadir tiles shot (camera straight down, narrow fov: metres =
+    pixels / (viewport height / (2 h tan(fov / 2)))), and check the corners make 90 degrees.
+  - *A footprint the map lacks is in the tile-height grid.* Tallant Science Center was missing from OSM and the county data;
+    the 2 m roof-height table (roof 9-10 m over ground 2 m) gave its outline in one print. Print (tile - ground) round every
+    cluster and compare with the footprints before building (rule F26).
+  - *The ground classifier is not a paving map on a wooded campus.* Tree shadow, roof spill and glare came out as asphalt
+    and concrete "amoebas" round every building (10 000 m2 of them). `tools/ground_fix.py` now rewrites the play area from
+    truth: car parks and service drives traced from nadir tiles (tools/data/extra.py `PAVED`), OSM service ways, streets by
+    the engine, thin OSM paths kept, everything else lawn; repainted pixels take the neighbour class's median tone with
+    low-frequency noise and a soft edge that fully covers the old outline (a 1 px rim of the old class reads as a ring).
+  - *Half the scanned trees drew as 7 m ornamentals* (the tree system picks the young variant under scale 0.82) and a wooded
+    valley looked like a park. `tools/canopy_fill.py` gives every tree its height from the tiles (scale = canopy height /
+    model height, conifer over 27 m) and fills canopy that has no trunk; the backdrop draws canopy on flat land too (no
+    street grid, no roof boxes, no pale houses on the hills: at that distance Ross shows no roofs).
+  - *Split a county footprint where the real building changes.* Katharine Branson Hall is one polygon: the clay-tiled hall
+    and the white flat-roofed wing were cut along the line seen from above (school.js `splitKbh`), each with its own roof and
+    wall treatment; a 2 m slot in the same polygon (a digitising artefact) wedged a player who dropped off the roof: delete
+    slots narrower than a doorway from footprints.
+  - *Roof tints are not colours.* The shingle texture is dark and slightly purple: a "tan" of 2.5 rendered grey-mauve and
+    terracotta 3.7 rendered maroon. Tints of 6-9.5 were needed (extras.js BR_CLAY / BR_TAN / BR_SEAM); always judge beside
+    the tiles oblique, never by the number.
+  - *A bench and a bank instead of planter tiers* now takes parameters (`bank: { strip, slope }` in the school SPEC): the strip
+    must be at least the pad's retaining depth (7.4 m) or the stepped blocks come back.
+  - *Helicopter spots in car parks cost the cars.* Each ground spot clears parked cars for 10 m; one spot in a small lot
+    empties it. Put hidden spots on lawns behind buildings and keep at most one per car park. Tree trunks are kept 11.5 m
+    back from every descriptor spot in sitework (scan trees and the forest fill alike), so a denser canopy cannot fail them.
+  - *A street on a hillside just inside the bounds still gets checked.* Extending the play area 12 m south for one building
+    brought Ivy Drive in: one round of corner cutting cured its cross-slope at the bends; two rounds made 9 cm profile bumps.
+  - *Dev helpers:* `dev/world.html?recv=<port>` + `__s(name, cam, fov)` and `dev/branson-tiles.html?recv=<port>` + `__r(...)`
+    post JPEGs to a local receiver; `__fit(1280, 800)` sizes the renderer in a hidden pane. Several vite servers sharing one
+    node_modules answer 504 "Outdated Optimize Dep" after one of them re-optimises: restart yours and reload.
+

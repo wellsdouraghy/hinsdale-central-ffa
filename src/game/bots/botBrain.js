@@ -10,6 +10,8 @@ import { otherTeam } from '../ctf.js';
 import { BotPilot } from './botPilot.js';
 import { BotMobility } from './botMobility.js';
 import { HELI } from '../heli.js';
+import { STREAK } from '../streaks.js';
+import { ctfBases } from '../ctf.js';
 
 const DEG = Math.PI / 180;
 
@@ -31,7 +33,12 @@ export class BotBrain {
     this.auth = mgr.auth;
     this.p = p;
     this.d = DIFFICULTY[difficulty] || DIFFICULTY.normal;
-    this.role = role;                       // CTF: 'attack' | 'defend'
+    this.role = role;                       // team modes: 'attack' | 'defend' | 'escort' (BotManager.assignRoles)
+    this.roleSlot = 0; this.roleSlots = 1;  // index / size of this bot's role group (spread posts, attack lanes)
+    this.viaDone = false;                   // attack lane waypoint reached this life
+    this.chase = null;                      // { carrier, yes }: sticky decision to chase our flag's carrier
+    this.post = null; this.postT = 0;       // defender / escort post (re-picked now and then: patrol)
+    this.crate = null;                      // { cid, p, capT } care package this bot is going for (BotManager)
     this.ctrl = new PlayerController(this.auth.world);
     this.guns = [];
     this.slot = 0;
@@ -64,6 +71,7 @@ export class BotBrain {
     this.ctrl.maxAirJumps = cd.airJumps ?? 1;
     this.path = null; this.goal = null; this.target = null; this.memory.clear();
     this.pilot = null; this.heliGoal = false;
+    this.viaDone = false; this.via = null; this.chase = null; this.post = null; this.crate = null;
     this.err.yaw = rand(-1, 1) * this.d.aimErr * DEG; this.err.pitch = rand(-1, 1) * this.d.aimErr * DEG;
     this.lastPos.copy(pos);
     this.stuckCount = 0;
@@ -279,7 +287,10 @@ export class BotBrain {
   _chooseGoal(t) {
     const auth = this.auth, p = this.p;
     let goal = null;
-    if (auth.ctf && p.team) goal = this._ctfGoal();
+    if (auth.ctf && p.team) goal = this._ctfGoal(t);
+    else if (auth.mode === 'tdm' && p.team) goal = this._tdmGoal(t);
+    // Care package claimed for us by BotManager (it already weighed role, order and fights).
+    if (this.crate && !(auth.ctf && auth.ctf.carrying(p))) goal = new THREE.Vector3().fromArray(this.crate.p);
     if (this.coverGoal && t < this.coverUntil) goal = this.coverGoal;
     else this.coverGoal = null;
     if (!goal && this.heliGoal && !this.visible && this.auth.heli?.h) goal = new THREE.Vector3().fromArray(this.auth.heli.h.pos);
@@ -298,6 +309,8 @@ export class BotBrain {
     if (!goal) {
       // Roam: push toward a coarse "hint" of the nearest enemy's area (never an exact position through walls),
       // preferring human players so they see action; otherwise a contested central point.
+      // (TDM "all attack" order: always push, with a tighter hint.)
+      const allAttack = auth.mode === 'tdm' && this.mgr.orderOf(p.team).o === 'attack';
       if (!this.goal || this.pos.distanceTo(this.goal) < 5 || t > this.goalT) {
         let pick = null, bestScore = Infinity;
         for (const o of auth.players.values()) {
@@ -306,8 +319,8 @@ export class BotBrain {
           const score = d * (o.ai ? 1.6 : 1) * rand(0.8, 1.2);
           if (score < bestScore) { bestScore = score; pick = o; }
         }
-        if (pick && Math.random() < this.d.push) {
-          const h = this.d.hint;
+        if (pick && (allAttack || Math.random() < this.d.push)) {
+          const h = this.d.hint * (allAttack ? 0.5 : 1);
           goal = new THREE.Vector3(pick.pos[0] + rand(-h, h), 0, pick.pos[2] + rand(-h, h));
           if (auth.world.terrain) goal.y = auth.world.groundY(goal.x, goal.z);   // (goal distances are 3D: keep goals on the hills)
         } else {
@@ -327,30 +340,161 @@ export class BotBrain {
     }
   }
 
-  _ctfGoal() {
+  /** Ground point (x, z) snapped to the nearest walkable nav cell, so posts / lanes are reachable. */
+  _onNav(x, z) {
+    const nav = this.mgr.nav;
+    const i = nav.nearest(x, z, 8);
+    if (i >= 0) return nav.center(i, new THREE.Vector3());
+    const v = new THREE.Vector3(x, 0, z);
+    if (this.auth.world.groundY) v.y = this.auth.world.groundY(x, z);
+    return v;
+  }
+
+  /**
+   * Defender post: this bot's own spot on a ring round `center` (slot angle, the first one facing `face`), alternating
+   * rMin / rMax out, re-picked with a little jitter every 8-14 s (patrol), so defenders spread out instead of stacking.
+   */
+  _postAround(center, face, t, rMin = 9, rMax = 20) {
+    if (this.post && this.post.kind === 'post' && t < this.postT && this.post.c.distanceTo(center) < 6) return this.post.v;
+    const n = Math.max(1, this.roleSlots);
+    const a0 = Math.atan2(face.z - center.z, face.x - center.x);
+    const a = a0 + (this.roleSlot / n) * Math.PI * 2 + rand(-0.35, 0.35);
+    const r = (this.roleSlot % 2 ? rMax : rMin) + rand(-2, 2);
+    const v = this._onNav(center.x + Math.cos(a) * r, center.z + Math.sin(a) * r);
+    this.post = { v, c: center.clone(), kind: 'post' };
+    this.postT = t + rand(8, 14);
+    return v;
+  }
+
+  /** Escort spot: a few metres off `who`, spread by slot round them. */
+  _escortSpot(who, t) {
+    const c = new THREE.Vector3().fromArray(who.pos);
+    if (this.post && this.post.kind === who.id && t < this.postT && this.post.c.distanceTo(c) < 6) return this.post.v;
+    const n = Math.max(1, this.roleSlots);
+    const a = (this.roleSlot / n) * Math.PI * 2 + rand(-0.4, 0.4);
+    const r = rand(4, 7);
+    const v = this._onNav(c.x + Math.cos(a) * r, c.z + Math.sin(a) * r);
+    this.post = { v, c, kind: who.id };
+    this.postT = t + rand(2, 4);
+    return v;
+  }
+
+  /** Living teammate who gave the escort order (or null). */
+  _escortee() {
+    const by = this.mgr.orderOf(this.p.team).by;
+    const o = by !== null ? this.auth.players.get(by) : null;
+    return o && o.alive && o.pos && o.team === this.p.team && o !== this.p ? o : null;
+  }
+
+  /** Remembered enemy (fresh, <= 6 s) within `r` m of `c`: defenders go after intruders near the base. */
+  _intruder(c, r, t) {
+    let best = null, bd = r;
+    for (const m of this.memory.values()) {
+      if (t - m.t > 6) continue;
+      const d = Math.hypot(m.pos.x - c.x, m.pos.z - c.z);
+      if (d < bd) { bd = d; best = m.pos; }
+    }
+    return best ? best.clone() : null;
+  }
+
+  _ctfGoal(t) {
     const ctf = this.auth.ctf, p = this.p;
     const my = p.team, en = otherTeam(my);
     const ef = ctf.flags[en], of = ctf.flags[my];
     const v = (a) => new THREE.Vector3().fromArray(a);
-    if (ef.carrier === p.id) return v(ctf.bases[my]);                      // bring it home
-    if (of.state === 'dropped') return v(of.pos);                          // return our flag
-    if (of.state === 'carried' && (this.role === 'defend' || Math.random() < 0.5)) {
+    const base = v(ctf.bases[my]), ebase = v(ctf.bases[en]);
+    const order = this.mgr.orderOf(my).o;
+    const hd = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    if (ef.carrier === p.id) return base;                                  // bring it home
+    // Our flag on the ground: defenders / escorts always return it (also on DEFEND), attackers when it is close, or
+    // (balanced mix) nearer than the enemy flag.
+    if (of.state === 'dropped') {
+      const fp = v(of.pos), d = hd(fp, this.pos);
+      if (this.role !== 'attack' || d < 40 || (order !== 'attack' && d < hd(v(ef.pos), this.pos))) return fp;
+    }
+    // Our flag carried: defenders chase the carrier (shown on the minimap); others make one sticky decision per
+    // carrier (no flip-flopping between goals every think): chase when close, or (balanced mix) much nearer to it than
+    // to the enemy flag, or by chance. Anyone chases when our own carrier is stuck waiting (cannot capture).
+    if (of.state === 'carried') {
       const c = this.auth.players.get(of.carrier);
-      if (c?.pos) return v(c.pos);                                         // chase the carrier (shown on the minimap)
+      if (c?.pos) {
+        if (!this.chase || this.chase.carrier !== of.carrier) {
+          const dc = hd(v(c.pos), this.pos), dflag = hd(v(ef.pos), this.pos);
+          this.chase = { carrier: of.carrier, yes: dc < 35 || (order === 'auto' && (dc < dflag * 0.6 || Math.random() < 0.35)) };
+        }
+        const stuck = ef.state === 'carried';
+        if (this.role === 'defend' || stuck || (this.role !== 'escort' && this.chase.yes)) return v(c.pos);
+      }
+    } else this.chase = null;
+    if (this.role === 'escort') {
+      // Stay with our flag carrier, else with the player who gave the order, else hold round the base.
+      const carrier = ef.state === 'carried' ? this.auth.players.get(ef.carrier) : null;
+      const who = carrier?.alive && carrier.pos ? carrier : this._escortee();
+      if (who) return this._escortSpot(who, t);
+      return this._postAround(base, ebase, t);
     }
     if (this.role === 'attack') {
       if (ef.state === 'carried') {
         const c = this.auth.players.get(ef.carrier);
-        return c?.pos ? v(c.pos).add(new THREE.Vector3(rand(-6, 6), 0, rand(-6, 6))) : v(ctf.bases[my]);
+        return c?.pos ? this._escortSpot(c, t) : base;                    // escort our carrier home
       }
-      return v(ef.pos);
+      const fp = v(ef.pos);
+      // Lanes: with several attackers, the outer ones swing wide through a waypoint left / right of the straight line
+      // between the bases (snapped to the nav grid) before going in, so they do not all arrive down one street.
+      if (!this.viaDone && ef.state === 'home' && this.roleSlots > 1) {
+        const lane = [0, -1, 1, -0.5, 0.5][this.roleSlot % 5];
+        if (lane) {
+          if (!this.via) {
+            const mid = base.clone().lerp(fp, 0.55);
+            const dir = fp.clone().sub(base).setY(0);
+            const L = dir.length() || 1;
+            const off = new THREE.Vector3(-dir.z / L, 0, dir.x / L).multiplyScalar(lane * Math.min(70, L * 0.3));
+            const b = this.auth.world.playBounds;
+            const x = THREE.MathUtils.clamp(mid.x + off.x, b.minX + 8, b.maxX - 8), z = THREE.MathUtils.clamp(mid.z + off.z, b.minZ + 8, b.maxZ - 8);
+            this.via = this._onNav(x, z);
+          }
+          // Done when close, or once the flag is nearer than the waypoint is (we are past it).
+          if (hd(this.via, this.pos) < 10 || hd(fp, this.pos) < hd(fp, this.via)) { this.viaDone = true; this.via = null; }
+          else return this.via;
+        } else this.viaDone = true;
+      }
+      return fp;
     }
-    // Defend: loiter around our base.
-    if (!this.goal || this.goal.distanceTo(v(ctf.bases[my])) > 30 || this.pos.distanceTo(this.goal) < 3) {
-      const a = Math.random() * Math.PI * 2, r = rand(8, 22);
-      return v(ctf.bases[my]).add(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r));
-    }
-    return this.goal;
+    // Defend: own post round the base (spread by slot, patrols a little); go after intruders seen near the base.
+    const intr = this._intruder(base, 35, t);
+    if (intr) return intr;
+    return this._postAround(base, ebase, t);
+  }
+
+  /** Team Deathmatch orders: DEFEND holds posts round the team's side, ESCORT follows the issuer; else roam (null). */
+  _tdmGoal(t) {
+    const o = this.mgr.orderOf(this.p.team).o;
+    if (o === 'escort') { const who = this._escortee(); return who ? this._escortSpot(who, t) : null; }
+    if (o !== 'defend' || this.visible) return null;                       // in a fight: fight as usual
+    const bases = ctfBases(this.auth.world);
+    const base = bases[this.p.team], ebase = bases[otherTeam(this.p.team)];
+    const intr = this._intruder(base, 45, t);
+    if (intr) return intr;
+    return this._postAround(base, ebase, t, 10, 26);
+  }
+
+  /**
+   * Care package capture (every frame): within reach, stand still and hold (capBegin, then capture after the same
+   * hold time a human needs; the host validates both like a human's). Moving off or a fight resets the hold.
+   * Returns true while holding (no movement).
+   */
+  _crateHold(t) {
+    const c = this.crate;
+    if (!c) return false;
+    const sr = this.auth.streaks, live = sr?.crates.get(c.cid);
+    if (!live || live.state !== 'landed') { this.crate = null; return false; }
+    const d = Math.hypot(c.p[0] - this.pos.x, c.p[2] - this.pos.z);
+    const fighting = this.visible && this.target && !this.target.heli && t >= this.reactAt;
+    if (d > 2.4 || fighting) { c.capT = null; return false; }
+    if (c.capT === null) { c.capT = t; sr.capBegin(this.p, c.cid); }
+    const need = this.p.id === live.owner ? STREAK.ownerCapTime : STREAK.capTime;
+    if (t - c.capT >= need + 0.05) { sr.capture(this.p, c.cid); this.crate = null; }
+    return true;
   }
 
   _throw(target, dist) {
@@ -380,7 +524,9 @@ export class BotBrain {
     // Desired movement direction (world space).
     const dir = _w.set(0, 0, 0);
     let sprint = false;
-    if (this.path && this.pathI < this.path.length) {
+    const holding = this._crateHold(t);   // capturing a care package: stand still
+    if (holding) this.wantCrouch = false;
+    else if (this.path && this.pathI < this.path.length) {
       const wp = this.path[this.pathI];
       _v.set(wp.x - this.pos.x, 0, wp.z - this.pos.z);
       if (_v.length() < 1.2) this.pathI++;

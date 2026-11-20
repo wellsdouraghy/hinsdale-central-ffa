@@ -223,6 +223,7 @@ export function createMenus({ settings, onSettingsChange, sound = () => {} }) {
       ['<kbd>4</kbd>', 'Use killstreak'],
       ['<kbd>X</kbd>', 'Hold: care package / enter heli'],
       ['<kbd>Tab</kbd>', 'Scoreboard'],
+      ['<kbd>Z</kbd> then <kbd>1</kbd>-<kbd>4</kbd>', 'Bot orders (CTF / TDM): attack · defend · escort me · balanced'],
       ['<kbd>Esc</kbd>', 'Menu'],
     ];
     const pad = [

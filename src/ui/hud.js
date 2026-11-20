@@ -219,6 +219,15 @@ export function createHud() {
       set('carry', !!carrying, (v) => el.carry.classList.toggle('hidden', !v));
     },
 
+    /** Bot team orders: current order tag under the score bar (team modes with bots on our team) + the Z menu. */
+    orders({ show, text, menuOpen, current }) {
+      const tag = $('order-tag'), menu = $('order-menu');
+      set('ordShow', show, (v) => tag.classList.toggle('hidden', !v));
+      set('ordText', text, (v) => { tag.innerHTML = `Bots: <b>${esc(v)}</b><kbd>Z</kbd>`; });
+      set('ordMenu', !!menuOpen, (v) => menu.classList.toggle('hidden', !v));
+      set('ordCur', current, (v) => menu.querySelectorAll('.om-row').forEach((r) => r.classList.toggle('on', r.dataset.o === v)));
+    },
+
     announce(title, sub, color) {
       el.announce.innerHTML = `<div class="a-title" style="color:${color || '#fff'}">${esc(title)}</div>${sub ? `<div class="a-sub">${esc(sub)}</div>` : ''}`;
       el.announce.classList.remove('show');

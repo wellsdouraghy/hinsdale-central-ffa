@@ -11,6 +11,7 @@ import { now as clock, MATCH } from './authority.js';
 import { colorCss } from '../ui/hud.js';
 import { TEAM_COLORS, TEAM_CSS, TEAM_NAMES, TEAMS, otherTeam } from './ctf.js';
 import { CtfView } from './ctfView.js';
+import { ORDER_NAMES } from './bots/botManager.js';
 import { CLASSES, CLASS_IDS, DEFAULT_CLASS, classOf, lookForClass } from './classes.js';
 import { Throwables } from './throwables.js';
 import { StreakView } from './streakView.js';
@@ -93,6 +94,8 @@ export class Game {
     this._frameDx = 0; this._frameDy = 0;   // id -> { hp, armor, until } for enemies we are damaging
     this.spawnInfo = null;
     this.swapOpen = false;
+    this.orders = { red: 'auto', blue: 'auto' };   // current bot order per team (host broadcasts)
+    this.orderMenuUntil = 0;                        // Z menu open until (clock)
     // Movement kit.
     this.grappleReadyAt = 0;
     this.grappleCd = KIT.grappleCooldown;
@@ -127,6 +130,7 @@ export class Game {
     this.match.overtime = !!mi.overtime;
     this.match.timeLeft = mi.timeLeft;
     this.match.timeRef = clock();
+    if (mi.orders) this.orders = { ...mi.orders };
   }
 
   _applyWelcome(w) {
@@ -262,6 +266,10 @@ export class Game {
       case 'flag': this.ctfView?.onFlag(m); break;
       case 'team': this._onTeam(m); break;
       case 'notice': this.ui.toast(m.text); break;
+      case 'order':
+        this.orders[m.team] = m.o;
+        if (m.team === this.myTeam) this.ui.toast(`${m.by === this.localId ? 'You' : m.name}: ${ORDER_NAMES[m.o].toUpperCase()}`, 3);
+        break;
       case 'overtime':
         this._applyMatch(m.match);
         this.announce('Overtime', 'Next capture wins', '#f2b544', 'neutral');
@@ -279,6 +287,7 @@ export class Game {
         this.match.overtime = !!m.match.overtime;
         if (m.match.ctf && this.ctfView) this.ctfView.apply(m.match.ctf);
         if (m.match.teamScore) this.teamScore = { ...m.match.teamScore };
+        if (m.match.orders) this.orders = { ...m.match.orders };
         break;
       case 'end':
         this.fin.cancelAll();
@@ -895,6 +904,7 @@ export class Game {
     const playing = this.match.state === 'playing';
     const active = inp.active && playing;
 
+    this._orderKeys(pressed, t);
     if (!this.alive && inp.enabled) {
       for (let i = 0; i < CLASS_IDS.length; i++) if (pressed.has('Digit' + (i + 1))) this.selectClass(CLASS_IDS[i]);
     }
@@ -943,6 +953,46 @@ export class Game {
     this.audio.setListener(this.camera);
 
     this._updateHud(dt, t, inp);
+  }
+
+  /** Bots on our team (AI), for the order tag / menu. */
+  _teamBots() {
+    const my = this.myTeam;
+    let n = 0;
+    if (my) for (const e of this.roster.values()) if (e.ai && e.team === my) n++;
+    return n;
+  }
+
+  /**
+   * Bot team orders (CTF / TDM): Z opens a small menu, then 1 attack, 2 defend, 3 escort me, 4 balanced (the number
+   * keys are consumed so they do not also switch weapons / classes). The host applies it to our team's bots.
+   */
+  _orderKeys(pressed, t) {
+    const open = t < this.orderMenuUntil;
+    if (!this.input.enabled || !this.isTeams || this.match.state !== 'playing') { this.orderMenuUntil = 0; return; }
+    if (pressed.has('KeyZ')) {
+      if (open) this.orderMenuUntil = 0;
+      else if (!this._teamBots()) this.ui.toast('No bots on your team to give orders to', 2.5);
+      else this.orderMenuUntil = t + 6;
+      for (let i = 1; i <= 9; i++) pressed.delete('Digit' + i);   // a number pressed in the same frame never switches weapon
+      return;
+    }
+    if (!open) return;
+    if (pressed.has('Escape')) { this.orderMenuUntil = 0; return; }
+    const keys = { Digit1: 'attack', Digit2: 'defend', Digit3: 'escort', Digit4: 'auto' };
+    for (const [code, o] of Object.entries(keys)) {
+      if (!pressed.has(code)) continue;
+      this.giveOrder(o);
+      this.orderMenuUntil = 0;
+      break;
+    }
+    for (let i = 1; i <= 9; i++) pressed.delete('Digit' + i);   // menu open: the number keys belong to it
+  }
+
+  /** Sends a bot team order to the host (also the automation hook). */
+  giveOrder(o) {
+    if (!this.isTeams || !ORDER_NAMES[o]) return;
+    this.session.send({ t: 'order', o });
   }
 
   /** 20 Hz movement state (worker timer; also forced right after teleports via stateTimer). */
@@ -1238,6 +1288,11 @@ export class Game {
     const list = [...this.roster.values()].filter((e) => !e.bot || e.ai || this.match.practice);
     const timeLeft = this.match.timeLeft === null ? null : this.match.timeLeft - (this.match.state === 'playing' ? t - this.match.timeRef : 0);
     const markers = this.isCtf ? this._updateCtfHud(t, timeLeft) : [];
+    {
+      const nb = this.isTeams ? this._teamBots() : 0;
+      const cur = this.orders[this.myTeam] || 'auto';
+      hud.orders({ show: nb > 0 && this.match.state === 'playing', text: ORDER_NAMES[cur], menuOpen: t < this.orderMenuUntil && nb > 0, current: cur });
+    }
     if (this.isTdm) {
       hud.timer(timeLeft, this.match.practice ? 'TDM practice' : `First to ${this.match.scoreLimit} kills`);
       hud.ctf({ score: this.teamScore, status: null, myTeam: this.myTeam || 'red', carrying: false });

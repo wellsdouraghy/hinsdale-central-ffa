@@ -7,6 +7,13 @@ import { perchesFor } from './perches.js';
 import { createHitscan } from '../hitscan.js';
 import { damageAt } from '../weapons.js';
 import { CLASS_IDS } from '../classes.js';
+import { ctfBases, otherTeam, TEAMS } from '../ctf.js';
+
+/** Team orders a player can give their team's bots (team modes). 'auto' = the balanced default mix. */
+export const ORDERS = ['auto', 'attack', 'defend', 'escort'];
+export const ORDER_NAMES = { auto: 'Balanced', attack: 'All attack', defend: 'All defend', escort: 'Escort me' };
+const CRATE_RANGE = 90;        // bots consider landed care packages within this distance (m)
+const CRATE_PER_TEAM = 2;      // at most this many bots per team (FFA: in total) go for the same package
 
 const NAMES = ['Jenkins', 'Marlow', 'Okafor', 'Reyes', 'Petrov', 'Lindqvist', 'Tanaka', 'Brooks', 'Haddad', 'Novak', 'Quinn', 'Ferreira', 'Kowalski', 'Mbeki'];
 const DEG = Math.PI / 180;
@@ -23,6 +30,39 @@ export class BotManager {
     this._nav = null;
     this._hitscan = null;
     this.names = NAMES.slice().sort(() => Math.random() - 0.5);
+    this.orders = { red: { o: 'auto', by: null }, blue: { o: 'auto', by: null } };
+    this.crateT = 0;
+  }
+
+  /** A team order from player `by` (host-validated in Authority): re-plans that team's bots right away. */
+  setOrder(team, o, by) {
+    if (!TEAMS.includes(team) || !ORDERS.includes(o)) return false;
+    this.orders[team] = { o, by: o === 'auto' ? null : by };
+    this.assignRoles();
+    for (const b of this.brains.values()) if (b instanceof BotBrain && b.p.team === team) { b.goal = null; b.path = null; b.repathT = 0; b.viaDone = false; b.via = null; b.chase = null; b.post = null; }
+    return true;
+  }
+
+  orderOf(team) { return this.orders[team] || { o: 'auto', by: null }; }
+
+  /**
+   * Roles per team from the team order: auto = attackers first, then alternating (ceil(n/2) attack), attack / defend /
+   * escort = everyone. Each bot also gets its slot within its role group (defenders spread round the base, attackers
+   * take different lanes), so they never stack on one spot.
+   */
+  assignRoles() {
+    if (!this.auth.teamMode) return;
+    for (const team of TEAMS) {
+      const bots = [...this.brains.values()].filter((b) => b instanceof BotBrain && b.p.team === team).sort((a, b) => a.p.id - b.p.id);
+      const o = this.orderOf(team).o;
+      const nAtt = o === 'attack' ? bots.length : o === 'defend' || o === 'escort' ? 0 : Math.ceil(bots.length / 2);
+      const groups = {};
+      bots.forEach((b, i) => {
+        b.role = o === 'escort' ? 'escort' : i < nAtt ? 'attack' : 'defend';
+        (groups[b.role] ||= []).push(b);
+      });
+      for (const g of Object.values(groups)) g.forEach((b, i) => { if (b.roleSlot !== i || b.roleSlots !== g.length) b.post = null; b.roleSlot = i; b.roleSlots = g.length; });
+    }
   }
 
   get nav() { return this._nav || (this._nav = navFor(this.auth.world)); }
@@ -54,12 +94,9 @@ export class BotManager {
     const placeholder = { id };
     this.brains.set(id, placeholder);
     const p = this.auth.addPlayer(id, name, { bot: true, ai: true, cls, team });
-    // CTF roles per team: attackers first, then alternate (so every team has someone going for the flag).
-    let att = 0, def = 0;
-    for (const b of this.brains.values()) if (b instanceof BotBrain && b.p.team === p.team) { if (b.role === 'attack') att++; else def++; }
-    const role = att <= def ? 'attack' : 'defend';
-    const brain = new BotBrain(this, p, this.difficulty, role);
+    const brain = new BotBrain(this, p, this.difficulty, 'attack');
     this.brains.set(id, brain);
+    this.assignRoles();   // roles come from the team order and the team's bot count (rebalanced on add / remove)
     if (p.alive && p.pos) brain.onSpawn(new THREE.Vector3().fromArray(p.pos), 0);
     return id;
   }
@@ -68,15 +105,18 @@ export class BotManager {
     if (!this.brains.has(id)) return;
     this.brains.delete(id);
     this.auth.removePlayer(id);
+    this.assignRoles();
+  }
+
+  /** Before a bot respawns (called by Authority.spawn ahead of the spawn message, so every client and the frag count
+   *  see the class the bot actually plays this life): maybe a new class. */
+  preSpawn(p) {
+    if (this.brains.get(p.id) instanceof BotBrain && p.life > 0 && Math.random() < 0.3) p.cls = CLASS_IDS[Math.floor(Math.random() * CLASS_IDS.length)];
   }
 
   onSpawn(p, pos, yaw) {
     const b = this.brains.get(p.id);
-    if (b instanceof BotBrain) {
-      // New life, maybe a new class.
-      if (Math.random() < 0.3) p.cls = CLASS_IDS[Math.floor(Math.random() * CLASS_IDS.length)];
-      b.onSpawn(pos, yaw);
-    }
+    if (b instanceof BotBrain) b.onSpawn(pos, yaw);
   }
 
   onDamaged(victim, attacker) {
@@ -94,6 +134,8 @@ export class BotManager {
     const t = this.auth.time();
     const playing = this.auth.state === 'playing';
     if (!this.perches.ready) this.perches.step(700);
+    this.crateT -= dt;
+    if (playing && this.crateT <= 0) { this.crateT = 0.5; this._assignCrates(t); }
     for (const b of this.brains.values()) if (b instanceof BotBrain && playing) b.update(Math.min(dt, 0.05), t);
     // 20 Hz movement state, same format as human clients send.
     this.stTimer += dt;
@@ -113,6 +155,82 @@ export class BotManager {
         ...(c.ladder ? { m: 2 } : c.mantle ? { m: 3 } : c.sliding ? { m: 1 } : c.dashT > 0 ? { m: 4 } : {}),
       });
     }
+  }
+
+  /**
+   * Care packages: every landed crate gets up to CRATE_PER_TEAM claimers per team (FFA: in total), the nearest bots
+   * for which a detour is reasonable: alive, on foot, not carrying a flag, not in a close fight, within CRATE_RANGE
+   * with a nav path, and allowed by their role / team order (defenders and DEFEND: only near the base and only while
+   * our flag is home; ATTACK: only roughly on the way to the enemy flag; escorts: only close by and never while a
+   * teammate carries the flag). Anyone may open any crate (game rule); a living teammate's crate is left to its owner
+   * for its first 15 s on the ground. Brains do the walking and the hold-to-capture (same host rules as a human).
+   */
+  _assignCrates(t) {
+    const auth = this.auth, sr = auth.streaks;
+    const brains = [...this.brains.values()].filter((b) => b instanceof BotBrain);
+    const crates = sr ? [...sr.crates.values()].filter((c) => c.state === 'landed') : [];
+    const live = new Set(crates.map((c) => c.cid));
+    for (const b of brains) if (b.crate && !live.has(b.crate.cid)) b.crate = null;
+    if (!crates.length) return;
+    const ctf = auth.ctf;
+    const bases = ctf ? ctf.bases : auth.teamMode ? Object.fromEntries(Object.entries(ctfBases(auth.world)).map(([k, v]) => [k, v.toArray()])) : null;
+    const hd = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
+    for (const c of crates) {
+      if (c.landedT === undefined) c.landedT = t;
+      const owner = auth.players.get(c.owner);
+      const cand = [];
+      for (const b of brains) {
+        const p = b.p;
+        if (!p.alive || !p.pos || p.inHeli || b.pilot) { if (b.crate?.cid === c.cid) b.crate = null; continue; }
+        if (b.crate && b.crate.cid !== c.cid) continue;   // already busy with another crate
+        let ok = this._crateOk(b, c, owner, t, bases, hd);
+        const d = hd(p.pos, c.p);
+        if (ok && !b.crate) {
+          // Path check once when first claimed (A* is not free).
+          const path = this.nav.findPath(b.pos, new THREE.Vector3().fromArray(c.p));
+          ok = !!path;
+        }
+        if (ok) cand.push({ b, d });
+        else if (b.crate?.cid === c.cid) b.crate = null;
+      }
+      // Keep the nearest few per team (current claimers win ties so they do not flip-flop).
+      cand.sort((x, y) => (x.d - (x.b.crate ? 10 : 0)) - (y.d - (y.b.crate ? 10 : 0)));
+      const count = {};
+      for (const { b } of cand) {
+        const k = auth.teamMode ? b.p.team : 'all';
+        count[k] = (count[k] || 0) + 1;
+        if (count[k] <= CRATE_PER_TEAM) { if (!b.crate) b.crate = { cid: c.cid, p: c.p.slice(), capT: null }; }
+        else if (b.crate?.cid === c.cid) b.crate = null;
+      }
+    }
+  }
+
+  _crateOk(b, c, owner, t, bases, hd) {
+    const auth = this.auth, p = b.p;
+    const d = hd(p.pos, c.p);
+    if (d > CRATE_RANGE) return false;
+    if (auth.ctf?.carrying(p)) return false;
+    // Close fight (enemy in sight within 25 m): fight first. A bot already at the crate keeps capturing.
+    if (b.visible && b.target?.pos && !b.target.heli && hd(b.target.pos, p.pos) < 25 && d > 4) return false;
+    // A living teammate's package: theirs for its first 15 s on the ground.
+    if (auth.teamMode && owner && owner !== p && owner.team === p.team && owner.alive && !owner.ai && t - c.landedT < 15) return false;
+    if (!auth.teamMode) return true;
+    const team = p.team, o = this.orderOf(team).o;
+    const base = bases?.[team];
+    if (auth.ctf) {
+      const of = auth.ctf.flags[team], ef = auth.ctf.flags[otherTeam(team)];
+      if (of.state !== 'home' && b.role !== 'attack') return false;                     // our flag is out: get it back
+      if (b.role === 'escort' || o === 'escort') return ef.state !== 'carried' && d < 30;
+      if (b.role === 'defend' || o === 'defend') return base && hd(c.p, base) < 40;
+      // Attackers: only roughly on the way to the enemy flag (a detour of at most ~35 m).
+      const ep = ef.state === 'carried' ? null : ef.pos;
+      if (!ep) return d < 30;
+      return d + hd(c.p, ep) < hd(p.pos, ep) + 35;
+    }
+    // TDM.
+    if (o === 'defend') return base && hd(c.p, base) < 50;
+    if (o === 'escort') return d < 30;
+    return true;
   }
 
   /**
