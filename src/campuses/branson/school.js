@@ -20,7 +20,7 @@ const CONC = [0.6, 0.59, 0.56], ARTS_WHITE = [0.74, 0.74, 0.72], SEDUM = [0.36, 
 const SPEC = [
   { id: 975106452, key: 'kbh', part: 'main', name: 'Katharine Branson Hall', top: 14.4, style: 'brKbh', roof: 'tile', rise: 4.7, ov: 0.7, tol: 0.9, level: 10.3, tint: BR_CLAY },
   { id: 975106452, key: 'kbhWhite', part: 'white', name: 'Katharine Branson Hall (west wing)', top: 16.6, style: 'brKbh', roof: 'custom', tol: 0.9, level: 10.3 },
-  { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'custom', skin: WOOD, minH: 6.5, level: 0.5, bank: { strip: 7.4, slope: 0.95 } },   // (bank: the ground at its west and north doors is graded to the floor, no pad blocks)
+  { id: 976135756, key: 'gym', name: 'Gym Complex', top: 8.6, style: 'brGym', roof: 'custom', skin: WOOD, minH: 6.5, level: 0.5, bank: { strip: 7.4, slope: 0.07, reach: 15 } },   // (bank: the ground at its west and north doors is graded to the floor, no pad blocks)
   { id: 9000000001, key: 'commonsN', name: 'The Commons (north wing)', top: 6.0, style: 'brCommons', roof: 'flat', ladder: true, level: 2.3, bank: { strip: 7.4, slope: 0.95 } },   // (the glen's north bank: a plain planted bank behind a narrow service strip, not planter tiers)
   { id: 9000000002, key: 'commonsHall', name: 'The Commons', top: 6.4, style: 'brHall', roof: 'custom', level: 2.3, bank: { strip: 7.4, slope: 0.95 } },
   { id: 9000000003, key: 'commonsS', name: 'The Commons (south wing)', top: 6.0, style: 'brCommons', roof: 'flat', level: 2.3, bank: { strip: 7.4, slope: 0.95 } },
