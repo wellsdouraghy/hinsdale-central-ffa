@@ -40,7 +40,7 @@ function sitework(ctx) {
   // `retaining`: "grade the ground in or step it"). Laid before the wall pads; the lidar ground wins where it is lower.
   const sw0 = schoolWalls(ctx);
   for (const w of sw0) { if (!w.bank) continue; const sd = shapeSDF({ outline: w.ring }).sd; const c = centroid(w.ring); let R = 0; for (const p of w.ring) R = Math.max(R, Math.hypot(p[0] - c[0], p[1] - c[1]));
-    ctx.flatten({ circle: { x: c[0], z: c[1], r: R + 46 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z), d = sd(x, z); const st = w.bank.strip ?? 7.4, sl = w.bank.slope ?? 0.72; return Math.min(h, d <= st ? w.level + 0.06 : w.level + 0.06 + (d - st) * sl); } }); }   // (the bank starts beyond the wall pad's retaining depth: a level service strip behind the building, no block)
+    ctx.flatten({ circle: { x: c[0], z: c[1], r: R + 46 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z), d = sd(x, z); const st = w.bank.strip ?? 7.4, sl = w.bank.slope ?? 0.72, rc = w.bank.reach ?? 1e9; return Math.min(h, d <= st ? w.level + 0.06 : d <= rc ? w.level + 0.06 + (d - st) * sl : w.level + 0.06 + (rc - st) * sl + (d - rc) * 0.9); } }); }   // (reach: a gentle apron only that far, then a real bank)   // (the bank starts beyond the wall pad's retaining depth: a level service strip behind the building, no block)
   const zoneShapes = [{ outline: fieldRing(3.0) }, { outline: tennisRing(1.6) }, { outline: TERRACE }].map((sh) => shapeSDF(sh).sd);
   const zones = zoneShapes.map((sd) => (x, z) => sd(x, z) <= 0);
   // ---- 2. streets: Fernhill Ave, Park Drive (the campus drive from the gate down to the loop and on to the bridge),

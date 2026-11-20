@@ -11,8 +11,8 @@ import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PA
 
 const RAD = Math.PI / 180;
 // the Alumni Steps: from Katharine Branson Hall's south lawn down the bank to the car-park loop (graded in sitework)
-export const ALUMNI_STEPS = [{ a: [-70, 12], b: [-76, 33], w: 2.4 },
-  { a: [-86.6, 27.7], b: [-92.0, 28.6], w: 3.2, brick: true }];   // the red-brick steps from the lawn path down to the dining terrace (nadir tiles)
+// (the first build's long grey flight at (-70, 12) -> (-76, 33) is in no tiles view: removed, rule A1)
+export const ALUMNI_STEPS = [{ a: [-86.6, 27.7], b: [-92.0, 28.6], w: 3.2, brick: true }];   // the red-brick steps from the lawn path down to the dining terrace (nadir tiles)
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
 export const CAR_FREE = [[-112, 30]];
 // The Bridge over Ross Creek (campus map item 12): from the end of Park Drive (a) to the quad path (b); deck level y
@@ -306,7 +306,7 @@ const BOARDS = [
   [-9.5, -5.5, -36, ['KATHARINE', 'BRANSON HALL']], [-97, 24.5, 40, ['THE COMMONS']], [26, 14, 90, ['DOUGLAS', 'FINE ARTS CENTER']], [62, 25.5, 9, ['MAXWELL', 'MUSIC HALL']],
   [47.5, 2.2, 15, ['NEW HOUSE']], [30, -44, -20, ['CROSSWAYS']], [-86.5, 70.5, 12, ['GYM COMPLEX']], [-40, 61, 9, ['TOM RYAN FIELD']],
   [-155.5, 108, 60, ['STUDY HALL']], [-153.8, 124, 65, ['RICHARDSON HALL']], [-162.9, 149.9, -45, ['NEW OAKS']], [-146, 155.3, 0, ['TALLANT', 'SCIENCE CENTER']],
-  [-66.5, 9.5, 20, ['ALUMNI STEPS']], [-64, 13.2, 0, ['ORGANIC GARDEN']],
+  [-95.2, 31.0, 80, ['ALUMNI STEPS']], [-64, 13.2, 0, ['ORGANIC GARDEN']],
 ];
 function boards(ctx) {
   const S = ctx.streets; let n = 0;

@@ -29,7 +29,7 @@ osm.py -> sat.py -> (dev/branson-tiles.html __dumpHeights -> data/tile_heights.j
   west lawns, Fine Arts lawn, Prize Day Field, the south-west corner; 6 on the pitch), 12 placed, all pass at 8.5 m; the
   builder appends every level 5 m cell as spare candidates; sitework keeps trunks 11.5 m back from each
 - 32 FFA spawns, 10 per team; ladders on the flat roofs (Commons north wing, Fine Arts x2, Tallant); pitched roofs by grapple
-- stairs: Alumni Steps (-70, 12) -> (-76, 33), brick steps (-86.6, 27.7) -> (-92, 28.6) to the terrace, the Bridge: all walked both ways with `__walk` (dev/marin.html?campus=branson)
+- stairs: the Alumni Steps = the red-brick flight (-86.6, 27.7) -> (-92, 28.6) from the lawn path to the terrace (the first build's grey flight at (-70, 12) was in no tiles view and is removed); the Bridge: walked both ways with `__walk` (dev/marin.html?campus=branson)
 
 ## Campus map tick list (branson.org/about/campus-map)
 1 Branson Gate: built (piers, wing walls, name) | 2 Crossways: house 975107315, board | 3 Blue Atlas Cedar: built | 4 Katharine
@@ -45,10 +45,6 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
 ## Known weak spots (for QA / a successor)
 - map check `seating` warns "lowOnly" for hillside houses 974153830, 975106084, 975108094, 975107317: natural ground 0.15-0.3 m
   above a wall's floor, the price of cut-only pads (no fill)
-- the old "Alumni Steps" flight at (-70, 12) is the first builder's placement; the tiles show the brick steps by the terrace
-  (now built) but no clear flight there. Kept because it is the only walk from the hall's lawn to the loop
-- Katharine Branson Hall roof vs tiles on a 4 m grid: mean |diff| ~0.9 m; the north block's ridge sits ~2 m east of the real one
-- the loop's asphalt is darker than the real pale paving; its south-west side merges with the gym drive
 - name boards stand at entrances; real sign positions unverified. New Oaks / Tallant naming inferred from the legend order
 - Fine Arts / New House keep their OSM positions (the Esri photo is sheared up to ~5 m there against the tiles)
 - the gym keeps the generic kit walls under brown siding; concrete pad blocks remain at two of its doors
