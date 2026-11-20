@@ -323,6 +323,9 @@ function vehicles(ctx) {
     }
     return true;
   };
+  // the walking lines of the graded streets (sidewalk centre lines, carried on through the junctions)
+  const walkPts = []; if (ctx.streets && ctx.streets.stations) for (const st of ctx.streets.stations) for (const p of st.pts) for (const q of [p.wL, p.wR]) if (q) walkPts.push(q[0], q[1]);
+  const walkLine = (x, z) => { for (let i = 0; i < walkPts.length; i += 2) if (Math.abs(walkPts[i] - x) < 1.9 && Math.abs(walkPts[i + 1] - z) < 1.9 && Math.hypot(walkPts[i] - x, walkPts[i + 1] - z) < 1.9) return true; return false; };
   const car = (x, z, heading) => {
     if (!inPlay(x, z)) return; if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
     if (ctx.terrain && [[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([dx, dz]) => ctx.terrain.slopeAt(x + dx, z + dz) > 0.10)) {   /* (anywhere under the car, not only at its centre) */ rnd(); rnd(); rnd(); placed.push([x, z]); return; }
@@ -332,7 +335,7 @@ function vehicles(ctx) {
     if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.5)) return;
     for (const r of ctx.buildingRings || []) if (pointInRing(x, z, r)) return;
     // (no bumper over a sidewalk: a car parked in a lot beside a street stood half across the walk)
-    if (ctx.streets) { const c = Math.cos(heading), s = Math.sin(heading); if ([[2.5, 1.0], [2.5, -1.0], [-2.5, 1.0], [-2.5, -1.0], [2.5, 0], [-2.5, 0]].some(([l, w]) => { const q = ctx.streets.design(x + l * c + w * s, z - l * s + w * c); return q && q.zone === 'walk'; })) { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }
+    if (ctx.streets) { const c = Math.cos(heading), s = Math.sin(heading); if ([[2.5, 1.0], [2.5, -1.0], [-2.5, 1.0], [-2.5, -1.0], [2.5, 0], [-2.5, 0]].some(([l, w]) => { const q = ctx.streets.design(x + l * c + w * s, z - l * s + w * c); return q && q.zone === 'walk'; }) || walkLine(x, z)) { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }   /* (nor across the line a walk takes through a junction mouth) */
     // (trunks: up to ~0.45 m radius plus 0.6 m of room; other cars: a lane car must not clip a kerb-parked one)
     if (buses.some(([bx, bz, bh]) => overlaps(x, z, heading, bx - 0.15 * Math.cos(bh), bz + 0.15 * Math.sin(bh), bh, 6.1, 1.6)) || trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 4.2 && overlaps(x, z, heading, t[0], t[1], 0, 1.05, 1.05))
       || parked.some(([px, pz, ph]) => Math.hypot(px - x, pz - z) < 5.4 && overlaps(x, z, heading, px, pz, ph, 2.45, 1.0))) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }
@@ -428,8 +431,10 @@ function streets(ctx) {
       let d = carry;
       for (; d < L; d += 27) {
         const lo = r.tags.name === 'Mission Avenue' ? 0.35 : 0.4;   /* (lamps stand at the kerb edge: 0.75 m in, one stood in the walking line of the E St walk) */
-        const x = a[0] + tx * d - tz * side * (w / 2 + lo), z = a[1] + tz * d + tx * side * (w / 2 + lo); side = -side;
-        if (ctx.streets && ctx.streets.inRoad(x, z, lo < 0.5 ? 0.15 : 0.4)) continue;   /* (a fork or a crossing street: never a lamp on a carriageway) */
+        let x = a[0] + tx * d - tz * side * (w / 2 + lo), z = a[1] + tz * d + tx * side * (w / 2 + lo); side = -side;
+        if (ctx.streets && ctx.streets.inRoad(x, z, lo < 0.5 ? 0.15 : 0.4)) continue;
+        // (nothing solid on a sidewalk, lamp posts included: where the street has a walk the lamp stands behind it; none in the hedge along the pitch)
+        if (ctx.streets) { const q = ctx.streets.design(x, z); if (q && q.zone === 'walk') { const v = ctx.streets.toVerge(x, z, 3.2); if (!v || pointInRing(v[0], v[1], turfWorld(9))) continue; const q2 = ctx.streets.design(v[0], v[1]); if (q2 && (q2.zone === 'walk' || q2.zone === 'road')) continue; x = v[0]; z = v[1]; } }   /* (a fork or a crossing street: never a lamp on a carriageway) */
         if (!inPlay(x, z) || !clearOfBuildings(x, z) || lamps.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 14)) continue;
         if (z < -60 && hw === 'residential' && rnd() < 0.5) continue;      // the hillside lanes are sparsely lit
         atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min'); lamps.push([x, z]);
@@ -440,7 +445,7 @@ function streets(ctx) {
   // signal masts at the OSM traffic signals (Mission / 5th / 4th crossings)
   for (const p of data.points) {
     if (p.tags.highway !== 'traffic_signals') continue; const [x, z] = p.p; if (!inPlay(x, z, 6)) continue;
-    let px = x + 6.2, pz = z + 6.6; if (ctx.streets) { const q = ctx.streets.design(px, pz); if (q && (q.zone === 'walk' || q.zone === 'road')) { const v = ctx.streets.toVerge(px, pz, 3.4); if (!v) continue; px = v[0]; pz = v[1]; } }   /* (the mast stands behind the walk) */ if (!clearOfBuildings(px, pz)) continue;
+    let px = x + 6.2, pz = z + 6.6; if (ctx.streets) { const q = ctx.streets.design(px, pz); if (q && (q.zone === 'walk' || q.zone === 'road')) { const v = ctx.streets.toVerge(px, pz, 3.4); if (!v) continue; px = v[0]; pz = v[1]; const q2 = ctx.streets.design(px, pz); if (q2 && (q2.zone === 'walk' || q2.zone === 'road')) continue; } }   /* (the mast stands behind the walk) */ if (!clearOfBuildings(px, pz)) continue;
     atGround(ctx, px, pz, () => {
     B.v('galv').cyl(px, 0, pz, 0.14, 0.1, 6.2, 8, 1, true).tube([px, 5.9, pz], [px - 6.5, 6.1, pz - 0.8], 0.07, 6); B.c('metal').box(px, 3.1, pz, 0.35, 6.2, 0.35); ctx.grapplePoles.push({ x: px, z: pz, y0: 1, y1: 6.2, r: 0.14 });
     const pt = B.v('paint', true); pt.setColor(0.85, 0.7, 0.05); for (const k of [2.6, 5.4]) { pt.box(px - k, 5.55, pz - k * 0.123, 0.36, 1.0, 0.3, 0.12); B.v('lightEmit').box(px - k, 5.85, pz - k * 0.123 + 0.16, 0.2, 0.2, 0.02, 0.12); } pt.setColor(1, 1, 1);

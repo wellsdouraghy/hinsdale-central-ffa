@@ -702,7 +702,7 @@ async function checkRoads() {
 // than its neighbours on two sides at most). Ground hidden under a solid (a stair mass, a retaining block, a roof) is skipped.
 async function checkMounds() {
   if (!world.terrain || !world.surfaceAt) { finishCheck('mounds', { status: 'skip', note: 'flat campus (no terrain)' }); return; }
-  const fails = []; let n = 0, worst = 0; const hits = [];
+  const fails = [], warns = []; let n = 0, worst = 0; const hits = [];
   for (let z = PB.minZ + 4; z <= PB.maxZ - 4; z += 1) for (let x = PB.minX + 4; x <= PB.maxX - 4; x += 1) {
     const sf = world.surfaceAt(x, z); if (sf !== 'asphalt' && sf !== 'concrete') continue; n++;
     const g = GY(x, z); const e = Math.min(g - GY(x + 3, z), g - GY(x - 3, z), g - GY(x, z + 3), g - GY(x, z - 3)); if (e <= 0.15) continue;
@@ -713,9 +713,12 @@ async function checkMounds() {
   const used = new Uint8Array(hits.length);
   for (let i = 0; i < hits.length; i++) { if (used[i]) continue; const cl = [i]; used[i] = 1; for (let h = 0; h < cl.length; h++) for (let j = 0; j < hits.length; j++) if (!used[j] && Math.hypot(hits[j][0] - hits[cl[h]][0], hits[j][1] - hits[cl[h]][1]) <= 3) { used[j] = 1; cl.push(j); }
     let pk = cl[0]; for (const k of cl) if (hits[k][3] > hits[pk][3]) pk = k; const [x, z, g, e] = hits[pk];
-    fails.push({ at: [r1(x), r2(g), r1(z)], aboveNeighboursM: r2(e), points: cl.length, surface: world.surfaceAt(x, z), note: 'mound on paving: flatten it (a pad or a wall strip left a hump)' }); marks.push({ kind: 'vis', x0: x - 1.5, z0: z - 1.5, x1: x + 1.5, z1: z + 1.5 }); }
-  const res = { status: status(fails.length, 0), what: 'Mound on paving: a point on asphalt / concrete (1 m grid over the play area) more than 0.15 m above the ground 3 m away along all four axes fails; ground under a solid is skipped. Terrain campuses only.',
-    counts: { pavedSamples: n, mounds: fails.length, worstM: r2(worst) }, failures: fails.slice(0, 60), warnings: [] };
+    // (one grid point within 5 cm of the limit is a warning: at 1 m spacing that is the noise of the 2 m lattice at a pad edge)
+    const rec = { at: [r1(x), r2(g), r1(z)], aboveNeighboursM: r2(e), points: cl.length, surface: world.surfaceAt(x, z), note: 'mound on paving: flatten it (a pad or a wall strip left a hump)' };
+    if (cl.length === 1 && e <= 0.2) { warns.push(rec); continue; }
+    fails.push(rec); marks.push({ kind: 'vis', x0: x - 1.5, z0: z - 1.5, x1: x + 1.5, z1: z + 1.5 }); }
+  const res = { status: status(fails.length, warns.length), what: 'Mound on paving: a point on asphalt / concrete (1 m grid over the play area) more than 0.15 m above the ground 3 m away along all four axes fails (a single grid point of at most 0.2 m warns); ground under a solid is skipped. Terrain campuses only.',
+    counts: { pavedSamples: n, mounds: fails.length, warning: warns.length, worstM: r2(worst) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`mounds: ${res.status} ${fails.length} mounds on paving`); finishCheck('mounds', res);
 }
 async function checkRetaining() {
