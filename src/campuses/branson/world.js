@@ -71,9 +71,9 @@ function sitework(ctx) {
   // ---- Ross Creek at the Bridge (campus map item 12; OSM cycleway 1286714176 from the end of Park Drive to the quad path).
   // The lidar has the channel on both sides; the street's end pad and shoulder had filled it. Re-cut it under the bridge
   // (bed -2.7, 3 m wide, banks rising to the abutments) and level the two bridgeheads.
-  { const B0 = BRIDGE; const ca = Math.cos(B0.creekAng), sa = Math.sin(B0.creekAng);
+  { const B0 = BRIDGE; const ca = Math.cos(B0.creekAng), sa = Math.sin(B0.creekAng); B0.y = T.heightAt(B0.a[0] + 0.6, B0.a[1] - 0.6) + 0.01;   // the deck takes the level of the street's designed end, whatever the grading made it
     ctx.flatten({ rect: { cx: B0.mid[0], cz: B0.mid[1], w: 18, d: B0.span + 1.0, angle: B0.creekAng } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const dx = x - B0.mid[0], dz = z - B0.mid[1]; const across = Math.abs(-dx * sa + dz * ca), al = Math.abs(dx * ca + dz * sa); const prof = -2.7 + Math.max(0, across - 1.5) * 1.9 + Math.max(0, al - 6) * 0.6; return Math.min(h, Math.max(prof, -2.7)); } });
-    ctx.flatten({ circle: { x: B0.b[0], z: B0.b[1], r: 1.6 } }, { y: B0.y, blend: 2.2 }); }   // only the quad-side bridgehead: the road end keeps its street design
+    ctx.flatten({ circle: { x: B0.b[0], z: B0.b[1], r: 1.6 } }, { y: B0.y, blend: 3.0 }); }   // only the quad-side bridgehead: the road end keeps its street design
   // ---- 6 + 7. everything respects the designed section: surface classes painted from it, trees off the carriageways
   if (streets) {
     const turf = zoneShapes[0], courts = shapeSDF({ outline: tennisRing(0) }).sd;
