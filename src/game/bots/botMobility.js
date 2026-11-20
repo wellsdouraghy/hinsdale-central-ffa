@@ -205,7 +205,7 @@ export class BotMobility {
 
     // Already on a roof (grappled, mantled or climbed up): perch for a moment, then come down.
     if (this.state === 'idle' && this.elevated()) {
-      if (Math.random() < 0.6 && !carrying) this._startPerch(t, rand(2, 5));
+      if (Math.random() < 0.6 && !carrying && b.role !== 'escort') this._startPerch(t, rand(2, 5));   // escorts stay with their player
       else this._startDescend(t);
     }
     if (this.state === 'perch') this._thinkPerch(t);
@@ -279,7 +279,7 @@ export class BotMobility {
     }
 
     // Vantage: grab a roof edge overlooking where the fight is (snipers and Grapplers mostly).
-    if (!b.visible && onGround && !carrying && roll(0.1 * bi.vantage)) {
+    if (!b.visible && onGround && !carrying && b.role !== 'escort' && !b.crate && !(b.role === 'attack' && b.auth.ctf && b.mgr.orderOf(p.team).o === 'attack') && roll(0.1 * bi.vantage)) {
       const focus = this._focus(t);
       const fd = new THREE.Vector3().subVectors(focus, c.position).setY(0);
       const fl = fd.length() || 1;

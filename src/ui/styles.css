@@ -792,3 +792,15 @@ body[data-campus="marin"] .logo-tags span.hot { background: #00bbdc; border-colo
 .pause-more[open] > summary::before { transform: rotate(90deg); }
 .pause-more .controls-list { margin-top: 8px; }
 .pause-hint { margin: 2px 0 0; text-align: center; font-size: 11px; color: var(--muted); }
+
+/* ---------- bot team orders ---------- */
+#order-tag { position: absolute; left: 50%; top: 78px; transform: translateX(-50%); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; padding: 2px 9px; border-radius: 4px; background: rgba(10,12,15,0.7); color: #d8dde3; white-space: nowrap; pointer-events: none; }
+#order-tag b { color: #ffd27a; font-weight: 800; }
+#order-tag kbd { font-size: 10px; padding: 0 4px; margin-left: 6px; }
+#order-menu { position: absolute; left: 50%; top: 108px; transform: translateX(-50%); z-index: 30; min-width: 300px; padding: 10px 12px; border-radius: 8px; background: rgba(10,12,15,0.9); border: 1px solid var(--line-strong); pointer-events: none; }
+#order-menu .om-head { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #ffd27a; margin-bottom: 6px; }
+#order-menu .om-row { display: grid; grid-template-columns: 26px 92px 1fr; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 4px; font-size: 13px; font-weight: 700; }
+#order-menu .om-row em { font-style: normal; font-weight: 500; font-size: 11px; color: #9aa3ad; }
+#order-menu .om-row.on { background: rgba(255,210,122,0.16); }
+#order-menu .om-row.on span { color: #ffd27a; }
+#order-menu .om-foot { margin-top: 6px; font-size: 10px; color: #8a929b; letter-spacing: .08em; text-transform: uppercase; }

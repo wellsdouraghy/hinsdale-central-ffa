@@ -1,15 +1,31 @@
 // Capture the Flag: shared constants/helpers + host-side flag rules (used by Authority).
 import * as THREE from 'three';
 import { onCampusChange } from '../campuses/index.js';
+import { SPAWN_MAX_GRADE } from '../world/terrain.js';
 
 export const CTF = {
   capLimit: 3,
   timeLimit: 720,      // 12 minutes
   overtime: 180,       // sudden death after a tie; still tied after this -> draw
-  respawnDelay: 5,
+  respawnDelay: 8,      // longer than FFA / TDM (3 s): a flag grab gets a real window before defenders are back
   touch: 2.5,          // pickup / return radius (m)
   capRadius: 3,        // capture radius around own base (m)
   autoReturn: 20,      // dropped flag returns home after this many seconds
+};
+
+/**
+ * CTF respawn balance (host side, humans and bots alike). Team spawns sit in a zone set BACK from the team's own flag:
+ * rMin-rMax m from the flag stand, behind or beside it (never on the enemy-facing side), on gentle open ground, and out
+ * of close sight of the flag stand, so defenders have to run back and an attacker who grabs the flag gets a window.
+ * Derived per campus from the nav grid (terrain-aware); falls back to the old ring when nothing qualifies.
+ */
+export const CTF_SPAWN = {
+  rMin: 40, rMax: 80,       // distance band from the own flag stand (m)
+  front: 0.35,              // max cos(angle) between "flag -> spawn" and "flag -> enemy flag" (0.35 = ~70 deg: behind / beside)
+  flagSight: 60,            // no clear line of sight to the flag stand from closer than this (m)
+  count: 12,                // spawn spots kept per team (farthest-point sampled, spread out)
+  enemyNear: 25,            // never spawn within this of a living enemy if any alternative exists (m)
+  enemySight: 60,           // ... nor in an enemy's line of sight within this (m)
 };
 
 export const TEAMS = ['red', 'blue'];
@@ -66,15 +82,106 @@ function ringSpawns(world, base) {
   return out;
 }
 
-/** Spawn candidates for a team: world.ctfSpawns, else open ground around the base, else the nearest spawnPoints. */
-export function ctfSpawnList(world, team) {
-  const list = world.ctfSpawns?.[team];
-  if (list && list.length) return list;
+/**
+ * The CTF_SPAWN zone for a team from the nav grid (walkable ground cells): returns up to `count` spread-out spots, or
+ * fewer when the campus has little room (constraints relax one at a time: flag sight, then the front cone).
+ */
+function zoneSpawns(world, team) {
+  const g = world.navGrid;
+  if (!g || !g.walk || !world.collisionMeshes) return [];
+  const bases = ctfBases(world);
+  const base = bases[team], enemy = bases[otherTeam(team)];
+  const ex = enemy.x - base.x, ez = enemy.z - base.z, el = Math.hypot(ex, ez) || 1;
+  const T = world.terrain;
+  const standY = (x, z) => (T?.standY ? T.standY(x, z) : world.groundY ? world.groundY(x, z) : 0);
+  const b = world.playBounds;
+  const S = CTF_SPAWN;
+  const walk = (i, j) => i >= 0 && j >= 0 && i < g.nx && j < g.nz && g.walk[j * g.nx + i] === 1;
+  // Candidates: walkable cells in the band with walkable neighbours (elbow room), gentle slope, inside the bounds.
+  const cands = [];
+  for (let j = 1; j < g.nz - 1; j++) for (let i = 1; i < g.nx - 1; i++) {
+    if (!walk(i, j)) continue;
+    const x = g.x0 + (i + 0.5) * g.cell, z = g.z0 + (j + 0.5) * g.cell;
+    const dx = x - base.x, dz = z - base.z, d = Math.hypot(dx, dz);
+    if (d < S.rMin || d > S.rMax) continue;
+    if (b && (x < b.minX + 4 || x > b.maxX - 4 || z < b.minZ + 4 || z > b.maxZ - 4)) continue;
+    let ok = true;
+    for (let bb = -1; bb <= 1 && ok; bb++) for (let a = -1; a <= 1; a++) if (!walk(i + a, j + bb)) { ok = false; break; }
+    if (!ok) continue;
+    if (T?.slopeAt && T.slopeAt(x, z) > SPAWN_MAX_GRADE) continue;
+    cands.push({ x, z, d, cos: (dx * ex + dz * ez) / (d * el) });
+  }
+  if (!cands.length) return [];
+  const down = new THREE.Vector3(0, -1, 0), o = new THREE.Vector3(), dir = new THREE.Vector3();
+  const flagEye = new THREE.Vector3(base.x, base.y + 1.5, base.z);
+  const cast = (from, to) => {
+    dir.subVectors(to, from); const len = dir.length();
+    _ray.set(from, dir.normalize()); _ray.far = len - 0.3;
+    return _ray.intersectObjects(world.collisionMeshes, false).length > 0;
+  };
+  const okGround = (c) => {
+    // Open ground (a downward ray lands near the ground, not on a roof / tree) and no wall within 1.2 m.
+    const gy = standY(c.x, c.z);
+    _ray.set(o.set(c.x, gy + 40, c.z), down); _ray.far = 60;
+    const hit = _ray.intersectObjects(world.collisionMeshes, false)[0];
+    if (!hit || Math.abs(hit.point.y - gy) > 0.5) return false;
+    for (let k = 0; k < 4; k++) {
+      _ray.set(o.set(c.x, gy + 1.2, c.z), dir.set(Math.cos(k * Math.PI / 2), 0, Math.sin(k * Math.PI / 2))); _ray.far = 1.2;
+      if (_ray.intersectObjects(world.collisionMeshes, false).length) return false;
+    }
+    c.y = gy;
+    return true;
+  };
+  const sees = (c) => c.d < S.flagSight && !cast(flagEye, new THREE.Vector3(c.x, c.y + 1.6, c.z));
+  // Thin the candidates (every other one) before raycasting: plenty for 12 spread-out spots.
+  const pool = cands.filter((c, k) => k % 2 === 0 && okGround(c));
+  const tiers = [
+    pool.filter((c) => c.cos <= S.front && !sees(c)),
+    pool.filter((c) => c.cos <= S.front),
+    pool.filter((c) => c.cos <= 0.7),
+  ];
+  const pick = tiers.find((t) => t.length >= 4) || [];
+  // Farthest-point sampling, starting from the spot straight behind the flag.
+  const out = [];
+  if (!pick.length) return out;
+  const dist = new Float32Array(pick.length).fill(Infinity);
+  let cur = 0;
+  pick.forEach((c, k) => { if (c.cos < pick[cur].cos) cur = k; });
+  while (out.length < S.count) {
+    const c = pick[cur];
+    out.push(new THREE.Vector3(c.x, c.y, c.z));
+    let bi = -1, bd = 2;   // stop when the next one would be within 2 m of a kept one
+    for (let k = 0; k < pick.length; k++) {
+      const dd = Math.min(dist[k], Math.hypot(pick[k].x - c.x, pick[k].z - c.z));
+      dist[k] = dd;
+      if (dd > bd) { bd = dd; bi = k; }
+    }
+    if (bi < 0) break;
+    cur = bi;
+  }
+  return out;
+}
+
+/** Spawn candidates for a team: the CTF_SPAWN zone, else world.ctfSpawns, else open ground around the base, else
+ *  the nearest spawnPoints. Cached per world. */
+export function ctfSpawnList(world, team, legacy = false) {
   let cache = spawnCache.get(world);
   if (!cache) { cache = {}; spawnCache.set(world, cache); }
+  if (legacy) {
+    // TDM opening spawns: the old team areas round the base (world.ctfSpawns / ring), unchanged.
+    if (world.ctfSpawns?.[team]?.length) return world.ctfSpawns[team];
+    const key = 'legacy-' + team;
+    if (!cache[key]) { const ring = ringSpawns(world, ctfBases(world)[team]); cache[key] = ring.length >= 4 ? ring : nearestSpawns(world, team); }
+    return cache[key];
+  }
   if (!cache[team]) {
-    const ring = ringSpawns(world, ctfBases(world)[team]);
-    cache[team] = ring.length >= 4 ? ring : nearestSpawns(world, team);
+    const zone = zoneSpawns(world, team);
+    if (zone.length >= 4) cache[team] = zone;
+    else if (world.ctfSpawns?.[team]?.length) cache[team] = world.ctfSpawns[team];
+    else {
+      const ring = ringSpawns(world, ctfBases(world)[team]);
+      cache[team] = ring.length >= 4 ? ring : nearestSpawns(world, team);
+    }
   }
   return cache[team];
 }
