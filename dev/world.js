@@ -132,3 +132,16 @@ window.__bench = (cams, n = 40) => {
   }
   return out;
 };
+
+// Dev helper for hidden panes (innerWidth can be 0 there): size the renderer, then __s(name, cam, fov) renders and posts a
+// JPEG to a local receiver (?recv=port, default 5199).
+window.__fit = (w = innerWidth || 1280, h = innerHeight || 800) => { renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); world.setSize(w, h); return [w, h]; };
+window.__s = async (name, cam, fov) => {
+  if (!renderer.domElement.width) window.__fit();
+  if (fov) { camera.fov = fov; camera.updateProjectionMatrix(); } setCam(cam);
+  for (let i = 0; i < 6; i++) { world.update(0.016, camera); world.render(null, null); await new Promise((r) => setTimeout(r, 30)); }
+  world.update(0.016, camera); world.render(null, null);
+  const blob = await new Promise((r) => renderer.domElement.toBlob(r, 'image/jpeg', 0.85));
+  await fetch('http://127.0.0.1:' + (qs.get('recv') || '5199') + '/' + name, { method: 'POST', body: blob });
+  return name + ' ' + blob.size;
+};

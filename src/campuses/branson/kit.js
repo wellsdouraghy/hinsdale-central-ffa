@@ -1,7 +1,8 @@
 // Branson helpers on top of the Marin kit (src/campuses/marin/kit.js: seating, retaining blocks, hedges, hill fences):
 // the campus's own geometry constants, facade styles and a few builders (retaining run, hedge run, graded steps).
-import { STYLES } from '../../world/facade.js';
+import { STYLES, quadFacing as qf } from '../../world/facade.js';
 import { ensureCCW, hedgeMass, terraceBlocks, hillFence, guardRail, quadFacing, pointInRing } from '../marin/kit.js';
+void qf;
 
 const RAD = Math.PI / 180;
 /** Oriented rectangle: centre, w along the bearing `deg` (atan2(z, x)), d across. */
@@ -9,8 +10,9 @@ export const obb = (cx, cz, w, d, deg) => { const c = Math.cos(deg * RAD), s = M
 /** Point in a rotated frame: `a` along the bearing, `b` across (to the right of it seen from above, i.e. +z for bearing 0). */
 export const along = (o, a, b) => { const c = Math.cos(o.ang * RAD), s = Math.sin(o.ang * RAD); return [o.cx + a * c - b * s, o.cz + a * s + b * c]; };
 
-// Tom Ryan Field: painted lines 94.3 x 52.9 m (103 x 58 yd), bearing -4.26 deg; the turf carpet runs 2.5 m past them (the car-park loop comes that close at the north-west corner)
-export const FIELD = { cx: -35.9, cz: 95.1, ang: -4.26, L: 94.3, W: 52.9, turfL: 99.3, turfW: 57.9 };
+// Tom Ryan Field: painted lines 94.6 x 51.2 m, bearing -8.94 deg (corners from a nadir 3D-tiles view: tools/data/extra.py);
+// the turf carpet runs 2.5 m past the goal lines and 2 m past the touchlines
+export const FIELD = { cx: -33.2, cz: 92.3, ang: -8.94, L: 94.6, W: 51.2, turfL: 99.6, turfW: 55.2 };
 export const fieldRing = (d = 0) => obb(FIELD.cx, FIELD.cz, FIELD.turfL + 2 * d, FIELD.turfW + 2 * d, FIELD.ang);
 // the two tennis courts north of the Commons (one slab, courts side by side)
 export const TENNIS = { cx: -96.7, cz: -27.2, ang: 32.2, w: 36.6, d: 33.5 };
@@ -76,9 +78,29 @@ export function retainRun(ctx, pts, inside, opts = {}) {
  * building footprints and the keep-clear circles; a piece without a neighbour is dropped. opts: h, d, gaps [[d0, d1]]
  * along the line, seed, oneRow.
  */
+/**
+ * One piece of a continuous clipped hedge WALL (rule F28): a box section with a chamfered top whose base and top follow
+ * the ground at its two ends, so neighbouring pieces (which share end points) join without steps or gaps. Solid as drawn.
+ */
+export function hedgeWall(ctx, mx, mz, w, d, h, rot, seed = 1) {
+  const { B } = ctx; const tx = Math.cos(rot), tz = -Math.sin(rot), nx = -tz, nz = tx; const e = [[mx - tx * w / 2, mz - tz * w / 2], [mx + tx * w / 2, mz + tz * w / 2]];
+  const g = e.map((p) => Math.min(ctx.groundY(p[0], p[1]), ctx.groundY(p[0] + nx * d / 2, p[1] + nz * d / 2), ctx.groundY(p[0] - nx * d / 2, p[1] - nz * d / 2)));
+  const gm = e.map((p) => Math.max(ctx.groundY(p[0], p[1]), ctx.groundY(p[0] + nx * d / 2, p[1] + nz * d / 2), ctx.groundY(p[0] - nx * d / 2, p[1] - nz * d / 2)));
+  const oy = B.off ? B.off.y : 0; const bk = B.v('maHedge', true); const v = 0.82 + ((seed * 37) % 10) * 0.012; bk.setColor(0.74 * v, 0.92 * v, 0.66 * v);
+  const P = (k, o, y) => [e[k][0] + nx * o, y - oy, e[k][1] + nz * o]; const top = (k) => gm[k] + h, sh = (k) => gm[k] + h - 0.35, bot = (k) => g[k] - 0.3; const S = 0.5, hd = d / 2, td = d / 2 - 0.3;
+  const q = (p0, p1, p2, p3, n, u0, u1, v0, v1) => quadFacing(bk, p0, p1, p2, p3, n, [[u0 * S, v0 * S], [u1 * S, v0 * S], [u1 * S, v1 * S], [u0 * S, v1 * S]]);
+  const u0 = (mx * tx + mz * tz) - w / 2, u1 = u0 + w;
+  for (const sd of [-1, 1]) { q(P(0, sd * hd, bot(0)), P(1, sd * hd, bot(1)), P(1, sd * hd, sh(1)), P(0, sd * hd, sh(0)), [sd * nx, 0, sd * nz], u0, u1, 0, h); q(P(0, sd * hd, sh(0)), P(1, sd * hd, sh(1)), P(1, sd * td, top(1)), P(0, sd * td, top(0)), [sd * nx, 0.7, sd * nz], u0, u1, h, h + 0.45); }
+  q(P(0, -td, top(0)), P(1, -td, top(1)), P(1, td, top(1)), P(0, td, top(0)), [0, 1, 0], u0, u1, 0, d);
+  for (const k of [0, 1]) { const n = [k ? tx : -tx, 0, k ? tz : -tz]; q(P(k, -hd, bot(k)), P(k, hd, bot(k)), P(k, hd, sh(k)), P(k, -hd, sh(k)), n, 0, d, 0, h); q(P(k, -hd, sh(k)), P(k, hd, sh(k)), P(k, td, top(k)), P(k, -td, top(k)), n, 0, d, h, h + 0.4); }
+  bk.setColor(1, 1, 1);
+  const yb = Math.min(bot(0), bot(1)), yt = Math.min(top(0), top(1)); B.c('wood').box(mx, (yb + yt) / 2 - oy, mz, w, yt - yb, d, rot);
+  if (ctx.shrubs && false) ctx.shrubs.push([mx, yt, mz]);
+}
+
 export function hedgeRun(ctx, pts, opts = {}) {
   const h = opts.h || 2.7, dp = opts.d || 1.5, clear = opts.clear ?? 0.5, step = 4.7; const S = ctx.streets; const pb = ctx.playBounds; let dist = 0; const cand = [];
-  const half = opts.oneRow ? dp / 2 : 0.24 * dp + 0.22 + Math.min(1.2, Math.max(0.35, 0.55 * dp)) + 0.05;   // half depth as DRAWN (MAP_NOTES: a solid mass is as deep as it is drawn)
+  const half = dp / 2;   // half depth as DRAWN (a solid mass is as deep as it is drawn)
   const bad = (x, z) => (S && S.inRoad(x, z, clear)) || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r)) || (ctx.keepClear || []).some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r) || (opts.inBounds && (x < pb.minX - 3 || x > pb.maxX + 3 || z < pb.minZ - 3 || z > pb.maxZ + 3));
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1.5) { dist += L; continue; } const n = Math.max(1, Math.round(L / step)); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const w = L / n;
@@ -93,7 +115,7 @@ export function hedgeRun(ctx, pts, opts = {}) {
   }
   let nBuilt = 0;
   cand.forEach((c, j) => { const nb = (o) => o && Math.abs(o.key - c.key) === 1 || (o && Math.hypot(o.mx - c.mx, o.mz - c.mz) < step * 1.4); if (!nb(cand[j - 1]) && !nb(cand[j + 1])) return;
-    hedgeMass(ctx, c.mx, c.mz, c.y - 0.15, c.w + 0.06, dp, h + (c.yMax - c.y) + ((Math.abs(Math.round(c.mx * 3 + c.mz)) % 5) * 0.08), c.rot, (opts.seed || 0) + j, { oneRow: !!opts.oneRow }); nBuilt++; });
+    hedgeWall(ctx, c.mx, c.mz, c.w, dp, h, c.rot, (opts.seed || 0) + j); nBuilt++; });
   return nBuilt;
 }
 

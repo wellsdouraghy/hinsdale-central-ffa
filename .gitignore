@@ -11,3 +11,4 @@ dev/shots/*/streetview-compare/
 src/campuses/*/tools/data/dem/
 # Street View side-by-side comparison sheets (contain Google imagery: local review only)
 dev/shots/*/streetview-compare/
+__pycache__/

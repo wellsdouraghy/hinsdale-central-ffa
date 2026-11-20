@@ -27,7 +27,7 @@ export default {
     surfaceClasses: 'campuses/branson/surface_classes.png',
   },
   sat: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 },
-  playBounds: { minX: -215, maxX: 82, minZ: -100, maxZ: 172 },   // (south edge: the back wall of the quad; the wooded hill above it stays out of play)
+  playBounds: { minX: -215, maxX: 82, minZ: -100, maxZ: 184 },   // (south edge: behind Tallant Science Center and across the toe of the wooded hill south of Ross Creek)
   // Real ground heights (CAMPUSES.md "Terrain"): USGS 3DEP lidar DEM baked by tools/terrain.py, centimetres above Tom Ryan
   // Field (y = 0), 2 m grid over the satellite rectangle; its outer 40 m are blended into the 20 m backdrop grid
   // (gen.terrain), which also answers beyond the rectangle. Pads are flattened by the builder (sitework in world.js).

@@ -2,7 +2,9 @@
 // cars in the three car parks, the hedges of Fernhill Ave, the Branson Gate, lamps, the dining terrace, the Alumni
 // Steps, bridge rails over Ross Creek and the play-area edge.
 import { atGround, onSlope, hillFence, guardRail, wallDecal, edgeFrame, pointInRing, makeCanvas, mulberry32 } from '../marin/kit.js';
+import * as THREE from 'three';
 import { paintedQuad } from '../../world/fields.js';
+import { nameBoard } from './extras.js';
 import { lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
 import { FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
@@ -12,6 +14,13 @@ const RAD = Math.PI / 180;
 export const ALUMNI_STEPS = [{ a: [-70, 12], b: [-76, 33], w: 2.4 }];
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
 export const CAR_FREE = [[-112, 30]];
+// The Bridge over Ross Creek (campus map item 12): from the end of Park Drive (a) to the quad path (b); deck level y
+export const BRIDGE = { a: [-141.6, 89.6], b: [-147.4, 95.4], y: 1.3, w: 3.2 };
+BRIDGE.mid = [(BRIDGE.a[0] + BRIDGE.b[0]) / 2, (BRIDGE.a[1] + BRIDGE.b[1]) / 2]; BRIDGE.span = Math.hypot(BRIDGE.b[0] - BRIDGE.a[0], BRIDGE.b[1] - BRIDGE.a[1]);
+BRIDGE.creekAng = Math.atan2(BRIDGE.b[1] - BRIDGE.a[1], BRIDGE.b[0] - BRIDGE.a[0]) - Math.PI / 2;   // the creek runs square to the bridge here (OSM waterway 1286786146)
+/** Distance to Ross Creek's centre line (OSM waterway) as a function (x, z) -> metres. */
+export function creekSDF(ctx) { const segs = []; for (const r of ctx.data.roads) { if (r.tags.name !== 'Ross Creek') continue; for (let i = 0; i < r.line.length - 1; i++) segs.push([r.line[i], r.line[i + 1]]); }
+  return (x, z) => { let m = 1e9; for (const [a, b] of segs) { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); m = Math.min(m, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return m; }; }
 const gY = (ctx, x, z) => (ctx.groundY ? ctx.groundY(x, z) : 0);
 const TURF_GREEN = '#3a7a3e';
 
@@ -109,14 +118,30 @@ function vehicles(ctx) {
     const tpl = r1 < 0.45 ? tpls[0] : r1 < 0.8 ? tpls[1] : tpls[2]; const col = propKit.CAR_COLORS[Math.floor(r2 * propKit.CAR_COLORS.length)];
     onSlope(ctx, x, z, 2.0, () => propKit.placeCar(ctx, tpl, x, z, heading + (r3 - 0.5) * 0.05, col)); placed.push([x, z]); n++;
   };
+  // painted line on the ground between two points (0.1 m wide), following the surface
+  const pt = ctx.B.v('paint', true); const gline = (x0, z0, x1, z1, w = 0.1, col = [0.82, 0.82, 0.8]) => { const L = Math.hypot(x1 - x0, z1 - z0); const n = Math.max(1, Math.ceil(L / 1.6)); const tx = (x1 - x0) / L, tz = (z1 - z0) / L, nx = -tz * w / 2, nz = tx * w / 2; pt.setColor(...col);
+    for (let k = 0; k < n; k++) { const ax = x0 + tx * L * k / n, az = z0 + tz * L * k / n, bx = x0 + tx * L * (k + 1) / n, bz = z0 + tz * L * (k + 1) / n; const y = (x, z) => gY(ctx, x, z) + 0.03; pt.quad([ax + nx, y(ax + nx, az + nz), az + nz], [bx + nx, y(bx + nx, bz + nz), bz + nz], [bx - nx, y(bx - nx, bz - nz), bz - nz], [ax - nx, y(ax - nx, az - nz), az - nz]); pt.quad([ax - nx, y(ax - nx, az - nz), az - nz], [bx - nx, y(bx - nx, bz - nz), bz - nz], [bx + nx, y(bx + nx, bz + nz), bz + nz], [ax + nx, y(ax + nx, az + nz), az + nz]); }
+    pt.setColor(1, 1, 1); };
+  ctx.gline = gline;
+  // a row of 2.75 m stalls along a -> b (the cars' centre line), nose toward `side`; stall lines 5 m long on asphalt only
   const row = (a, b, side, fill) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const hd = Math.atan2(-(tx * side), -tz * side);   // nose along the row's normal
-    for (let d = 1.4; d < L - 1.3; d += 2.75) car(a[0] + tx * d, a[1] + tz * d, hd, fill); };
-  // faculty / staff parking along Fernhill Ave (numbered reserved stalls, nose to the bank on the south side, a second row on the street side)
-  row([-149.2, -29.9], [-107.2, -41.6], 1, 0.75); row([-150.6, -40.2], [-110.6, -51.4], -1, 0.6);
-  // visitor parking in front of Katharine Branson Hall
-  row([-11, -12.6], [12, -7.6], 1, 0.7); row([-20.5, -19.5], [-12, -13.2], 1, 0.6);
-  // student / staff loop round the rain garden: nose-out on the outer kerb of the south and east arcs, and on the island's south edge
-  { const cx = -89, cz = 49.5, ra = 18 + 4.6, rb = 12.5 + 4.6; let th = -20 * RAD; while (th < 200 * RAD) { const x = cx + ra * Math.cos(th), z = cz + rb * Math.sin(th); const nx = Math.cos(th) / ra, nz = Math.sin(th) / rb; car(x, z, Math.atan2(-nz, nx), 0.8); th += 2.8 / Math.hypot(ra * Math.sin(th), rb * Math.cos(th)); } }
+    const nS = Math.max(1, Math.floor(L / 2.75)), o = (L - nS * 2.75) / 2; let stalls = 0;
+    for (let k = 0; k <= nS; k++) { const x = a[0] + tx * (o + k * 2.75), z = a[1] + tz * (o + k * 2.75); const p0 = [x - tz * 2.45, z + tx * 2.45], p1 = [x + tz * 2.45, z - tx * 2.45]; if (ctx.surfaceAt(p0[0], p0[1]) === 'asphalt' && ctx.surfaceAt(p1[0], p1[1]) === 'asphalt' && ctx.surfaceAt(x, z) === 'asphalt' && !(S && S.inRoad(x, z, 0.2))) { gline(p0[0], p0[1], p1[0], p1[1]); stalls++; } }
+    for (let k = 0; k < nS; k++) car(a[0] + tx * (o + (k + 0.5) * 2.75), a[1] + tz * (o + (k + 0.5) * 2.75), hd, fill);
+    ctx.stallCount = (ctx.stallCount || 0) + Math.max(0, stalls - 1); };
+  // faculty / staff car park along Fernhill Ave: an aisle (OSM service way 570965048) with stalls on both sides
+  row([-149.2, -29.9], [-107.2, -41.6], 1, 0.85); row([-150.6, -40.2], [-110.6, -51.4], -1, 0.85);
+  row([-176.5, -15.3], [-150.5, -29.3], 1, 0.8); row([-181.5, -24.7], [-154.5, -39.2], -1, 0.8);
+  // the car park north of the tennis shed (nadir 3D tiles: a row nose-in on the north edge, one along the shed)
+  row([-79.5, -62.9], [-59.7, -66.4], -1, 0.9); row([-82.4, -53.0], [-73.1, -47.7], 1, 0.8);
+  // visitor parking in front of Katharine Branson Hall: the long row on the south kerb, the island side, the bay by the hall
+  row([-13, -10.5], [13, -3.6], 1, 0.9); row([-5, -19.8], [9, -18.6], -1, 0.75); row([-25.3, -28.5], [-17.8, -32], -1, 0.8);
+  // the gym service drive: along the gym's west wall and the bank north of it
+  row([-125.6, 84.0], [-122.9, 93.8], -1, 0.85); row([-119.6, 74.4], [-110.2, 66.8], -1, 0.8);
+  // student / staff loop round the rain garden: nose-out on the outer kerb of the south and east arcs
+  { const cx = -89, cz = 49.5, ra = 18 + 4.6, rb = 12.5 + 4.6; let th = -20 * RAD; while (th < 200 * RAD) { const x = cx + ra * Math.cos(th), z = cz + rb * Math.sin(th); const nx = Math.cos(th) / ra, nz = Math.sin(th) / rb; const nl = Math.hypot(nx, nz); const hd = Math.atan2(-nz, nx);
+      const d = 2.8 / Math.hypot(ra * Math.sin(th), rb * Math.cos(th)); const xe = cx + ra * Math.cos(th - d / 2), ze = cz + rb * Math.sin(th - d / 2); if (ctx.surfaceAt(xe, ze) === 'asphalt' && !(S && S.inRoad(xe, ze, 0.2))) { gline(xe - nx / nl * 2.4, ze - nz / nl * 2.4, xe + nx / nl * 2.4, ze + nz / nl * 2.4); ctx.stallCount = (ctx.stallCount || 0) + 1; }
+      car(x, z, hd, 0.9); th += d; } }
   ctx.carCount = n;
 }
 
@@ -136,10 +161,12 @@ function streetscape(ctx) {
     const drives = [[-176, -44, 4], [-140, -58, 3.5], [-93, -72, 3.5], [-55, -82, 3.5], [-22, -90, 3.5], [14, -100, 4], [31, -102, 4]];
     const cut = (pts, keep) => { const runs = []; let cur = []; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.ceil(L / 2.35)); for (let k = 0; k <= n; k++) { const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]; if (keep(p)) cur.push(p); else { if (cur.length > 1) runs.push(cur); cur = []; } } } if (cur.length > 1) runs.push(cur); return runs; };
     const clearOf = (p) => !drives.some(([x, z, r]) => Math.hypot(p[0] - x, p[1] - z) < r) && inPlay(p[0], p[1], -6);
-    for (const run of cut(offset(line, sideN * (w / 2 + 2.0)), clearOf)) hedgeRun(ctx, run, { h: 2.8, d: 1.5, seed: 11 });
+    for (const run of cut(offset(line, sideN * (w / 2 + 2.0)), clearOf)) hedgeRun(ctx, run, { h: 3.4, d: 1.5, seed: 11 });
     const southOk = (p) => clearOf(p) && ((p[0] > -99 && p[0] < -13) || (p[0] > 5 && p[0] < 76)) && inPlay(p[0], p[1], 1);
-    for (const run of cut(offset(line, -sideN * (w / 2 + 2.0)), southOk)) hedgeRun(ctx, run, { h: 3.0, d: 1.5, seed: 29 });
+    for (const run of cut(offset(line, -sideN * (w / 2 + 2.0)), southOk)) hedgeRun(ctx, run, { h: 3.6, d: 1.5, seed: 29 });
   }
+  // Fernhill Ave: a double yellow centre line (Street View), on the designed carriageway
+  if (fern && ctx.gline) { const L = fern.line.filter((p) => p[0] > pb.minX - 2 && p[0] < pb.maxX + 2 && p[1] > pb.minZ - 1); for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]); const nx = -(b[1] - a[1]) / d * 0.11, nz = (b[0] - a[0]) / d * 0.11; for (const sd of [-1, 1]) ctx.gline(a[0] + nx * sd, a[1] + nz * sd, b[0] + nx * sd, b[1] + nz * sd, 0.1, [0.78, 0.6, 0.08]); } }
   // The Branson Gate on Fernhill Ave: two cream piers with lanterns where Park Drive enters, low wing walls, the name on the east one
   const park = data.roads.find((r) => r.id === 12187517);
   if (park) {
@@ -165,16 +192,6 @@ function streetscape(ctx) {
     for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; let d = carry; for (; d < L; d += 24) { lamp(a[0] + tx * d - tz * side * (w / 2 + 1.1), a[1] + tz * d + tx * side * (w / 2 + 1.1)); side = -side; } carry = d - L; }
   }
   for (const [x, z] of [[-128, -30.5], [-110, -55], [-152, -46], [-2, -6], [-24, -30], [-118, 36], [-96, 30], [-150, 100], [-176, 142], [40, -30], [22, -6], [-66, 70], [-20, 62], [20, 64]]) lamp(x, z);
-  // Park Drive crosses Ross Creek on a culvert between the loop and the quad ("the Bridge"): timber-look rails where the
-  // carriageway stands more than 0.8 m above the creek bed beside it
-  if (S) for (const r of data.roads) {
-    if (r.tags.name !== 'Park Drive') continue; const w = streetWidth(r);
-    for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 2) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
-      for (const sd of [-1, 1]) { let run = null; const flush = () => { if (run && Math.hypot(run[2] - run[0], run[3] - run[1]) > 2.5) guardRail(ctx, run[0], run[1], run[2], run[3], run[4], 1.05); run = null; };
-        for (let d = 0; d <= L; d += 2) { const x = a[0] + tx * d, z = a[1] + tz * d; const ex = x - tz * sd * (w / 2 + 0.5), ez = z + tx * sd * (w / 2 + 0.5); const yR = gY(ctx, ex, ez); const low = Math.min(gY(ctx, x - tz * sd * (w / 2 + 3.2), z + tx * sd * (w / 2 + 3.2)), gY(ctx, x - tz * sd * (w / 2 + 4.6), z + tx * sd * (w / 2 + 4.6)));
-          if (yR - low > 0.9 && inPlay(ex, ez)) { if (!run) run = [ex, ez, ex, ez, yR]; else { run[2] = ex; run[3] = ez; run[4] = Math.max(run[4], yR); if (Math.abs(yR - run[4]) > 0.35) flush(); } } else flush(); }
-        flush(); } }
-  }
 }
 
 // ------------------------------------------------------------------------------------------ dining terrace, steps
@@ -223,12 +240,65 @@ function boundary(ctx) {
   }
 }
 
+// ------------------------------------------------------------------------------------------ the Bridge
+// A short timber-decked footbridge on concrete abutments with white rails (nadir 3D tiles: a pale deck ~3 m wide with
+// light rails under the trees, from the end of the service drive to the quad path)
+function bridge(ctx) {
+  const { B } = ctx; const b = BRIDGE; const L = b.span + 1.6; const tx = (b.b[0] - b.a[0]) / b.span, tz = (b.b[1] - b.a[1]) / b.span, nx = -tz, nz = tx; const rot = Math.atan2(-tz, tx); const [mx, mz] = b.mid;
+  B.solidBox('concrete', 'concrete', mx, b.y - 0.14, mz, L, 0.3, b.w, rot, 1 / 2);
+  const cn = B.v('concrete');
+  for (const sd of [-1, 1]) { const ax = mx + tx * sd * (b.span / 2 + 0.2), az = mz + tz * sd * (b.span / 2 + 0.2); cn.box(ax, b.y - 2.3, az, 1.3, 4.0, b.w + 1.6, rot, 1 / 3); B.c('concrete').box(ax, b.y - 2.3, az, 1.3, 4.0, b.w + 1.6, rot); }
+  const st = B.v('blackMetal'); for (const v of [-1, 1]) st.box(mx + nx * v * (b.w / 2 - 0.5), b.y - 0.5, mz + nz * v * (b.w / 2 - 0.5), b.span, 0.42, 0.2, rot);
+  const pt = B.v('paint', true); pt.setColor(0.8, 0.8, 0.77);
+  for (const v of [-1, 1]) { const ox = nx * v * (b.w / 2 - 0.08), oz = nz * v * (b.w / 2 - 0.08); const n = 6;
+    for (let k = 0; k <= n; k++) { const u = -L / 2 + 0.15 + (L - 0.3) * k / n; pt.box(mx + tx * u + ox, b.y + 0.55, mz + tz * u + oz, 0.1, 1.1, 0.1, rot); }
+    for (const y of [1.08, 0.6, 0.2]) pt.box(mx + ox, b.y + y, mz + oz, L, y > 1 ? 0.09 : 0.05, y > 1 ? 0.12 : 0.05, rot);
+    B.c('metal').box(mx + ox, b.y + 0.56, mz + oz, L, 1.12, 0.1, rot); }
+  pt.setColor(1, 1, 1);
+}
+
+// ------------------------------------------------------------------------------------------ the Blue Atlas Cedar
+// Campus map item 3: the big blue-grey cedar on the island of the visitor car park (nadir tiles: crown 23 m across, centre
+// (-1, -33); tile heights: 26 m tall). Tiered crown in its own mesh (foliage, not a surface), trunk solid.
+function cedar(ctx) {
+  const { B } = ctx; const x = -1, z = -33; const y0 = gY(ctx, x, z); const rnd = mulberry32(303);
+  const pt = B.v('paint', true); pt.setColor(0.2, 0.17, 0.14); pt.cyl(x, y0 - 0.3, z, 0.85, 0.5, 14, 9, 1, false); pt.setColor(1, 1, 1);
+  B.c('wood').cyl(x, y0 - 0.3, z, 0.85, 0.7, 9, 8, 1, true); (ctx.trunks || (ctx.trunks = [])).push([x, z, 0.85]); ctx.grapplePoles.push({ x, z, y0: y0 + 1, y1: y0 + 9, r: 0.8 });
+  const pos = [], col = []; const tiers = [[4.5, 11.5, 5.5], [8, 10.8, 5.5], [11.5, 9.4, 5.5], [15, 7.6, 5.5], [18.5, 5.4, 5], [21.5, 3.2, 4.6]];
+  for (const [yb, r, hgt] of tiers) { const N = 11; const ring = []; for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2 + rnd(); const rr = r * (0.78 + rnd() * 0.36); ring.push([x + Math.cos(a) * rr, y0 + yb + (rnd() - 0.5) * 1.2, z + Math.sin(a) * rr]); }
+    const top = [x + (rnd() - 0.5), y0 + yb + hgt, z + (rnd() - 0.5)], bot = [x, y0 + yb + 0.6, z];
+    for (let k = 0; k < N; k++) { const p = ring[k], q = ring[(k + 1) % N]; const v = 0.8 + rnd() * 0.3; pos.push(...p, ...top, ...q, ...q, ...bot, ...p); for (let c = 0; c < 3; c++) col.push(0.1 * v, 0.15 * v, 0.16 * v); for (let c = 0; c < 3; c++) col.push(0.07 * v, 0.1 * v, 0.105 * v); } }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.DoubleSide, flatShading: true })); m.name = 'trees:cedar'; m.castShadow = true; m.receiveShadow = false; m.matrixAutoUpdate = false; ctx.scene.add(m);
+}
+
+// ------------------------------------------------------------------------------------------ name boards, the organic garden
+// One board per named item of the school's campus map (branson.org/about/campus-map: the legend is the source of every name),
+// standing by that building's entrance. Skipped if the spot is on a road or in a footprint.
+const BOARDS = [
+  [-9.5, -5.5, -36, ['KATHARINE', 'BRANSON HALL']], [-97, 24.5, 40, ['THE COMMONS']], [26, 14, 90, ['DOUGLAS', 'FINE ARTS CENTER']], [62, 25.5, 9, ['MAXWELL', 'MUSIC HALL']],
+  [50, 0.8, 15, ['NEW HOUSE']], [30, -44, -20, ['CROSSWAYS']], [-86.5, 70.5, 12, ['GYM COMPLEX']], [-40, 61, 9, ['TOM RYAN FIELD']],
+  [-155.5, 108, 60, ['STUDY HALL']], [-153.8, 124, 65, ['RICHARDSON HALL']], [-162.9, 149.9, -45, ['NEW OAKS']], [-146, 155.3, 0, ['TALLANT', 'SCIENCE CENTER']],
+  [-66.5, 9.5, 20, ['ALUMNI STEPS']], [-64, 13.2, 0, ['ORGANIC GARDEN']],
+];
+function boards(ctx) {
+  const S = ctx.streets; let n = 0;
+  for (const [x, z, deg, lines] of BOARDS) { if ((S && S.inRoad(x, z, 1.2)) || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r)) || (ctx.gen.trees || []).some((t) => Math.hypot(t[0] - x, t[1] - z) < 1.6)) { console.warn('[branson] name board skipped', lines.join(' '), x, z); continue; } nameBoard(ctx, x, z, deg, lines); n++; }
+  ctx.boardCount = n;
+  // Organic Garden (campus map item 9): raised timber beds on Katharine Branson Hall's south-west lawn (nadir tiles)
+  const pt = ctx.B.v('paint', true);
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { const x = -66.5 + i * 2.6, z = 16.6 + j * 4.2; atGround(ctx, x, z, () => { pt.setColor(0.42, 0.3, 0.2).box(x, 0.2, z, 1.3, 0.5, 3.2, 0.1); pt.setColor(0.22, 0.34, 0.14).box(x, 0.47, z, 1.1, 0.06, 3.0, 0.1); pt.setColor(1, 1, 1); ctx.B.c('wood').box(x, 0.2, z, 1.3, 0.5, 3.2, 0.1); propKit.registerProp(ctx, 'bed', x, z, 0.1, 1.3, 3.2, 0.5); }, 1.6, 'min'); }
+}
+
 export function buildGrounds(ctx) {
   field(ctx);
+  bridge(ctx);
+  cedar(ctx);
   tennis(ctx);
+  vehicles(ctx);
   streetscape(ctx);
   campusLife(ctx);
-  vehicles(ctx);
+  boards(ctx);
   boundary(ctx);
   ctx.B.v('paint', true).setColor(1, 1, 1); ctx.B.v('stucco', true).setColor(1, 1, 1);
 }
