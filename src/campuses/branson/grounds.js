@@ -1,13 +1,13 @@
 // Branson grounds: Tom Ryan Field (paint, goals, the retaining wall and ball-stop fences), the tennis courts, parked
 // cars in the three car parks, the hedges of Fernhill Ave, the Branson Gate, lamps, the dining terrace, the Alumni
 // Steps, bridge rails over Ross Creek and the play-area edge.
-import { atGround, onSlope, hillFence, guardRail, wallDecal, edgeFrame, pointInRing, makeCanvas, mulberry32 } from '../marin/kit.js';
+import { atGround, onSlope, hillFence, guardRail, wallDecal, edgeFrame, pointInRing, makeCanvas, mulberry32, hipRoof } from '../marin/kit.js';
 import * as THREE from 'three';
 import { paintedQuad } from '../../world/fields.js';
-import { nameBoard } from './extras.js';
+import { nameBoard, kerb, lineRing, plainBlock, WHITE } from './extras.js';
 import { lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
-import { TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
+import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
 
 const RAD = Math.PI / 180;
 // the Alumni Steps: from Katharine Branson Hall's south lawn down the bank to the car-park loop (graded in sitework)
@@ -135,6 +135,8 @@ function vehicles(ctx) {
   row([-79.5, -62.9], [-59.7, -66.4], -1, 0.9); row([-82.4, -53.0], [-73.1, -47.7], 1, 0.8);
   // visitor parking in front of Katharine Branson Hall: the long row on the south kerb, the island side, the bay by the hall
   row([-13, -10.5], [13, -3.6], 1, 0.9); row([-5, -19.8], [9, -18.6], -1, 0.75); row([-25.3, -28.5], [-17.8, -32], -1, 0.8);
+  // the Commons' service yard under its west gable (nadir tiles: cars along the gable)
+  row([-145.8, -3.2], [-150.2, 5.6], 1, 0.8);
   // the gym service drive: along the gym's west wall and the bank north of it
   row([-125.6, 84.0], [-122.9, 93.8], -1, 0.85); row([-119.6, 74.4], [-110.2, 66.8], -1, 0.8);
   // the loop: a stall row inside the island's south half and one on the outer south-east kerb (nadir tiles)
@@ -188,7 +190,7 @@ function streetscape(ctx) {
     if (!(r.tags.name === 'Park Drive' || r.id === 570965051)) continue; const w = streetWidth(r); let side = 1, carry = 9;
     for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; let d = carry; for (; d < L; d += 24) { lamp(a[0] + tx * d - tz * side * (w / 2 + 1.1), a[1] + tz * d + tx * side * (w / 2 + 1.1)); side = -side; } carry = d - L; }
   }
-  for (const [x, z] of [[-128, -30.5], [-110, -55], [-152, -46], [-2, -6], [-24, -30], [-118, 36], [-96, 30], [-150, 100], [-176, 142], [40, -30], [22, -6], [-66, 70], [-20, 62], [20, 64]]) lamp(x, z);
+  for (const [x, z] of [[-128, -30.5], [-110, -55], [-152, -46], [-2, -6], [-24, -30], [-118, 36], [-94.5, 32.8], [-150, 100], [-176, 142], [40, -30], [22, -6], [-66, 70], [-20, 62], [20, 64]]) lamp(x, z);
 }
 
 // ------------------------------------------------------------------------------------------ dining terrace, steps
@@ -253,24 +255,39 @@ function bridge(ctx) {
 }
 
 // ------------------------------------------------------------------------------------------ boulders, sundial, sculpture
-/** A boulder: a squashed, jittered octahedron on the ground (grey-tan, vertex-coloured); solid when over half a metre. */
+/** A boulder: a low rounded dome of two jittered rings (grey-tan, vertex-coloured), bedded in the ground; solid over half a metre. */
 function boulder(ctx, x, z, r, rnd) {
-  const { B } = ctx; const y0 = gY(ctx, x, z) - r * 0.25; const pt = B.v('paint', true); const j = () => 0.75 + rnd() * 0.5; const hgt = r * (0.55 + rnd() * 0.35);
-  const eq = [0, 1, 2, 3, 4].map((k) => { const a = k / 5 * Math.PI * 2 + rnd(); return [x + Math.cos(a) * r * j(), y0 + hgt * (0.35 + rnd() * 0.2), z + Math.sin(a) * r * j()]; }); const top = [x + (rnd() - 0.5) * r * 0.4, y0 + hgt * 1.15, z + (rnd() - 0.5) * r * 0.4], bot = [x, y0 - 0.1, z];
-  for (let k = 0; k < 5; k++) { const p = eq[k], q = eq[(k + 1) % 5]; const v = 0.2 + rnd() * 0.08; pt.setColor(v * 1.04, v, v * 0.9); pt.tri(p, top, q); pt.tri(q, top, p); pt.setColor(v * 0.75, v * 0.72, v * 0.66); pt.tri(q, bot, p); pt.tri(p, bot, q); }
-  pt.setColor(1, 1, 1); if (hgt > 0.5) { B.c('concrete').box(x, y0 + hgt * 0.5, z, r * 1.3, hgt, r * 1.3, rnd() * 3); }
+  const { B } = ctx; const y0 = gY(ctx, x, z) - r * 0.3; const pt = B.v('paint', true); const hgt = r * (0.6 + rnd() * 0.3); const N = 7; const sx = 0.8 + rnd() * 0.5, rot = rnd() * 3;
+  const ringAt = (rr, yy) => { const o = []; for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2 + rot; const j = 0.88 + rnd() * 0.24; o.push([x + Math.cos(a) * rr * j * sx, y0 + yy * (0.9 + rnd() * 0.2), z + Math.sin(a) * rr * j]); } return o; };
+  const r0 = ringAt(r, 0), r1 = ringAt(r * 0.95, hgt * 0.55), r2 = ringAt(r * 0.55, hgt * 0.95), top = [x, y0 + hgt * 1.05, z]; const v0 = 0.2 + rnd() * 0.07;
+  const tri = (a, b, c, v) => { pt.setColor(v * 1.05, v, v * 0.9); pt.tri(a, b, c); pt.tri(c, b, a); };
+  for (let k = 0; k < N; k++) { const n = (k + 1) % N; const sh = 0.8 + 0.4 * ((k * 3) % N) / N; tri(r0[k], r1[k], r1[n], v0 * 0.75 * sh); tri(r0[k], r1[n], r0[n], v0 * 0.75 * sh); tri(r1[k], r2[k], r2[n], v0 * sh); tri(r1[k], r2[n], r1[n], v0 * sh); tri(r2[k], top, r2[n], v0 * 1.15 * sh); }
+  pt.setColor(1, 1, 1); if (hgt > 0.5) B.c('concrete').box(x, y0 + hgt * 0.5, z, r * 1.3, hgt, r * 1.3, rot);
 }
 function rocks(ctx) {
-  const rnd = mulberry32(4107); let n = 0;
-  // the island's boulder garden (the planted north half of the loop island)
-  for (let k = 0; k < 400 && n < 16; k++) { const x = -104 + rnd() * 28, z = 41 + rnd() * 15; if (!pointInRing(x, z, LOOP_GARDEN) || !pointInRing(x + 1, z, LOOP_GARDEN) || !pointInRing(x - 1, z, LOOP_GARDEN) || !pointInRing(x, z + 1, LOOP_GARDEN) || !pointInRing(x, z - 1, LOOP_GARDEN)) continue; boulder(ctx, x, z, 0.35 + rnd() * 0.5, rnd); n++; }
-  // Ross Creek: cobbles and boulders in the dry bed (OSM waterway, only where the lidar channel is)
+  const rnd = mulberry32(4107); let n = 0; const inG = (x, z, m) => [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([dx, dz]) => pointInRing(x + dx, z + dz, LOOP_GARDEN));
+  // the loop island's north half: a planted boulder garden (nadir tiles): low shrub masses from the shrub kit between a few boulders
+  for (let k = 0; k < 600 && n < 26; k++) { const x = -104 + rnd() * 28, z = 41 + rnd() * 15; if (!inG(x, z, 1.4)) continue; if (n % 4 === 0) boulder(ctx, x, z, 0.45 + rnd() * 0.4, rnd); else ctx.shrubs.push([x, gY(ctx, x, z) + 0.05, z, 1.6 + rnd() * 1.6, 0.55 + rnd() * 0.4, rnd() * 3]); n++; }
+  // Ross Creek: cobbles and boulders only on the gravel bed itself (the 'dirt' class tools/ground_fix.py painted along the waterway)
   const pb = ctx.playBounds; let m = 0;
   for (const r of ctx.data.roads) { if (r.tags.name !== 'Ross Creek') continue; for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      for (let d = 0; d < L; d += 2.2) { const x = a[0] + (b[0] - a[0]) * d / L + (rnd() - 0.5) * 2.4, z = a[1] + (b[1] - a[1]) * d / L + (rnd() - 0.5) * 2.4; const rr = 0.18 + rnd() * rnd() * 0.5;
-        if (x < pb.minX + 2 || x > pb.maxX - 2 || z < pb.minZ + 2 || z > pb.maxZ - 2 || ctx.surfaceAt(x, z) === 'asphalt' || gY(ctx, x, z) > Math.max(gY(ctx, x + 6, z), gY(ctx, x - 6, z), gY(ctx, x, z + 6), gY(ctx, x, z - 6)) - 0.9 || Math.hypot(x - BRIDGE.mid[0], z - BRIDGE.mid[1]) < 1.5) continue;
-        boulder(ctx, x, z, Math.min(rr, 0.42), rnd); m++; } } }
+      for (let d = 0; d < L; d += 2.0) { const x = a[0] + (b[0] - a[0]) * d / L + (rnd() - 0.5) * 2.0, z = a[1] + (b[1] - a[1]) * d / L + (rnd() - 0.5) * 2.0; const rr = 0.2 + rnd() * rnd() * 0.45;
+        if (x < pb.minX + 2 || x > pb.maxX - 2 || z < pb.minZ + 2 || z > pb.maxZ - 2 || ctx.surfaceAt(x, z) !== 'dirt' || pointInRing(x, z, LOOP_GARDEN) || Math.hypot(x - BRIDGE.mid[0], z - BRIDGE.mid[1]) < 1.5) continue;
+        boulder(ctx, x, z, Math.min(rr, 0.45), rnd); m++; } } }
   ctx.rockCount = n + m;
+}
+// ------------------------------------------------------------------------------------------ hard paving edges, plazas, the pool
+// Rule F42: every paved outline ends on a kerb; the flat plazas are real paver / brick surfaces with their own edges.
+function paving(ctx) {
+  const { B } = ctx; const uv = (x, z) => [x / 3, z / 3];
+  for (const r of [...PAVED_POLYS, LOOP_OUTER]) kerb(ctx, r);
+  for (const [pts, w] of PAVED_LINES) kerb(ctx, lineRing(pts, w));
+  kerb(ctx, LOOP_GARDEN, { all: true, h: 0.16, w: 0.28 });
+  { const y = (ctx.terraceY ?? gY(ctx, -106, 31)) + 0.03; B.v('maPaver').poly(TERRACE, null, y, uv); kerb(ctx, TERRACE, { h: 0.06, w: 0.3, color: [0.56, 0.54, 0.5] }); }
+  { const y = gY(ctx, 37, -4) + 0.03; B.v('maPaver').poly(ARTS_PLAZA, [ARTS_LAWN], y, uv); B.v('brickRed').poly(ARTS_BRICK, null, y + 0.015, (x, z) => [x / 2.2, z / 2.2]); kerb(ctx, ARTS_PLAZA, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] }); kerb(ctx, ARTS_LAWN, { all: true, h: 0.08, w: 0.2, color: [0.56, 0.54, 0.5] }); }
+  // the neighbour's swimming pool north of Fernhill Ave (nadir tiles): water in a coped basin on a paved deck, a small pool house
+  { const y = ctx.poolY ?? gY(ctx, -188, -67); B.v('maPaver').poly(POOL_DECK, [POOL], y + 0.03, uv); B.v('water').poly(POOL, null, y - 0.12, uv); kerb(ctx, POOL, { all: true, h: 0.1, w: 0.4, color: [0.7, 0.69, 0.66] }); kerb(ctx, POOL_DECK, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] });
+    atGround(ctx, -191.5, -56, () => { plainBlock(ctx, POOL_HOUSE, -0.4, 2.6, WHITE, [0.3, 0.3, 0.3]); hipRoof(ctx, POOL_HOUSE, 2.6, 1.1, { tint: [3.2, 3.2, 3.3], overhang: 0.4, fill: true }); (ctx.buildingRings = ctx.buildingRings || []).push(POOL_HOUSE); }, 3, 'max'); }
 }
 function landmarks(ctx) {
   const { B } = ctx;
@@ -279,7 +296,7 @@ function landmarks(ctx) {
   // the lawn sundial south of Katharine Branson Hall (nadir tiles: a pale stone disc ~3 m across with a gnomon)
   { const x = -41.6, z = 20.4; atGround(ctx, x, z, () => { B.v('limestone').cyl(x, -0.2, z, 1.6, 1.6, 0.42, 20, 1 / 3, true); B.c('concrete').cyl(x, -0.2, z, 1.6, 1.6, 0.42, 10, 1, true); const pt = B.v('paint', true); pt.setColor(0.42, 0.33, 0.2); pt.tri([x - 0.03, 0.22, z + 0.7], [x - 0.03, 1.0, z - 0.5], [x - 0.03, 0.22, z - 0.5]); pt.tri([x + 0.03, 0.22, z - 0.5], [x + 0.03, 1.0, z - 0.5], [x + 0.03, 0.22, z + 0.7]); pt.setColor(1, 1, 1); propKit.registerProp(ctx, 'sundial', x, z, 0, 3.2, 3.2, 0.3); }, 1.7, 'max'); }
   // the sculpture on the brick square of the arts court: a weathered-steel upright on a low plinth
-  { const x = 38.0, z = -3.6; atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.15, z, 1.4, 0.3, 1.4, 0.3, 1 / 3); const pt = B.v('paint', true); pt.setColor(0.36, 0.2, 0.12); pt.box(x, 1.3, z, 0.5, 2.0, 0.18, 0.5); pt.box(x + 0.15, 1.9, z + 0.1, 0.18, 1.4, 0.6, 0.5); pt.setColor(1, 1, 1); B.c('metal').box(x, 1.3, z, 0.6, 2.0, 0.6, 0.5); propKit.registerProp(ctx, 'sculpture', x, z, 0.3, 1.4, 1.4, 2.4); }, 0.8, 'max'); }
+  { const x = 38.0, z = -3.6; atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.15, z, 1.4, 0.3, 1.4, 0.3, 1 / 3); const pt = B.v('paint', true); pt.setColor(0.3, 0.17, 0.1); for (let k = 0; k < 5; k++) pt.box(x + Math.sin(k * 1.3) * 0.12, 0.5 + k * 0.42, z + Math.cos(k * 1.7) * 0.12, 0.62 - k * 0.07, 0.4, 0.5 - k * 0.05, 0.3 + k * 0.55); pt.setColor(1, 1, 1); B.c('metal').box(x, 1.3, z, 0.6, 2.0, 0.6, 0.5); propKit.registerProp(ctx, 'sculpture', x, z, 0.3, 1.4, 1.4, 2.4); }, 0.8, 'max'); }
 }
 
 // ------------------------------------------------------------------------------------------ name boards, the organic garden
@@ -309,6 +326,7 @@ export function buildGrounds(ctx) {
   campusLife(ctx);
   rocks(ctx);
   landmarks(ctx);
+  paving(ctx);
   boards(ctx);
   boundary(ctx);
   ctx.B.v('paint', true).setColor(1, 1, 1); ctx.B.v('stucco', true).setColor(1, 1, 1);

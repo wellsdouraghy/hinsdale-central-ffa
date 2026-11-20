@@ -203,6 +203,18 @@
    "roofMat": "comp_shingle",
    "roofCol": "#5c5a58",
    "garage": false
+  },
+  "976778295": {
+   "visible": "tiles",
+   "kind": "house",
+   "lv": 1,
+   "wall": "wood_siding",
+   "col": "#8a7c6c",
+   "trim": "#e6e0d2",
+   "roof": "gable",
+   "roofMat": "comp_shingle",
+   "roofCol": "#847c70",
+   "garage": false
   }
  }
 }

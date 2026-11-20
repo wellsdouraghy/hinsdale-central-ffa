@@ -841,4 +841,27 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     to the street design, flatten only the side that is not a street.
   - *Cover is measured, not guessed.* The map check's base cover (16 rays, 30 m, chest height) disagreed with a quick ray
     count that included the ground mesh. Try candidates with `&only=spawns,overlook` and read `checks.spawns.bases`.
+- **Fix round after the third QA (three "fixed" items were not, a base stood on an unmodelled pool):**
+  - *Compare before reporting.* Every visual item now gets a game shot and a tiles shot from one pose, pasted side by side
+    (a 20-line `pair.py`); two of my own poses turned out to be inside a tree, which a report without the picture hides.
+  - *Hard edges are two things:* the baked mask painted WITHOUT a soft edge for paving (tools/ground_fix.py `hard=True`), and a
+    concrete kerb laid on the outline (extras.js `kerb`: skips sides where the far side is paved). Flat plazas (terrace, arts
+    court, pool deck) are real paver / brick polygons on their flattened pad, with holes for lawn panels and the pool.
+  - *Windows ride on the ground at each wall.* A building datum below the ground on one side left that side blank (Fine Arts
+    north and west). `stuccoWalls` takes each wall's floor as max(building floor, ground at the wall); gable ends under
+    `glazedEnds` metres get one big arched glazing (the Commons hall).
+  - *A roof is checked on a grid.* The viewer casts a ray down every 4 m over the hall, the grid is posted to a file and compared
+    with tile_heights.json (`kbhcmp.py` in the session scratch: mean |diff| and the cells over 1.6 m). The first comparison
+    showed the whole hall 1-2 m HIGH on its eaves, the opposite of the reported fault at the ridges.
+  - *Fairness can come from the other base.* Red could not be made as enclosed as blue with real cover, so blue moved to a
+    more open lawn on school ground: 0.44 vs 0.56 instead of 0.44 vs 0.75. Scan candidates with the map check's own cover
+    measure (ignore hits whose normal points up, or the ground counts as cover).
+  - *Neighbours' pools are in the tiles, not in OSM.* A nadir tiles shot of each base and each lawn spot shows them; model
+    the pool (basin cut 0.95 m, water, coping, deck, pool house) or stay off the lot.
+  - *The builder's helicopter scan is only a top-up.* With 12 or more descriptor spots the scan is not appended: its cells
+    are not kept clear of cars and trees and one of them always landed as a 7 m warning.
+  - *A cut bank needs the pad's retaining depth everywhere a door is* (the gym got `bank` too: no pad blocks at its doors).
+    Where pads had FILLED a creek bank (Richardson Hall), the ground outside the walls is clamped back to `terrain.sourceAt`.
+  - *Landmark conifer:* tree kit variant 5 (gen.trees kind 2): a broad blue-grey cedar. The needle texture is dark green, so
+    the material colour goes above 1 (1.05, 1.5, 1.85).
 

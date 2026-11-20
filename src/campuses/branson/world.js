@@ -5,7 +5,7 @@ import { addMaterials, minAreaOBB, mulberry32, planWalls, applyPads, planCheeks,
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, LOOP_GARDEN } from './kit.js';
+import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE } from './kit.js';
 import { buildSchool, schoolWalls } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF } from './grounds.js';
@@ -33,7 +33,8 @@ function sitework(ctx) {
   ctx.flatten({ circle: { x: -41.6, z: 20.4, r: 2.4 } }, { blend: 2.5 });   // the sundial's level spot on the lawn
   // the dining terrace in front of the Commons hall (tables under umbrellas)
   ctx.terraceY = ctx.flatten({ outline: TERRACE }, { blend: 3 });   // (its real outline, traced from the tiles: a stone plaza, not a circle)
-  ctx.flatten({ outline: ARTS_PLAZA }, { blend: 2.5 });   // the paved court between New House and the Fine Arts studios
+  ctx.flatten({ outline: ARTS_PLAZA }, { blend: 2.5 });
+  ctx.poolY = ctx.flatten({ outline: POOL_DECK }, { blend: 3 }); ctx.flatten({ outline: POOL }, { y: ctx.poolY - 0.95, blend: 0.6 });   // the neighbour's pool deck north of Fernhill Ave   // the paved court between New House and the Fine Arts studios
   // Buildings that back onto the steep wooded hill (the gym and the quad): the hill behind them is cut to a planted
   // bank of 36 deg rising 7.4 m behind the walls, instead of a sheer face many metres high (map check
   // `retaining`: "grade the ground in or step it"). Laid before the wall pads; the lidar ground wins where it is lower.
@@ -64,6 +65,9 @@ function sitework(ctx) {
   // ---- designed steps, after the streets are back (none touches a roadway): the Alumni Steps down the bank from
   // Katharine Branson Hall's lawn to the car-park loop
   for (const st of ALUMNI_STEPS) stairGrade(ctx, st);
+  // Richardson Hall stands on the creek bank: its wall pads had FILLED the bank up to 3.4 m (map check: fill above the source DEM).
+  // Outside its walls the ground goes back to the lidar surface; the walls run down to it (rule F33: natural ground, no fill).
+  for (const wl of sw) { if (wl.key !== 'richardson' || !T.sourceAt) continue; const sd = shapeSDF({ outline: wl.ring }).sd; const c = centroid(wl.ring); ctx.flatten({ circle: { x: c[0], z: c[1], r: 34 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = sd(x, z); return d > 0.3 && d < 16 ? Math.min(h, T.sourceAt(x, z) + 0.2 + Math.max(0, d - 12) * 1.0) : h; } }); }
   // ---- Ross Creek at the Bridge (campus map item 12; OSM cycleway 1286714176 from the end of Park Drive to the quad path).
   // The lidar has the channel on both sides; the street's end pad and shoulder had filled it. Re-cut it under the bridge
   // (bed -2.7, 3 m wide, banks rising to the abutments) and level the two bridgeheads.
@@ -79,13 +83,15 @@ function sitework(ctx) {
     for (const t of ctx.gen.trees || []) { const p = streets.toVerge(t[0], t[1], 1.0); if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // no tree on the pitch pad, the courts, the dining terrace, the steps, or deep inside a car park
     const stairs = ALUMNI_STEPS.map((s) => shapeSDF({ rect: { cx: (s.a[0] + s.b[0]) / 2, cz: (s.a[1] + s.b[1]) / 2, w: Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) + 5, d: s.w + 4, angle: Math.atan2(s.b[1] - s.a[1], s.b[0] - s.a[0]) } }).sd);
-    const plazaSd = shapeSDF({ outline: ARTS_PLAZA }).sd, gardenSd = shapeSDF({ outline: LOOP_GARDEN }).sd;
-    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && plazaSd(t[0], t[1]) > 1.5 && gardenSd(t[0], t[1]) > 3 && Math.hypot(t[0] + 41.6, t[1] - 20.4) > 4 && !(ctx.campus.heliPark || []).some((p) => p[1] < 0.5 && Math.hypot(t[0] - p[0], t[1] - p[2]) < 11.6) && Math.hypot(t[0] + 1, t[1] + 33) > 13.5 /* the Blue Atlas Cedar's crown */ && !(t[0] > -69 && t[0] < -58.5 && t[1] > 12 && t[1] < 25) /* the organic garden */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
+    const poolSd = shapeSDF({ outline: POOL_DECK }).sd, phSd = shapeSDF({ outline: POOL_HOUSE }).sd; const plazaSd = shapeSDF({ outline: ARTS_PLAZA }).sd, gardenSd = shapeSDF({ outline: LOOP_GARDEN }).sd;
+    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && poolSd(t[0], t[1]) > 2 && phSd(t[0], t[1]) > 3 && plazaSd(t[0], t[1]) > 1.5 && gardenSd(t[0], t[1]) > 3 && Math.hypot(t[0] + 41.6, t[1] - 20.4) > 4 && !(ctx.campus.heliPark || []).some((p) => p[1] < 0.5 && Math.hypot(t[0] - p[0], t[1] - p[2]) < 11.6) && Math.hypot(t[0] + 1, t[1] + 33) > 13.5 /* the Blue Atlas Cedar's crown */ && !(t[0] > -69 && t[0] < -58.5 && t[1] > 12 && t[1] < 25) /* the organic garden */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
       && !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
   }
   // Landmark trees through the tree kit (rule: no hand-built cones): the Blue Atlas Cedar on the visitor-lot island (crown ~25 m
   // across, 26 m tall in the tiles) and the three big clipped trees of the quad lawn (nadir tiles)
-  (ctx.gen.trees = ctx.gen.trees || []).push([-1, -33, 0, 1.85], [-166.4, 134.2, 0, 1.0], [-148.3, 144.1, 0, 1.0], [-160.0, 150.5, 0, 0.95]);
+  (ctx.gen.trees = ctx.gen.trees || []).push([-1, -33, 2, 1.75], [-94, 47.2, 0, 0.75], [-84.5, 45.4, 0, 0.75], [-166.4, 134.2, 0, 1.0], [-148.3, 144.1, 0, 1.0], [-160.0, 150.5, 0, 0.95]);
+  // round the Fine Arts Center the tall trees are redwoods and cedars (tiles obliques): the tall ones there draw as conifers
+  for (const t of ctx.gen.trees) if (t[0] > 18 && t[0] < 82 && t[1] > -22 && t[1] < 42 && t[2] === 0 && t[3] >= 1.25) { t[2] = 1; t[3] = Math.min(1.9, t[3] * 1.1); }
   // The hill south of the field, the gym and the quad is closed-canopy oak, bay and redwood forest (imagery, 3D tiles); the
   // canopy scan plants one trunk per ~10 m. Filled in on a jittered 6.5 m grid (seeded), clear of buildings and roads.
   { const rnd = mulberry32(1917); const trees = ctx.gen.trees = ctx.gen.trees || []; const sds = sw.map((w) => shapeSDF({ outline: w.ring }).sd); const fieldSd = shapeSDF({ outline: fieldRing(7.5) }).sd;
@@ -120,7 +126,7 @@ export function build(ctx, progress = () => {}) {
   if (ctx.terrain) { const pb = ctx.playBounds, T = ctx.terrain; const rank = { asphalt: 0, rubber: 1, concrete: 2, grass: 3 };
     for (let z = pb.minZ + 12; z <= pb.maxZ - 12; z += 5) for (let x = pb.minX + 12; x <= pb.maxX - 12; x += 5) { const s = ctx.surfaceAt(x, z); if (rank[s] === undefined) continue; if (ctx.streets && ctx.streets.inRoad(x, z, 5)) continue; if (T.maxIn(x, z, 2.6) - T.minIn(x, z, 2.6) > 0.26) continue; if ((ctx.buildingRings || []).some((r) => pointInRing(x, z, r))) continue; scan.push([x, 0, z, rank[s]]); }
     scan.sort((p, q) => p[3] - q[3]); scan = scan.map((p) => [p[0], 0, p[2]]); }
-  ctx.campus = { ...c, heliPark: [...(c.heliPark || []), ...scan, ...roofs] };
+  ctx.campus = { ...c, heliPark: [...(c.heliPark || []), ...((c.heliPark || []).length >= 12 ? [] : scan), ...roofs] };   // (the scan only tops up a short list: its grid cells are not kept clear of cars and trees)
   progress(0.68, 'Laying out the field and grounds');
   buildGrounds(ctx);
   if (ctx.terrain) for (const sh of ctx.shrubs) if (sh[4] === 0.85) sh[1] = Math.min(sh[1], ctx.groundY(sh[0], sh[2]) + 0.05);   // facade-kit planting beds stand on the ground a metre out

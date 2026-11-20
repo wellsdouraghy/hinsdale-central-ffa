@@ -1,7 +1,7 @@
 # Branson campus: builder hand-off (keep current; commit with every milestone)
 
 Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 1 after the
-first and second QA (both NOT SHIP) are done; next = independent QA round 3, release test, deploy.
+QA rounds 1-3 (all NOT SHIP) are done; next = independent QA round 4, release test, deploy.
 
 ## Frame and key coordinates (x east, z south, metres)
 - origin lat 37.96545, lon -122.56545; y = 0 is Tom Ryan Field (NAVD88 16.54 m; 3D-tiles surface = game height - 16.28, one constant)
@@ -24,7 +24,7 @@ osm.py -> sat.py -> (dev/branson-tiles.html __dumpHeights -> data/tile_heights.j
 (Re-running gen.py resets ground_mask / macro / classes / trees: run patch_extra, ground_fix, canopy_fill again after it.)
 
 ## Gameplay
-- CTF: red (Bulls) [-184, -66] (hedged lawn north of Fernhill, west end; cover 0.50), blue (Wildcats) [68, -28] (lawn by New House; cover 0.75): 261 m apart, nav path 315 m, 0 overlook cells each
+- CTF: red (Bulls) [-204, -27] (wooded verge south of Fernhill, west of the faculty lot drive; cover 0.44), blue (Wildcats) [48, -28] (lawn north of New House; cover 0.56): 252 m apart, nav path 338 m, 0 overlook cells each; both checked on nadir tiles
 - practice heli on the pitch (-33, 92); 14 candidates in campus.js (8 off the pitch: tennis-shed car park, the courts, the glen,
   west lawns, Fine Arts lawn, Prize Day Field, the south-west corner; 6 on the pitch), 12 placed, all pass at 8.5 m; the
   builder appends every level 5 m cell as spare candidates; sitework keeps trunks 11.5 m back from each
@@ -47,7 +47,8 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
   above a wall's floor, the price of cut-only pads (no fill)
 - the old "Alumni Steps" flight at (-70, 12) is the first builder's placement; the tiles show the brick steps by the terrace
   (now built) but no clear flight there. Kept because it is the only walk from the hall's lawn to the loop
-- red base cover 0.50 vs blue 0.75 (was 0.44): better enclosed, still not equal
+- Katharine Branson Hall roof vs tiles on a 4 m grid: mean |diff| ~0.9 m; the north block's ridge sits ~2 m east of the real one
+- the loop's asphalt is darker than the real pale paving; its south-west side merges with the gym drive
 - name boards stand at entrances; real sign positions unverified. New Oaks / Tallant naming inferred from the legend order
 - Fine Arts / New House keep their OSM positions (the Esri photo is sheared up to ~5 m there against the tiles)
 - the gym keeps the generic kit walls under brown siding; concrete pad blocks remain at two of its doors
