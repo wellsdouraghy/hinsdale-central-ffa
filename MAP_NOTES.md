@@ -113,13 +113,21 @@ map breaking one of these rules has not finished.
     and mounds checks both missed.
 38. Where a retaining wall or fence run ends at a street corner, `__walk` that corner both ways on both sidewalks: run
     ends are where pits, wedges and stray fence posts appear.
+39. Put every CTF base on a top-down tiles shot before committing it. A base never sits on an unmodelled feature
+    (Branson's red base landed on a neighbour's swimming pool drawn as lawn).
+40. Any roof-height fix is re-measured on a 4 m grid against the tiles over the WHOLE roof, especially where wings
+    join; a hip that stops short of the next wing leaves a valley that is not there.
+41. No blank wall longer than 8 m on a school building unless the tiles or a photo show one.
+42. Every paved outline has a hard kerb or edge, never a fade into grass; island planting comes from the tree and
+    shrub kit, not loose rocks. A builder never reports a visual item fixed without a game shot and the matching
+    tiles shot from the same pose.
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F38 above is ticked off explicitly in the hand-off.
+- Every rule A1-F42 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
