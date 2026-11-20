@@ -17,7 +17,7 @@ import { bleachers } from '../../world/landmarks.js';
 // little above the sampled deck). Re-measured after the DEM registration fix: the old values came from an offset fitted
 // locally to a DEM that was stretched north-south, and were up to 1.4 m (the service building 3 m) off.
 const TOP = { fosterWing: 12.0, thacher: 8.9, thacherWing: 8.3, science: 13.45, oldGym: 16.9, athletic: 16.4, athleticEast: 19.6, visArts: 4.6, campus76: 13.0, service: 15.6,
-  leadership: 5.8, leadershipEast: 5.8, library: 6.1, libraryWest: 5.7 /* (hip roofs: the eave is the LOW end of the samples, their 10th percentile) */, pac: 8.3, pacLow: 5.8, founders: 7.5 };
+  leadership: 6.2 /* (floor = the Mission Ave walk, 1.6 m: at 5.8 the north wall stood in a 0.4 m cut behind a concrete block) */, leadershipEast: 5.8, library: 6.1, libraryWest: 5.7 /* (hip roofs: the eave is the LOW end of the samples, their 10th percentile) */, pac: 8.3, pacLow: 5.8, founders: 7.5 };
 
 export const SCHOOL_IDS = new Set([652917773, 652917775, 652917776, 652917777, 652917778, 652917779, 652917780, 652917781, 652917782, 652917783, 652917784, 652917785, 1460794276]);
 const FOSTER_ROOF = [1.75, 1.42, 1.18];   // weathered grey-brown shingle (Street View), as a tint of the tile texture
@@ -256,16 +256,35 @@ function leadershipCenter(ctx) {
 function courtSteps(ctx) {
   const st0 = COURT_STAIR, ps = ctx.courtStair; if (!ps || !ctx.terrain) return; const st = { ...st0, bTop: ps.bTop, apron: ps.bTop - st0.bWalk }; const G = (a, b) => gp(0, 0, a, b);
   stairFlight(ctx, st, ps);
-  const F = [-UZ, UX];   // out of the block faces: toward the forecourt (+b)
-  for (const [a0, a1, bS, ext] of [[st.gapA[0], st.a0, st.westB, -1], [st.a1, st.gapA[1], st.eastB, 1]]) {
-    const m = G((a0 + a1) / 2, bS); const d = bS - (st.bWalk + 0.02);
-    const bl = terraceBlocks(ctx, { x: m[0], z: m[1], tx: UX, tz: UZ, fx: F[0], fz: F[1], w: a1 - a0, d, frontY: ps.botY, single: true, allowTall: true });
-    const top = bl[bl.length - 1][2]; const aS = a0 < st.a0 ? st.a0 - 0.1 : st.a1 + 0.1; const p0 = G(aS, ps.bTop + 0.3), p1 = G(aS, bS - 0.2);
-    if (top - ps.botY > 1.2) guardRail(ctx, p0[0], p0[1], p1[0], p1[1], top + 0.06);   // along the flight: the drop from the block top to the lower treads
-    // the block carries on 2.1 m past the wing's corner, in front of its north wall: the lattice cell that straddles the edge of
-    // the forecourt dips there (a plain mass with the same top and coping; its south side is the building, so it is no face)
-    { const aE = ext < 0 ? a0 - 1.05 : a1 + 1.05, c = G(aE, bS - d / 2), y0 = ps.botY - 0.5; ctx.B.v('concrete').box(c[0], (y0 + top) / 2, c[1], 2.1, top - y0, d, ROT, 1 / 3); ctx.B.c('concrete').box(c[0], (y0 + top) / 2, c[1], 2.1, top - y0, d, ROT); }
+  // Either side of the flight the frontage strip is a PLANTED bank held by low walls (Street View: lawn and clipped hedges
+  // between the sidewalk and the buildings, low concrete walls along the ramp), not a concrete block: a raised bed whose top
+  // runs with the sidewalk (Mission Ave falls 7 % here: a level top was a wedge), ivy and a clipped hedge on it, a wall with
+  // a coping on the forecourt side and along the flight, a guard rail over the drop. It carries on 2.1 m past each wing's
+  // corner, where the lattice cell that straddles the edge of the forecourt dips in front of the north wall.
+  const { B } = ctx; const conc = B.v('concrete'), col = B.c('concrete'), cope = B.v('limestone'), ivy = B.v('maHedge', true); const y0 = ps.botY - 0.5, bN = st.bWalk + 0.02;
+  for (const [a0, a1, bS, wallA] of [[st.gapA[0] - 2.1, st.a0, st.westB, st.gapA[0]], [st.a1, st.gapA[1] + 2.1, st.eastB, st.gapA[1]]]) {
+    const n = Math.max(2, Math.round((a1 - a0) / 1.4)); const top = (a) => { let m = -Infinity; for (let b = bN - 0.2; b <= bS + 0.001; b += 0.4) { const q = G(a, b); m = Math.max(m, ctx.groundY(q[0], q[1])); } return m + 0.06; };
+    const hs = []; for (let i = 0; i <= n; i++) hs.push(top(a0 + (a1 - a0) * i / n)); for (let i = 1; i <= n; i++) hs[i] = Math.max(hs[i], hs[i - 1] - 0.18); for (let i = n - 1; i >= 0; i--) hs[i] = Math.max(hs[i], hs[i + 1] - 0.18);
+    const P3 = (a, b, y) => { const q = G(a, b); return [q[0], y, q[1]]; }; let hMax = -Infinity;
+    for (let i = 0; i < n; i++) { const u0 = a0 + (a1 - a0) * i / n, u1 = a0 + (a1 - a0) * (i + 1) / n, h0 = hs[i], h1 = hs[i + 1]; hMax = Math.max(hMax, h0, h1); const w = u1 - u0;
+      ivy.setColor(0.5, 0.56, 0.46); quadFacing(ivy, P3(u0, bN, h0), P3(u1, bN, h1), P3(u1, bS, h1), P3(u0, bS, h0), [0, 1, 0], [[u0 / 2, 0], [u1 / 2, 0], [u1 / 2, (bS - bN) / 2], [u0 / 2, (bS - bN) / 2]]);
+      quadFacing(col, P3(u0, bN, h0), P3(u1, bN, h1), P3(u1, bS, h1), P3(u0, bS, h0), [0, 1, 0]);
+      for (const bk of [conc, col]) { const uv = bk === col ? undefined : [[0, 0], [w / 3, 0], [w / 3, 0.8], [0, 0.8]];
+        quadFacing(bk, P3(u0, bS, y0), P3(u1, bS, y0), P3(u1, bS, h1), P3(u0, bS, h0), [-UZ, 0, UX], uv); quadFacing(bk, P3(u0, bN, y0), P3(u1, bN, y0), P3(u1, bN, h1), P3(u0, bN, h0), [UZ, 0, -UX], uv); }
+      const south = u0 >= Math.min(wallA, st.a0) - 0.01 && u1 <= Math.max(wallA, st.a1) + 0.01;   // the stretch that faces the forecourt (the rest stands against a wing's north wall)
+      if (south) quadFacing(cope, P3(u0, bS - 0.32, h0 + 0.04), P3(u1, bS - 0.32, h1 + 0.04), P3(u1, bS + 0.03, h1 + 0.04), P3(u0, bS + 0.03, h0 + 0.04), [0, 1, 0], [[0, 0], [w / 3, 0], [w / 3, 0.12], [0, 0.12]]);
+      // a clipped hedge along the back of the bed (low: it must not hide the windows behind)
+      { const m = G((u0 + u1) / 2, bS - 1.0); ctx.shrubs.push([m[0], (h0 + h1) / 2 + 0.04, m[1], w + 0.05, 0.7, ROT]); } }
+    ivy.setColor(1, 1, 1);
+    // the two ends: the wall along the flight (with its coping) and the outer end
+    for (const [u, h, nrm, inner] of [[a0, hs[0], [-UX, 0, -UZ], a0 === st.a1], [a1, hs[n], [UX, 0, UZ], a1 === st.a0]]) { for (const bk of [conc, col]) quadFacing(bk, P3(u, bN, y0), P3(u, bS, y0), P3(u, bS, h), P3(u, bN, h), nrm, bk === col ? undefined : [[0, 0], [(bS - bN) / 3, 0], [(bS - bN) / 3, 0.8], [0, 0.8]]);
+      if (inner) { const o = nrm[0] > 0 ? -1 : 1; quadFacing(cope, P3(u, bN, h + 0.04), P3(u, bS, h + 0.04), P3(u + o * 0.34, bS, h + 0.04), P3(u + o * 0.34, bN, h + 0.04), [0, 1, 0], [[0, 0], [1, 0], [1, 0.12], [0, 0.12]]);
+        const p0 = G(u + o * 0.12, ps.bTop + 0.3), p1 = G(u + o * 0.12, bS - 0.15); if (h - ps.botY > 1.2) guardRail(ctx, p0[0], p0[1], p1[0], p1[1], h + 0.06); } }
+    // guard rail on the forecourt edge
+    { const e0 = Math.max(a0, Math.min(wallA, st.a0)), e1 = Math.min(a1, Math.max(wallA, st.a1)); const p0 = G(e0 + 0.1, bS - 0.14), p1 = G(e1 - 0.1, bS - 0.14); if (hMax - ps.botY > 1.2) guardRail(ctx, p0[0], p0[1], p1[0], p1[1], Math.max(top(e0), top(e1)) + 0.02); }
   }
+  // the lawn strip in front of the two wings carries its clipped hedge against the wall too (Street View: about 1.2 m)
+  for (const [u0, u1, bW] of [[-9.6, st.gapA[0] - 2.3, 38.9], [st.gapA[1] + 2.3, 30.6, 38.1]]) for (let u = u0; u < u1 - 0.5; u += 2.6) { const w = Math.min(2.6, u1 - u), m = G(u + w / 2, bW - 0.45); ctx.shrubs.push([m[0], ctx.groundY(m[0], m[1]) + 0.05, m[1], w, 1.1, ROT]); }
   // paving of the forecourt between the foot of the flight and the courtyard terrace
   { const pv = ctx.B.v('maPaver'); const y = (a, b) => { const q = G(a, b); return [q[0], ctx.groundY(q[0], q[1]) + 0.03, q[1]]; }; const b1 = 41.2; const cuts = [st.gapA[0], st.a0, st.a1, st.gapA[1]];
     for (let i = 0; i < 3; i++) for (let a = cuts[i]; a < cuts[i + 1] - 0.01; a += 1.9) { const a1 = Math.min(a + 1.9, cuts[i + 1]); const b0 = i === 0 ? st.westB : i === 2 ? st.eastB : st.bBot; quadFacing(pv, y(a, b0), y(a1, b0), y(a1, b1), y(a, b1), [0, 1, 0], [[a / 2.4, b0 / 2.4], [a1 / 2.4, b0 / 2.4], [a1 / 2.4, b1 / 2.4], [a / 2.4, b1 / 2.4]]); } }
@@ -325,7 +344,7 @@ function pacAt(ctx, rings, h, base) {
 // ============================================================================================ aquatic centre
 // the stairs in the alley between the Library and the pool house (grid coordinates: a east, b south, metres from the
 // origin): wall to wall, from the Mission Ave apron down to the pool deck. Earthworks in world.js sitework, built below.
-export const POOL_STAIR = { a0: 43.76, a1: 47.03, bTop: 38.0, tread: 0.30 };
+export const POOL_STAIR = { a0: 43.76, a1: 47.03, bWalk: 35.3, apron: 0.6, tread: 0.30, landing: 0, warp: true };
 // The steps from the Mission Ave sidewalk down into the Library / Leadership Center courtyard. On the correctly registered
 // DEM the courtyard lies 1.6 m below the street and the step is at the building line (the 3D tiles show the sunken court
 // behind a gateway on the street): a flight in the frontage strip between the back of the walk (b = bWalk) and the
@@ -350,7 +369,7 @@ function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0]
 }   // on the pool deck (one level pad, flattened in sitework)
 // Stairs from the Mission Ave apron down to the pool deck, between the Library and the pool house: thirteen 16 cm risers
 // on 30 cm treads, a landing at the top, steel handrails on both walls. Geometry from sitework (ctx.poolStair: levels and the number of risers).
-function poolStairs(ctx) { stairFlight(ctx, POOL_STAIR, ctx.poolStair); }
+function poolStairs(ctx) { const ps = ctx.poolStair; if (ps) stairFlight(ctx, { ...POOL_STAIR, bTop: ps.bTop, apron: ps.bTop - POOL_STAIR.bWalk }, ps); }
 // One flight (grid coordinates, falling toward +b from st.bTop): drawn risers, collision on the plane through the nosings.
 // st: { a0, a1, bTop, tread, landing (level top landing, m; default 0.5), apron (ramp from the ground to the landing; 2.2), warp (apron follows the ground at each corner: a sloping sidewalk) }
 function stairFlight(ctx, st, ps) {

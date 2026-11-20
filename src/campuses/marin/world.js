@@ -5,13 +5,15 @@ import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
 import { buildSchool, schoolWalls, POOL_STAIR, COURT_STAIR } from './school.js';
-import { buildTown, planTown } from './town.js';
+import { buildTown, planTown, recutHouses } from './town.js';
 import { buildGrounds, turfWorld } from './grounds.js';
 import { addCampusWater } from '../../world/water.js';
 import { buildTerrain, terrainSampler } from './terrain.js';
 
 // carriageway widths by OSM class (kerb to kerb, as grounds.js lays the kerb furniture) and the sidewalk width
 const STREET_W = { primary: 15.0, secondary: 13.0, secondary_link: 8.0, tertiary: 11.5, residential: 8.5 }, SIDEWALK_W = 2.4;
+// hill lanes without sidewalks (3D tiles: Bryn Mawr Drive and Bonnie Brae Drive are kerbless lanes between banks and drives)
+const NO_WALK = new Set(['Bryn Mawr Drive', 'Bonnie Brae Drive']);
 const CAR_FREE = [[108, -30], [62, -22], [76, -74], [12, -140], [-86, -44], [-20, -5], [84, 58], [-141, 131], [-30, 150], [-10, 180], [128, 172], [70, 150],
   [150, 62], [-160, 160], [100, 258], [-48, 240], [-196, 0], [196, 44], [13, 92], [-110, 96], [170, 110], [-150, -150], [60, -190], [180, -60]];
 
@@ -73,13 +75,13 @@ function sitework(ctx) {
   // (the car park north of the gyms needs no pad: on the correctly registered DEM it is a level lot at 11.4 m, 0.8 % fall.
   // The "15 % hillside regraded after the lidar flight" that used to be flattened here was the DEM stretched north-south.)
   // picnic plaza between the Science Center, the gyms and Foster Hall: level pads under the tables
-  for (const [x, z] of [[2, -76], [8, -79.5], [-2, -82], [14, -74], [5.5, -72] /* the bike rack */]) ctx.flatten({ circle: { x, z, r: 2.4 } }, { blend: 2.5 });
+  for (const [x, z] of [[2, -76], [8, -79.5], [-2, -82], [14, -74], [12.5, -69] /* the bike rack */, [0, -72] /* the red flag base */, [-47.5, -2], [-46.5, -12] /* benches */, [-27, -101.5] /* dumpster */, [17.5, -105] /* utility box */]) ctx.flatten({ circle: { x, z, r: 3.0 } }, { blend: 2.5 });   // (3 m: on the 2 m lattice a 2.4 m pad was one node and its table still stood 0.4 m in the slope)
   // ---- Streets (MAP_NOTES "grade streets first"): after the campus pads, before any building pad. Every OSM street gets
   // a smooth profile, a crowned carriageway, a kerb and parallel sidewalks; the building pads below may not move them
   // (streets.restore() at the end), so a pad that differs from its sidewalk steps inside the lot.
   const zoneShapes = [R(...G(21.9, -13.5), 11.2, 36), R(7.7, 60.5, 10.6, 36.4), poolPad, { outline: turfWorld(4.2) }, FORECOURT()].map((sh) => shapeSDF(sh).sd);
   const zones = zoneShapes.map((sd) => (x, z) => sd(x, z) <= 0);
-  const streets = gradeStreets(ctx, walkRoom(T, ctx.playBounds, ctx.data.roads.filter((r) => STREET_W[r.tags.highway] && r.line.length >= 2).map((r) => { const sw = r.tags.sidewalk; const none = sw === 'no' || sw === 'none';
+  const streets = gradeStreets(ctx, walkRoom(T, ctx.playBounds, ctx.data.roads.filter((r) => STREET_W[r.tags.highway] && r.line.length >= 2).map((r) => { const sw = r.tags.sidewalk; const none = sw === 'no' || sw === 'none' || NO_WALK.has(r.tags.name);
     return { id: r.id, name: r.tags.name, line: r.line, width: STREET_W[r.tags.highway], left: none || sw === 'right' ? 0 : SIDEWALK_W, right: none || sw === 'left' ? 0 : SIDEWALK_W }; })), { hillside: { width: 8.5, shoulder: 2.5 } /* the hill lanes keep their width: cars park at the same kerb line */, hard: [zones[3]] /* the field pad, to the face of its retaining block */, protect: [...zones, ((sd) => (x, z) => sd(x, z) <= 0)(shapeSDF({ outline: turfWorld(12) }).sd)] });   // (the field's retaining block stands 2..6.7 m outside the turf)
   if (streets) streets.apply();
   // aquatic centre: pool, deck and pool house on one level, at the level of the 5th Ave sidewalk it fronts (the Library's
@@ -111,16 +113,23 @@ function sitework(ctx) {
   // ---- Designed steps and terraces, after the streets are back on their design (none of them touches a roadway or sidewalk):
   // the alley between the Library and the pool house falls 2 m from Mission Ave to the deck: a flight of stairs wall to
   // wall instead of an asphalt chute. The ground under the flight is cut just below the line of the steps (school.js builds them).
-  { const st = POOL_STAIR, am = (st.a0 + st.a1) / 2; let topY = -Infinity; for (let a = st.a0 + 0.3; a <= st.a1 - 0.29; a += 0.4) for (const b of [st.bTop - 1.0, st.bTop - 0.5, st.bTop]) topY = Math.max(topY, T.heightAt(...G(a, b)));
-    const botY = ctx.poolY ?? T.heightAt(...G(am, st.bTop + 6)); const n = Math.max(2, Math.round((topY - botY) / 0.165)), riser = (topY - botY) / n, run = (n - 1) * st.tread;
-    ctx.poolStair = { topY, botY, n, riser, run };
-    ctx.flatten({ rect: { cx: G(am, st.bTop + run / 2)[0], cz: G(am, st.bTop + run / 2)[1], w: st.a1 - st.a0 + 0.4, d: run + 0.8, angle: ANG } }, { blend: 0.5, y: (x, z) => { const b = -x * UZ + z * UX; return Math.min(T.heightAt(x, z), Math.max(botY, topY - (b - st.bTop) / st.tread * riser) - 0.18); } }); }
-  // the flight from the Mission Ave walk down to the forecourt (school.js courtSteps): top = the walk's level behind its back
-  // edge, foot = the forecourt; the ground under the flight is cut just below the line of the steps
-  { const st = COURT_STAIR, am = (st.a0 + st.a1) / 2; let sum = 0, k = 0; for (const a of [st.a0, am, st.a1]) { const q = G(a, st.bWalk - 0.3); const d = streets && streets.design(q[0], q[1]); sum += d && d.zone === 'walk' ? d.y : T.heightAt(q[0], q[1]); k++; } const topY = sum / k;
-    const botY = T.heightAt(...G(am, st.bBot + 1.2)); const n = Math.max(2, Math.min(Math.floor((st.bBot - st.bWalk - st.apron) / st.tread + 1e-6), Math.round((topY - botY) / 0.165))), riser = (topY - botY) / n, run = (n - 1) * st.tread, bTop = st.bBot - n * st.tread;
-    if (topY - botY > 0.5 && riser <= 0.2) { ctx.courtStair = { topY, botY, n, riser, run, bTop };
-      ctx.flatten({ rect: { cx: G(am, bTop + run / 2)[0], cz: G(am, bTop + run / 2)[1], w: st.a1 - st.a0 + 0.4, d: run + 0.8, angle: ANG } }, { blend: 0.5, y: (x, z) => { const b = -x * UZ + z * UX; if (b < bTop + st.tread) return T.heightAt(x, z); /* nothing is cut under the top tread: the walk behind it keeps its level */ return Math.min(T.heightAt(x, z), Math.max(botY, topY - (b - bTop) / st.tread * riser) - 0.18); } }); } }
+  // A flight from the back of a street's sidewalk down to a lower terrace (school.js stairFlight): top = the DESIGNED level of
+  // the walk behind its back edge (never the ground there: after the re-bake the pool stairs were still fitted to a landing
+  // 0.4 m below the re-graded sidewalk), foot = the terrace; the ground under the flight is cut just below the line of the
+  // steps, and nothing is cut under the top tread, so the walk behind it keeps its level.
+  const fitFlight = (st, botY) => { const am = (st.a0 + st.a1) / 2; let sum = 0, k = 0; for (const a of [st.a0, am, st.a1]) { const q = G(a, st.bWalk - 0.3); const d = streets && streets.design(q[0], q[1]); sum += d && d.zone === 'walk' ? d.y : T.heightAt(q[0], q[1]); k++; } const topY = sum / k;
+    const nMax = st.bBot !== undefined ? Math.floor((st.bBot - st.bWalk - st.apron) / st.tread + 1e-6) : 40;
+    const n = Math.max(2, Math.min(nMax, Math.round((topY - botY) / 0.165))), riser = (topY - botY) / n, run = (n - 1) * st.tread, bTop = st.bBot !== undefined ? st.bBot - n * st.tread : st.bWalk + st.apron;
+    if (!(topY - botY > 0.5) || riser > 0.2) return null;
+    ctx.flatten({ rect: { cx: G(am, bTop + run / 2)[0], cz: G(am, bTop + run / 2)[1], w: st.a1 - st.a0 + 0.4, d: run + 0.8, angle: ANG } }, { blend: 0.5, y: (x, z) => { const b = -x * UZ + z * UX; if (b < bTop + st.tread) return T.heightAt(x, z); return Math.min(T.heightAt(x, z), Math.max(botY, topY - (b - bTop) / st.tread * riser) - 0.18); } });
+    return { topY, botY, n, riser, run, bTop }; };
+  // the alley between the Library and the pool house: from the Mission Ave walk down to the pool deck, wall to wall. Its floor
+  // from the foot of the flight out onto the deck is cut to the deck's level (the wall pads of the two buildings left a
+  // 0.6 m asphalt mound at the mouth of the alley)
+  { const st = POOL_STAIR, botY = ctx.poolY ?? T.heightAt(...G((st.a0 + st.a1) / 2, 44)); ctx.poolStair = fitFlight(st, botY);
+    if (ctx.poolStair) { const b0 = ctx.poolStair.bTop + ctx.poolStair.n * st.tread - 0.3, b1 = 51.5; ctx.flatten({ rect: { cx: G((st.a0 + st.a1) / 2, (b0 + b1) / 2)[0], cz: G((st.a0 + st.a1) / 2, (b0 + b1) / 2)[1], w: st.a1 - st.a0 + 0.6, d: b1 - b0, angle: ANG } }, { blend: 1.5, y: (x, z) => Math.min(T.heightAt(x, z), botY) }); } }
+  // the flight from the Mission Ave walk down to the forecourt of the Library courtyard (school.js courtSteps)
+  { const st = COURT_STAIR; ctx.courtStair = fitFlight(st, T.heightAt(...G((st.a0 + st.a1) / 2, st.bBot + 1.2))); }
   // (2) A graded street beside the pitch: the field pad (a `hard` zone) keeps its bank on the designed sidewalk. Mission Ave
   // runs 2.5 m BELOW the pitch along its south side, Bryn Mawr Drive 3-5 m ABOVE it along the east side. The walk gets its
   // designed level back: cut wherever it stands above the design; raised to it from 4.0 m outside the turf on (a full lattice cell behind
@@ -137,12 +146,16 @@ function sitework(ctx) {
     // scan put on a carriageway (or within 0.6 m of one) moves behind the sidewalk on its side, or goes
     // (and the strip between the Cottage Ave sidewalk and the Leadership Center's sunk west wall is a lawn bank, not the car park the photo's shadow reads as)
     const lawn = shapeSDF(R(...gp(-12.4, 61.0, -8.0, 0), 5.4, 51.6)).sd;
-    if (ctx.paintSurface) ctx.paintSurface((x, z) => streets.surface(x, z) || (lawn(x, z) <= 0 ? 'grass' : null));
+    // (and the frontage of the Leadership Center and the Library on Mission Ave: Street View shows a lawn strip with a clipped
+    // hedge against the wall between the sidewalk and the buildings, not paving)
+    const front = [R(...G(-0.2, 37.3), 19.6, 3.9), R(...G(32.6, 36.9), 22.4, 3.1)].map((sh) => shapeSDF(sh).sd);
+    if (ctx.paintSurface) ctx.paintSurface((x, z) => streets.surface(x, z) || (lawn(x, z) <= 0 || front.some((sd) => sd(x, z) <= 0) ? 'grass' : null));
     const solid = streets.solid[0] || (() => false); const out = [];
     for (const t of ctx.gen.trees || []) { const dz = streets.design(t[0], t[1]); const p = streets.toVerge(t[0], t[1], dz && dz.zone === 'walk' ? 3.2 : 1.0);   /* (a trunk on a sidewalk moves behind it too: several streets have walks now that had none on the stretched ground) */ if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // (and a tree deep inside a car park: asphalt 2.5 m all round it)
     ctx.gen.trees = out.filter((t) => !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
   }
+  recutHouses(ctx);
   planCheeks(ctx);
 }
 

@@ -1,7 +1,7 @@
 // Marin Academy grounds: Championship Field (turf, lines, the MA mark, goals, bleachers, fences, hedge, scoreboard),
 // the circle drive in front of Foster Hall, entry sign and flag, car parks and kerb-side cars, street lamps, cover.
 import * as THREE from 'three';
-import { hedgeMass, atGround, hillFence, onSlope, ANG, UX, UZ, gp, rect, CLAY, minAreaOBB, hipRoof, boxFromRect, wallDecal, edgeFrame, quadFacing, pointInRing, ensureCCW, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
+import { hedgeMass, hedgeRun, atGround, hillFence, onSlope, ANG, UX, UZ, gp, rect, CLAY, minAreaOBB, hipRoof, boxFromRect, wallDecal, edgeFrame, quadFacing, pointInRing, ensureCCW, makeCanvas, canvasTexture, mulberry32 } from './kit.js';
 import { paintedQuad } from '../../world/fields.js';
 import { fence, bleachers, lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
@@ -52,57 +52,75 @@ const WALL_D = 4.7;
 const wallTop = (ctx, x, z, nx, nz) => gY(ctx, x + nx * (WALL_D + 0.25), z + nz * (WALL_D + 0.25));
 const hedgeBlock = (ctx, x, z, y, w, d, h, rot, k = 0) => hedgeMass(ctx, x, z, y, w, d, h + ((Math.abs(Math.round(x * 3 + z)) % 5) * 0.16), rot, k);   // (kit.js: leaf skin, crowns, solid)
 function perimeter(ctx, pts, opts = {}) {
-  const { B } = ctx; const step = 3.0; let dist = 0; const run = []; const gaps = opts.gaps || [];   // fence runs: [[x, z, lift], ...]
+  const { B } = ctx; const step = 3.0; let dist = 0; const run = []; const gaps = opts.gaps || []; const c = G(79, -30);   // fence runs: [[x, z, lift], ...]
   const flush = () => { if (run.length > 1) { const lifts = new Map(run.map((p) => [p[0].toFixed(2) + ',' + p[1].toFixed(2), p[2]])); hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, run.map((p) => [p[0], p[1]]), { h: 3.0, black: true, every: step }); } run.length = 0; };
+  // ---- pass 1: the panels (3 m) and the top each one needs
+  const panels = [], segStart = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.round(L / step)); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
-    // outward = away from the pitch centre
-    const c = G(79, -30); let nx = -tz, nz = tx; if (nx * (a[0] - c[0]) + nz * (a[1] - c[1]) < 0) { nx = -nx; nz = -nz; }
+    let nx = -tz, nz = tx; if (nx * (a[0] - c[0]) + nz * (a[1] - c[1]) < 0) { nx = -nx; nz = -nz; }   // outward = away from the pitch centre
+    segStart.push(panels.length);
     for (let k = 0; k < n; k++) {
       const p = [a[0] + tx * L * k / n, a[1] + tz * L * k / n], q = [a[0] + tx * L * (k + 1) / n, a[1] + tz * L * (k + 1) / n]; const d0 = dist + L * k / n, d1 = dist + L * (k + 1) / n; const mid = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
-      // ground behind the block (beyond the pad's blend): the wall top for this panel
+      // ground behind the block (beyond the pad's blend)
       let top = -Infinity; for (const t of [0, 0.5, 1]) top = Math.max(top, wallTop(ctx, p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, nx, nz));
       // (at a graded street the block ends where the sidewalk begins, 2.3 m out at the least (the pad's ramp lies under it), and
       // its top is the ground under THAT footprint: 4.7 m deep it stood 0.4-0.5 m proud right across the Mission Ave walk)
-      let WD = WALL_D; const tall = top > 0.7; if (tall && ctx.streets) for (let o = 0.6; o <= WALL_D; o += 0.1) { const zs = [0, 0.5, 1].map((t) => ctx.streets.design(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); if (zs.some((d) => d && d.zone === 'road')) { WD = Math.max(1.2, o - 0.1); break; } if (o >= 2.3 && zs.some((d) => d && d.zone === 'walk')) { WD = o; break; } }
-      if (tall) { if (WD < WALL_D) top = -Infinity; for (let t = 0; t <= 1.001; t += 0.25) for (const o of [0.3, 0.85, 1.4, 1.95, 2.5, 3.05, 3.6, 4.15, 4.7, WD].filter((v) => v <= WD)) top = Math.max(top, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); }   // nothing under the block stands above it (a graded sidewalk at its back)
-      const wall = tall && top > (WD < WALL_D ? 0.15 : 0.7); const lift = wall ? top + (WD < WALL_D ? 0.04 : 0.12) : null; const rot = Math.atan2(-tz, tx); const w = L / n + 0.04;
-      // (a block that ends at a sidewalk has a top that falls with the street: level per 3 m panel it stood 0.13-0.27 m proud of the walk at its low end)
-      let lp = null, lq = null; if (wall && WD < WALL_D) { const at = (t) => { let m = -Infinity; for (const o of [WD - 0.6, WD - 0.3, WD]) m = Math.max(m, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); return m + 0.02; }; lp = at(0); lq = at(1); const lm = at(0.5) - (lp + lq) / 2; if (lm > 0.02) { lp += lm; lq += lm; } }   /* (the top is the walk's own level at the block's outer edge) */
-      // (where the walk is so near the pitch that its ramp starts in front of the fence line, the face stands 0.7 m nearer the turf)
-      const o0 = wall && lp !== null && [0, 0.5, 1].some((t) => ctx.groundY(p[0] + (q[0] - p[0]) * t - nx * 0.1, p[1] + (q[1] - p[1]) * t - nz * 0.1) > 0.12) ? -0.7 : 0;
-      if (wall && lp !== null) { const C = (t, o, y) => [p[0] + (q[0] - p[0]) * t + nx * o, y, p[1] + (q[1] - p[1]) * t + nz * o]; const e = 0.02 / (L / n);
-        for (const bk of [B.v('concrete'), B.c('concrete')]) { const uv = bk === B.c('concrete') ? undefined : [[0, 0], [1, 0], [1, 0.8], [0, 0.8]];
-          quadFacing(bk, C(-e, o0, lp), C(1 + e, o0, lq), C(1 + e, WD, lq), C(-e, WD, lp), [0, 1, 0], uv); quadFacing(bk, C(-e, o0, -0.4), C(1 + e, o0, -0.4), C(1 + e, o0, lq), C(-e, o0, lp), [-nx, 0, -nz], uv); quadFacing(bk, C(-e, WD, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(-e, WD, lp), [nx, 0, nz], uv);
-          quadFacing(bk, C(-e, o0, -0.4), C(-e, WD, -0.4), C(-e, WD, lp), C(-e, o0, lp), [-tx, 0, -tz], uv); quadFacing(bk, C(1 + e, o0, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, lq), C(1 + e, o0, lq), [tx, 0, tz], uv); }
-        const m = [mid[0] + nx * (WD + o0) / 2, mid[1] + nz * (WD + o0) / 2]; (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WD - o0, top: Math.max(lp, lq), frontY: 0, allowTall: true }); }
-      else if (wall) { const m = [mid[0] + nx * WD / 2, mid[1] + nz * WD / 2]; B.v('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot, 1 / 3); B.c('concrete').box(m[0], (lift - 0.4) / 2, m[1], w, lift + 0.4, WD, rot);
-        B.v('limestone').box(mid[0] + nx * 0.05, lift + 0.03, mid[1] + nz * 0.05, w, 0.06, 0.34, rot, 1 / 3);
-        (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: L / n, d: WD, top: lift, frontY: 0, allowTall: true }); }   // map check: retaining
-      // (flush behind the fence line: a strip between fence and hedge would be a slot a player can drop into)
-      // (every third panel of the belt a real conifer rises out of it: an instanced tree planted on the wall top)
-      if (opts.hedge && opts.hedge(mid, wall ? lift : 0) && (k + i) % 3 === 1) { const o2 = wall ? 1.9 : 1.6; const by = wall ? lift : gY(ctx, mid[0] + nx * o2, mid[1] + nz * o2); ctx.gen.trees.push([+(mid[0] + nx * o2).toFixed(1), +(mid[1] + nz * o2).toFixed(1), 1, 0.62 + (((k * 7 + i * 3) % 5) * 0.07), +(by + 0.2).toFixed(2)]); }
-      if (opts.hedge && opts.hedge(mid, wall ? lift : 0)) { const o = wall ? 1.45 : 1.2; hedgeBlock(ctx, mid[0] + nx * o, mid[1] + nz * o, wall ? lift : gY(ctx, mid[0] + nx * o, mid[1] + nz * o), w + 0.3, 2.3, 5.5, rot, 0); }
-      const open = opts.fence === false || gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
-      if (open) { flush(); continue; }
-      const y0 = wall ? (lp ?? lift) : gY(ctx, p[0], p[1]), y1 = wall ? (lq ?? lift) : gY(ctx, q[0], q[1]); const o = wall ? 0.25 : 0;
-      const P0 = [p[0] + nx * o, p[1] + nz * o, y0], P1 = [q[0] + nx * o, q[1] + nz * o, y1];
-      if (run.length && (Math.abs(run[run.length - 1][2] - y0) > 0.02 || Math.hypot(run[run.length - 1][0] - P0[0], run[run.length - 1][1] - P0[1]) > 0.05)) flush();
-      if (!run.length) run.push(P0); run.push(P1);
-      if (wall) flush();   // every wall panel has its own level top
+      let WD = WALL_D; const tall = top > 0.7; if (ctx.streets) for (let o = 0.6; o <= WALL_D; o += 0.1) {   /* (for every panel, tall or not: the tapering end of a neighbouring wall must not run out across a sidewalk) */ const zs = [0, 0.5, 1].map((t) => ctx.streets.design(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); if (zs.some((d) => d && d.zone === 'road')) { WD = Math.max(1.2, o - 0.1); break; } if (o >= 2.3 && zs.some((d) => d && d.zone === 'walk')) { WD = o; break; } }
+      if (tall) { if (WD < WALL_D) top = -Infinity; for (let t = 0; t <= 1.001; t += 0.25) for (const o of [0.3, 0.85, 1.4, 1.95, 2.5, 3.05, 3.6, 4.15, 4.7, WD].filter((v) => v <= WD)) top = Math.max(top, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); }   // nothing under the block stands above it
+      const street = WD < WALL_D, wall = tall && top > (street ? 0.15 : 0.7);
+      panels.push({ seg: i, k, p, q, mid, tx, tz, nx, nz, len: L / n, d0, d1, WD, street, wall, raw: wall && !street ? top + 0.12 : -Infinity });
     }
     dist += L;
   }
+  // ---- pass 2: ONE continuous top for the whole run (QA: a level top per 3 m panel read as a ziggurat with notches of bank
+  // between the steps). The top at each joint is what both panels need; then the upper envelope with a slope of at most
+  // 15 %, so the coping runs in straight ramps and a wall ends by tapering down, never in a step.
+  const N = panels.length, V = new Float64Array(N + 1).fill(-Infinity), S = 0.15 * step;
+  for (let j = 0; j <= N; j++) V[j] = Math.max(j > 0 ? panels[j - 1].raw : -Infinity, j < N ? panels[j].raw : -Infinity);
+  for (let j = 1; j <= N; j++) V[j] = Math.max(V[j], V[j - 1] - S); for (let j = N - 1; j >= 0; j--) V[j] = Math.max(V[j], V[j + 1] - S);
+  for (let j = 0; j < N; j++) {
+    const { p, q, mid, tx, tz, nx, nz, len, d0, d1, WD, street, k, seg } = panels[j]; let wall = panels[j].wall;
+    const C = (t, o, y) => [p[0] + (q[0] - p[0]) * t + nx * o, y, p[1] + (q[1] - p[1]) * t + nz * o]; const e = 0.02 / len;
+    let h0 = null, h1 = null, o0 = 0;
+    if (wall && street) {
+      // a block that ends at a sidewalk: its top is the walk's own level at the block's outer edge, at each end of the panel
+      const at = (t) => { let m = -Infinity; for (const o of [WD - 0.6, WD - 0.3, WD]) m = Math.max(m, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); return m + 0.02; }; h0 = at(0); h1 = at(1); const lm = at(0.5) - (h0 + h1) / 2; if (lm > 0.02) { h0 += lm; h1 += lm; }
+      // (where the walk is so near the pitch that its ramp starts in front of the fence line, the face stands 0.7 m nearer the turf)
+      if ([0, 0.5, 1].some((t) => ctx.groundY(p[0] + (q[0] - p[0]) * t - nx * 0.1, p[1] + (q[1] - p[1]) * t - nz * 0.1) > 0.12)) o0 = -0.7;
+    } else if (!street && Math.max(V[j], V[j + 1]) > 0.3) { wall = true; h0 = Math.max(0.12, V[j]); h1 = Math.max(0.12, V[j + 1]); }
+    else wall = false;
+    if (wall) {
+      for (const bk of [B.v('concrete'), B.c('concrete')]) { const uv = bk === B.c('concrete') ? undefined : [[0, 0], [1, 0], [1, 0.8], [0, 0.8]];
+        quadFacing(bk, C(-e, o0, h0), C(1 + e, o0, h1), C(1 + e, WD, h1), C(-e, WD, h0), [0, 1, 0], uv); quadFacing(bk, C(-e, o0, -0.4), C(1 + e, o0, -0.4), C(1 + e, o0, h1), C(-e, o0, h0), [-nx, 0, -nz], uv); quadFacing(bk, C(-e, WD, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, h1), C(-e, WD, h0), [nx, 0, nz], uv);
+        quadFacing(bk, C(-e, o0, -0.4), C(-e, WD, -0.4), C(-e, WD, h0), C(-e, o0, h0), [-tx, 0, -tz], uv); quadFacing(bk, C(1 + e, o0, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, h1), C(1 + e, o0, h1), [tx, 0, tz], uv); }
+      if (!street) { const cp = B.v('limestone'); quadFacing(cp, C(-e, o0 - 0.03, h0 + 0.05), C(1 + e, o0 - 0.03, h1 + 0.05), C(1 + e, o0 + 0.36, h1 + 0.05), C(-e, o0 + 0.36, h0 + 0.05), [0, 1, 0], [[0, 0], [1, 0], [1, 0.13], [0, 0.13]]);
+        quadFacing(cp, C(-e, o0 - 0.03, h0 - 0.03), C(1 + e, o0 - 0.03, h1 - 0.03), C(1 + e, o0 - 0.03, h1 + 0.05), C(-e, o0 - 0.03, h0 + 0.05), [-nx, 0, -nz], [[0, 0], [1, 0], [1, 0.03], [0, 0.03]]); }   // one coping, running with the top
+      const m = [mid[0] + nx * (WD + o0) / 2, mid[1] + nz * (WD + o0) / 2]; (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: len, d: WD - o0, top: street ? Math.max(h0, h1) : Math.min(h0, h1), frontY: 0, allowTall: true });   // map check: retaining
+    }
+    // The bank behind the wall is woodland in reality (3D tiles: oaks and conifers right down to the field edge on the north and
+    // east sides): real trees on the bank, never on a walk or a roadway. (The clipped "evergreen belt" that stood on the wall top
+    // was invented cover: it is gone.)
+    if (opts.wood && opts.wood(mid) && !street && (j % 2 === 0)) { const o2 = WD + 1.0 + ((j * 7) % 3) * 1.5, x = mid[0] + nx * o2 + tx * (((j * 5) % 3) - 1) * 0.6, z = mid[1] + nz * o2 + tz * (((j * 5) % 3) - 1) * 0.6;
+      const clear = !ctx.streets || [[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].every(([dx, dz]) => { const d = ctx.streets.design(x + dx, z + dz); return !(d && (d.zone === 'road' || d.zone === 'walk')); });
+      if (clear && gY(ctx, x, z) > 0.5) ctx.gen.trees.push([+x.toFixed(1), +z.toFixed(1), j % 6 === 0 ? 1 : 0, 0.7 + ((j * 3) % 5) * 0.07]); }
+    const open = opts.noFence && opts.noFence(seg) || gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
+    if (open) { flush(); continue; }
+    const y0 = wall ? h0 : gY(ctx, p[0], p[1]), y1 = wall ? h1 : gY(ctx, q[0], q[1]); const o = wall ? 0.25 : 0;
+    const P0 = [p[0] + nx * o, p[1] + nz * o, y0], P1 = [q[0] + nx * o, q[1] + nz * o, y1];
+    if (run.length && (Math.abs(run[run.length - 1][2] - y0) > 0.02 || Math.hypot(run[run.length - 1][0] - P0[0], run[run.length - 1][1] - P0[1]) > 0.05)) flush();
+    if (!run.length) run.push(P0); run.push(P1);
+  }
   flush();
+  return segStart.map((j) => V[j]).concat([V[N]]);   // the top at every vertex of the polyline (corner wedges)
 }
 // the outside of a convex corner between two wall runs: a wedge of the same block, so the bank does not show between them
-function cornerWedge(ctx, v, prev, next, hedge) {
+function cornerWedge(ctx, v, prev, next, topRun) {
   const { B } = ctx; const c = G(79, -30); const nrm = (a, b) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); let nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L; if (nx * (v[0] - c[0]) + nz * (v[1] - c[1]) < 0) { nx = -nx; nz = -nz; } return [nx, nz]; };
   const n1 = nrm(prev, v), n2 = nrm(v, next); let bx = n1[0] + n2[0], bz = n1[1] + n2[1]; const bl = Math.hypot(bx, bz); if (bl < 1e-3) return; bx /= bl; bz /= bl; const cosH = bx * n1[0] + bz * n1[1]; if (cosH > 0.995) return;
   const R = WALL_D / Math.max(0.35, cosH); const ring = ensureCCW([[v[0], v[1]], [v[0] + n1[0] * WALL_D, v[1] + n1[1] * WALL_D], [v[0] + bx * R, v[1] + bz * R], [v[0] + n2[0] * WALL_D, v[1] + n2[1] * WALL_D]]);
-  const top = Math.max(wallTop(ctx, v[0], v[1], n1[0], n1[1]), wallTop(ctx, v[0], v[1], n2[0], n2[1]), gY(ctx, v[0] + bx * (R + 0.25), v[1] + bz * (R + 0.25))); if (top <= 0.7) return;
+  if (!(topRun > 0.3)) return; const top = topRun - 0.12;   // the same top as the two runs that meet here
   B.v('concrete').prism(ring, -0.4, top + 0.12, 1 / 3, true); B.c('concrete').prism(ring, -0.4, top + 0.12, 1, true);
-  if (hedge || top > 2.2) hedgeBlock(ctx, v[0] + bx * 1.75, v[1] + bz * 1.75, top + 0.12, 3.4, 3.4, 5.5, Math.atan2(-bz, bx), 0);
 }
 function field(ctx) {
   const { B, quality } = ctx;   const a0 = 31, a1 = 127, b0 = -90, b1 = 18; const ppm = quality === 'high' ? 18 : quality === 'low' ? 9 : 12; const W = Math.round((b1 - b0) * ppm), H = Math.round((a1 - a0) * ppm);
@@ -173,36 +191,22 @@ function field(ctx) {
   // is a level pad cut into the hill: where the ground outside stands more than 0.7 m above the turf (the whole north
   // end, up to ~6 m) a concrete retaining wall holds the bank and the fence runs along its top.
   const P = turfWorld(2.0);
-  // The bank above the north-east wall is 9-10 m over the red flag base 40 m away, and in reality densely overgrown
-  // (Street View from the lane above): an evergreen belt on the wall top closes that overlook for sight and bullets.
-  // The same belt runs along every stretch of wall more than 2.2 m high (the whole north end: the gym plaza looks down
-  // on the pitch from there too); the aerial photo shows the tree line on that bank.
-  // (and wherever the ground 10 m behind the edge stands 3.5 m or more over the pitch, whatever the wall at the edge: on the
-  // correctly registered DEM the north wall is 1-2 m lower than it was drawn, and the gym plaza looked straight down on the red base)
-  const cT = G(79, -30); const high = (m) => { const dx = m[0] - cT[0], dz = m[1] - cT[1], l = Math.hypot(dx, dz) || 1; return [6, 10, 14].some((o) => gY(ctx, m[0] + dx / l * o, m[1] + dz / l * o) >= 3.5); };
-  const belt = (m, lift) => (m[0] > 92 && m[1] < -27) || lift > 2.2 || (m[1] < -40 && high(m));
-  perimeter(ctx, [P[1], P[0], P[5]], { gaps: [[38, 43], [118, 122]], hedge: belt });        // south (Mission Ave) + east
-  perimeter(ctx, [P[5], P[4], P[3], P[2]], { gaps: [[20, 24], [100, 126]], hedge: belt });   // north-east, north, north-west
-  // west side north of the spectator terrace (below the Science Center): the wall carries on, no fence (campus side)
-  { const t = (-33 - TURF[2][1]) / (TURF[1][1] - TURF[2][1]); const w1 = [P[2][0] + (P[1][0] - P[2][0]) * t, P[2][1] + (P[1][1] - P[2][1]) * t]; perimeter(ctx, [P[2], w1], { fence: false });
-    cornerWedge(ctx, P[5], P[0], P[4], true); cornerWedge(ctx, P[4], P[5], P[3], false); cornerWedge(ctx, P[3], P[4], P[2], false); cornerWedge(ctx, P[2], P[3], w1, false); }
-  // clipped hedge between the fence and the Mission Ave sidewalk
-  // (Street View: a dense evergreen hedge wall 4-5 m high hides the pitch from Mission Ave; it was a knee-high row before)
-  // (It stands on the bank between the fence and the sidewalk and covers exactly that bank: from the fence line to where
-  // the ground has come down to the designed walk (streets.design), collider and bushy columns included; one row of
-  // columns where the strip is narrow. Mission Ave is not parallel to the pitch, so every piece is fitted to its own
-  // strip. Laid out on a fixed line it stood on the walk and hung over the asphalt.)
-  const vh = (d) => 0.24 * d + 0.22 + Math.min(1.2, Math.max(0.35, 0.55 * d)) + 0.05;   // half depth of a two-row hedgeMass as drawn
-  for (let a = 37; a < 122; a += 4.7) { if (a > 68 && a < 78) continue; const hh = 4.2 + ((a * 7) % 5) * 0.12;
-    let edge = 21.0; if (ctx.streets) for (let b = 17.6; b <= 21.0; b += 0.1) if ([0, 1.2, 2.35, 3.5, 4.7].every((da) => { const q = G(a + da, b); const d = ctx.streets.design(q[0], q[1]); return ctx.streets.inRoad(q[0], q[1], 0) || (d && d.zone === 'walk' && gY(ctx, q[0], q[1]) <= d.y + 0.2); }) || [0, 2.35, 4.7].some((da) => { const q = G(a + da, b + 0.3); return ctx.streets.inRoad(q[0], q[1], 0); })) { edge = b; break; }
-    const b0 = 17.55, room = edge - 0.05 - b0;
-    if (room < 0.7) {   // no bank to cover (the street is level with the pitch or above it): one row on the wall's block right behind the fence, so the pitch is not open to the street
-      const p = G(a + 2.35, b0 + 0.4); let y = -Infinity; for (const da of [0.3, 2.35, 4.4]) for (const db of [-0.3, 0.5, 1.4, 2.2]) { const q = G(a + da, b0 + 0.4 + db); y = Math.max(y, gY(ctx, q[0], q[1])); }
-      hedgeMass(ctx, p[0], p[1], y, 4.74, 0.7, hh, ROT, a, { oneRow: true }); continue; }
-    const one = room < 2.0; let d = one ? Math.min(1.3, room) : 1.7; if (!one) while (d > 0.9 && 2 * vh(d) > room) d -= 0.1;
-    const half = one ? d / 2 : vh(d), bc = edge - 0.05 - half; const p = G(a + 2.35, bc);
-    let y = Infinity; for (const da of [0.3, 2.35, 4.4]) for (const db of [-half * 0.8, 0, half]) { const q = G(a + da, bc + db); y = Math.min(y, gY(ctx, q[0], q[1])); }
-    hedgeMass(ctx, p[0], p[1], y - 0.2, 4.74, d, hh + Math.max(0, -y) * 0.6, ROT, a, { oneRow: one }); }
+  // one run round the pitch: south (Mission Ave), east, north-east, north, north-west, then the wall alone on the west
+  // side north of the spectator terrace (campus side, no fence)
+  { const t = (-33 - TURF[2][1]) / (TURF[1][1] - TURF[2][1]); const w1 = [P[2][0] + (P[1][0] - P[2][0]) * t, P[2][1] + (P[1][1] - P[2][1]) * t]; const len = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]); const D1 = len(P[1], P[0]) + len(P[0], P[5]);
+    const tops = perimeter(ctx, [P[1], P[0], P[5], P[4], P[3], P[2], w1], { gaps: [[38, 43], [118, 122], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]], noFence: (seg) => seg === 5, wood: (m) => m[1] < -20 || m[0] > 118 });
+    cornerWedge(ctx, P[5], P[0], P[4], tops[2]); cornerWedge(ctx, P[4], P[5], P[3], tops[3]); cornerWedge(ctx, P[3], P[4], P[2], tops[4]); cornerWedge(ctx, P[2], P[3], w1, tops[5]); }
+  // The hedge along Mission Ave (Street View: "solid broadleaf evergreen hedge about 4-5 m tall right at the back of the
+  // sidewalk"): one continuous clipped wall between the fence line and the BACK of the designed walk, never on it. Mission
+  // Ave is not parallel to the pitch, so every station is fitted to its own strip (depth 0.6-1.3 m); where the walk comes
+  // right up to the fence the hedge stands on the pitch side of the line. Its top runs with the street (slope <= 10 %).
+  { const b0 = 17.55; const runs = [[]];
+    for (let a = 37; a <= 122.01; a += 2.35) { if (a > 68 && a < 78) { if (runs[runs.length - 1].length) runs.push([]); continue; }
+      let edge = 21.0; if (ctx.streets) for (let b = 16.6; b <= 21.0; b += 0.1) if ([-1.2, 0, 1.2].some((da) => { const q = G(a + da, b); const d = ctx.streets.design(q[0], q[1]); return ctx.streets.inRoad(q[0], q[1], 0.1) || (d && (d.zone === 'walk' || d.zone === 'road')); })) { edge = b; break; }
+      const back = edge - 0.12, d = Math.max(0.6, Math.min(1.3, back - b0)), bc = back - d / 2; const c = G(a, bc); let lo = Infinity, hi = -Infinity;
+      for (const da of [-1.1, 0, 1.1]) for (const db of [-d / 2, 0, d / 2]) { const q = G(a + da, bc + db); const g = gY(ctx, q[0], q[1]); lo = Math.min(lo, g); hi = Math.max(hi, g); }
+      runs[runs.length - 1].push({ x: c[0], z: c[1], nx: -UZ, nz: UX, d, y0: lo, y1: Math.max(hi, 0) + 4.4 }); }
+    for (const st of runs) { const S = 0.1 * 2.35; for (let j = 1; j < st.length; j++) st[j].y1 = Math.max(st[j].y1, st[j - 1].y1 - S); for (let j = st.length - 2; j >= 0; j--) st[j].y1 = Math.max(st[j].y1, st[j + 1].y1 - S); hedgeRun(ctx, st, 0.88); } }
   // scoreboard in the north-east corner, angled back at the pitch
   {
     const p = G(118.5, -57); const rot = ROT - 0.75; const pt = B.v('paint', true);
@@ -287,7 +291,7 @@ function frontOfCampus(ctx) {
   for (const [x, z] of [[-41, 6], [-41.5, -14], [-30, -27], [-6, -27.5], [1, -12], [2.5, 8], [-27, 15.5], [-4, 16.5], [-52, -30], [-60, -50]]) atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min');
   for (const [x, z, r] of [[-47.5, -2, ROT + Math.PI / 2], [-46.5, -12, ROT + Math.PI / 2], [-24, -29.5, ROT], [-10, -28, ROT]]) propKit.bench(ctx, x, z, r);
   for (const [x, z] of [[-46, 3], [-14, -29.5], [3, -22]]) propKit.trashCan(ctx, x, z);
-  propKit.bikeRack(ctx, -1.5, -24, ROT + Math.PI / 2); propKit.bikeRack(ctx, 5.5, -72, ROT);
+  propKit.bikeRack(ctx, -1.5, -24, ROT + Math.PI / 2); propKit.bikeRack(ctx, 12.5, -69, ROT);
   // stone seat wall round the south half of the circle lawn (cover) + the plaque boulder in the middle
   const cx = -20.3, cz = -4.6, R = 15.2;
   for (let k = 0; k < 9; k++) { const a0 = 0.18 * Math.PI + k * 0.071 * Math.PI, a1 = a0 + 0.06 * Math.PI; if (k === 4) continue; const xa = cx + Math.cos(a0) * R, za = cz + Math.sin(a0) * R, xb = cx + Math.cos(a1) * R, zb = cz + Math.sin(a1) * R; const L = Math.hypot(xb - xa, zb - za); atGround(ctx, (xa + xb) / 2, (za + zb) / 2, () => B.solidBox('limestone', 'concrete', (xa + xb) / 2, 0.18, (za + zb) / 2, L + 0.05, 0.76, 0.5, Math.atan2(-(zb - za), xb - xa), 1 / 3), L / 2); }
@@ -321,12 +325,14 @@ function vehicles(ctx) {
   };
   const car = (x, z, heading) => {
     if (!inPlay(x, z)) return; if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
-    if (ctx.terrain && [[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([dx, dz]) => ctx.terrain.slopeAt(x + dx, z + dz) > 0.115)) {   /* (anywhere under the car, not only at its centre) */ rnd(); rnd(); rnd(); placed.push([x, z]); return; }
+    if (ctx.terrain && [[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([dx, dz]) => ctx.terrain.slopeAt(x + dx, z + dz) > 0.10)) {   /* (anywhere under the car, not only at its centre) */ rnd(); rnd(); rnd(); placed.push([x, z]); return; }
     // ...nor across a step in the ground: the car is laid on the plane through its middle (onSlope), and beside a pad edge that plane is not the ground (one sat 0.75 m deep)
     if (ctx.terrain && ctx.terrain.meshHeightAt) { const g = ctx.groundY, y0 = g(x, z), gx = (g(x + 2, z) - g(x - 2, z)) / 4, gz = (g(x, z + 2) - g(x, z - 2)) / 4, c = Math.cos(heading), s = Math.sin(heading);
       if ([[2.2, 0.9], [2.2, -0.9], [-2.2, 0.9], [-2.2, -0.9], [0, 0]].some(([l, w]) => { const px = x + l * c + w * s, pz = z - l * s + w * c; return Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.35; })) { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }   // nobody parks on a bank (and a car cannot be laid on more than ~11 %)
     if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.5)) return;
     for (const r of ctx.buildingRings || []) if (pointInRing(x, z, r)) return;
+    // (no bumper over a sidewalk: a car parked in a lot beside a street stood half across the walk)
+    if (ctx.streets) { const c = Math.cos(heading), s = Math.sin(heading); if ([[2.5, 1.0], [2.5, -1.0], [-2.5, 1.0], [-2.5, -1.0], [2.5, 0], [-2.5, 0]].some(([l, w]) => { const q = ctx.streets.design(x + l * c + w * s, z - l * s + w * c); return q && q.zone === 'walk'; })) { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }
     // (trunks: up to ~0.45 m radius plus 0.6 m of room; other cars: a lane car must not clip a kerb-parked one)
     if (buses.some(([bx, bz, bh]) => overlaps(x, z, heading, bx - 0.15 * Math.cos(bh), bz + 0.15 * Math.sin(bh), bh, 6.1, 1.6)) || trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 4.2 && overlaps(x, z, heading, t[0], t[1], 0, 1.05, 1.05))
       || parked.some(([px, pz, ph]) => Math.hypot(px - x, pz - z) < 5.4 && overlaps(x, z, heading, px, pz, ph, 2.45, 1.0))) { rnd(); rnd(); rnd(); placed.push([x, z]); return; }
@@ -421,7 +427,7 @@ function streets(ctx) {
       const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
       let d = carry;
       for (; d < L; d += 27) {
-        const lo = r.tags.name === 'Mission Avenue' ? 0.35 : 0.75;   /* (Mission Ave's walk along the pitch is narrow: its lamps stand at the kerb edge) */
+        const lo = r.tags.name === 'Mission Avenue' ? 0.35 : 0.4;   /* (lamps stand at the kerb edge: 0.75 m in, one stood in the walking line of the E St walk) */
         const x = a[0] + tx * d - tz * side * (w / 2 + lo), z = a[1] + tz * d + tx * side * (w / 2 + lo); side = -side;
         if (ctx.streets && ctx.streets.inRoad(x, z, lo < 0.5 ? 0.15 : 0.4)) continue;   /* (a fork or a crossing street: never a lamp on a carriageway) */
         if (!inPlay(x, z) || !clearOfBuildings(x, z) || lamps.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 14)) continue;
@@ -434,7 +440,7 @@ function streets(ctx) {
   // signal masts at the OSM traffic signals (Mission / 5th / 4th crossings)
   for (const p of data.points) {
     if (p.tags.highway !== 'traffic_signals') continue; const [x, z] = p.p; if (!inPlay(x, z, 6)) continue;
-    const px = x + 6.2, pz = z + 6.6; if (!clearOfBuildings(px, pz)) continue;
+    let px = x + 6.2, pz = z + 6.6; if (ctx.streets) { const q = ctx.streets.design(px, pz); if (q && (q.zone === 'walk' || q.zone === 'road')) { const v = ctx.streets.toVerge(px, pz, 3.4); if (!v) continue; px = v[0]; pz = v[1]; } }   /* (the mast stands behind the walk) */ if (!clearOfBuildings(px, pz)) continue;
     atGround(ctx, px, pz, () => {
     B.v('galv').cyl(px, 0, pz, 0.14, 0.1, 6.2, 8, 1, true).tube([px, 5.9, pz], [px - 6.5, 6.1, pz - 0.8], 0.07, 6); B.c('metal').box(px, 3.1, pz, 0.35, 6.2, 0.35); ctx.grapplePoles.push({ x: px, z: pz, y0: 1, y1: 6.2, r: 0.14 });
     const pt = B.v('paint', true); pt.setColor(0.85, 0.7, 0.05); for (const k of [2.6, 5.4]) { pt.box(px - k, 5.55, pz - k * 0.123, 0.36, 1.0, 0.3, 0.12); B.v('lightEmit').box(px - k, 5.85, pz - k * 0.123 + 0.16, 0.2, 0.2, 0.02, 0.12); } pt.setColor(1, 1, 1);
@@ -447,8 +453,9 @@ function streets(ctx) {
     for (let i = 0; i < r.line.length - 1; i++) {
       const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 20) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
       for (let d = 12 + rnd() * 10; d < L - 8; d += 19 + rnd() * 16) {
-        const sd = rnd() < 0.5 ? 1 : -1; const x = a[0] + tx * d - tz * sd * (w / 2 + 1.7), z = a[1] + tz * d + tx * sd * (w / 2 + 1.7);
+        const sd = rnd() < 0.5 ? 1 : -1; const fo = ctx.streets ? w / 2 + 3.3 : w / 2 + 1.7; const x = a[0] + tx * d - tz * sd * fo, z = a[1] + tz * d + tx * sd * fo;   /* (behind the sidewalk: nothing solid stands on a walk) */
         if (!inPlay(x, z, 4) || !clearOfBuildings(x, z) || ctx.surfaceAt(x, z) === 'asphalt' || ctx.surfaceAt(x, z) === 'rubber') continue;
+        if (ctx.streets && [[0, 0], [1.3, 0], [-1.3, 0], [0, 1.3], [0, -1.3]].some(([dx, dz]) => { const q = ctx.streets.design(x + dx, z + dz); return q && (q.zone === 'walk' || q.zone === 'road'); })) { rnd(); continue; }
         const k = rnd(); const rot = Math.atan2(-tz, tx);
         if (Math.hypot(x - 39.9, z - 40.6) < 4.5) continue;   /* the mouth of the alley with the pool stairs stays clear (the random number is drawn first: every other piece keeps its place and kind) */
         if (k < 0.3) propKit.trashCan(ctx, x, z); else if (k < 0.55) propKit.bench(ctx, x, z, rot + (sd > 0 ? Math.PI : 0));

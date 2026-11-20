@@ -32,9 +32,11 @@ export default {
   // backdrop grid (gen.terrain), which also answers beyond the rectangle. Pads (field, pool deck, courts, building
   // entrances) are flattened by the builder (sitework in world.js) before anything is placed.
   terrain: { file: 'campuses/marin/terrain.bin', format: 'i16', nx: 331, nz: 301, scale: 0.01, offset: 0, extent: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 }, outside: backdropY, blend: 20, cell: 2 },
-  // red = the north-east corner of Championship Field by the scorer's tents (cover + 4 fence openings), blue = the
-  // downtown car park off 4th St, ~295 m apart
-  ctf: { red: [104, -27], blue: [-150, 136] },   // (blue: the open car park; [-141, 131] is inside the red cottage at the back of that court, so the base used to be nudged 9 m)
+  // red = the plaza between the gyms, the Science Center and Foster Hall (buildings on every side), blue = the downtown car
+  // park off 4th St, ~260 m apart. Red used to stand in the north-east corner of Championship Field: on the real ground the
+  // gym plaza and the hill lanes look down on the pitch from 6-13 m (map check overlook: 1584 m2 against 0), and the only
+  // thing that hid it was an invented evergreen belt. The real cover there is open woodland, so the base moved instead.
+  ctf: { red: [0, -72], blue: [-150, 136] },   // (blue: the open car park; [-141, 131] is inside the red cottage at the back of that court, so the base used to be nudged 9 m)
   practiceHeli: { x: 62, z: -22, yaw: -1.45 },
   spawnCenter: [-10, 20],
   // free-for-all spawns stay on and around campus (needs computeSpawns to honour it; ignored otherwise)
@@ -56,11 +58,12 @@ export default {
     // trunks >= 11.5 m, never on a street): car parks first, then the pitch and lawns
     [-6, 0, -152], [22, 0, -140], [-90, 0, -44], [82, 0, 68], [122, 0, 136], [-150, 0, 144], [6, 0, 144], [-26, 0, 160], [-138, 0, 48],
     [74, 0, -68], [114, 0, 20], [50, 0, -8], [14, 0, 88], [26, 0, 176], [34, 0, -112],
+    [-66, 0, 142], [-84, 0, 104], [-152, 0, 170], [126, 0, 172], [8, 0, -146], [92, 0, -44],   // spare lots and turf (the list had exactly the 12 the check asks for)
     [22, 15.5, -52],   // flat roof: the Science + Innovation Center penthouse (absolute deck height; the west classroom block roof is covered by its solar array)
   ],
   // walkable flood-fill seeds (CAMPUSES.md). Spelled out so the reachable area does not depend on the helicopter list:
   // the flag bases, the practice pad and open ground around campus.
-  walkSeeds: [[104, -27], [-150, 136], [62, -22], [108, -30], [76, -74], [12, -140], [-86, -44], [-20, -5], [84, 58], [-30, 150], [-10, 180],
+  walkSeeds: [[0, -72], [104, -27], [-150, 136], [62, -22], [108, -30], [76, -74], [12, -140], [-86, -44], [-20, -5], [84, 58], [-30, 150], [-10, 180],
     [128, 172], [70, 150], [150, 62], [-160, 160], [13, 92], [-110, 96], [170, 110], [-150, -150], [180, -60]],
   // Menu camera tour: camera path + look-at path (Catmull-Rom), field of view, caption. -z = north (uphill).
   tour: [
