@@ -1,7 +1,7 @@
 # Branson campus: builder hand-off (keep current; commit with every milestone)
 
 Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 1 after the
-first QA (NOT SHIP) is done; next = a fresh independent QA, release test, deploy.
+first and second QA (both NOT SHIP) are done; next = independent QA round 3, release test, deploy.
 
 ## Frame and key coordinates (x east, z south, metres)
 - origin lat 37.96545, lon -122.56545; y = 0 is Tom Ryan Field (NAVD88 16.54 m; 3D-tiles surface = game height - 16.28, one constant)
@@ -24,12 +24,12 @@ osm.py -> sat.py -> (dev/branson-tiles.html __dumpHeights -> data/tile_heights.j
 (Re-running gen.py resets ground_mask / macro / classes / trees: run patch_extra, ground_fix, canopy_fill again after it.)
 
 ## Gameplay
-- CTF: red (Bulls) [-188, -28], blue (Wildcats) [68, -28]: the two ends of the upper plateau, 258 m apart, nav path 340 m, 0 overlook cells each
-- practice heli on the pitch (-33, 92); 13 hidden spots in campus.js (9 off the pitch: tennis-shed car park, the courts, the glen,
-  west lawns, Fine Arts lawn, Prize Day Field, the quad lawn, the south-west corner; 4 on the pitch), all pass at 8.5 m; the
+- CTF: red (Bulls) [-184, -66] (hedged lawn north of Fernhill, west end; cover 0.50), blue (Wildcats) [68, -28] (lawn by New House; cover 0.75): 261 m apart, nav path 315 m, 0 overlook cells each
+- practice heli on the pitch (-33, 92); 14 candidates in campus.js (8 off the pitch: tennis-shed car park, the courts, the glen,
+  west lawns, Fine Arts lawn, Prize Day Field, the south-west corner; 6 on the pitch), 12 placed, all pass at 8.5 m; the
   builder appends every level 5 m cell as spare candidates; sitework keeps trunks 11.5 m back from each
 - 32 FFA spawns, 10 per team; ladders on the flat roofs (Commons north wing, Fine Arts x2, Tallant); pitched roofs by grapple
-- stairs: Alumni Steps (-70, 12) -> (-76, 33); the Bridge deck is level with both banks
+- stairs: Alumni Steps (-70, 12) -> (-76, 33), brick steps (-86.6, 27.7) -> (-92, 28.6) to the terrace, the Bridge: all walked both ways with `__walk` (dev/marin.html?campus=branson)
 
 ## Campus map tick list (branson.org/about/campus-map)
 1 Branson Gate: built (piers, wing walls, name) | 2 Crossways: house 975107315, board | 3 Blue Atlas Cedar: built | 4 Katharine
@@ -43,13 +43,15 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
 - [ ] independent QA round 2, release test, deploy
 
 ## Known weak spots (for QA / a successor)
-- map check `seating` warns for houses 975107317 and 976477404 (one low wall each): both stand outside the play bounds
-- name boards stand at each building's entrance; the positions of the real signs could not be verified (no Street View on campus)
-- the Blue Atlas Cedar is a tiered low-poly crown; the creek bed is gravel paint in a grassed channel (no rocks, no water: none visible in the tiles)
-- school buildings east of the pitch (Fine Arts, New House) keep their OSM / Esri positions; the Esri photo is sheared by up to ~5 m
-  there against the tiles, not re-measured
-- Fernhill houses are hidden behind hedges: walls / roofs from tiles obliques (facades_src.json `visible: tiles`), not Street View
-- New Oaks' solar array and the Fine Arts roofs' solar arrays are not drawn; Katharine Branson Hall's bow corner is faceted
+- map check `seating` warns "lowOnly" for hillside houses 974153830, 975106084, 975108094, 975107317: natural ground 0.15-0.3 m
+  above a wall's floor, the price of cut-only pads (no fill)
+- the old "Alumni Steps" flight at (-70, 12) is the first builder's placement; the tiles show the brick steps by the terrace
+  (now built) but no clear flight there. Kept because it is the only walk from the hall's lawn to the loop
+- red base cover 0.50 vs blue 0.75 (was 0.44): better enclosed, still not equal
+- name boards stand at entrances; real sign positions unverified. New Oaks / Tallant naming inferred from the legend order
+- Fine Arts / New House keep their OSM positions (the Esri photo is sheared up to ~5 m there against the tiles)
+- the gym keeps the generic kit walls under brown siding; concrete pad blocks remain at two of its doors
+- creek: gravel paint + boulders in a grassed channel, dry (no water visible in the tiles)
 
 ## Marin
 Marin (live) has the same squashed-DEM bug. Paused fix: branch worktree-agent-afcaa04df291ec9ac (worktree

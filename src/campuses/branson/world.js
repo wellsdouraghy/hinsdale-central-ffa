@@ -69,7 +69,7 @@ function sitework(ctx) {
   // (bed -2.7, 3 m wide, banks rising to the abutments) and level the two bridgeheads.
   { const B0 = BRIDGE; const ca = Math.cos(B0.creekAng), sa = Math.sin(B0.creekAng);
     ctx.flatten({ rect: { cx: B0.mid[0], cz: B0.mid[1], w: 18, d: B0.span + 1.0, angle: B0.creekAng } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const dx = x - B0.mid[0], dz = z - B0.mid[1]; const across = Math.abs(-dx * sa + dz * ca), al = Math.abs(dx * ca + dz * sa); const prof = -2.7 + Math.max(0, across - 1.5) * 1.9 + Math.max(0, al - 6) * 0.6; return Math.min(h, Math.max(prof, -2.7)); } });
-    for (const p of [B0.a, B0.b]) ctx.flatten({ circle: { x: p[0], z: p[1], r: 1.6 } }, { y: B0.y, blend: 1.4 }); }
+    ctx.flatten({ circle: { x: B0.b[0], z: B0.b[1], r: 1.6 } }, { y: B0.y, blend: 2.2 }); }   // only the quad-side bridgehead: the road end keeps its street design
   // ---- 6 + 7. everything respects the designed section: surface classes painted from it, trees off the carriageways
   if (streets) {
     const turf = zoneShapes[0], courts = shapeSDF({ outline: tennisRing(0) }).sd;

@@ -14,8 +14,8 @@ export const CREAM = [0.86, 0.75, 0.52];
 
 /** Edge frames of a CCW ring whose outward normal really points out (tested against the centroid). */
 export function outFrames(ringIn) {
-  const ring = ensureCCW(ringIn); let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length; const out = [];
-  for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; let F = edgeFrame(a[0], a[1], b[0], b[1]); const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (F.nx * (mx - cx) + F.nz * (mz - cz) < 0) F = edgeFrame(b[0], b[1], a[0], a[1]); F.i = i; out.push(F); }
+  const ring = ensureCCW(ringIn); const out = []; const inR = (x, z) => { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const a = ring[i], b = ring[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length]; let F = edgeFrame(a[0], a[1], b[0], b[1]); const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (inR(mx + F.nx * 0.25, mz + F.nz * 0.25)) F = edgeFrame(b[0], b[1], a[0], a[1]); F.i = i; out.push(F); }   // (point-in-ring, not the centroid: concave plans)
   return out;
 }
 /** Plain stucco block over a ring: walls y0..y1 in `color`, a flat roof (roofCol), collision. */
@@ -46,7 +46,7 @@ export function stuccoWalls(ctx, ringIn, h, opts = {}) {
   return ring;
 }
 const pointIn = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
-function tallRow(ctx, F, u0, u1, y0, y1, w, pitch) { const n = Math.max(0, Math.floor((u1 - u0) / pitch)); if (!n) return; const stp = (u1 - u0) / n; for (let k = 0; k < n; k++) { const u = u0 + stp * (k + 0.5); if (buried(ctx, F, u, y0)) continue; winRow(ctx, F, u - w / 2 - 0.01, u + w / 2 + 0.01, y0, y1, w, w + 0.02); } }
+function tallRow(ctx, F, u0, u1, y0, y1, w, pitch) { const n = Math.max(0, Math.floor((u1 - u0) / pitch)); if (!n) return; const stp = (u1 - u0) / n; for (let k = 0; k < n; k++) { const u = u0 + stp * (k + 0.5); if (buried(ctx, F, u, y0)) continue; winRow(ctx, F, u - w / 2 - 0.05, u + w / 2 + 0.05, y0, y1, w, w); } }   // (one window: the span is a little over one pitch)
 const QF = (b, p0, p1, p2, p3, ua, ub, uc, ud) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2]; const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx]; if (n[0] * QF.n[0] + n[2] * QF.n[1] >= 0) b.quad(p0, p1, p2, p3, ua, ub, uc, ud); else b.quad(p0, p3, p2, p1, ua, ud, uc, ub); };
 QF.n = [0, 0];
 const triF = (b, p0, p1, p2, n) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2]; const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx; if (cx * n[0] + cy * n[1] + cz * n[2] >= 0) b.tri(p0, p1, p2, [0.5, 0.5], [0.5, 1], [0.4, 1]); else b.tri(p0, p2, p1, [0.5, 0.5], [0.4, 1], [0.5, 1]); };

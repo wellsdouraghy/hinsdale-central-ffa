@@ -138,7 +138,7 @@ export function buildSchool(ctx) {
       if (s.roof === 'flat') { const green = s.key.startsWith('commons'); stuccoWalls(ctx, ring, h, { color: green ? CONC : ARTS_WHITE, storeys: 1, w: 2.2, pitch: 3.2, others: all }); roofCover(ctx, ring, h + 0.01, green ? SEDUM : [0.72, 0.72, 0.7]); flats.push({ s, ring, roofAbs: base + h }); return; }
       if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: [0.66, 0.6, 0.5], storeys: 1, w: 2.7, pitch: 3.2, others: all }); const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { tint: BR_SEAM, ov: 0.9, gableTint: [0.66, 0.6, 0.5] }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
       // Katharine Branson Hall and the quad: cream stucco under clay tile, tall windows in a regular rhythm (arched on the hall), arched doors
-      stuccoWalls(ctx, ring, h, { cap: [0.3, 0.22, 0.18], color: [0.9, 0.82, 0.62], arched: s.key === 'kbh', storeys: s.key === 'kbh' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, trim: [0.8, 0.78, 0.72] });
+      stuccoWalls(ctx, ring, h, { cap: [0.3, 0.22, 0.18], color: [0.93, 0.8, 0.54], arched: s.key === 'kbh', storeys: s.key === 'kbh' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, trim: [0.8, 0.78, 0.72] });
       // Katharine Branson Hall: three hips with the RIDGE heights of the tiles (rule F32: 19.8 over the south-east wing, 19.0 over the
       // middle, 18.4 over the north block); one pitch over the whole plan left the wings 3.5 m low
       if (s.key === 'kbh') { for (const [quad, rise] of KBH_ROOFS) hipRoof(ctx, quad, h, rise - s.top, { tint: BR_CLAY, overhang: s.ov, fill: true }); kbhPorches(ctx, s); }

@@ -16,7 +16,7 @@ export const ALUMNI_STEPS = [{ a: [-70, 12], b: [-76, 33], w: 2.4 },
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
 export const CAR_FREE = [[-112, 30]];
 // The Bridge over Ross Creek (campus map item 12): from the end of Park Drive (a) to the quad path (b); deck level y
-export const BRIDGE = { a: [-141.6, 89.6], b: [-147.4, 95.4], y: 1.3, w: 3.2 };
+export const BRIDGE = { a: [-141.6, 89.6], b: [-147.4, 95.4], y: 1.13, w: 3.2 };   // deck level = the designed end of Park Drive (a pad 0.16 m above it was a hump on the road end: map check `mounds`)
 BRIDGE.mid = [(BRIDGE.a[0] + BRIDGE.b[0]) / 2, (BRIDGE.a[1] + BRIDGE.b[1]) / 2]; BRIDGE.span = Math.hypot(BRIDGE.b[0] - BRIDGE.a[0], BRIDGE.b[1] - BRIDGE.a[1]);
 BRIDGE.creekAng = Math.atan2(BRIDGE.b[1] - BRIDGE.a[1], BRIDGE.b[0] - BRIDGE.a[0]) - Math.PI / 2;   // the creek runs square to the bridge here (OSM waterway 1286786146)
 /** Distance to Ross Creek's centre line (OSM waterway) as a function (x, z) -> metres. */
@@ -138,7 +138,7 @@ function vehicles(ctx) {
   // the gym service drive: along the gym's west wall and the bank north of it
   row([-125.6, 84.0], [-122.9, 93.8], -1, 0.85); row([-119.6, 74.4], [-110.2, 66.8], -1, 0.8);
   // the loop: a stall row inside the island's south half and one on the outer south-east kerb (nadir tiles)
-  loose = true; LOOP_ROWS.forEach(([p, q], i) => row(p, q, i < 2 ? -1 : 1, 0.9)); loose = false;
+  loose = true; LOOP_ROWS.forEach(([p, q], i) => { const o = i < 2 ? [0.35, 1.25] : [0, 0]; row([p[0] + o[0], p[1] + o[1]], [q[0] + o[0], q[1] + o[1]], i < 2 ? -1 : 1, 0.9); });   // (the island row: noses stop at the garden kerb) loose = false;
   ctx.carCount = n;
 }
 
@@ -183,7 +183,7 @@ function streetscape(ctx) {
   }
   // lamps: the globe posts of the car parks and the drive (sparse: Ross lanes are barely lit). Never on a carriageway.
   const lamps = [];
-  const turfRing = fieldRing(4.5); const lamp = (x, z) => { if (pointInRing(x, z, turfRing)) return; if (!inPlay(x, z) || (S && S.inRoad(x, z, 0.5)) || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r)) || lamps.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 12)) return; atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min'); lamps.push([x, z]); };
+  const turfRing = fieldRing(4.5); const lamp = (x, z) => { if (pointInRing(x, z, turfRing) || ctx.surfaceAt(x, z) === 'asphalt') return; if (!inPlay(x, z) || (S && S.inRoad(x, z, 0.5)) || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r)) || lamps.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 12)) return; atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min'); lamps.push([x, z]); };
   for (const r of data.roads) {
     if (!(r.tags.name === 'Park Drive' || r.id === 570965051)) continue; const w = streetWidth(r); let side = 1, carry = 9;
     for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 1) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; let d = carry; for (; d < L; d += 24) { lamp(a[0] + tx * d - tz * side * (w / 2 + 1.1), a[1] + tz * d + tx * side * (w / 2 + 1.1)); side = -side; } carry = d - L; }
