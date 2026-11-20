@@ -92,7 +92,7 @@ export function buildTerrain(ctx) {
   for (let k = 0; k < 30000 && farC.length < 2840; k++) {   // the rest of the hills
     const x = (rnd() - 0.5) * 2400, z = (rnd() - 0.5) * 2400; if (outside(x, z) < 260) continue;
     const s = hAt(x, z); if (!s) continue; if (s.hill && sm(s.i, s.j) > 0.6 && rnd() < 0.8) continue;
-    farC.push([x, s.h, z, 4.2 + rnd() * 3.4, rnd()]);
+    { const rr = 5.5 + rnd() * 4.5; farC.push([x, s.h - 0.8 * rr, z, rr, rnd()]); }   // half sunk: a lumpy canopy line, not separate balls
     if (houses.length < 0 && s.h < 130 && rnd() < 0.04) houses.push([x + 9, s.h, z + 4, rnd()]);
   }
   for (let k = 0; k < 20000 && blocks.length < 0; k++) {  // low-rise roofs on the flat land south / west / east
@@ -117,7 +117,7 @@ export function buildTerrain(ctx) {
       list.forEach(([x, y, z, r, v], k) => { dummy.position.set(x, y + (full ? r * 0.95 : r * 0.35), z); dummy.scale.set(r, r * (0.95 + v * 0.5), r * (0.85 + ((v * 7) % 1) * 0.3)); dummy.rotation.set(0, v * 6.283, 0); dummy.updateMatrix(); im.setMatrixAt(k, dummy.matrix); const d = (v * 13) % 1; col.setRGB(0.07 + v * 0.04 + d * 0.02, 0.17 + v * 0.07 + d * 0.04, 0.04 + v * 0.02); im.setColorAt(k, col); });
       im.name = name; im.castShadow = false; im.receiveShadow = false; im.matrixAutoUpdate = false; im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); scene.add(im);
     };
-    crownMesh(nearC, true, 'terrain:crowns'); crownMesh(farC, false, 'terrain:crowns-far');
+    crownMesh(nearC, true, 'terrain:crowns'); crownMesh(farC, true, 'terrain:crowns-far');   // rounded domes on the ridgelines too (cones read as a sawtooth against the sky)
   }
   if (blocks.length) {
     // roof boxes: four walls + a lighter top (10 triangles), on the street grid

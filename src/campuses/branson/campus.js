@@ -32,19 +32,19 @@ export default {
   // Field (y = 0), 2 m grid over the satellite rectangle; its outer 40 m are blended into the 20 m backdrop grid
   // (gen.terrain), which also answers beyond the rectangle. Pads are flattened by the builder (sitework in world.js).
   terrain: { file: 'campuses/branson/terrain.bin', format: 'i16', nx: 331, nz: 301, scale: 0.01, offset: 0, extent: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 }, outside: backdropY, blend: 20, cell: 2 },
-  // Both bases stand on the upper-campus plateau (y ~ 10-11), at its two ends, ~256 m apart: red (Bulls) = the redwood
-  // corner where the service drive leaves Fernhill Ave, west of the faculty car park; blue (Wildcats) = the lawn beside
-  // New House on Circle Drive. No ground overlooks either (map check `overlook`: the quad and the loop on the lower
-  // campus lie under the plateau and the wooded hill, so a base there is overlooked from hundreds of m2).
-  ctf: { red: [-188, -28], blue: [68, -28] },
+  // Both bases stand on the upper-campus plateau (y ~ 10-11), at its two ends, ~260 m apart, each enclosed by real cover: red
+  // (Bulls) = the hedged lawn north of Fernhill Ave at its west end (hedge walls, trees, the house behind); blue (Wildcats) = the
+  // lawn beside New House on Circle Drive (houses and trees). QA round 2: the old red base on the edge of the open faculty car
+  // park had long sightlines (cover 0.44 vs 0.75); moved rather than dressed with invented cover (rule F31). No overlook on either.
+  ctf: { red: [-184, -66], blue: [68, -28] },
   practiceHeli: { x: -33, z: 92, yaw: 0 },
   spawnCenter: [-60, 30],
   spawnBounds: { minX: -205, maxX: 76, minZ: -88, maxZ: 126 },   // (not on the wooded hill south of the field)
   sky: { horizonHaze: 1 },
   ground: { asphaltDeblur: 1 },
   // hidden-helicopter candidates [x, y, z]: found with a scan (dev/world.html __heliScan), y = 0 ground
-  heliPark: [[-68, 0, -58], [-88, 0, -23], [-154.8, 0, 0.2], [66.6, 0, -0.5], [-203, 0, 32], [-203, 0, 62], [57, 0, 62], [-155.2, 0, 138.2], [-203, 0, 172], [-62, 0, 80], [5, 0, 100], [-8, 0, 72], [-53, 0, 104]],   // (hidden first: car parks, the courts, the glen, lawns behind buildings, Prize Day Field; four on the pitch as spares. Sitework keeps tree trunks 11.5 m back from each)
-  walkSeeds: [[-188, -28], [68, -28], [-160, 133], [28, -22], [-36, 95], [-95, 48], [-10, -18], [-110, -50], [-112, 30], [-60, 20]],
+  heliPark: [[-68, 0, -58], [-88, 0, -23], [-154.8, 0, 0.2], [66.6, 0, -0.5], [-203, 0, 32], [-203, 0, 62], [57, 0, 62], [-203, 0, 172], [-62, 0, 80], [5, 0, 100], [-8, 0, 72], [-53, 0, 104]],   // (hidden first: car parks, the courts, the glen, lawns behind buildings, Prize Day Field; four on the pitch as spares. Sitework keeps tree trunks 11.5 m back from each)
+  walkSeeds: [[-192, -50], [-188, -28], [68, -28], [-160, 133], [28, -22], [-36, 95], [-95, 48], [-10, -18], [-110, -50], [-112, 30], [-60, 20]],
   // Menu camera tour: camera path + look-at path (Catmull-Rom), field of view, caption. -z = north.
   tour: [
     { name: 'Tom Ryan Field', fov: 46,

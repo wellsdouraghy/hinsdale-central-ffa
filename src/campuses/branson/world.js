@@ -5,7 +5,7 @@ import { addMaterials, minAreaOBB, mulberry32, planWalls, applyPads, planCheeks,
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid } from './kit.js';
+import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, LOOP_GARDEN } from './kit.js';
 import { buildSchool, schoolWalls } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF } from './grounds.js';
@@ -30,15 +30,17 @@ function sitework(ctx) {
   ctx.tennisY = ctx.flatten({ outline: tennisRing(1.6) }, { blend: 3 });
   // the organic garden's raised beds stand on a level plot of Katharine Branson Hall's south-west lawn
   ctx.flatten({ rect: { cx: -63.9, cz: 18.7, w: 11, d: 11.5, angle: 0.1 } }, { blend: 3.5 });
+  ctx.flatten({ circle: { x: -41.6, z: 20.4, r: 2.4 } }, { blend: 2.5 });   // the sundial's level spot on the lawn
   // the dining terrace in front of the Commons hall (tables under umbrellas)
-  ctx.terraceY = ctx.flatten({ circle: { x: -106, z: 31, r: 9 } }, { blend: 3 });
+  ctx.terraceY = ctx.flatten({ outline: TERRACE }, { blend: 3 });   // (its real outline, traced from the tiles: a stone plaza, not a circle)
+  ctx.flatten({ outline: ARTS_PLAZA }, { blend: 2.5 });   // the paved court between New House and the Fine Arts studios
   // Buildings that back onto the steep wooded hill (the gym and the quad): the hill behind them is cut to a planted
   // bank of 36 deg rising 7.4 m behind the walls, instead of a sheer face many metres high (map check
   // `retaining`: "grade the ground in or step it"). Laid before the wall pads; the lidar ground wins where it is lower.
   const sw0 = schoolWalls(ctx);
   for (const w of sw0) { if (!w.bank) continue; const sd = shapeSDF({ outline: w.ring }).sd; const c = centroid(w.ring); let R = 0; for (const p of w.ring) R = Math.max(R, Math.hypot(p[0] - c[0], p[1] - c[1]));
     ctx.flatten({ circle: { x: c[0], z: c[1], r: R + 46 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z), d = sd(x, z); const st = w.bank.strip ?? 7.4, sl = w.bank.slope ?? 0.72; return Math.min(h, d <= st ? w.level + 0.06 : w.level + 0.06 + (d - st) * sl); } }); }   // (the bank starts beyond the wall pad's retaining depth: a level service strip behind the building, no block)
-  const zoneShapes = [{ outline: fieldRing(3.0) }, { outline: tennisRing(1.6) }, { circle: { x: -106, z: 31, r: 9 } }].map((sh) => shapeSDF(sh).sd);
+  const zoneShapes = [{ outline: fieldRing(3.0) }, { outline: tennisRing(1.6) }, { outline: TERRACE }].map((sh) => shapeSDF(sh).sd);
   const zones = zoneShapes.map((sd) => (x, z) => sd(x, z) <= 0);
   // ---- 2. streets: Fernhill Ave, Park Drive (the campus drive from the gate down to the loop and on to the bridge),
   // Circle Drive, Glenwood. Ross lanes: a crowned carriageway, no kerb, no sidewalk, a narrow gravel shoulder.
@@ -77,9 +79,13 @@ function sitework(ctx) {
     for (const t of ctx.gen.trees || []) { const p = streets.toVerge(t[0], t[1], 1.0); if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // no tree on the pitch pad, the courts, the dining terrace, the steps, or deep inside a car park
     const stairs = ALUMNI_STEPS.map((s) => shapeSDF({ rect: { cx: (s.a[0] + s.b[0]) / 2, cz: (s.a[1] + s.b[1]) / 2, w: Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) + 5, d: s.w + 4, angle: Math.atan2(s.b[1] - s.a[1], s.b[0] - s.a[0]) } }).sd);
-    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && !(ctx.campus.heliPark || []).some((p) => p[1] < 0.5 && Math.hypot(t[0] - p[0], t[1] - p[2]) < 11.6) && Math.hypot(t[0] + 1, t[1] + 33) > 13.5 /* the Blue Atlas Cedar's crown */ && !(t[0] > -69 && t[0] < -58.5 && t[1] > 12 && t[1] < 25) /* the organic garden */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
+    const plazaSd = shapeSDF({ outline: ARTS_PLAZA }).sd, gardenSd = shapeSDF({ outline: LOOP_GARDEN }).sd;
+    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && plazaSd(t[0], t[1]) > 1.5 && gardenSd(t[0], t[1]) > 3 && Math.hypot(t[0] + 41.6, t[1] - 20.4) > 4 && !(ctx.campus.heliPark || []).some((p) => p[1] < 0.5 && Math.hypot(t[0] - p[0], t[1] - p[2]) < 11.6) && Math.hypot(t[0] + 1, t[1] + 33) > 13.5 /* the Blue Atlas Cedar's crown */ && !(t[0] > -69 && t[0] < -58.5 && t[1] > 12 && t[1] < 25) /* the organic garden */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
       && !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
   }
+  // Landmark trees through the tree kit (rule: no hand-built cones): the Blue Atlas Cedar on the visitor-lot island (crown ~25 m
+  // across, 26 m tall in the tiles) and the three big clipped trees of the quad lawn (nadir tiles)
+  (ctx.gen.trees = ctx.gen.trees || []).push([-1, -33, 0, 1.85], [-166.4, 134.2, 0, 1.0], [-148.3, 144.1, 0, 1.0], [-160.0, 150.5, 0, 0.95]);
   // The hill south of the field, the gym and the quad is closed-canopy oak, bay and redwood forest (imagery, 3D tiles); the
   // canopy scan plants one trunk per ~10 m. Filled in on a jittered 6.5 m grid (seeded), clear of buildings and roads.
   { const rnd = mulberry32(1917); const trees = ctx.gen.trees = ctx.gen.trees || []; const sds = sw.map((w) => shapeSDF({ outline: w.ring }).sd); const fieldSd = shapeSDF({ outline: fieldRing(7.5) }).sd;
