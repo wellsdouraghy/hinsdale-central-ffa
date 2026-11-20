@@ -974,6 +974,7 @@ export class Game {
       if (open) this.orderMenuUntil = 0;
       else if (!this._teamBots()) this.ui.toast('No bots on your team to give orders to', 2.5);
       else this.orderMenuUntil = t + 6;
+      for (let i = 1; i <= 9; i++) pressed.delete('Digit' + i);   // a number pressed in the same frame never switches weapon
       return;
     }
     if (!open) return;
