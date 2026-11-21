@@ -5,8 +5,8 @@ import { addMaterials, minAreaOBB, mulberry32, planWalls, applyPads, planCheeks,
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, DRY, LITTER } from './kit.js';
-import { buildSchool, schoolWalls } from './school.js';
+import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, PAVED_LINES, DRY, LITTER, WALKS, PATIO, ENTR_COURT } from './kit.js';
+import { buildSchool, schoolWalls, KBH_LOW } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF, SHED } from './grounds.js';
 import { buildTerrain, terrainSampler } from './terrain.js';
@@ -30,7 +30,8 @@ function sitework(ctx) {
   ctx.tennisY = ctx.flatten({ outline: tennisRing(1.6) }, { blend: 3 });
   // the organic garden's raised beds stand on a level plot of Katharine Branson Hall's south-west lawn
   ctx.flatten({ rect: { cx: -63.9, cz: 18.7, w: 11, d: 11.5, angle: 0.1 } }, { blend: 3.5 });
-  ctx.flatten({ circle: { x: -41.6, z: 20.4, r: 2.4 } }, { blend: 2.5 });   // the sundial's level spot on the lawn
+  ctx.flatten({ circle: { x: -41.6, z: 20.4, r: 2.4 } }, { blend: 2.5 });
+  ctx.flatten({ circle: { x: PATIO[0], z: PATIO[1], r: PATIO[2] + 0.4 } }, { blend: 3 });   // the round patio at the end of the hall's terrace walk (two tables)   // the sundial's level spot on the lawn
   // the dining terrace in front of the Commons hall (tables under umbrellas)
   ctx.terraceY = ctx.flatten({ outline: TERRACE }, { blend: 3 });   // (its real outline, traced from the tiles: a stone plaza, not a circle)
   ctx.flatten({ outline: ARTS_PLAZA }, { y: 9.26, blend: 2.5 });
@@ -126,7 +127,14 @@ function sitework(ctx) {
       trees.push([+px.toFixed(1), +pz.toFixed(1), k < 0.2 ? 1 : 0, +sc.toFixed(2)]);
       // understory (toyon, coffeeberry, young bay: the tiles show no open ground under this canopy): a shrub clump beside about every other trunk
       if (rnd() < 0.55) { const a = rnd() * 6.2832, d = 2.2 + rnd() * 1.6; const ux = px + Math.cos(a) * d, uz = pz + Math.sin(a) * d; if (!(dry.some((sd) => sd(ux, uz) < 3)) && lot(ux, uz) > 2.5 && !nearLine(ux, uz, 4.6) && !(streets && streets.inRoad(ux, uz, 2.5)) && Math.hypot(ux - red[0], uz - red[1]) > 6.5 && ctx.surfaceAt(ux, uz) === 'grass') (ctx.understory = ctx.understory || []).push([+ux.toFixed(1), +uz.toFixed(1), 1.8 + rnd() * 0.8, 0.75 + rnd() * 0.3, rnd() * 3.14]); } }   // (under the map check's 1.1 m limit for shrubs without collision)
-    ctx.gen.trees = trees.filter((t) => !(dry.some((sd) => sd(t[0], t[1]) < 1.5)) && Math.hypot(t[0] - red[0], t[1] - red[1]) > 4.5); }
+    ctx.gen.trees = trees.filter((t) => !(dry.some((sd) => sd(t[0], t[1]) < 1.5)) && Math.hypot(t[0] - red[0], t[1] - red[1]) > 4.5);
+    // fix round 5: within 22 m of the red flag the wood is oak and bay with high crowns (conifer sprays hung at eye level across the base and hid
+    // every approach from the east and south); the trunks stay where they are, so the base is as wooded and as covered as before
+    for (const t of ctx.gen.trees) if (t[2] === 1 && Math.hypot(t[0] - red[0], t[1] - red[1]) < 22) { t[2] = 0; t[3] = Math.max(0.95, Math.min(1.2, t[3])); } }
+  // fix round 5: no trunk in the white block of Katharine Branson Hall (its real outline is larger than the old one), on the new walks, the hall's
+  // south drive, the round patio or the entrance forecourt
+  { const low = shapeSDF({ outline: KBH_LOW }).sd, court = shapeSDF({ outline: ENTR_COURT }).sd; const dl = (x, z, L) => { let m = 1e9; for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1]; const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); m = Math.min(m, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return m; };
+    ctx.gen.trees = (ctx.gen.trees || []).filter((t) => low(t[0], t[1]) > 4.5 && court(t[0], t[1]) > 2 && Math.hypot(t[0] - PATIO[0], t[1] - PATIO[1]) > PATIO[2] + 2 && ![...WALKS, ...PAVED_LINES].some(([pts, w]) => dl(t[0], t[1], pts) < w / 2 + 1.5)); }
   // ---- 5. cheek walls where two terraces meet (built in build(): buildPadWalls)
   planCheeks(ctx);
 }
@@ -157,5 +165,5 @@ export function build(ctx, progress = () => {}) {
   buildGrounds(ctx);
   if (ctx.terrain) for (const sh of ctx.shrubs) if (sh[4] === 0.85) sh[1] = Math.min(sh[1], ctx.groundY(sh[0], sh[2]) + 0.05);   // facade-kit planting beds stand on the ground a metre out
   buildTerrain(ctx);     // hills outside the play area (visual backdrop)
-  ctx.buildNotes = { gores: ctx.goreWallStats, stairs: ctx.stairNotes };
+  ctx.buildNotes = { gores: ctx.goreWallStats, stairs: ctx.stairNotes, doors: ctx.doors };
 }

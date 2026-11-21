@@ -171,15 +171,15 @@ function makeCedar(seed, o) {
   const rnd = mulberry32(seed); const H = o.H, R = o.R;
   const wood = new GeoAcc(), leaves = new GeoAcc(); const V = (x, y, z) => new THREE.Vector3(x, y, z);
   limb(wood, [V(0, -0.3, 0), V(0.1, H * 0.35, 0.05), V(0, H * 0.7, 0), V(0, H * 0.93, 0)], 0.52, 0.05, 8);
-  const y0 = H * 0.2, tiers = 15;
+  const y0 = H * 0.2, tiers = 19;   // (Branson fix round 5: a denser crown: more tiers, more limbs per tier, an inner spray on each limb; no gaps between spokes seen from above)
   for (let l = 0; l < tiers; l++) {
     const t = l / (tiers - 1); const y = y0 + t * (H - y0 - 1.0); const prof = (0.7 + 0.3 * Math.min(1, t / 0.36)) * Math.sqrt(Math.max(0, 1 - Math.pow(Math.max(0, t - 0.36) / 0.7, 2)));   // an egg: widest a third of the way up, a round top
-    const rad = R * prof; const n = Math.max(8, 13 - Math.floor(t * 5));
+    const rad = R * prof; const n = Math.max(10, 17 - Math.floor(t * 6));
     for (let k = 0; k < n; k++) {
       const az = (k / n) * Math.PI * 2 + l * 1.1 + (rnd() - 0.5) * 0.5; const dx = Math.cos(az), dz = Math.sin(az); const len = rad * (0.68 + rnd() * 0.18); const rise = len * (0.1 + rnd() * 0.1) * (1 - t * 0.6);   // (the outer spray ends 1.26 len out: the crown's tips stay within ~1.08 R, the measured crown)
       if (t < 0.7) limb(wood, [V(0, y - rise * 0.4, 0), V(dx * len * 0.5, y + rise * 0.2, dz * len * 0.5), V(dx * len * 0.92, y + rise, dz * len * 0.92)], 0.16 * (1 - t * 0.6), 0.03, 5);
-      const hw = Math.max(1.5, len * 0.36), hl = Math.max(1.4, len * 0.28);
-      for (const f of [0.42, 0.72, 0.98]) {   // flat sprays stepping out along the limb, each a little tilted
+      const hw = Math.max(1.8, len * 0.52), hl = Math.max(1.4, len * 0.28);
+      for (const f of [0.2, 0.45, 0.72, 0.98]) {   // flat sprays stepping out along the limb, each a little tilted
         const u = len * f; const yy = y - rise * 0.4 + rise * 1.4 * f + 0.25; const tilt = (rnd() - 0.5) * 0.5, dr = (rnd() - 0.35) * 0.3; const w = hw * (0.75 + 0.35 * f) * (0.85 + rnd() * 0.3);
         const sn = V(dx * 0.45, 0.85, dz * 0.45).normalize(); const shade = (0.7 + 0.3 * t) * (0.8 + 0.2 * f);
         card(leaves, dx * u, yy, dz * u, -dz * w, tilt * w * 0.4, dx * w, dx * hl, -dr * hl, dz * hl, sn.x, sn.y, sn.z, shade);
