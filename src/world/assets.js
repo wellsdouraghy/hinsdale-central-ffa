@@ -163,7 +163,7 @@ function textDecal(lines, opt = {}) {
 
 
 // Injects world position / normal varyings (vWPos, vWN) and custom fragment code into a standard material.
-function withWorld(material, { pars = '', map = '', rough = '', emissive = '', key }) {
+export function withWorld(material, { pars = '', map = '', rough = '', emissive = '', key }) {
   material.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWPos; varying vec3 vWN;')

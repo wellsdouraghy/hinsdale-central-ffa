@@ -1,0 +1,170 @@
+{
+ "page_db564ab486.jpg": {
+  "building": "Fine Arts Center",
+  "facade": "south front with the yellow house",
+  "shows": "pale yellow board and batten, white trim and pergola, grey shingle gable; yellow stucco house",
+  "use": "colour"
+ },
+ "page_1664b62f2b.jpg": {
+  "building": "whole campus",
+  "facade": "site plan",
+  "shows": "building layout",
+  "use": "context"
+ },
+ "page_72472ea60e.jpg": {
+  "building": "Student Commons",
+  "facade": "gable front at dusk",
+  "shows": "white frame and glass, wood soffit, concrete wing walls, steps",
+  "use": "massing"
+ },
+ "page_07f89d49a1.jpg": {
+  "building": "Student Commons",
+  "facade": "from the meadow",
+  "shows": "setting; standing-seam roof",
+  "use": "context"
+ },
+ "page_88908847d0.jpg": {
+  "building": "Student Commons",
+  "facade": "front, daylight",
+  "shows": "white frame, roof overhang, lawn",
+  "use": "colour"
+ },
+ "page_a41cdb7707.jpg": {
+  "building": "Student Commons",
+  "facade": "roof with PV and concrete wing",
+  "shows": "standing-seam metal, board-formed concrete, planted roof",
+  "use": "roof"
+ },
+ "page_044712cd6a.jpg": {
+  "building": "Student Commons",
+  "facade": "side terrace",
+  "shows": "standing-seam roof, white frame, concrete terrace",
+  "use": "colour"
+ },
+ "page_bc0852d32b.jpg": {
+  "building": "Student Commons",
+  "facade": "gable front at dusk",
+  "shows": "duplicate rendition",
+  "use": "massing"
+ },
+ "page_1a81fb340e.jpg": {
+  "building": "Student Commons",
+  "facade": "from the meadow",
+  "shows": "duplicate",
+  "use": "context"
+ },
+ "page_665b32c8dc.jpg": {
+  "building": "Student Commons",
+  "facade": "side terrace",
+  "shows": "duplicate",
+  "use": "colour"
+ },
+ "page_e8f420a324.jpg": {
+  "building": "Student Commons",
+  "facade": "roof with PV",
+  "shows": "duplicate",
+  "use": "roof"
+ },
+ "page_30907340a8.jpg": {
+  "building": "Student Commons",
+  "facade": "front, daylight",
+  "shows": "duplicate",
+  "use": "colour"
+ },
+ "page_513031b5d6.jpg": {
+  "building": "Student Commons",
+  "facade": "entrance frame close",
+  "shows": "white steel / wood frame members, sunshade",
+  "use": "detail"
+ },
+ "page_f8594c6bc6.jpg": {
+  "building": "whole campus",
+  "facade": "site plan",
+  "shows": "duplicate",
+  "use": "context"
+ },
+ "page_85fe6b54fe.jpg": {
+  "building": "Student Commons",
+  "facade": "section drawing",
+  "shows": "roof pitch and wing heights",
+  "use": "context"
+ },
+ "page_05aa43a2de.jpg": {
+  "building": "Student Commons",
+  "facade": "floor plan",
+  "shows": "footprint",
+  "use": "context"
+ },
+ "site_bb8cbf382e.jpg": {
+  "building": "quad",
+  "facade": "lawn with the classroom buildings",
+  "shows": "cream stucco, tile roofs, oaks",
+  "use": "colour"
+ },
+ "site_29ae4c88af.jpg": {
+  "building": "garden",
+  "facade": "raised beds",
+  "shows": "garden structures",
+  "use": "context"
+ },
+ "site_2d1a95ac69.jpg": {
+  "building": "quad building",
+  "facade": "long front with tile roof",
+  "shows": "cream-yellow stucco, white trim, terracotta mission tile",
+  "use": "colour"
+ },
+ "site_f00888d7e8.jpg": {
+  "building": "quad arcade",
+  "facade": "arcade posts and brackets",
+  "shows": "white wood posts with brackets, cream wall, tile eave",
+  "use": "detail"
+ },
+ "site_f812b44cd4.jpg": {
+  "building": "quad building",
+  "facade": "eave against the sky",
+  "shows": "cream stucco, low roof edge",
+  "use": "colour"
+ },
+ "site_d020f73f0e.jpg": {
+  "building": "upper building",
+  "facade": "two-storey yellow building",
+  "shows": "yellow stucco, white trim, dark shutters, exterior stair",
+  "use": "colour"
+ },
+ "site_efe7d0d022.jpg": {
+  "building": "garden",
+  "facade": "raised beds, second view",
+  "shows": "garden structures",
+  "use": "context"
+ },
+ "site_0bcde6b015.jpg": {
+  "building": "quad building",
+  "facade": "drive side",
+  "shows": "cream stucco wall, mission tile eave close enough to see the barrels",
+  "use": "roof"
+ },
+ "site_d316902edc.jpg": {
+  "building": "whole campus",
+  "facade": "aerial oblique",
+  "shows": "roofs among the oaks: brown shingle and tile",
+  "use": "roof"
+ },
+ "site_0bd1cde52b.jpg": {
+  "building": "gym",
+  "facade": "from the turf field",
+  "shows": "dark brown cedar shingles, white trim and gable glazing; turf with wordmark",
+  "use": "colour"
+ },
+ "site_87a7f7e3af.jpg": {
+  "building": "quad building",
+  "facade": "porch",
+  "shows": "white posts, cream wall",
+  "use": "detail"
+ },
+ "site_852b2820a6.jpg": {
+  "building": "quad",
+  "facade": "main building across the lawn",
+  "shows": "cream stucco, tile hips and gable, arcade",
+  "use": "colour"
+ }
+}

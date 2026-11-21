@@ -47,24 +47,30 @@ function brickRect(b, F, u0, u1, y0, y1, uOff, out = 0) {
 const CLASSIC = { kind: 'class', bay: 4.6, frame: 'frame', top: 'stone', tint: [1.0, 1.0, 1.0], beds: true };
 export const STYLES = {
   main: CLASSIC,
-  ss: { kind: 'modern', bay: 5.0, frame: 'frameAlu', top: 'panel', tint: [1.05, 1.0, 0.93], beds: true },
-  c12: { kind: 'modern', bay: 5.0, frame: 'frameAlu', top: 'panel', tint: [1.05, 1.0, 0.93], beds: true },
+  ss: { wall: 'hcBrickBuff', kind: 'modern', bay: 5.0, frame: 'frameAlu', top: 'panel', tint: [1.05, 1.0, 0.93], beds: true },
+  c12: { wall: 'hcBrickBuff', kind: 'modern', bay: 5.0, frame: 'frameAlu', top: 'panel', tint: [1.05, 1.0, 0.93], beds: true },
   e11: { kind: 'class', bay: 4.8, frame: 'frame', top: 'stone', tint: [0.97, 0.93, 0.9], beds: true },
-  addition: { kind: 'lowmod', bay: 4.2, frame: 'frameAlu', top: 'panel', tint: [1.06, 1.02, 0.96], beds: true },
+  addition: { wall: 'hcBrickBuff', kind: 'lowmod', bay: 4.2, frame: 'frameAlu', top: 'panel', tint: [1.06, 1.02, 0.96], beds: true },
   annex: { kind: 'lowmod', bay: 4.4, frame: 'frame', top: 'stone', tint: [0.98, 0.93, 0.88], beds: true },
   low7: { kind: 'lowmod', bay: 4.6, frame: 'frame', top: 'stone', tint: [0.98, 0.94, 0.9] },
   low8: { kind: 'lowmod', bay: 4.6, frame: 'frame', top: 'stone', tint: [0.98, 0.94, 0.9] },
-  low7b: { kind: 'lowmod', bay: 4.6, frame: 'frameAlu', top: 'panel', tint: [1.04, 1.0, 0.94] },
+  low7b: { wall: 'hcBrickBuff', kind: 'lowmod', bay: 4.6, frame: 'frameAlu', top: 'panel', tint: [1.04, 1.0, 0.94] },
   lowN: { kind: 'service', bay: 6.0, frame: 'frame', top: 'stone', tint: [0.96, 0.88, 0.82] },
   lowE: { kind: 'service', bay: 6.0, frame: 'frame', top: 'stone', tint: [0.96, 0.88, 0.82] },
   link: { kind: 'service', bay: 6.0, frame: 'frame', top: 'stone', tint: [0.96, 0.9, 0.85], plain: true },
-  gymW: { kind: 'gym', bay: 6.4, frame: 'frame', top: 'stone', tint: [1.0, 0.95, 0.88], clerestory: true },
-  gymE: { kind: 'gym', bay: 6.6, frame: 'frame', top: 'stone', tint: [0.97, 0.84, 0.75] },
-  fieldhouse: { kind: 'gym', bay: 6.2, frame: 'frameAlu', top: 'panel', tint: [0.98, 0.86, 0.77], clerestory: true },
-  fieldhouseW: { kind: 'gym', bay: 6.2, frame: 'frame', top: 'stone', tint: [0.98, 0.86, 0.77] },
-  southeast: { kind: 'gym', bay: 7.0, frame: 'frame', top: 'stone', tint: [0.93, 0.8, 0.72], tall: true },
+  gymW: { wall: 'hcBrickBuff', kind: 'gym', bay: 6.4, frame: 'frame', top: 'stone', tint: [1.0, 0.95, 0.88], clerestory: true },
+  gymE: { wall: 'hcBrickTaupe', kind: 'gym', bay: 6.6, frame: 'frame', top: 'stone', tint: [0.97, 0.84, 0.75] },
+  fieldhouse: { wall: 'hcBrickTaupe', kind: 'gym', bay: 6.2, frame: 'frameAlu', top: 'panel', tint: [0.98, 0.86, 0.77], clerestory: true },
+  fieldhouseW: { wall: 'hcBrickTaupe', kind: 'gym', bay: 6.2, frame: 'frame', top: 'stone', tint: [0.98, 0.86, 0.77] },
+  southeast: { wall: 'hcBrickTaupe', kind: 'gym', bay: 7.0, frame: 'frame', top: 'stone', tint: [0.93, 0.8, 0.72], tall: true },
   service: { kind: 'service', bay: 5.5, frame: 'frame', top: 'stone', tint: [0.97, 0.88, 0.8] },
 };
+
+// Generated campus textures (src/world/campusTextures.js): a style may name its own wall texture (`wall`, a keyed entry of
+// the campus pack) instead of the shared 'brick' bucket; without a pack everything falls back to 'brick' + `tint`.
+function texOf(ctx, key) { const p = ctx.TX; if (!p) return null; if (p.tex[key] && p.tex[key].key) return p.tex[key]; const o = p.overrides[key]; return (o && p.tex[o.tex]) || null; }
+const wallKey = (ctx, st) => (st.wall && ctx.TX && ctx.TX.tex[st.wall] && ctx.TX.tex[st.wall].key ? st.wall : 'brick');
+const wallTint = (ctx, st) => (wallKey(ctx, st) !== 'brick' ? (st.wallTint || [1, 1, 1]) : st.tint);
 
 let roomCounter = 0;
 const setTint = (b, t, k = 1) => b.setColor(t[0] * k, t[1] * k, t[2] * k);
@@ -78,7 +84,7 @@ function glassPane(B, F, u0, u1, y0, y1, out, kind) {
 
 function windowUnit(ctx, F, u0, u1, y0, y1, st, tint, uOff, kind, opts = {}) {
   const { B } = ctx; const D = 0.22; const fr = B.v(st.frame);
-  const brick = B.v('brick', true); setTint(brick, tint, 0.9);
+  const brick = B.v(wallKey(ctx, st), true); setTint(brick, tint, 0.9);
   // brick returns (jambs + head)
   const t = [F.tx, 0, F.tz];
   quadFacing(brick, F.P(u0, y0, 0), F.P(u0, y1, 0), F.P(u0, y1, -D), F.P(u0, y0, -D), t, [[0, y0 * BRICK_S], [0, y1 * BRICK_S], [D * BRICK_S, y1 * BRICK_S], [D * BRICK_S, y0 * BRICK_S]]);
@@ -88,7 +94,7 @@ function windowUnit(ctx, F, u0, u1, y0, y1, st, tint, uOff, kind, opts = {}) {
   // soldier-course lintel (bricks on end): same texture rotated 90 degrees, a hair proud of the wall
   if (!opts.noLintel) {
     setTint(brick, tint, 0.93);
-    const lh = 0.23, lo = 0.03;
+    const lh = opts.soldier || 0.23, lo = 0.03;
     brick.quad(F.P(u0 - 0.12, y1, lo), F.P(u0 - 0.12, y1 + lh, lo), F.P(u1 + 0.12, y1 + lh, lo), F.P(u1 + 0.12, y1, lo),
       [0, (uOff + u0) * BRICK_S], [lh * BRICK_S, (uOff + u0) * BRICK_S], [lh * BRICK_S, (uOff + u1) * BRICK_S], [0, (uOff + u1) * BRICK_S]);
     quadFacing(brick, F.P(u0 - 0.12, y1, 0), F.P(u1 + 0.12, y1, 0), F.P(u1 + 0.12, y1, lo), F.P(u0 - 0.12, y1, lo), [0, -1, 0]);
@@ -181,8 +187,14 @@ function wallPack(ctx, F, u, y, o = 0) {
 // y0 > 0 means the lower part is hidden behind a lower neighbouring wing (interior step wall).
 export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
   const { B } = ctx; const L = F.L;
-  const st = STYLES[styleName] || CLASSIC; const tint = st.tint;
-  const brick = B.v('brick', true); setTint(brick, tint);
+  const st = STYLES[styleName] || CLASSIC;
+  // a plain link / step wall belongs to the wing named in opts.tintFrom: it wears that wing's wall texture
+  const own = (opts.tintFrom && STYLES[opts.tintFrom] && wallKey(ctx, STYLES[opts.tintFrom]) !== 'brick') ? STYLES[opts.tintFrom] : st;
+  const tint = wallTint(ctx, own);
+  const brick = B.v(wallKey(ctx, own), true); setTint(brick, tint);
+  // generated masonry texture on this wall: openings snap to its courses (heads and sills land on a bed joint) and the
+  // soldier-course lintel is one brick length tall
+  const wtex = texOf(ctx, ctx.wallTex || wallKey(ctx, own)); const cm = wtex && wtex.courseM ? wtex.courseM : 0; const soldier = wtex && wtex.unitM && wtex.kind === 'brick' ? wtex.unitM : 0;
   const bandH = st.top === 'panel' ? 1.15 : 0.95; const bandY = h - bandH - 0.3;
   // ---- parapet: band + coping with real thickness and drip edges
   if (st.top === 'panel') {
@@ -284,6 +296,7 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
   }
 
   // ---- brick field with the openings cut out, row by row
+  if (cm) { const sn = (y) => Math.round(y / cm) * cm; for (const row of openings) { row[0] = sn(row[0]); row[1] = sn(row[1]); for (const o of row[2]) { if (o[4] !== undefined) o[4] = sn(o[4]); if (o[5] !== undefined) o[5] = sn(o[5]); } } }
   openings.sort((a, b) => a[0] - b[0]);
   for (const [, , list] of openings) for (const o of list) if (o[2] === 'door') doorSpans.push([o[0], o[1]]);
   for (const [a, b] of runs(-0.05, L + 0.05)) {
@@ -305,7 +318,7 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
       if (o[2] === 'door') {
         // the plinth is interrupted at doors: cover it with the frame-colour threshold returns
         doorUnit(ctx, F, (o[0] + o[1]) / 2, st, tint, uOff);
-      } else windowUnit(ctx, F, o[0], o[1], oy0, oy1, st, tint, uOff, o[3] || 0, { module: st.kind === 'modern' ? 1.25 : 1.15, transoms: o[3] === 2 ? [] : undefined, noStreak: o[3] === 2 });
+      } else windowUnit(ctx, F, o[0], o[1], oy0, oy1, st, tint, uOff, o[3] || 0, { module: st.kind === 'modern' ? 1.25 : 1.15, transoms: o[3] === 2 ? [] : undefined, noStreak: o[3] === 2, soldier });
       setTint(brick, tint);
       u = o[1];
     }

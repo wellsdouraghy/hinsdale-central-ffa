@@ -31,6 +31,7 @@ export default {
     groundMask: 'campuses/hamilton/ground_mask.png',
     roofs: 'campuses/hamilton/roofs.jpg',
     surfaceClasses: 'campuses/hamilton/surface_classes.png',
+    textures: 'campuses/hamilton/tex/tex.json',   // building textures generated from reference photos (tools/textures/)
   },
   sat: { minX: -400, maxX: 400, minZ: -360, maxZ: 360 },
   playBounds: { minX: -224, maxX: 236, minZ: -196, maxZ: 192 },

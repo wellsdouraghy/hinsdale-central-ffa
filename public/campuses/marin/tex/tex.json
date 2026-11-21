@@ -1,0 +1,174 @@
+{
+ "campus": "marin",
+ "version": 1,
+ "textures": [
+  {
+   "name": "maStucco",
+   "kind": "stucco",
+   "map": "maStucco_c.jpg",
+   "normal": "maStucco_n.jpg",
+   "sizeM": [
+    4.8,
+    4.8
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.85,
+    0.85,
+    0.84
+   ],
+   "roughness": 0.93,
+   "normalScale": 0.8
+  },
+  {
+   "name": "maShingle",
+   "kind": "asphalt_shingle",
+   "map": "maShingle_c.jpg",
+   "normal": "maShingle_n.jpg",
+   "sizeM": [
+    3.05,
+    2.86
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.2,
+    0.2,
+    0.2
+   ],
+   "courseM": 0.143,
+   "roughness": 0.92,
+   "normalScale": 0.9
+  },
+  {
+   "name": "maPaverTx",
+   "kind": "concrete",
+   "map": "maPaverTx_c.jpg",
+   "normal": "maPaverTx_n.jpg",
+   "sizeM": [
+    3.6,
+    3.6
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.4932,
+    0.4932,
+    0.4538
+   ],
+   "roughness": 0.88,
+   "normalScale": 0.8
+  },
+  {
+   "name": "maRibMetal",
+   "kind": "metal_seam",
+   "map": "maRibMetal_c.jpg",
+   "normal": "maRibMetal_n.jpg",
+   "sizeM": [
+    2.2,
+    2.2
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.0692,
+    0.0741,
+    0.084
+   ],
+   "key": "maRibMetal",
+   "uvM": 2.2,
+   "roughness": 0.45,
+   "metalness": 0.6,
+   "normalScale": 1.0,
+   "weather": false,
+   "notes": "ribs run along V in the tile: rotate the UVs 90 degrees on walls (ribs are horizontal on the building)"
+  },
+  {
+   "name": "maPanel",
+   "kind": "stucco",
+   "map": "maPanel_c.jpg",
+   "normal": "maPanel_n.jpg",
+   "sizeM": [
+    4.8,
+    4.8
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.711,
+    0.711,
+    0.6813
+   ],
+   "key": "maPanel",
+   "uvM": 2.2,
+   "roughness": 0.7,
+   "normalScale": 0.8,
+   "weather": [
+    0.08,
+    0.15,
+    0.0
+   ]
+  },
+  {
+   "name": "maDeck",
+   "kind": "planks",
+   "map": "maDeck_c.jpg",
+   "normal": "maDeck_n.jpg",
+   "sizeM": [
+    2.8,
+    2.8
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.2844,
+    0.2569,
+    0.2294
+   ],
+   "key": "maDeck",
+   "uvM": 1.0,
+   "roughness": 0.85,
+   "normalScale": 0.8,
+   "weather": false,
+   "polygonOffset": 1
+  }
+ ],
+ "overrides": {
+  "stucco": {
+   "tex": "maStucco",
+   "uvM": 2.2,
+   "normalScale": 0.8,
+   "roughness": 0.93
+  },
+  "shingles": {
+   "tex": "maShingle",
+   "uvM": 3.0,
+   "normalScale": 0.9,
+   "roughness": 0.92
+  },
+  "maPaver": {
+   "tex": "maPaverTx",
+   "uvM": 2.4,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "roughness": 0.88,
+   "normalScale": 0.8
+  }
+ }
+}

@@ -1,0 +1,50 @@
+{
+  "campus": "hamilton",
+  "school": "Alexander Hamilton High School, Los Angeles CA",
+  "method": "Colour photos: Wikimedia Commons (2023, CC BY-SA 4.0 / GFDL) for Brown Hall and Pattiz Concert Hall, one news og:image for the brick pylon; 1930s LAUSD archive photos (monochrome) for bonds, coursing, tile roofs and the arcades. Swatches are median LINEAR RGB (refs.py swatch) scaled against sunlit cast stone (taken as 0.60). Brick: Flemish bond with over-burnt (clinker) headers is plain in page_28c1fbfbd7.jpg and commons_55eea9d40d.jpg; standard 8 x 2 1/4 in units, 3 courses = 8 in.",
+  "swatches": {
+    "Brown Hall brick wall, sunlit, headers and mortar included": { "linear": [0.21, 0.105, 0.065], "from": ["page_28c1fbfbd7.jpg", "commons_55eea9d40d.jpg"] },
+    "red-orange stretchers": { "linear": [0.36, 0.13, 0.075], "note": "estimated from the wall mean with one third dark headers and 15% cream mortar" },
+    "clinker headers": { "linear": [0.07, 0.045, 0.04] },
+    "cast stone (frontispiece, trim, belfry)": { "linear": [0.62, 0.58, 0.48], "from": ["page_28c1fbfbd7.jpg", "commons_8ec2994215.jpg"] },
+    "Pattiz Concert Hall painted concrete": { "linear": [0.6, 0.59, 0.53], "from": ["commons_4e78fea7c0.jpg"], "note": "front is in shade in both photos (measured [0.144, 0.175, 0.188]); neutralised and lifted" },
+    "mission clay tile": { "linear": [0.33, 0.13, 0.07], "from": ["commons_55eea9d40d.jpg", "page_7e3596887b.jpg"], "note": "eaves only in the colour photos; palette from the tile edges" },
+    "door paint (oxblood)": { "linear": [0.12, 0.03, 0.025], "from": ["commons_4e78fea7c0.jpg", "commons_8ec2994215.jpg"] }
+  },
+  "buildings": {
+    "Brown Hall (1931 administration / classroom building, bell tower)": {
+      "wall": "red-orange face brick in Flemish bond, dark clinker headers, cream mortar; diaper pattern on the entrance pylons (not modelled in the tile)", "unit_mm": [203, 57], "course_mm": 67.7, "joint_mm": 11,
+      "trim": "cream cast stone: frontispiece with five arches, belt courses, machicolated frieze, window surrounds", "windows": "steel sash, small panes, dark green-black frames", "roof": "mission clay barrel tile, hips, verdigris copper cupola", "signage": "incised / pin letters on the brick pylon, cast-stone medallion",
+      "texture": "hamBrick", "roofTexture": "hamTile", "refs": ["commons_55eea9d40d.jpg", "page_28c1fbfbd7.jpg", "commons_8ec2994215.jpg", "commons_9597500254.jpg", "page_7e3596887b.jpg"]
+    },
+    "shops building, cafeteria / student store (1930s brick)": { "wall": "same brick and bond as Brown Hall (1930s photos page_c186b7512d.jpg show header courses and brick piers of the arcade)", "roof": "flat; clay-tile pent roofs over the arcades", "texture": "hamBrick" },
+    "Norman J. Pattiz Concert Hall (assembly hall)": { "wall": "painted cast-in-place concrete, fluted piers at the entrance, board-form lines on the upper panel; side walls brick in the model (Street View)", "trim": "oxblood doors, concrete steps", "texture": "hamBrick on the body, cast stone (hamCastStone) trim", "weak": "the east front is concrete in the photos; the model keeps the brick body it had" },
+    "three-storey classroom blocks, library / science block, north block": { "wall": "smooth painted stucco / concrete, cream, grey and tan per block (tints kept from the Street View pass)", "texture": "hamStucco (neutral, tinted per building by vertex colour)" },
+    "gyms": { "wall": "cream painted concrete with piers and frieze, low wings in stucco", "texture": "hamStucco" },
+    "grounds": { "quad paving": "buff concrete pavers 0.6 m (hamPaverTx)", "service walls / fences": "concrete masonry units 390 x 190 mm (hamBlockTx)", "bungalow siding": "painted lap siding, 180 mm exposure (hamSidingTx)" }
+  },
+  "textures": {
+    "hamBrick": { "kind": "brick", "key": "hamBrick", "unit": [0.203, 0.057], "joint": 0.011, "bond": "flemish", "size_m": [5.1, 2.18], "px": [2048, 1024], "seed": 7,
+      "colors": [[0.36, 0.13, 0.075], [0.42, 0.17, 0.09], [0.3, 0.1, 0.06], [0.33, 0.16, 0.1]], "weights": [4, 2, 2, 1.5],
+      "header_colors": [[0.07, 0.045, 0.04], [0.12, 0.06, 0.045], [0.05, 0.04, 0.045]], "header_frac": 0.8,
+      "mortar": [0.5, 0.45, 0.37], "unit_var": 0.08, "spots": 0.3, "flash": 0.1, "target": [0.215, 0.105, 0.066], "roughness": 0.93, "normalScale": 1.0, "uvM": 2.2, "weather": [0.18, 0.3, 0.06] },
+    "hamTile": { "kind": "clay_tile", "key": "hamTile", "pitch": 0.21, "exposure": 0.36, "size_m": [2.94, 2.88], "px": [1024, 1024], "seed": 3,
+      "colors": [[0.36, 0.14, 0.075], [0.42, 0.18, 0.1], [0.28, 0.11, 0.065], [0.33, 0.17, 0.1], [0.22, 0.1, 0.07]], "weights": [4, 2, 2, 1.5, 1], "unit_var": 0.12, "target": [0.27, 0.112, 0.063],
+      "roughness": 0.88, "normalScale": 1.0, "uvM": 3.0, "doubleSide": true, "weather": [0.16, 0.0, 0.0], "flatten": 0.6 },
+    "hamStucco": { "kind": "stucco", "finish": "sand", "size_m": [4.8, 4.8], "px": [1024, 1024], "seed": 13, "color": [0.85, 0.85, 0.84], "mottle": 0.03, "grain": 0.035, "roughness": 0.93, "normalScale": 0.8 },
+    "hamCastStone": { "kind": "panels", "unit": [0.76, 0.3], "joint": 0.006, "bond": "running", "size_m": [3.06, 3.06], "px": [512, 512], "seed": 17,
+      "colors": [[0.62, 0.58, 0.48], [0.64, 0.6, 0.5], [0.59, 0.56, 0.47]], "mortar": [0.45, 0.42, 0.36], "unit_var": 0.03, "grain": 0.03, "blot": 0.02, "flash": 0.0, "joint_depth": 0.003, "target": [0.62, 0.58, 0.48], "roughness": 0.82, "normalScale": 0.6 },
+    "hamBlockTx": { "kind": "block", "unit": [0.39, 0.19], "joint": 0.01, "bond": "running", "size_m": [2.4, 2.4], "px": [512, 512], "seed": 19,
+      "colors": [[0.7, 0.7, 0.68], [0.74, 0.74, 0.72], [0.66, 0.66, 0.64]], "mortar": [0.5, 0.5, 0.48], "unit_var": 0.035, "grain": 0.06, "spots": 0.25, "spot_color": [0.3, 0.3, 0.3], "flash": 0.02, "face_rough": 0.0007, "roughness": 0.95, "normalScale": 0.9 },
+    "hamPaverTx": { "kind": "pavers", "unit": [0.594, 0.594], "joint": 0.006, "bond": "running", "size_m": [2.4, 2.4], "px": [512, 512], "seed": 31,
+      "colors": [[0.5, 0.47, 0.4], [0.54, 0.5, 0.42], [0.46, 0.44, 0.39], [0.52, 0.46, 0.38]], "mortar": [0.2, 0.19, 0.17], "unit_var": 0.04, "grain": 0.06, "joint_depth": 0.004, "roughness": 0.88, "normalScale": 0.8 },
+    "hamSidingTx": { "kind": "siding", "exposure": 0.1833, "size_m": [2.2, 2.2], "px": [512, 512], "seed": 12, "color": [0.86, 0.86, 0.84], "unit_var": 0.02, "roughness": 0.8, "normalScale": 0.8 }
+  },
+  "overrides": {
+    "stucco": { "tex": "hamStucco", "uvM": 2.2, "normalScale": 0.8, "roughness": 0.93 },
+    "limestone": { "tex": "hamCastStone", "uvM": 3.0, "tint": [1, 1, 1], "roughness": 0.82, "normalScale": 0.6 },
+    "hamBlock": { "tex": "hamBlockTx", "uvM": 2.2, "roughness": 0.95, "normalScale": 0.9 },
+    "hamPaver": { "tex": "hamPaverTx", "uvM": 2.4, "tint": [0.8, 0.8, 0.8], "roughness": 0.88, "normalScale": 0.8 },
+    "hamSiding": { "tex": "hamSidingTx", "uvM": 2.2, "roughness": 0.8, "normalScale": 0.8 }
+  }
+}

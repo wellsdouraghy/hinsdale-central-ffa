@@ -1,0 +1,165 @@
+{
+ "campus": "hinsdale",
+ "version": 1,
+ "textures": [
+  {
+   "name": "hcBrickBlend",
+   "kind": "brick",
+   "map": "hcBrickBlend_c.jpg",
+   "normal": "hcBrickBlend_n.jpg",
+   "sizeM": [
+    5.291,
+    2.128
+   ],
+   "px": [
+    2048,
+    1024
+   ],
+   "meanLinear": [
+    0.37,
+    0.295,
+    0.215
+   ],
+   "courseM": 0.0665,
+   "unitM": 0.2035,
+   "roughness": 0.92,
+   "normalScale": 1.0
+  },
+  {
+   "name": "hcBrickBuff",
+   "kind": "brick",
+   "map": "hcBrickBuff_c.jpg",
+   "normal": "hcBrickBuff_n.jpg",
+   "sizeM": [
+    5.291,
+    2.128
+   ],
+   "px": [
+    2048,
+    1024
+   ],
+   "meanLinear": [
+    0.39,
+    0.29,
+    0.21
+   ],
+   "courseM": 0.0665,
+   "unitM": 0.2035,
+   "key": "hcBrickBuff",
+   "uvM": 2.2,
+   "roughness": 0.92,
+   "normalScale": 1.0,
+   "weather": [
+    0.18,
+    0.28,
+    0.06
+   ]
+  },
+  {
+   "name": "hcBrickTaupe",
+   "kind": "brick",
+   "map": "hcBrickTaupe_c.jpg",
+   "normal": "hcBrickTaupe_n.jpg",
+   "sizeM": [
+    2.6455,
+    2.128
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.28,
+    0.225,
+    0.175
+   ],
+   "courseM": 0.0665,
+   "unitM": 0.2035,
+   "key": "hcBrickTaupe",
+   "uvM": 2.2,
+   "roughness": 0.9,
+   "normalScale": 0.9,
+   "weather": [
+    0.14,
+    0.22,
+    0.04
+   ]
+  },
+  {
+   "name": "hcLimestone",
+   "kind": "panels",
+   "map": "hcLimestone_c.jpg",
+   "normal": "hcLimestone_n.jpg",
+   "sizeM": [
+    2.718,
+    3.0
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.55,
+    0.52,
+    0.45
+   ],
+   "courseM": 3.0,
+   "unitM": 0.906,
+   "roughness": 0.8,
+   "normalScale": 0.7
+  },
+  {
+   "name": "hcPaver",
+   "kind": "pavers",
+   "map": "hcPaver_c.jpg",
+   "normal": "hcPaver_n.jpg",
+   "sizeM": [
+    1.98,
+    1.92
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.3,
+    0.19,
+    0.16
+   ],
+   "courseM": 0.096,
+   "unitM": 0.198,
+   "roughness": 0.9,
+   "normalScale": 0.8
+  }
+ ],
+ "overrides": {
+  "brick": {
+   "tex": "hcBrickBlend",
+   "uvM": 2.2,
+   "roughness": 0.92,
+   "normalScale": 1.0
+  },
+  "limestone": {
+   "tex": "hcLimestone",
+   "uvM": 3.0,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "roughness": 0.8,
+   "normalScale": 0.7
+  },
+  "brickRed": {
+   "tex": "hcPaver",
+   "uvM": 2.0,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "roughness": 0.9,
+   "normalScale": 0.8
+  }
+ }
+}

@@ -116,8 +116,44 @@ finds is fixed, re-checked, release-tested and shipped without asking the user, 
 4. Agents must use their own browser tab, `?mute=1`, and close tabs. Writing files into dev/shots triggers a Vite
    full reload: write to a scratch folder, then copy. With several agents editing at once, review against a
    `git archive`/worktree copy of HEAD served on another port.
-5. **Map check before QA (required):** the builder runs `dev/mapcheck.html` (below) and gets it clean before handing
+5. **Textures from references (required):** references, material sheet and generated pack exist before the facades
+   are called done (section below, tools/textures/README.md).
+6. **Map check before QA (required):** the builder runs `dev/mapcheck.html` (below) and gets it clean before handing
    the map to the independent visual QA agent. QA starts from the check's report, not from zero.
+
+## Textures from references (required: facades are not done without it)
+
+Every campus gets its own building textures, generated from measurements on photos of the real buildings. Tooling,
+formats and the step list are in **tools/textures/README.md** (campus-agnostic; a new campus adds only
+`tools/textures/campuses/<id>/`). Do this BEFORE the facade pass is called finished, not as a later polish round:
+Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they were built on shared generic tiles.
+
+1. **References first** (`scrape.py`): the school's site, Wikipedia / Commons, architect, contractor and news pages
+   found with a web search, the Street View cache, tiles obliques. Polite and legal: robots.txt honoured (image-search
+   result pages, the Wikimedia API and Openverse are closed to crawlers: record the skip, do not work round it),
+   >= 1.2 s per host, generic User-Agent, no logins. Photos live only in the gitignored
+   `src/campuses/<id>/tools/data/refs/`; the committed manifest (`refs.json`) is text: url, page, licence, building,
+   facade, what the photo tells you. Expect 15-30 useful building photos per school after pruning people and interiors.
+2. **Material sheet** (`materials.json`): per building the wall material, unit and course size, bond, mortar, trim,
+   window frames, roof, signage, and linear-RGB swatches. Sample SUNLIT patches only (a shaded north wall reads blue:
+   Hinsdale's 55th St front measured [0.16, 0.16, 0.19] for a buff brick) and scale against a known surface in the same
+   frame. Measure the course from a door leaf (2.13 m) or a CMU course; if no photo resolves it, write that down and
+   use the standard unit. Never sample by guessing coordinates from a thumbnail: crop the patch and look at the crop.
+3. **Generate, never paste** (`generate.py`): procedural albedo + normal, tile size a whole number of courses and
+   units, low frequencies flattened, mean colour fitted to the swatch. Scraped photos never ship. Look at the tiled
+   preview and at the wall in the game from 2 m, 20 m and the helicopter.
+4. **Fit the geometry, not the other way round**: UVs stay in metres (`repeat = uvM / sizeM`), facade-kit openings snap
+   to the texture's courses, soldier lintels are one brick tall, bond continues round corners (`uOff`). Each distinct
+   real material is its own keyed texture (Hinsdale has three bricks: the 1950 blend, the buff additions, the taupe
+   athletic wing; Hamilton's Brown Hall is Flemish bond with clinker headers), assigned per building / style.
+5. **Tinted materials keep their mean**: an override of a vertex-tinted material (stucco, shingles) must be a NEUTRAL
+   tile with the old mean, or every building that tints it changes colour. Put the measured colour in the tint.
+6. **Check**: `?tex=0` is the before, default the after; one side-by-side per school building against a photo from the
+   same side and a tiles render, in `dev/shots/textures/<id>/` (the `ref-compare/` folder there is gitignored because
+   it contains the photos). Map check 0 fails, practice with no console errors, FPS on medium, pack size (2-4 MB).
+7. Lessons so far: a clay-tile or batten albedo with no baked shading reads as flat stripes (bake the barrel / batten
+   shadow into the colour, the normal map alone is not enough at roof distance); mission tile must be double-sided like
+   shingles; a brick tile under ~2.5 m wide repeats visibly on a 60 m gym wall unless the weathering shader is on.
 
 ## Map check (required before QA)
 

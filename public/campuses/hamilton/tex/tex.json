@@ -1,0 +1,220 @@
+{
+ "campus": "hamilton",
+ "version": 1,
+ "textures": [
+  {
+   "name": "hamBrick",
+   "kind": "brick",
+   "map": "hamBrick_c.jpg",
+   "normal": "hamBrick_n.jpg",
+   "sizeM": [
+    5.136,
+    2.176
+   ],
+   "px": [
+    2048,
+    1024
+   ],
+   "meanLinear": [
+    0.215,
+    0.105,
+    0.066
+   ],
+   "courseM": 0.068,
+   "unitM": 0.214,
+   "key": "hamBrick",
+   "uvM": 2.2,
+   "roughness": 0.93,
+   "normalScale": 1.0,
+   "weather": [
+    0.18,
+    0.3,
+    0.06
+   ]
+  },
+  {
+   "name": "hamTile",
+   "kind": "clay_tile",
+   "map": "hamTile_c.jpg",
+   "normal": "hamTile_n.jpg",
+   "sizeM": [
+    2.94,
+    2.88
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.27,
+    0.112,
+    0.063
+   ],
+   "courseM": 0.36,
+   "key": "hamTile",
+   "uvM": 3.0,
+   "roughness": 0.88,
+   "normalScale": 1.0,
+   "doubleSide": true,
+   "weather": [
+    0.16,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "hamStucco",
+   "kind": "stucco",
+   "map": "hamStucco_c.jpg",
+   "normal": "hamStucco_n.jpg",
+   "sizeM": [
+    4.8,
+    4.8
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.85,
+    0.85,
+    0.84
+   ],
+   "roughness": 0.93,
+   "normalScale": 0.8
+  },
+  {
+   "name": "hamCastStone",
+   "kind": "panels",
+   "map": "hamCastStone_c.jpg",
+   "normal": "hamCastStone_n.jpg",
+   "sizeM": [
+    3.064,
+    3.06
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.62,
+    0.58,
+    0.48
+   ],
+   "courseM": 0.306,
+   "unitM": 0.766,
+   "roughness": 0.82,
+   "normalScale": 0.6
+  },
+  {
+   "name": "hamBlockTx",
+   "kind": "block",
+   "map": "hamBlockTx_c.jpg",
+   "normal": "hamBlockTx_n.jpg",
+   "sizeM": [
+    2.4,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.6727,
+    0.6727,
+    0.653
+   ],
+   "courseM": 0.2,
+   "unitM": 0.4,
+   "roughness": 0.95,
+   "normalScale": 0.9
+  },
+  {
+   "name": "hamPaverTx",
+   "kind": "pavers",
+   "map": "hamPaverTx_c.jpg",
+   "normal": "hamPaverTx_n.jpg",
+   "sizeM": [
+    2.4,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.4805,
+    0.447,
+    0.3814
+   ],
+   "courseM": 0.6,
+   "unitM": 0.6,
+   "roughness": 0.88,
+   "normalScale": 0.8
+  },
+  {
+   "name": "hamSidingTx",
+   "kind": "siding",
+   "map": "hamSidingTx_c.jpg",
+   "normal": "hamSidingTx_n.jpg",
+   "sizeM": [
+    2.2,
+    2.1996
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.8454,
+    0.8454,
+    0.8258
+   ],
+   "courseM": 0.1833,
+   "roughness": 0.8,
+   "normalScale": 0.8
+  }
+ ],
+ "overrides": {
+  "stucco": {
+   "tex": "hamStucco",
+   "uvM": 2.2,
+   "normalScale": 0.8,
+   "roughness": 0.93
+  },
+  "limestone": {
+   "tex": "hamCastStone",
+   "uvM": 3.0,
+   "tint": [
+    1,
+    1,
+    1
+   ],
+   "roughness": 0.82,
+   "normalScale": 0.6
+  },
+  "hamBlock": {
+   "tex": "hamBlockTx",
+   "uvM": 2.2,
+   "roughness": 0.95,
+   "normalScale": 0.9
+  },
+  "hamPaver": {
+   "tex": "hamPaverTx",
+   "uvM": 2.4,
+   "tint": [
+    0.8,
+    0.8,
+    0.8
+   ],
+   "roughness": 0.88,
+   "normalScale": 0.8
+  },
+  "hamSiding": {
+   "tex": "hamSidingTx",
+   "uvM": 2.2,
+   "roughness": 0.8,
+   "normalScale": 0.8
+  }
+ }
+}
