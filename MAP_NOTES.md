@@ -926,6 +926,30 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     the map check measures it against that plane (a car on a 9 % street read "31 % buried"); roof helicopter pads are
     registered by the builder at the height it built (`ctx.roofPads`), none typed; a walk on a straight 13 % street that
     Street View shows is kept (`keepWalk`), the 12 % rule is for lanes that kink.
+- **QA round 4 leftovers (SHIP, then fix 5): solids on walks that the map check skips, and blank walk-out floors.**
+  - **`walkDesign` skips ground under a solid, so it cannot see a building or a stoop ON a walk.** Scan every walk-zone point
+    (0.5 m) for a footprint ring within 0.4 m and for collision more than 0.12 m above the design, cluster, and look at each.
+    It found the stoop and porch posts of 974487542 on the Mission Ave walk, which QA had not named, next to the one it had.
+  - **A footprint that stands on the walk: ask Street View which one is wrong before moving either.** 974487544's front wall was
+    0.3 m into the Mission Ave walk; the frame from its own panorama shows kerb, grass strip, walk, a hedge and the facade 4-5 m
+    behind (ground distance from the image row: camera height / tan(angle below the horizon, pitch included)). The OSM outline
+    was moved 3 m (`RING_SHIFT`, world.js), not the street. A house's stoop and porch posts are dropped wherever they would land
+    on a walk or a carriageway (house(), town.js).
+  - **A satellite class is not a design.** North of the built east side, Bryn Mawr Drive's west shoulder read "concrete" (dry
+    grass from the air) and rendered as a jointed sidewalk with a tree and a lamp in it. Where Street View shows a verge, paint
+    it (`paintSurface` -> grass) and draw what edges it (`bmWestLip`: the concrete lip at the asphalt).
+  - **A curve interpolated between samples overshoots.** The east-side bed started at the walk's back edge sampled every 0.25 m
+    and linearly interpolated: round the corner fillet it cut 0.1-0.2 m into the walk, 0.14 m proud. Take the furthest of three
+    neighbouring samples plus a few centimetres.
+  - **A wall end square to the back of a walk is a snag.** The toe wall's south end stood 0.31-0.35 m over the dirt margin
+    between the Mission Ave fence and the walk, 0.4 m from a player hugging the back edge: STEP is 0.45 m but the step failed
+    there. A concrete chamfer from the margin to the coping (23 deg) fixed it; walk the back edge (centre at -0.2 m from it)
+    both ways, not only the centre line.
+  - **Walk-out bays: decide each window row by the ground under the WINDOW**, not by the highest ground across the bay (a bay
+    with a bank at one end kept a 3-6 m blank lower storey): a row is drawn when the ground under the middle 40 % of the bay is
+    below its sill (floor + 0.75 m) and the bay's ends are no higher than mid-window. The walk-out door keeps the old floor.
+  - **Bots resting on a parapeted roof is not a campus defect:** 900888955 has a working ladder (map check) and the standard
+    0.45 m parapet that a player jumps; the descent is shared bot code.
 
 ## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
 

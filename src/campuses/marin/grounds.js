@@ -207,6 +207,9 @@ export function eastSideGeom(ctx) {
   const DO = 0.25, NO = Math.ceil(12 / DO) + 1, uS = new Float64Array(NO).fill(-6), yS = new Float64Array(NO).fill(NaN);
   for (let j = 0; j < NO; j++) for (let u = 1.5; u >= -6; u -= 0.05) { const p = at(u, j * DO), d = S.design(p[0], p[1]); if (d && (d.zone === 'walk' || d.zone === 'road')) { uS[j] = u; yS[j] = d.y; break; } }
   for (let j = 0; j < NO; j++) if (Number.isNaN(yS[j])) return null;
+  // (the back of the walk is a curve at the corner: interpolated between the 0.25 m samples the bed's edge cut 0.1-0.2 m into the
+  // walk and stood 0.14 m over its design (QA). The bed starts behind the furthest of three neighbouring samples, plus 8 cm)
+  { const u0 = Float64Array.from(uS); for (let j = 0; j < NO; j++) uS[j] = Math.max(u0[Math.max(0, j - 1)], u0[j], u0[Math.min(NO - 1, j + 1)]) + 0.08; }
   const linO = (arr, o) => { const f = Math.max(0, Math.min(NO - 1, o / DO)), i = Math.min(NO - 2, Math.floor(f)); return arr[i] + (arr[i + 1] - arr[i]) * (f - i); };
   // the toe wall: as low as a bank of at most GRADE allows (0.5 m at the least), one top with a slope of at most 15 %
   const hb = new Float64Array(NU); for (let k = 0; k < NU; k++) hb[k] = Math.max(0.5, R[k] + K - GRADE * (W[k] - V - WF));
@@ -224,6 +227,27 @@ export function eastSideGeom(ctx) {
       if (o < 2.3) return 0; const r = lin(R, u); return Math.max(0, Math.min(r - 0.08, (r + K) * (o - WF) / (w - V - WF) - 0.35, E.ySat(o) - 0.05 + Math.max(0, u - E.uSat(o)) * 0.5)); } };
   return (ctx._east = E);
 }
+/** The west edge of Bryn Mawr Drive's carriageway between the pitch and the hill (the street piece with the east-side walk):
+ * stations [{ z, x (edge), cx, cz (centre line) }] sorted by z, and edgeX(z) (null outside). */
+function bmWestStations(streets) {
+  if (!streets || !streets.stations) return null; const out = [];
+  for (const s of streets.stations) { if (s.name !== 'Bryn Mawr Drive' || !String(s.id).includes(':s')) continue; for (const p of s.pts) { if (!p.eL || !p.eR) continue; const e = p.eL[0] < p.eR[0] ? p.eL : p.eR; const dx = e[0] - p.x, dz = e[1] - p.z, l = Math.hypot(dx, dz) || 1; out.push({ z: p.z + dz / l * s.hw, x: p.x + dx / l * s.hw, cx: p.x, cz: p.z }); } }   /* (eL / eR sample the crown half way out: the kerb line is hw from the centre) */
+  out.sort((a, b) => a.z - b.z); return out.length > 2 ? out : null;
+}
+export function bmWestEdge(streets) {
+  const st = bmWestStations(streets); if (!st) return null;
+  return (z) => { if (z < st[0].z || z > st[st.length - 1].z) return null; let i = 0; while (i < st.length - 2 && st[i + 1].z < z) i++; const a = st[i], b = st[i + 1], t = (z - a.z) / ((b.z - a.z) || 1); return a.x + (b.x - a.x) * t; };
+}
+/** The concrete lip at the edge of the asphalt on the west side of Bryn Mawr Drive, from the north end of the east side's red kerb
+ * up to the top of the street piece (Street View est_n2 / est_n3): flush with the shoulder, 0.35 m wide, visual only. */
+function bmWestLip(ctx, E) {
+  const st = bmWestStations(ctx.streets); if (!st || !E) return; const conc = B_(ctx); const zN = E.at(E.L, E.Wat(E.L))[1];
+  const pts = st.filter((p) => p.z < zN - 0.2 && p.z > -104).sort((a, b) => b.z - a.z); if (pts.length < 2) return;
+  const edge = (p) => { const dx = p.x - p.cx, dz = p.z - p.cz, l = Math.hypot(dx, dz) || 1; const ox = p.x + dx / l * 0.35, oz = p.z + dz / l * 0.35; return [[p.x, gY(ctx, p.x, p.z) + 0.025, p.z], [ox, gY(ctx, ox, oz) + 0.025, oz]]; };
+  let s = 0; for (let i = 0; i < pts.length - 1; i++) { const [a0, a1] = edge(pts[i]), [b0, b1] = edge(pts[i + 1]); const ds = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].z - pts[i].z);
+    if (ds > 3) { s += ds; continue; } quadFacing(conc, a0, b0, b1, a1, [0, 1, 0], [[s / 2, 0], [(s + ds) / 2, 0], [(s + ds) / 2, 0.17], [s / 2, 0.17]]); s += ds; }
+}
+const B_ = (ctx) => ctx.B.v('concrete');
 /** Builds the east side: toe wall + ball-stop fence, planted bank, verge, red kerb, kerb fence, trees, and the apron at the corner. */
 function eastSide(ctx, topN) {
   const E = eastSideGeom(ctx); if (!E) return false; const { B } = ctx; const { L, tx, tz, nx, nz, K, V, WF } = E; const tN = topN > 0.3 ? topN : -Infinity;
@@ -254,6 +278,14 @@ function eastSide(ctx, topN) {
   // the two ends: a kerb edging along the back of the Mission Ave walk, a closing face at the north end (the field wall's corner block stands there)
   for (let c = 0; c < NC - 1; c++) { const p = grid[c][0], q = grid[c + 1][0]; for (const bk of [conc, col]) quadFacing(bk, [p.x, p.y - 0.6, p.z], [q.x, q.y - 0.6, q.z], P3(q, c === 0 ? 0.07 : 0), P3(p, c === 0 ? 0.07 : 0), [-tx, 0, -tz], bk === col ? undefined : [[0, 0], [0.4, 0], [0.4, 0.2], [0, 0.2]]);
     const pn = grid[c][NR], qn = grid[c + 1][NR]; for (const bk of [conc, col]) quadFacing(bk, [pn.x, -0.4, pn.z], [qn.x, -0.4, qn.z], P3(qn), P3(pn), [tx, 0, tz], bk === col ? undefined : [[0, 0], [0.5, 0], [0.5, 1], [0, 1]]); }
+  // the south end of the toe wall stood 0.31-0.35 m over the dirt margin between the Mission Ave fence and the walk, square to
+  // a player hugging the back of the walk (QA: held at 122.5, 33.4): a concrete chamfer from the margin up to the coping, from
+  // the back of the walk to just short of the Mission Ave fence (u = 0)
+  { const g0 = grid[0][0], uN = -0.12, oW = -0.8; let uB = null; for (let u = uN; u >= -6; u -= 0.05) { const p = E.at(u, oW), d = ctx.streets.design(p[0], p[1]); if (d && (d.zone === 'walk' || d.zone === 'road')) { uB = u + 0.05; break; } }
+    if (uB !== null && g0.u < uN - 0.2) { const top = (u) => E.surf(u, WF, tN) + 0.07; const yM = E.ySat(0) - 0.15; const lo = (u) => { const p = E.at(u, oW); return [p[0], yM, p[1]]; };   /* (the margin stands 0.1-0.14 m under the walk: the outer edge tucks under it; the terrain mesh below is lower) */ const hi = (u) => { const p = E.at(u, -0.03); return [p[0], top(u), p[1]]; };
+      const N = 3; for (let k = 0; k < N; k++) { const ui0 = g0.u + (uN - g0.u) * k / N, ui1 = g0.u + (uN - g0.u) * (k + 1) / N, uo0 = uB + (uN - uB) * k / N, uo1 = uB + (uN - uB) * (k + 1) / N;
+        for (const bk of [conc, col]) quadFacing(bk, hi(ui0), hi(ui1), lo(uo1), lo(uo0), [0, 1, 0], bk === col ? undefined : [[0, 0], [0.3, 0], [0.3, 0.3], [0, 0.3]]); }
+      for (const [ui, uo, s] of [[g0.u, uB, -1], [uN, uN, 1]]) { const h = hi(ui), l = lo(uo), b = [h[0], l[1] - 0.05, h[2]]; for (const bk of [conc, col]) { quadFacing(bk, [l[0], l[1] - 0.05, l[2]], b, h, l, [tx * s, 0, tz * s]); } } } }
   // the ball-stop fence on the toe wall, from the end of the Mission Ave run to the corner block
   { const u0 = -0.25, n = Math.max(1, Math.round((L - u0) / 3)); const pts = [], lifts = new Map(); for (let k = 0; k <= n; k++) { const u = u0 + (L - u0) * k / n, p = E.at(u, 0.17); pts.push(p); lifts.set(p[0].toFixed(2) + ',' + p[1].toFixed(2), E.surf(u, WF, tN) + 0.07); }
     hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, pts, { h: 3.0, black: true, every: 4 }); }
@@ -354,7 +386,7 @@ function field(ctx) {
     // used to open in that fence led nowhere: there is no path on the bank, and it was a 3.4 m drop from the slab above.)
     const east = eastSideGeom(ctx);
     const tops = perimeter(ctx, [P[1], P[0], P[5], P[4], P[3], P[2], w1], { gaps: east ? [[38, 43], [D1 + 100, D1 + 126]] /* (the opening at D1 + 20 on the north-east side stood on a 5.2 m wall: closed) */ : [[38, 43], [118, 122], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]], noFence: (seg) => seg === 5, wood: (m) => m[1] < -20 || m[0] > 118, skip: east ? (seg) => seg === 1 : null });
-    if (east) eastSide(ctx, tops[2]);
+    if (east) { eastSide(ctx, tops[2]); bmWestLip(ctx, east); }
     cornerWedge(ctx, P[5], P[0], P[4], tops[2]); cornerWedge(ctx, P[4], P[5], P[3], tops[3]); cornerWedge(ctx, P[3], P[4], P[2], tops[4]); cornerWedge(ctx, P[2], P[3], w1, tops[5]); }
   // The hedge along Mission Ave (Street View: "solid broadleaf evergreen hedge about 4-5 m tall right at the back of the
   // sidewalk"): one continuous clipped wall between the fence line and the BACK of the designed walk, never on it. Mission

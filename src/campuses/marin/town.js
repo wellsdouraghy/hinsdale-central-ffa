@@ -21,7 +21,7 @@ const tame = (rgb) => { if (!rgb) return rgb; const l = (rgb[0] + rgb[1] + rgb[2
 const MAIN_STREETS = ['Fourth Street', 'Fifth Avenue', 'Mission Avenue'];
 // single buildings Street View shows differently from the generic house: First Presbyterian's hall on E St is a brown
 // wood-sided hall under one steep gable
-const HOUSE_FIX = { 900888958: { eave: 4.6, rise: 4.8, lv: 1, col: [112, 84, 60], wall: 'wood_siding', roof: 'gable' } };
+const HOUSE_FIX = { 900888958: { eave: 4.4 /* (the map check limit for one storey is 4.5 m over the lowest ground at the walls) */, rise: 4.8, lv: 1, col: [112, 84, 60], wall: 'wood_siding', roof: 'gable' } };
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([900888954]);
 // Houses on a bank above the road they front: Street View counted their storeys from that road below, so the eave is the
@@ -136,9 +136,15 @@ function house(ctx, ring, info, rnd, fa, id) {
         // walk-out floors: the rows of windows step down with the ground, bay by bay (one module each), so the house stands on
         // the bank with its lower floors open to it and no blank base taller than a storey's sill
         for (let k = 0; k < n; k++) { const u0 = L * k / n, u1 = L * (k + 1) / n; const gb = Math.max(0, edgeGround(ctx, [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]).max - base);
-          const rk = Math.max(1, Math.min(plan.rows, Math.floor((eave - gb + 0.05) / 2.9))), ybk = Math.max(0, eave - rk * 2.9); rowsDrawn = Math.max(rowsDrawn, rk);
+          const rk0 = Math.max(1, Math.min(plan.rows, Math.floor((eave - gb + 0.05) / 2.9)));
+          // (QA: a 3-6 m blank lower storey where the ground falls across a bay. The window sits in the middle of its module: a row
+          // is drawn where the ground under the WINDOW is below its sill (0.75 m over the row's floor) and the bank at the bay's
+          // ends no higher than the middle of the window, not only where the whole bay clears the floor)
+          const gw = Math.max(0, edgeGround(ctx, [a[0] + (b[0] - a[0]) * (k + 0.3) / n, a[1] + (b[1] - a[1]) * (k + 0.3) / n], [a[0] + (b[0] - a[0]) * (k + 0.7) / n, a[1] + (b[1] - a[1]) * (k + 0.7) / n]).max - base);
+          let rk = rk0; for (let r = Math.min(plan.rows, Math.floor((eave - gw + 0.75) / 2.9)); r > rk0; r--) if (gb <= eave - r * 2.9 + 1.5) { rk = r; break; }
+          const ybk = Math.max(0, eave - rk * 2.9), yb0 = Math.max(0, eave - rk0 * 2.9); rowsDrawn = Math.max(rowsDrawn, rk);
           wallRect(w, F, u0, u1, ybk, eave, 0, [k, (ybk - eave) / 2.9, k + 1, 0]); if (ybk > 0.02) { pl.setColor(...dark); wallRect(pl, F, u0, u1, 0, ybk, 0, [k, (0 - eave) / 2.9, k + 1, (ybk - eave) / 2.9]); }
-          (lowerBays = lowerBays || []).push({ F, u: u0, g: gb, L, k, yb: ybk }); }
+          (lowerBays = lowerBays || []).push({ F, u: u0, g: gb, L, k, yb: yb0 /* (the walk-out door keeps the floor the whole bay clears) */ }); }
       } else {
       if (L > 3.2 && !bermed) wallRect(w, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, n, 0]); else { pl.setColor(...tint); wallRect(pl, F, 0, L, yb, eave, 0, [0, (yb - eave) / 2.9, L / 4, 0]); }
       if (yb > 0.02) { pl.setColor(...dark); wallRect(pl, F, 0, L, 0, yb, 0, [0, (0 - eave) / 2.9, L / 4, (yb - eave) / 2.9]); }   // foundation / under-floor wall
@@ -168,8 +174,12 @@ function house(ctx, ring, info, rnd, fa, id) {
         (ctx.buildNotes2 = ctx.buildNotes2 || []).push({ id, door: F.P(ud, 0, 0.75), sill: base + sill, lowG: base + lowG, steps: n, uphill: sg, foot: F.P(ud + sg * (1.3 + n * 0.3 + 0.8), 0, 0.75) }); } }
     if (fr && fr.F.L > 4.5) {
       const F = fr.F; const garage = fa.garage && F.L > 8; rnd(); const ud = doorU(F.L, fa, id); const dp = F.P(ud, 0, 0.7);
+      // (rule C13: the stoop and the porch posts stand 1.3-1.4 m out from the wall; where that is on a sidewalk or a carriageway the
+      // door opens straight onto the walk, no stoop, no porch: they stood on the Mission Ave walk at 974487542)
+      const onWalk = !!ctx.streets && [-1.3, 0, 1.3].some((du) => [0.3, 0.8, 1.45].some((o) => { const q = F.P(ud + du, 0, o), d = ctx.streets.design(q[0], q[2]); return !!(d && d.zone !== 'verge') || ctx.streets.inRoad(q[0], q[2], 0.1); }));
       atGround(ctx, dp[0], dp[2], () => {   // front door, stoop and porch roof at the street-side ground
         tb.setColor(...trim); fbox(tb, F, ud - 0.62, ud + 0.62, 0.2, 2.45, 0, 0.05, 1, 0, 'fst'); fbox(B.v('frame'), F, ud - 0.5, ud + 0.5, 0.25, 2.35, 0.05, 0.08, 1, 0, 'fst');
+        if (onWalk) return;
         fbox(B.v('concrete'), F, ud - 1.1, ud + 1.1, -0.6, 0.22, 0, 1.3, 1 / 3, 0, 'fst'); const c = F.P(ud, 0, 0.65); B.c('concrete').box(c[0], -0.19, c[2], 2.2, 0.82, 1.3, F.rotY);
         if (fa.porch !== undefined ? fa.porch : true) { fbox(tb, F, ud - 1.3, ud + 1.3, 2.6, 2.76, 0, 1.4, 1, 0, 'fstb'); const pr = F.P(ud, 2.68, 0.7); B.c('wood').box(pr[0], 2.68, pr[2], 2.6, 0.16, 1.4, F.rotY); for (const du of [-1.2, 1.2]) { const q = F.P(ud + du, 0, 1.3); tb.box(q[0], 1.2, q[2], 0.12, 2.8, 0.12, F.rotY); } }
       }, 0.9);

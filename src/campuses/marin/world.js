@@ -6,7 +6,7 @@ import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
 import { buildSchool, schoolWalls, POOL_STAIR, COURT_STAIR } from './school.js';
 import { buildTown, planTown, recutHouses } from './town.js';
-import { buildGrounds, turfWorld, eastSideGeom, gateFlight } from './grounds.js';
+import { buildGrounds, turfWorld, eastSideGeom, gateFlight, bmWestEdge } from './grounds.js';
 import { addCampusWater } from '../../world/water.js';
 import { buildTerrain, terrainSampler } from './terrain.js';
 
@@ -180,7 +180,12 @@ function sitework(ctx) {
     // (and the frontage of the Leadership Center and the Library on Mission Ave: Street View shows a lawn strip with a clipped
     // hedge against the wall between the sidewalk and the buildings, not paving)
     const front = [R(...G(-0.2, 37.3), 19.6, 3.9), R(...G(32.6, 36.9), 22.4, 3.1)].map((sh) => shapeSDF(sh).sd);
-    if (ctx.paintSurface) ctx.paintSurface((x, z) => streets.surface(x, z) || (lawn(x, z) <= 0 || front.some((sd) => sd(x, z) <= 0) ? 'grass' : null));
+    // (and the west side of Bryn Mawr Drive north of the pitch: Street View (est_n2, est_n3) shows a concrete lip at the edge of
+    // the asphalt, a strip of dry grass with a stone edging and the houses' lawns, no sidewalk. The satellite classes read the dry
+    // grass as concrete, and with the walk's joints that 3 m strip looked like a sidewalk with a street tree and a lamp in it (QA).
+    // The lip is drawn by grounds.js, bmWestLip.)
+    const bmW = bmWestEdge(streets);
+    if (ctx.paintSurface) ctx.paintSurface((x, z) => streets.surface(x, z) || (lawn(x, z) <= 0 || front.some((sd) => sd(x, z) <= 0) ? 'grass' : null) || (bmW && z > -104 && z < -28 && (() => { const ex = bmW(z); if (ex === null || x < ex - 3.4 || x > ex + 0.05) return null; const d = streets.design(x, z); return d && d.zone === 'verge' ? 'grass' : null; })()));
     const solid = streets.solid[0] || (() => false); const out = [];
     for (const t of ctx.gen.trees || []) { const dz = streets.design(t[0], t[1]); const p = streets.toVerge(t[0], t[1], dz && dz.zone === 'walk' ? 3.2 : 1.0);   /* (a trunk on a sidewalk moves behind it too: several streets have walks now that had none on the stretched ground) */ if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // (and a tree deep inside a car park: asphalt 2.5 m all round it)
@@ -214,7 +219,14 @@ function heliScan(ctx, max = 34) {
   return out;
 }
 
+// OSM footprints that stand in the wrong place against the street they front (checked against Street View and the satellite),
+// moved by [dx, dz] metres before anything is planned. 974487544 (the shingled apartments at the west end of Mission Ave):
+// Street View (pano at -140.7, 4.3) shows kerb, a grass strip, the sidewalk, a 1.5-2 m hedge and the facade 4-5 m behind the
+// walk; the OSM outline put the front wall 0.3 m INTO the walk and the stoop and porch posts on it (QA: a walker held 1.5 s).
+const RING_SHIFT = { 974487544: [-0.3, 3.0] };   // (3 m south, square to Mission Ave)
+
 export function build(ctx, progress = () => {}) {
+  if (ctx.data && ctx.data.buildings) ctx.data.buildings = ctx.data.buildings.map((b) => { const s = RING_SHIFT[b.id]; return s && !b._shifted ? { ...b, _shifted: true, outer: b.outer.map((r) => r.map(([x, z]) => [x + s[0], z + s[1]])) } : b; });
   addMaterials(ctx);
   terrainSampler(ctx.gen);   // installs the backdrop grid (descriptor terrain.outside reads it beyond the satellite rectangle)
   sitework(ctx);
