@@ -20,3 +20,4 @@ tools/textures/**/refs_raw/
 dev/shots/textures/*/ref-compare/
 dev/shots/textures/*/v2/ref-compare/
 dev/shots/textures/*/v3/ref-compare/
+dev/shots/textures/*/v*/ref-compare/

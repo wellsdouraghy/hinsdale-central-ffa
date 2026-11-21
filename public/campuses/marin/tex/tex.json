@@ -68,16 +68,17 @@
     512
    ],
    "meanLinear": [
-    0.4928,
-    0.4928,
-    0.4534
+    0.3918,
+    0.3847,
+    0.3461
    ],
    "altM": [
-    1.332,
-    1.548
+    1.2,
+    2.4
    ],
    "roughness": 0.88,
-   "normalScale": 0.8
+   "normalScale": 0.8,
+   "notes": "v4: sandblasted grey concrete in scored slabs, each slab its own tone (school site courtyard photo); v3 was one flat near-white sheet"
   },
   {
    "name": "maRibMetal",
@@ -93,9 +94,9 @@
     512
    ],
    "meanLinear": [
-    0.1152,
-    0.1159,
-    0.1229
+    0.2189,
+    0.1912,
+    0.1218
    ],
    "altM": [
     1.2,
@@ -104,7 +105,7 @@
    "key": "maRibMetal",
    "uvM": 2.2,
    "roughness": 0.6,
-   "metalness": 0.25,
+   "metalness": 0.0,
    "normalScale": 1.0,
    "weather": false,
    "notes": "ribs run along V in the tile; rot 90 lays them horizontal on the wall (the loader rotates the sampler, the facade kit's UVs stay in metres)",
@@ -129,8 +130,8 @@
     0.6809
    ],
    "altM": [
-    1.776,
-    2.064
+    1.2,
+    2.4
    ],
    "key": "maPanel",
    "uvM": 2.2,
@@ -156,9 +157,9 @@
     512
    ],
    "meanLinear": [
-    0.1652,
-    0.1738,
-    0.1823
+    0.2148,
+    0.2008,
+    0.1645
    ],
    "altM": [
     1.2,
@@ -167,10 +168,10 @@
    "key": "maLouvre",
    "uvM": 2.2,
    "roughness": 0.35,
-   "metalness": 0.2,
+   "metalness": 0.0,
    "normalScale": 1.0,
    "weather": false,
-   "envMapIntensity": 1.1,
+   "envMapIntensity": 0.6,
    "notes": "aluminium sunshade blades (0.3 m pitch) on carriers every 1.2 m in front of dark glazing: the screen at both ends of the Science Center's west front",
    "rot": 90
   },
@@ -189,8 +190,8 @@
    ],
    "meanLinear": [
     0.0893,
-    0.1885,
-    0.1537
+    0.1984,
+    0.123
    ],
    "altM": [
     1.8,
@@ -199,7 +200,7 @@
    "key": "maSeamTeal",
    "uvM": 1.0,
    "roughness": 0.45,
-   "metalness": 0.45,
+   "metalness": 0.2,
    "normalScale": 1.0,
    "weather": false,
    "notes": "Athletic Center roof: teal standing-seam metal (aerial photo of the aquatic centre, sunlit [0.13, 0.275, 0.223])"
@@ -227,7 +228,13 @@
     1
    ],
    "roughness": 0.88,
-   "normalScale": 0.8
+   "normalScale": 0.8,
+   "weather": [
+    0.25,
+    0.0,
+    0.0
+   ],
+   "macro": 0.35
   }
  },
  "replaces": []

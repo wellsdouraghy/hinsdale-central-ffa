@@ -136,13 +136,18 @@ function thacherHallAt(ctx, main, eave, eaveW) {
 
 // ============================================================================================ Science + Innovation Center
 function scienceCenter(ctx, ring) { sited(ctx, ring, (base) => scienceCenterAt(ctx, ring, TOP.science - base)); }   // parapet 13.45 m above the field: three storeys toward the field, one at the gym plaza
+const SCI_DOOR_Z = -52.1;   // the west door (world z), as the facade kit placed it on the uncut front
 function scienceCenterAt(ctx, ring, h) {
   const { B } = ctx;
   // West front (toward Foster Hall, EHDD's photos): a glazed base under a closed upper storey, charcoal ribbed metal in
   // the middle and aluminium sunshade screens at both ends. Only with the texture pack (the skins are its textures).
   const zs = ring.map((q) => q[1]), zN = Math.min(...zs), zS = Math.max(...zs);
-  const pieceStyle = !ctx.TX ? null : (i, p, q, a, b) => { const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.nx > -0.8 || F.L < 20) return null; const t = (zS - (p[1] + q[1]) / 2) / (zS - zN); return t > 0.36 && t < 0.74 ? 'maSciRib' : 'maSciLouvre'; };
-  const { roofY } = flatBuilding(ctx, ring, h, 'maModern', { units: 3, pieceStyle });
+  const pieceStyle = !ctx.TX ? null : (i, p, q, a, b) => { const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.nx > -0.8 || F.L < 20) return null; const t = (zS - (p[1] + q[1]) / 2) / (zS - zN); if (!(t > 0.36 && t < 0.74)) return 'maSciLouvre';
+    const f = (SCI_DOOR_Z - p[1]) / (q[1] - p[1]); if (!(f > 0 && f < 1)) return 'maSciRib';   // the front's one door stays where the uncut wall had it (toward Foster Hall)
+    STYLES.maSciRibDoor = { ...STYLES.maSciRib, doorU: f * Math.hypot(q[0] - p[0], q[1] - p[1]) }; return 'maSciRibDoor'; };
+  // (the front is ONE ring edge: cut it where the skin changes, louvre | rib | louvre, or the whole of it takes one style)
+  const cuts = !ctx.TX ? null : (i, a, b) => { const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.nx > -0.8 || F.L < 20 || Math.abs(b[1] - a[1]) < 1) return null; return [0.36, 0.74].map((t) => (zS - t * (zS - zN) - a[1]) / (b[1] - a[1])).filter((f) => f > 0.05 && f < 0.95); };
+  const { roofY } = flatBuilding(ctx, ring, h, 'maModern', { units: 3, pieceStyle, cuts });
   // stair / mechanical penthouse and a screened plant enclosure, as on the real roof
   const p = gp(21, -50, 0.5, -2); gridBox(B, 'whitePanel', 'metal', p[0], roofY + 1.2, p[1], 9.0, 2.4, 20.0);
   (ctx.roofPads = ctx.roofPads || []).push([22, TOP.science - h + roofY + 2.5, -52]);   // hidden-helicopter pad on the penthouse roof: the deck height as built (it was a typed 15.5)

@@ -238,7 +238,8 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
   // corner piers: hide the razor edge where two walls meet
   if (L > 3.2 && !st.plain && !st.noCorner) { piers.push([0.3, 0.6, 0.1]); piers.push([L - 0.3, 0.6, 0.1]); }
   const usable = L - 2 * m; const nb = Math.max(0, Math.floor(usable / st.bay)); const bay = nb ? usable / nb : 0;
-  const doorBay = nb >= 1 && ((st.kind === 'gym' || st.kind === 'service') ? L > 15 : L > 26) && !st.plain ? Math.floor(nb * (0.3 + 0.4 * rnd())) : -1;
+  // (`doorU`: a campus kit puts the door at a known place, metres along this wall: a wall cut into pieces where its skin changes keeps the door the whole wall had)
+  const doorBay = st.doorU !== undefined ? (nb >= 1 ? Math.max(0, Math.min(nb - 1, Math.floor((st.doorU - m) / bay))) : -1) : nb >= 1 && ((st.kind === 'gym' || st.kind === 'service') ? L > 15 : L > 26) && !st.plain ? Math.floor(nb * (0.3 + 0.4 * rnd())) : -1;
 
   if (st.plain || L < 4.4 || nb < 1) {
     // too short for a bay: plain brick (maybe a slit window)

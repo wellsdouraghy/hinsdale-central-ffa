@@ -29,8 +29,8 @@ export const CLAY_DARK = [3.0, 1.6, 1.15];
 // shingle mean 0.0315). Walls: materials.json swatches, corrected in game against sunlit walls. Roofs: the aerial photo
 // of the aquatic centre shows brown composition shingle on every hipped school roof (not terracotta).
 export const PACK = {
-  foster: [0.66, 0.52, 0.27], mission: [0.68, 0.60, 0.43], founders: [0.66, 0.59, 0.41], pac: [0.70, 0.63, 0.47], visArts: [0.40, 0.33, 0.19],
-  roof: [4.6, 3.5, 2.5], roofFoster: [3.6, 3.1, 2.6],
+  foster: [0.66, 0.52, 0.27], mission: [0.71, 0.585, 0.32], founders: [0.69, 0.575, 0.30], pac: [0.73, 0.615, 0.35], visArts: [0.40, 0.33, 0.19],   // (v4: B cut ~25 % so a wall in shade keeps B < G under the blue sky fill)
+  roof: [4.8, 3.8, 2.0], roofFoster: [3.9, 3.35, 1.9],   // (v4: brown, R > G > B on a sunlit slope; the neutral tile leans blue and read mauve)
 };
 // ------------------------------------------------------------------------------------------ materials
 function solarTexture(aniso) {
@@ -141,7 +141,8 @@ export function addMaterials(ctx) {
     M.maVerge = std({ map: canvasTexture(c, { aniso: T.aniso }), roughness: 1 }); M.maVerge.color.setRGB(0.74, 0.76, 0.72); }
   // window / door frames of the cream buildings: dark green painted steel (Street View, the aquatic-centre photos); Foster Hall: white sashes
   M.maFrameGreen = std({ color: 0x1f4034, roughness: 0.5, metalness: 0.25 }); M.maFrameWhite = std({ color: 0xe6e1d2, roughness: 0.55, metalness: 0.05 });
-  M.maFosterTrim = std({ color: 0xcbbc97, roughness: 0.7 });   // Foster Hall's porch posts and entablature are painted the wall cream (school site photo), only sashes and balustrade are white
+  M.maFosterTrim = std({ color: 0xc4b083, roughness: 0.7 });   // Foster Hall's porch posts and entablature are painted the wall cream (school site photo), only sashes and balustrade are white
+  M.maVisArtsBand = std({ color: 0x9e9170, roughness: 0.93 });   // the Visual Arts Center's parapet band: its khaki stucco (PACK.visArts over the 0.85 tile)
   M.maFrond = std({ color: 0x3f5a2a, roughness: 0.8, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
@@ -168,7 +169,7 @@ export function addMaterials(ctx) {
     maCream: { ...STYLES.maCream, frame: 'maFrameGreen', tint: PACK.founders },
     maPac: { ...STYLES.maPac, frame: 'maFrameGreen', coping: 'maFrameGreen', tint: PACK.pac },
     maLowCream: { ...STYLES.maLowCream, frame: 'maFrameGreen', tint: PACK.pac },
-    maVisArts: { ...STYLES.maVisArts, frame: 'maFrameGreen', band: 'maFrameGreen', coping: 'maFrameGreen', tint: PACK.visArts },
+    maVisArts: { ...STYLES.maVisArts, frame: 'maFrameGreen', band: 'maVisArtsBand', coping: 'maFrameGreen', tint: PACK.visArts },   // (Street View: khaki stucco right up to a thin green coping: the band is the wall's own colour, not green and not white)
     maModern: { ...STYLES.maModern, wall: 'maPanel' },                                                              // off-white panel end walls and field front
     maSciRib: { ...STYLES.maModern, wall: 'maPanel', upper: 'maRibMetal', noCorner: true, bay: 3.6 },               // west front: glazed base, charcoal ribbed metal above
     maSciLouvre: { ...STYLES.maModern, wall: 'maPanel', upper: 'maLouvre', noCorner: true, bay: 3.6 },              // ... and the aluminium sunshade screens at both ends of it
@@ -199,7 +200,11 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
     // storeys, doors and the base course from the ground up, so a wall on the uphill side is a storey shorter instead
     // of having its doors and windows buried in the hill.
     const planned = plan ? plan.edges.get(i) : null;   // seated pieces: each on its own level pad (planWalls)
-    for (const [p, q, dy0, shared] of (planned ? planned.map((pc) => [pc.p, pc.q, Math.max(0, Math.min(Math.max(pc.level, pc.shared ? -1e9 : (streetSide(ctx, pc.p, pc.q) ? outsideMax(ctx, pc.p, pc.q) : midGround(ctx, pc.p, pc.q)) - 0.12) - base0, h - 2.6)), pc.shared])   /* the floor follows the pad as finally laid (a later campus pad may have raised it) */ : wallPieces(ctx, a, b, base0, h))) {
+    // opts.cuts(i, a, b) -> fractions along the edge where a piece is cut in two (same seat, same height): a wall that
+    // changes skin along its length must end a piece at each change, or pieceStyle only ever sees one midpoint
+    const cutAt = opts.cuts ? (opts.cuts(i, a, b) || []) : []; const split = (list) => { if (!cutAt.length) return list; const out = []; const fr = (pt) => ((pt[0] - a[0]) * (b[0] - a[0]) + (pt[1] - a[1]) * (b[1] - a[1])) / (L * L);
+      for (const pc of list) { const f0 = fr(pc[0]), f1 = fr(pc[1]); let s0 = pc[0]; for (const f of cutAt.filter((f) => f > Math.min(f0, f1) + 1.5 / L && f < Math.max(f0, f1) - 1.5 / L).sort((x, y) => (f1 > f0 ? x - y : y - x))) { const m = [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]; out.push([s0, m, pc[2], pc[3]]); s0 = m; } out.push([s0, pc[1], pc[2], pc[3]]); } return out; };
+    for (const [p, q, dy0, shared] of split(planned ? planned.map((pc) => [pc.p, pc.q, Math.max(0, Math.min(Math.max(pc.level, pc.shared ? -1e9 : (streetSide(ctx, pc.p, pc.q) ? outsideMax(ctx, pc.p, pc.q) : midGround(ctx, pc.p, pc.q)) - 0.12) - base0, h - 2.6)), pc.shared])   /* the floor follows the pad as finally laid (a later campus pad may have raised it) */ : wallPieces(ctx, a, b, base0, h))) {
       const dy = dy0 < 0.05 ? 0 : dy0;
       if (dy > 0.05) { const Fb = edgeFrame(p[0], p[1], q[0], q[1]); const sb = sctx.B.v('brick', true); const tn = (st && st.tint) || [0.9, 0.9, 0.88]; sb.setColor(tn[0] * 0.86, tn[1] * 0.86, tn[2] * 0.86); wallRect(sb, Fb, 0, Fb.L, -0.6, dy + 0.02, 0, [u * BRICK_S, 0, (u + Fb.L) * BRICK_S, dy * BRICK_S]); sb.setColor(1, 1, 1); }   // foundation under a raised piece (shows where the ground dips at a step between two pads)
       const F = edgeFrame(p[0], p[1], q[0], q[1]);

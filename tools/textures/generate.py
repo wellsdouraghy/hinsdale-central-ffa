@@ -209,7 +209,15 @@ def stucco(sp, rng, kind):
         per = (W if axis == 1 else H) / n; dd = np.abs(np.mod(t + per / 2, per) - per / 2); m = np.clip(1 - (dd - jw / 2) / max(jw * 0.5, 1.2 * px[0]), 0, 1)
         m = m[None, :] if axis == 1 else m[:, None]
         h = h - sp.get('joint_depth', 0.006) * m; col = col * (1 - 0.45 * m[..., None])
-    return col, h, (W, H), {'altM': [round(W * 0.37, 4), round(H * 0.43, 4)]}
+    if sp.get('panel_var') and sp.get('panel', [0, 0])[0] and sp['panel'][1]:   # each scored panel / slab its own tone, a touch warmer or cooler (pours differ)
+        nx = max(1, int(round(W / sp['panel'][0]))); ny = max(1, int(round(H / sp['panel'][1])))
+        ix = np.minimum((np.arange(pw) * nx) // pw, nx - 1); iy = np.minimum((np.arange(ph) * ny) // ph, ny - 1)
+        tone = np.exp(rng.standard_normal((ny, nx)) * sp['panel_var']).astype(np.float32); warm = (rng.standard_normal((ny, nx)) * sp['panel_var'] * 0.25).astype(np.float32)
+        tn = tone[iy][:, ix]; wm = warm[iy][:, ix]
+        col = col * tn[..., None] * np.stack([1 + wm, np.ones_like(wm), 1 - wm], -1)
+    pn = sp.get('panel', [0, 0])   # the second sample is shifted by whole panels, so scored joints stay registered in the cross-fade
+    alt = [round(pn[0] * max(1, round(W * 0.37 / pn[0])), 4) if pn[0] else round(W * 0.37, 4), round(pn[1] * max(1, round(H * 0.6 / pn[1])), 4) if pn[1] else round(H * 0.43, 4)]
+    return col, h, (W, H), {'altM': alt}
 
 
 def siding(sp, rng, kind):
