@@ -144,7 +144,12 @@ const navOK = (x, z) => (world.navSample ? world.navSample(x, z) : true);
 // ground height (0 on flat campuses; every "ground level" test below is relative to it)
 const GY = world.terrain ? (x, z) => world.terrain.heightAt(x, z) : () => 0;
 const nearWalk = (x, z) => { if (navOK(x, z)) return true; for (const r of [1.5, 3]) for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; if (navOK(x + Math.cos(a) * r, z + Math.sin(a) * r)) return true; } return false; };
-const inPB = (x, z, m = 0) => x >= PB.minX + m && x <= PB.maxX - m && z >= PB.minZ + m && z <= PB.maxZ - m;
+// The play area is what the fence line encloses (world.playEdge, rule F48): on a campus whose fence is a polygon (Earl of March: the far kerb of
+// a diagonal street, a wood line) the corners of the playBounds rectangle beyond it are not play space and are not sampled. On the rectangle
+// campuses the ring lies 0.7-1.2 m OUTSIDE the bounds, so nothing changes there. (Negative margins = "near the play area": the rectangle.)
+const EDGE_RING = world.playEdge && world.playEdge.length >= 3 ? world.playEdge : null;
+const inEdge = (x, z) => { if (!EDGE_RING) return true; let c = false; for (let i = 0, j = EDGE_RING.length - 1; i < EDGE_RING.length; j = i++) { const a = EDGE_RING[i], b = EDGE_RING[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+const inPB = (x, z, m = 0) => x >= PB.minX + m && x <= PB.maxX - m && z >= PB.minZ + m && z <= PB.maxZ - m && (m < 0 || inEdge(x, z));
 
 // The map must work without the controller's stuck safety net (player._stuckWatch pops a wedged capsule free): off here.
 const noUnstuck = (c) => { c._stuckWatch = () => {}; return c; };
@@ -162,6 +167,7 @@ async function checkEscape() {
   const ctrl = noUnstuck(new PlayerController(world)); const push = V();
   const samples = []; let columns = 0; const cols = new Map();
   for (let ix = 0, x = gx0; x < PB.maxX; ix++, x += g) for (let iz = 0, z = gz0; z < PB.maxZ; iz++, z += g) {
+    if (!inEdge(x, z)) continue;   // (beyond the fence line: not play space)
     columns++;
     const gy = GY(x, z);
     const hits = S.all(V(x, gy + 150, z), DOWN, 150 - 0.3);

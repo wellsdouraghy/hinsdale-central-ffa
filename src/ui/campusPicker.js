@@ -76,7 +76,7 @@ export function createCampusPicker({ root, campuses, lastId, onChoose, sound = (
     });
     input.setAttribute('aria-activedescendant', `cs-row-${rows[active].id}`);
     const c = rows[active];
-    if (bg) bg.style.backgroundImage = `url(./${c.thumb || c.files.satellite})`;
+    if (bg) bg.style.backgroundImage = `url(./${c.thumb || c.files.map || c.files.satellite})`;
   }
 
   function render() {
@@ -102,7 +102,7 @@ export function createCampusPicker({ root, campuses, lastId, onChoose, sound = (
     list.innerHTML = rows.map((c) => `
       <li role="option" id="cs-row-${c.id}">
         <button class="cs-row" data-campus-id="${c.id}" style="--cs-accent:${c.brand?.red || '#e3242b'}" tabindex="-1">
-          <span class="cs-thumb" style="background-image:url(./${c.thumb || c.files.satellite})">
+          <span class="cs-thumb" style="background-image:url(./${c.thumb || c.files.map || c.files.satellite})">
             ${c.emblem ? `<svg class="cs-emb" viewBox="0 0 100 112" aria-hidden="true">${c.emblem}</svg>` : ''}
           </span>
           <span class="cs-info">

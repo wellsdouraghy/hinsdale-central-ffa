@@ -1,0 +1,490 @@
+{
+ "campus": "earlofmarch",
+ "version": 2,
+ "textures": [
+  {
+   "name": "eomBrick",
+   "kind": "brick",
+   "map": "eomBrick_c.jpg",
+   "normal": "eomBrick_n.jpg",
+   "sizeM": [
+    5.291,
+    2.128
+   ],
+   "px": [
+    2048,
+    1024
+   ],
+   "meanLinear": [
+    0.4254,
+    0.2214,
+    0.1342
+   ],
+   "courseM": 0.0665,
+   "unitM": 0.2035,
+   "altM": [
+    1.4245,
+    0.399
+   ],
+   "roughness": 0.9,
+   "normalScale": 1.0,
+   "notes": "the 1971 red-orange wirecut brick (Street View n4 / w1 sunlit: faces 0.19 0.08 0.045 on a phone-grade camera; lifted ~35 % per MAP_NOTES item 7, pale grey mortar); overrides the shared brick bucket | v2: judged in the game beside Street View n4: the first tile (target 0.275 0.105 0.054) read dark red-brown in shade; lifted to 0.37 0.148 0.072 | v3 (game | Street View pairs n4, n5): still darker and browner than the sunlit orange-red of the photos; lifted to 0.465 0.20 0.10"
+  },
+  {
+   "name": "eomBrickNew",
+   "kind": "brick",
+   "map": "eomBrickNew_c.jpg",
+   "normal": "eomBrickNew_n.jpg",
+   "sizeM": [
+    2.6455,
+    2.128
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.3637,
+    0.176,
+    0.1136
+   ],
+   "courseM": 0.0665,
+   "unitM": 0.2035,
+   "altM": [
+    1.4245,
+    0.399
+   ],
+   "key": "eomBrickNew",
+   "uvM": 2.2,
+   "roughness": 0.9,
+   "normalScale": 1.0,
+   "weather": [
+    0.1,
+    0.2,
+    0.03
+   ],
+   "notes": "the 2015 wing: a smoother, slightly lighter red brick (tiles obliques; the Street View frames of it are overexposed)"
+  },
+  {
+   "name": "eomAtrium",
+   "kind": "brick",
+   "map": "eomAtrium_c.jpg",
+   "normal": "eomAtrium_n.jpg",
+   "sizeM": [
+    1.4245,
+    1.064
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.2229,
+    0.1321,
+    0.1032
+   ],
+   "courseM": 0.0665,
+   "unitM": 0.2035,
+   "altM": [
+    1.4245,
+    0.399
+   ],
+   "key": "eomAtrium",
+   "uvM": 1.0,
+   "roughness": 0.9,
+   "normalScale": 1.0,
+   "weather": [
+    0.1,
+    0.1,
+    0.0
+   ],
+   "notes": "The Atriums of Kanata: red-brown brick (tiles oblique)"
+  },
+  {
+   "name": "eomPrecast",
+   "kind": "concrete",
+   "map": "eomPrecast_c.jpg",
+   "normal": "eomPrecast_n.jpg",
+   "sizeM": [
+    3.05,
+    3.05
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.5986,
+    0.4988,
+    0.3592
+   ],
+   "altM": [
+    1.1285,
+    1.3115
+   ],
+   "key": "eomPrecast",
+   "uvM": 1.0,
+   "roughness": 0.93,
+   "normalScale": 1.0,
+   "weather": [
+    0.18,
+    0.25,
+    0.0
+   ],
+   "notes": "exposed-aggregate precast (fins, fascias, the raised roofs): warm beige, w1 sunlit 0.36 0.28 0.195, e3 in shade 0.20 0.19 0.175; a pebbly face | v3: lighter and warmer after the n4 / n5 pairs (it read grey)"
+  },
+  {
+   "name": "eomBoard",
+   "kind": "concrete",
+   "map": "eomBoard_c.jpg",
+   "normal": "eomBoard_n.jpg",
+   "sizeM": [
+    3.6,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.3637,
+    0.3485,
+    0.3132
+   ],
+   "altM": [
+    1.332,
+    1.032
+   ],
+   "key": "eomBoard",
+   "uvM": 1.0,
+   "roughness": 0.88,
+   "normalScale": 0.9,
+   "weather": [
+    0.2,
+    0.35,
+    0.04
+   ],
+   "notes": "Mlacak Centre: the low board-formed concrete base under the shake skirt (Street View m3 / m5)"
+  },
+  {
+   "name": "eomShake",
+   "kind": "shingle_siding",
+   "map": "eomShake_c.jpg",
+   "normal": "eomShake_n.jpg",
+   "sizeM": [
+    3.04,
+    3.04
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.118,
+    0.113,
+    0.106
+   ],
+   "courseM": 0.19,
+   "altM": [
+    1.3072,
+    1.52
+   ],
+   "key": "eomShake",
+   "uvM": 1.0,
+   "roughness": 0.95,
+   "normalScale": 1.1,
+   "doubleSide": true,
+   "weather": [
+    0.15,
+    0.0,
+    0.0
+   ],
+   "notes": "Mlacak Centre: weathered silver-grey cedar shakes (m3 in shade reads blue 0.065 0.08 0.109; a sunlit grey shake is neutral ~0.12)"
+  },
+  {
+   "name": "eomCharcoal",
+   "kind": "panels",
+   "map": "eomCharcoal_c.jpg",
+   "normal": "eomCharcoal_n.jpg",
+   "sizeM": [
+    2.416,
+    2.432
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.125,
+    0.122,
+    0.115
+   ],
+   "courseM": 0.608,
+   "unitM": 1.208,
+   "altM": [
+    3.624,
+    3.04
+   ],
+   "key": "eomCharcoal",
+   "uvM": 1.0,
+   "roughness": 0.7,
+   "normalScale": 0.6,
+   "weather": [
+    0.08,
+    0.1,
+    0.0
+   ],
+   "notes": "library: charcoal fibre-cement panels (l1: 0.072 0.082 0.095 under an overcast sky; warm albedo so the shaded wall does not read navy)"
+  },
+  {
+   "name": "eomBlockWhite",
+   "kind": "block",
+   "map": "eomBlockWhite_c.jpg",
+   "normal": "eomBlockWhite_n.jpg",
+   "sizeM": [
+    2.4,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.4756,
+    0.4568,
+    0.4037
+   ],
+   "courseM": 0.2,
+   "unitM": 0.4,
+   "altM": [
+    2.8,
+    1.2
+   ],
+   "key": "eomBlockWhite",
+   "uvM": 1.0,
+   "roughness": 0.93,
+   "normalScale": 0.8,
+   "weather": [
+    0.12,
+    0.2,
+    0.0
+   ],
+   "notes": "library wings and the Mlacak annex: pale off-white masonry (tiles; toned to 0.5 so it does not clip)"
+  },
+  {
+   "name": "eomCedar",
+   "kind": "siding",
+   "map": "eomCedar_c.jpg",
+   "normal": "eomCedar_n.jpg",
+   "sizeM": [
+    3.0,
+    1.4
+   ],
+   "px": [
+    512,
+    256
+   ],
+   "meanLinear": [
+    0.3189,
+    0.1498,
+    0.0599
+   ],
+   "courseM": 0.14,
+   "altM": [
+    1.5,
+    0.7
+   ],
+   "key": "eomCedar",
+   "uvM": 1.0,
+   "roughness": 0.7,
+   "normalScale": 0.7,
+   "weather": [
+    0.08,
+    0.05,
+    0.0
+   ],
+   "notes": "library: the clear-finished cedar band (l1: 0.337 0.150 0.056)"
+  },
+  {
+   "name": "eomSiding",
+   "kind": "board_batten",
+   "map": "eomSiding_c.jpg",
+   "normal": "eomSiding_n.jpg",
+   "sizeM": [
+    2.4,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.5077,
+    0.4393,
+    0.3222
+   ],
+   "altM": [
+    1.2,
+    0.984
+   ],
+   "key": "eomSiding",
+   "uvM": 1.0,
+   "roughness": 0.8,
+   "normalScale": 0.9,
+   "weather": [
+    0.12,
+    0.2,
+    0.0
+   ],
+   "notes": "portables: beige vertical ribbed siding (tiles obliques, Street View p2)"
+  },
+  {
+   "name": "eomPanel",
+   "kind": "panels",
+   "map": "eomPanel_c.jpg",
+   "normal": "eomPanel_n.jpg",
+   "sizeM": [
+    2.42,
+    2.41
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.56,
+    0.56,
+    0.54
+   ],
+   "courseM": 2.41,
+   "unitM": 1.21,
+   "altM": [
+    3.63,
+    12.05
+   ],
+   "key": "eomPanel",
+   "uvM": 1.0,
+   "roughness": 0.5,
+   "normalScale": 0.4,
+   "weather": [
+    0.06,
+    0.1,
+    0.0
+   ],
+   "notes": "2015 wing: white composite panel bays (albedo 0.56: no blown-out whites)"
+  },
+  {
+   "name": "eomTowerPanel",
+   "kind": "concrete",
+   "map": "eomTowerPanel_c.jpg",
+   "normal": "eomTowerPanel_n.jpg",
+   "sizeM": [
+    3.6,
+    3.0
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.469,
+    0.4591,
+    0.4291
+   ],
+   "altM": [
+    1.332,
+    1.29
+   ],
+   "key": "eomTowerPanel",
+   "uvM": 1.0,
+   "roughness": 0.85,
+   "normalScale": 0.6,
+   "weather": [
+    0.12,
+    0.1,
+    0.0
+   ],
+   "notes": "2 The Parkway: pale precast (tiles)"
+  },
+  {
+   "name": "eomGravel",
+   "kind": "concrete",
+   "map": "eomGravel_c.jpg",
+   "normal": "eomGravel_n.jpg",
+   "sizeM": [
+    3.0,
+    3.0
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.1995,
+    0.1995,
+    0.1995
+   ],
+   "altM": [
+    1.11,
+    1.29
+   ],
+   "key": "eomGravel",
+   "uvM": 3.0,
+   "roughness": 0.97,
+   "normalScale": 1.2,
+   "weather": [
+    0.22,
+    0.0,
+    0.0
+   ],
+   "notes": "ballasted flat roofs: a NEUTRAL gravel tile (mean 0.2) tinted per roof (kit.js ROOF_*): red-brown on the 1971 roofs, pale grey on the 2015 wing"
+  },
+  {
+   "name": "eomPortRoof",
+   "kind": "metal_seam",
+   "map": "eomPortRoof_c.jpg",
+   "normal": "eomPortRoof_n.jpg",
+   "sizeM": [
+    2.4,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.1985,
+    0.0744,
+    0.0546
+   ],
+   "altM": [
+    1.2,
+    0.984
+   ],
+   "key": "eomPortRoof",
+   "uvM": 3.0,
+   "roughness": 0.6,
+   "metalness": 0.15,
+   "normalScale": 1.0,
+   "doubleSide": true,
+   "weather": false,
+   "notes": "portables: red-brown ribbed metal roofs (nadir tiles)"
+  }
+ ],
+ "overrides": {
+  "brick": {
+   "tex": "eomBrick",
+   "uvM": 2.2,
+   "roughness": 0.9,
+   "normalScale": 1.0,
+   "weather": [
+    0.18,
+    0.28,
+    0.05
+   ]
+  }
+ },
+ "replaces": [
+  "brickColor"
+ ]
+}

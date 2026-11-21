@@ -36,6 +36,7 @@ export default {
   origin: { lat, lon, height },      // local frame origin (x east, z south, metres); height = ellipsoid m for 3D tiles
   tileRegistration: [[x, z], ...],   // open flat spots for 3D-tiles ground registration (see src/world/tiles.js)
   files: {                           // all relative to the site root
+    // map: optional overview image with the satellite image's extent, used INSTEAD of it by the menus, the loading screen and the minimap (a corrected photo)
     campus: 'campuses/marin/campus.json',   // OSM-derived local-metre data (same shape as public/data/campus.json)
     gen: 'campuses/marin/gen.json',
     satellite: 'campuses/marin/satellite.jpg',      // covers `sat`
@@ -48,6 +49,7 @@ export default {
   sat: { minX, maxX, minZ, maxZ },   // world extent of satellite/ground images (m)
   playBounds: { minX, maxX, minZ, maxZ },
   ctf: { red: [x, z], blue: [x, z] },        // flag bases, far apart, open ground
+  ctfSpawn: { rMin: 45, rMax: 66, wall: 4 }, // optional: `wall` = no team spawn within that many metres of a wall in eight directions (default 1.2 m, four); rMin / rMax narrow the team-spawn distance band behind each flag (default 40-80 m, src/game/ctf.js CTF_SPAWN)
   practiceHeli: { x, z, yaw },               // helicopter parking in practice
   heliPark: [[x, y, z], ...],                // hidden-heli candidates: y = 0 ground, y = deck height on flat roofs
   walkSeeds: [[x, z], ...],                  // optional: walkable flood-fill seeds (default: ctf bases, practiceHeli, ground heliPark)

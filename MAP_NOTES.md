@@ -147,12 +147,50 @@ map breaking one of these rules has not finished.
     pool takes the clamp with it (or leaves the feature OUTSIDE by bowing in). Branson's straight clamp stopped players
     in the middle of a pool 6 m short of the fence, and on every campus 1.2 m short of the fence line (map check `edgeClamp`).
 
+49. Where a country has open lidar with a first-return surface (Canada: NRCan HRDEM DTM + DSM; many US states and European
+    countries too), use BOTH models from day one: DTM = the ground, DSM - DTM = every roof, crown and canopy edge, measured.
+    Building heights, roof blocks inside one footprint, tree positions and heights, and the "is this pixel open ground?" mask
+    of the ground classifier all come from it; the 3D tiles become the cross-check and the source of looks, not of numbers.
+50. Read the CRS, do not assume a grid is metres north-up. Canada's national elevation grids are EPSG:3979 (Lambert conformal
+    conic): at Ottawa the grid is rotated 17 deg from true north and its "metre" is 1.6 % long. Sample through a real
+    projection library (local x, z -> lat / lon -> grid), and make the validation script PROVE its own sensitivity: score the
+    bake against the independent source under deliberate mis-registrations (the 1.6 % scale, the 17 deg rotation, a 30 m
+    shift, the 26 % squash) and require "as baked" to win.
+51. One footprint is not one building. When the map has a school as a single polygon, print (DSM - ground) on a 2 m table
+    in the building's own frame, cut the outline into roof blocks along the levels, node the rings where blocks meet, and let
+    the builder decide per edge: outside wall, step wall up from the lower roof, or nothing.
+52. On a campus whose fence line is a polygon (a diagonal street's far kerb, a wood line), the play area is the POLYGON:
+    the map check samples only inside `world.playEdge`, the fence must be closed for collision (the walk flood fill, spawns
+    and nav follow it), and everything typed from the playBounds rectangle (helicopter scans, car rows, rocks, lights) tests
+    the ring as well.
+
+53. ONE imagery epoch for buildings AND paving. Before tracing anything, list every source with its date (OSM edit dates,
+    the classifier's aerial photo, the lidar survey, each Street View panorama, the 3D tiles) and name the NEWEST complete
+    one as the truth; then put the building footprints and the vectorised paving on a gridded nadir of THAT source and tick
+    every footprint and every paved outline. Earl of March was built from OSM footprints (31 portables) and an Esri photo
+    several years older than the tiles: eight portables had left, eight had arrived, a row had become a lumber yard and the
+    yard's paving had been re-laid, so the map mixed two eras and was wrong in both. Corrections go in at the DATA level
+    (campus.json through a list of footprints gone / added, the ground through ordered lawn / asphalt / concrete outlines
+    applied after the classifier), so the builder, the ground bake, the tree filter and the map check all see one world.
+54. Every grandstand and bleacher is checked twice: its position, length and which end is which on a gridded nadir, and
+    its FACING from the field side at eye level (a shot from the pitch looking at it, beside the tiles from the same pose).
+    A helper's `dir` is easy to get backwards and a bank that faces away from the track passes every automatic check.
+55. The signature-facade check (F27 / F36) covers the NEWEST wing's entrance front as well as the historic main front:
+    additions carry the most distinctive architecture on a campus (a curtain-wall band, a glazed entrance pavilion, a
+    canopy) and a default bay repeated along them is the most visible "generic" on the map. One style per wall where
+    the walls differ, each matched side by side with a Street View frame or a tiles oblique.
+56. Roof colour and material are set BLOCK BY BLOCK on a nadir: draw the roof blocks' outlines on the newest nadir and
+    read the cover inside each (ballast colour, white membrane, metal), with its solar arrays, skylights and plant.
+    One lidar level is not one roof cover: Earl of March's 1971 block had a white re-roofed gym under a 30 x 27 m solar
+    array inside the same deck level as the brown ballast round it (split the block where the cover changes). Arrays are
+    tilted racks in rows measured on the same nadir, skylights are glass, never a flat texture and never the photo (F35).
+
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F48 above is ticked off explicitly in the hand-off.
+- Every rule A1-F56 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
@@ -1465,3 +1503,141 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - *A re-run of ground_fix.py on baked files is not idempotent* (it converted another 800 m2 on a second pass). A targeted fix goes into the script for the
     next bake AND is applied once to the baked files by a script that does only that step (walk pixels saved and restored). Tallant's door: the
     classifier's thin "path" strips beside the walk (kept next to the OSM footway) and their soft fringes drew whitish smears; window `TALL` in ground_fix.py.
+
+## Earl of March (Kanata, Ottawa: the first campus outside the US; scripts in src/campuses/earlofmarch/tools/)
+
+- **Terrain source.** NRCan HRDEM, the City of Ottawa 2020 lidar project at 1 m, as cloud-optimised GeoTIFFs on the CanElevation
+  bucket (STAC: datacube.services.geo.ca, collection `hrdem-lidar`; Open Government Licence - Canada). No GDAL needed: `tifffile`
+  reads the header over HTTP (`fsspec`), the tile offsets give the 512 px tiles under the window, and `page.decode` unpacks them
+  (tools/dem.py; overviews serve the 8 m backdrop window). Georeferencing from the tags, sampling through `pyproj` (rule F50).
+- **Validation (rules F24 / F25).** Three sources, all in tools/terrain.py: MRDEM-30 (NRCan's Copernicus-derived 30 m model, same
+  datum) at 61 points: mean |err| 0.19 m, and every deliberate mis-registration scores worse (rotation 0.87, 30 m shift 0.27-0.37,
+  squash 0.34); 223 open-ground samples of the Google 3D tiles: ONE constant in all four quadrants (-0.49 .. -0.54), residual 0.13 m;
+  the CDEM point service (1 : 50 000 contours, integer metres, CGVD28): bias -1.46 m, scatter 1.46 m, reported but too coarse to gate
+  on. A coarse national model is a sanity check, not a registration test: keep one fine independent source.
+- **Flat or hilly?** The built part (school, car parks, track) lies within +-0.6 m of one level; the wooded Canadian Shield knolls
+  beside the track, by the portables and in the north-east wood stand 3-6 m (play rectangle -2.9 .. +4.8 m, p2..p98 3.7 m). That is
+  over the ~2 m limit, so it is a terrain campus; because the built part is level, every building takes ONE level pad at its lidar
+  floor (the ground 2 m outside the school's walls spans 0.31 m) and none of the wall-pad machinery of the hilly campuses is needed.
+- **Lidar instead of tile samples** (rule F49): 343 building heights in one pass with no offset fitting; the school's nine roof
+  levels (8.99 / 9.32 / 9.5 / 9.6 / 13.4 / 5.68 ...) from a 2 m table; 1 328 crown tops of the canopy-height model + 675 fill
+  trunks where closed canopy stood more than 5.5 m from any top (a crown-top scan alone gives ~100 trunks / ha, which reads as a
+  park: the fill is what closes the wood). The 2020 survey is leaf-off: crowns are thinner than in the tiles, never taller.
+- **Paving from the photo, vectorised.** With crowns and roofs masked by the lidar the colour classifier is right about open
+  ground; tools/ground_fix.py turns its asphalt / concrete into polygons (1 m cells -> union -> round-buffer smoothing ->
+  simplify 0.9 m), cuts the public streets and the track out, applies hand corrections, repaints the baked files from the
+  polygons with a hard edge, and writes paved.js so the kerbs lie on exactly the painted outline. It keeps the classifier's files in
+  a gitignored cache so a re-run starts from them (the Branson "not idempotent" lesson).
+- **A designed surface can be paint.** The track is a plain grey oval without lane lines: painted into the baked mask from its
+  measured geometry (class asphalt, its own pale tone) it has a crisp edge and no z-fighting; only goals, masts and bleachers
+  are geometry. Courts on a yard are draped line quads on the yard's asphalt.
+- **Shared worktree.** Another agent edited src/campuses/branson/ in the same checkout while this campus was built, including
+  the helper module this builder first imported from. Copy the few helpers a campus needs into its own lib.js (from HEAD, not from
+  the working tree), and commit with explicit pathspecs (`git commit -- <paths>`): `git add -A` would have swept up the other
+  agent's staged files.
+- **The school's own site may give nothing.** earlofmarchss.ocdsb.ca renders its pictures with scripts, Wikipedia has no photo
+  of the building, the search / Commons / Openverse APIs are closed to crawlers: 44 images came back and all 44 were pruned
+  (posters, another architect's projects, unrelated news). The material sheet then stands on Street View (27 frames, several of
+  them inside the car parks) and tiles obliques; say so in the sheet, crop every swatch patch and LOOK at the crop sheet (two of
+  seventeen boxes were sky or overexposed and were dropped).
+- **Roof plant and ladders.** A random mechanical unit landed 3 m from a ladder's landing and the trap sweep wedged a jumper
+  between it and the parapet: ladder points go into the roof-plant exclusion list before the plant is placed.
+- **Polygon fence.** `ctx.playEdge` = kit.js PLAY_EDGE (far kerb of The Parkway, the wood line, the near side of Campeau Drive, the
+  line between the Mlacak Centre and the tennis club); the first map check failed `terrain` and `visualSolid` on the rectangle's
+  corners BEYOND the fence until the check learned the ring (rule F52). Barriers stand in front of the fence wherever both sides of
+  it are paved; two barriers that meet at a ring vertex overlap unless the second is skipped.
+- **Round 2 (the builder's own walk-through, before QA): what the definition of done found that the map check had not.**
+  - *A walk-through is a script.* `__walkAll` (dev/earlofmarch.js): the real controller, forward only, both ways, 1.3 m out along every
+    registered outside wall, along every door's walk and along every OSM footway / path / service way inside the fence: 902 walks. It failed
+    34 times, all at the portables: a 0.18 m door slab stops the terrain controller at its edge (the step-up wants a walkable landing normal,
+    a box edge has none). Door pads are flush and visual now. Low slabs need a ramp or no collision; "under the step limit" proves nothing.
+  - *"One door per wing" is the door default in disguise.* Eleven school doors had been placed from the plan; Street View shows four (the
+    glazed main front behind salmon pavers, the grades 7-8 entrance at the end of its path, a steel door in the gym wall, the east block's
+    recessed entrance). Seven went, with their walks. A frame aimed at each door from the nearest panorama settles it in one contact sheet.
+  - *The opposite of a blank wall is also a defect.* Every outside wall of the 1971 building had been given the classroom bays; the photos
+    show the gym / auditorium boxes as blank brick under the fascia (one with the school crest). `WALL_SPEC` marks them; list walls over 8 m
+    with no openings AND compare windowed walls with the photos.
+  - *A noded ring cuts a wall into short edges.* The library's cedar band and upper windows had a "wall longer than 6 m" test and vanished:
+    the block rings are noded where blocks meet, so one facade is three or four edges. Lay bands out per edge with no minimum length.
+  - *Row houses: the ridge runs along the row.* One gable per narrow unit made a picket fence of spikes beyond the fence; `rowRoof` puts the
+    ridge across the unit and the gables on the party walls, drawn as the whole roof profile (overhangs included) or the roof-skin check
+    finds the slit.
+  - *The vectoriser drops narrow islands.* Seven planted end islands and a median of the north car park (2.6-5 m wide) were under its
+    1 m cells: traced by hand on a gridded nadir with the vector outlines drawn over it (tools/data/extra.py `PAVED_CUT`, `obox`).
+  - *A sign on a roof edge needs a backing.* The Mlacak Centre's name stands on the fascia at the eave: a decal there is "not backed by a
+    wall" until the band behind it is solid.
+  - *Frame time, not fps, in a hidden pane:* `__bench` on medium at 1280 x 800: 2.6-7.4 ms per frame at five poses (aerial and ground).
+- **Fix round 1 (independent QA said NOT SHIP; everything it listed fixed, lessons in rules F53-F56).**
+  - *Two eras in one yard* (F53). `tools/data/extra.py` now carries the epoch: `PORTABLES_GONE` (8 OSM ids), `BUILDINGS` (8 units the tiles show:
+    a row of three west of the yard, two singles, a pair by the wood, one by the north lot), and `EPOCH`, an ORDERED list of ('lawn' | 'asphalt' |
+    'concrete', ring) applied after the classifier (yard: lawn + a curved asphalt path + 7 m and 3 m concrete walks traced with `band()` / `curve()`;
+    the grades 7-8 plaza: two sweeping walks, a paver forecourt, the painted play yard; the Mlacak forecourt: paver plaza, drop-off loop, planted
+    island). `tools/epoch.py` patches an existing campus.json (osm.py applies the same lists on a fresh download); `ground_fix.py` repaints with flat
+    tones inside the re-traced outlines (no ghost of the old layout), drops the OSM footways there (`FOOT_CUT`), paints bare earth where the tiles show
+    construction staging (`DIRT`) and retones a lot that keeps its outline (`RETONE`: the pale lot west of the annex).
+  - *One lidar level, two roof covers* (F56). `tools/data/school_zones.json` got two zones (kind `oldW`: the gym and the strip beside the east block)
+    and `blocks.py` was re-run: white membrane there, dark red-brown ballast on the rest of 1971 (the penthouse too), ten solar arrays as tilted racks
+    in rows 2 m apart (the gym's is 30 x 27 m), three glazed ridge skylights and a glass pyramid on the 2015 wing. A rack higher than 0.5 m above the
+    deck fails `visualSolid` (nothing solid under an up-facing face): keep racks low or give them collision.
+  - *The newest wing gets its own walls* (F55). kit.js `curtainWall` / `portalWall` / `entryWall` / `slotWall`, chosen per wall by `WALL_SPEC`
+    (world point on the wall): the green curtain-wall band, the glazed box in its silver portal 1.3 m above the parapet, the entrance with canopy and
+    oriel in the corner beside it, brick with tall green slots on the east part and the low block. The entrance door moved there from the middle of a
+    wall that faces lawn in the tiles (F47 again: a door is where the paving goes).
+  - *Bleachers* (F54): `dir = TA - 90 deg` (rows step back to the west, seats face the track), the long bank z 53..106, the block behind its middle.
+  - *Signs*: a fascia band may be wider than its wall (`sign.over` + `atW`): JOHN G. MLACAK / CENTRE spans the entrance recess, 0.5 m letters; on the
+    library's curtain wall the name sits on the charcoal roof edge (a band across glazing fails `signs`). No school name sign was found: six Street
+    View frames at both drive entrances, the bus loop and the east drive show none (the crest medallion by the main entrance is the school's mark).
+  - *Cars are a decision* (F46): the September 2019 school-day panoramas show the rows by the building full and the outer lot nearly empty; the
+    fill is 85 % within 45 m of the school's walls and 10 % beyond (about 70 cars in the north lot, 150 before).
+  - *Woods*: the canopy-fill trunks (one per 3.6 m cell) are moved off their cells, sized 0.7-1.25 of the canopy height and a quarter of them are
+    conifers; spacing varies 1.8-3.3 m (never thinner than the measured canopy). Deterministic from a hash of the cell.
+  - *Shared code*: `createFlag({ team, brand: flagBrand(campus, team) })` puts the campus's own mark on the CTF cloth (home: the emblem SVG when it
+    is self-contained, else the letter; rival: its letter; Hinsdale keeps the pitchfork); descriptor `ctfSpawn: { rMin, rMax }` narrows the team
+    spawn band (Earl of March 45-66 m); descriptor `files.map` is an optional overview image for the menus, the loading screen and the minimap
+    (Earl of March: the satellite photo with the re-laid areas replaced by a top-down render of the game, so the map shows the yard as built).
+
+- **Fix round 2 (independent QA round 2: one fix-first, four should-fix, nine nits; all fixed).**
+  - *A "frame" building is not a brick wall with fins.* The 1971 block had 0.28 m fins on a brick wall with two window strips: correct in every
+    element and still "generic office". The tiles and one Street View frame (n5) show the opposite hierarchy: the CONCRETE is the building (piers
+    0.7 m proud, a fascia a quarter of the height, a band at the first floor) and brick / glass are infill set back in its shadow. Read the depth
+    order of a facade first (what stands proud, what is recessed, what is in shadow), then its elements. `frameWall` builds outward from the wall
+    line with collision on every pier, band and fascia, so the recess is real and nothing is an invisible wall; wrap the fascia round ONE end of
+    each wall only (two wrapped ends put two faces in one plane at every convex corner).
+  - *One wall kit, three fronts.* The same frame carries leaning brick spandrels on the front that faces the car park, window strips over brick on
+    the fronts that face the yard, and full glazing on the one bay that steps out. Pick the style per wall by its outward normal plus a WALL_SPEC
+    point for the exceptions, and check which ring edge a spec point really lands on in a shot (the first try glazed the wrong bay).
+  - *Check a QA measurement before moving a street.* "Road 10 m north of the tiles" was not reproducible: on a nadir pair from one camera with the
+    grid computed from the camera, the OSM centreline was 3 m SOUTH-EAST of the tiles at one bend and right elsewhere. Two nodes moved (data level,
+    `ROAD_MOVE`); the fence already followed the tiles. A grid drawn by hand on two shots of different aspect manufactures offsets.
+  - *Closed canopy needs three things.* More trunks alone still read as a park: (1) outlines of the woods traced on the nadir (`WOODS`), filled to
+    ~3 m spacing with a third understorey; (2) the forest floor painted under them (the photo's pixels there are crown tops = bright "lawn" between
+    the trunks); (3) the fill kept 3.4 m off walls and out of flag / helicopter clearings, or the perimeter walk and the scans fail. 160 more
+    trunks near the play area cost nothing measurable on medium.
+  - *A paved outline that the classifier got wrong is replaced, not nudged.* The lot was a blob: one `lawn` op over its surroundings, then the
+    traced rectangle, then its tone; the stall rows come from the lot's own axis and the stale OSM aisle through it is trimmed in the data, or the
+    walk-through walks it into a parked car. Islands: pave a 3.5 m ring round the traced curve, then cut the curve (the bus-loop trick as EPOCH ops,
+    inserted BEFORE the ops of the neighbouring area so its walks survive).
+  - *Colour by medians inside footprints.* Sampling single pixels on a pair is noise. The median inside every portable footprint (shrunk 1.6 m) on
+    the tiles nadir and on the game nadir from the same camera gave the roof tint in one step; the same for the dirt pads.
+  - *The overview image has one source.* Photo with rendered patches = two epochs side by side again (F53 applies to the minimap too). map.jpg is
+    now 16 nadir renders of the game from 1 500 m with full-detail trees (`world.forceFullTrees`; impostor cards are crosses from above). Draped
+    colour quads z-fight from that height: bake flat surfaces (tennis courts) into the ground and keep only lines and nets as geometry.
+  - *Team spawns and walls.* The 1.2 m wall probe of the CTF spawn zone lets a spot stand 2 m from a facade, and spawns face the enemy base, i.e.
+    the wall. Descriptor `ctfSpawn.wall` (metres, eight probes): 7 m here.
+  - *Dev tabs reload together.* A source edit reloads the tiles tab as well and drops a running shot job: shoot tiles first, edit after.
+
+- **Nit pass after QA round 3 (SHIP; four nits).**
+  - *Tiles page: `&h=59.5`.* dev/earlofmarch-tiles.html takes the viewer height as a URL parameter; without it low and eye-level poses render
+    underground (nadirs from 100 m hide the mistake). Put the campus's constant in every tiles URL.
+  - *Paving tone is a decision per campus (F46), not the photo's.* The Esri photo's asphalt is dark; the tiles show every lot, drive and yard
+    sun-bleached (nadir medians 170-190 against ~100 in the game). One RETONE over the whole fence area (`BLEACH`), measured as medians on nadir pairs
+    from one camera (render is about 1.2 x the baked macro value), then the exceptions after it in order. Pale paving needs line colours re-checked:
+    white lines fade on it, the tiles' own yellow reads.
+  - *An overview render from 1 500 m needs its own near plane.* With the viewer's 0.1 m near plane the depth buffer cannot separate the ground from
+    the backdrop mesh under it: the outer 20 m of map.jpg were black triangles. `__mapShots` (dev/earlofmarch.js) sets near 1 000 / far 2 600 for the shots.
+  - *Timber is layers, not a tinted box.* One cream box per stack read as stone; planks per layer with ragged ends, a dark core seen through the
+    gaps and a board texture running along the stack read as lumber at 30 m for ~4 k triangles.
+  - *Even turf.* Inside a re-laid area the bake mixed the photo's bright and dark grass (blobs); `EVEN_LAWN` repaints the lawn there in the median of the
+    photo's own green, feathered at the ring. A lawn island with straight edges is its own traced ring (pave round it, cut it), not the leftover of a
+    curved apron polygon.
+  - *Rival.* A.Y. Jackson (Jays) was inferred by the builder and is now confirmed by the user.

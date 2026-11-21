@@ -96,7 +96,7 @@ function zoneSpawns(world, team) {
   const T = world.terrain;
   const standY = (x, z) => (T?.standY ? T.standY(x, z) : world.groundY ? world.groundY(x, z) : 0);
   const b = world.playBounds;
-  const S = CTF_SPAWN;
+  const S = { ...CTF_SPAWN, ...((world.campus && world.campus.ctfSpawn) || {}) };   // (a campus may narrow the band: descriptor `ctfSpawn: { rMin, rMax }`)
   const walk = (i, j) => i >= 0 && j >= 0 && i < g.nx && j < g.nz && g.walk[j * g.nx + i] === 1;
   // Candidates: walkable cells in the band with walkable neighbours (elbow room), gentle slope, inside the bounds.
   const cands = [];
@@ -131,8 +131,10 @@ function zoneSpawns(world, team) {
     _ray.set(o.set(c.x, gy + 40, c.z), down); _ray.far = 60;
     const hit = _ray.intersectObjects(world.collisionMeshes, false)[0];
     if (!hit || Math.abs(hit.point.y - gy) > 0.5) return false;
-    for (let k = 0; k < 4; k++) {
-      _ray.set(o.set(c.x, gy + 1.2, c.z), dir.set(Math.cos(k * Math.PI / 2), 0, Math.sin(k * Math.PI / 2))); _ray.far = 1.2;
+    // (a campus may ask for more room: descriptor `ctfSpawn.wall` metres, probed in eight directions, so nobody spawns facing a wall two steps away)
+    const nW = S.wall ? 8 : 4, farW = S.wall || 1.2;
+    for (let k = 0; k < nW; k++) {
+      _ray.set(o.set(c.x, gy + 1.2, c.z), dir.set(Math.cos(k * 2 * Math.PI / nW), 0, Math.sin(k * 2 * Math.PI / nW))); _ray.far = farW;
       if (_ray.intersectObjects(world.collisionMeshes, false).length) return false;
     }
     // ... and nothing raised beside it: a deck, stage, kerbed planter or prop under chest height that the 1.2 m probes
