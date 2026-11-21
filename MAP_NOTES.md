@@ -121,13 +121,20 @@ map breaking one of these rules has not finished.
 42. Every paved outline has a hard kerb or edge, never a fade into grass; island planting comes from the tree and
     shrub kit, not loose rocks. A builder never reports a visual item fixed without a game shot and the matching
     tiles shot from the same pose.
+43. Textures from references, from day one ("i want the map textures to be better... make sure you do that from the
+    start for future schools"). Before facades count as done, gather every available image of each school building
+    (school site, Wikimedia, news, athletics and architect pages, image search, Street View, tiles), keep them local
+    and gitignored, write a per-building material sheet (materials, unit and course sizes, mortar, trim, roof,
+    sampled colours), and GENERATE original textures from it mapped in metres to that building's geometry. Scraped
+    photos never ship; only licence-permitted images may feed example-based synthesis, with attribution. Method:
+    "Textures from references" below.
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F42 above is ticked off explicitly in the hand-off.
+- Every rule A1-F43 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
