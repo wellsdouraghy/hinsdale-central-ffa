@@ -3,7 +3,7 @@
 import { lookForClass } from './classes.js';
 import * as THREE from 'three';
 import { createCharacter } from '../visuals/character.js';
-import { INTERP_DELAY } from './remotePlayer.js';
+import { INTERP_DELAY, deathFall, settleCorpse } from './remotePlayer.js';
 import { now as clock } from './authority.js';
 import { WEAPON_STATS } from './weapons.js';
 import { terrainActive, conformToGround, lieWeight } from './groundConform.js';
@@ -120,8 +120,18 @@ export class KillCam {
     }
     // Us (the victim).
     const s = g.killcamRec.selfAt(rt);
+    if (s && !this.ghostDead && rt >= this.info.killTime) {
+      // the same death as everyone else sees for a remote body: away from the killer / blast, momentum, walls, ledges
+      this.ghostDead = true;
+      this.ghostFeet = new THREE.Vector3().fromArray(s.p);
+      const d = deathFall(this.ghostFeet, new THREE.Vector3().fromArray(s.v), s.g !== false, this.info.from || null, s.yaw);
+      this.ghostCorpse = d.corpse;
+      this.ghost.die(d.fall);
+    }
+    if (this.ghostDead && this.ghostCorpse && !settleCorpse(this.ghostCorpse, this.ghostFeet, Math.min(dt, 0.05))) this.ghostCorpse = null;
     if (s) {
-      this.ghost.object3D.position.fromArray(s.p);
+      if (this.ghostDead) this.ghost.object3D.position.copy(this.ghostFeet);
+      else this.ghost.object3D.position.fromArray(s.p);
       if (this.ghostDead && terrainActive()) conformToGround(this.ghost.object3D, s.yaw, lieWeight(rt - this.info.killTime));   // lies on the slope
       else this.ghost.object3D.rotation.y = s.yaw;
       this.ghost.setState({
@@ -129,7 +139,6 @@ export class KillCam {
         grounded: s.g !== false, sprinting: !!s.s, ads: s.a || 0, mode: s.m || 0, grapple: s.ga || null,
       });
     }
-    if (!this.ghostDead && rt >= this.info.killTime) { this.ghostDead = true; this.ghost.die(); }
     this.ghost.update(dt);
     // Replay shots / explosions in the window.
     for (const e of g.killcamRec.events) {

@@ -74,6 +74,12 @@ export class BotMobility {
     return this.c.grounded && p.y - this.groundY(p.x, p.z) > 2.0;
   }
 
+  /** Up on something (> 0.6 m) off the ground walk grid: a stage, a platform, bleachers, a low roof. */
+  raised() {
+    const p = this.c.position;
+    return p.y - this.groundY(p.x, p.z) > 0.6 && !this.nav.walkableAt(p.x, p.z);
+  }
+
   range() { return KIT.grappleRange * (classOf(this.brain.p.cls).grappleRangeMult ?? 1); }
 
   cooldown() {
@@ -207,6 +213,9 @@ export class BotMobility {
     if (this.state === 'idle' && this.elevated()) {
       if (Math.random() < 0.6 && !carrying && b.role !== 'escort') this._startPerch(t, rand(2, 5));   // escorts stay with their player
       else this._startDescend(t);
+    } else if (this.state === 'idle' && b.stuckCount >= 1 && c.grounded && this.raised()) {
+      // Stuck up on a low ledge / stage / platform off the walk grid (its exit behind a rail): climb down off an edge.
+      this._startDescend(t);
     }
     if (this.state === 'perch') this._thinkPerch(t);
 
@@ -411,7 +420,7 @@ export class BotMobility {
   }
 
   _pickDescend() {
-    const d = this.descend, me = this.c.position, nav = this.nav;
+    const d = this.descend, me = this.c.position, nav = this.nav, hs = this.brain.mgr.hitscan;
     const base = Math.atan2(d.pref.x - me.x, d.pref.z - me.z);
     let best = null, bestC = Infinity, bestK = 0;
     for (const k of [0, 1, -1, 2, -2, 3, -3, 4]) {
@@ -420,7 +429,13 @@ export class BotMobility {
       for (let r = 2; r <= 70; r += 1.5) {
         const x = me.x + sx * r, z = me.z + sz * r;
         if (!nav.walkableAt(x, z)) continue;
-        const cost = r + Math.abs(k) * 7;
+        // (a walk cell right under our own roof / canopy is not a way down: the spot must be below a drop)
+        _e.set(x, me.y + 0.4, z);
+        const under = hs.castWorld(_e, DOWN, me.y - this.groundY(x, z) + 1.5);
+        if (under && under.point.y > me.y - 0.5) continue;
+        // (a wall / parapet / rail at chest height in that direction right in front of us: a worse way down)
+        _e.set(me.x, me.y + 1.2, me.z); _q.set(sx, 0, sz);
+        const cost = r + Math.abs(k) * 7 + (hs.castWorld(_e, _q, Math.min(r, 6)) ? 25 : 0);
         if (cost < bestC) { bestC = cost; bestK = k; best = new THREE.Vector3(x + sx * 1.5, this.groundY(x, z), z + sz * 1.5); }
         break;
       }
@@ -538,16 +553,31 @@ export class BotMobility {
       case 'descend': {
         const d = this.descend;
         if (!d) { this._set('idle', t); break; }
-        if (!this.elevated() && c.grounded && t - this.stateT > 0.3) { this._land(t); break; }
+        if (c.grounded && t - this.stateT > 0.3 && (c.position.y - this.groundY(c.position.x, c.position.z) < 0.6 || (!this.elevated() && this.nav.walkableAt(c.position.x, c.position.z)))) { this._land(t); break; }
         // Fighting from up here is fine; otherwise head for the edge.
         if (b.visible && !b.outOfRange) break;
+        // Taking far too long (every edge walled off, a sloped roof, a pocket): grapple out, and in the end give up
+        // and let the path / stuck handling take over from wherever we are.
+        if (t - this.stateT > 25) { this._land(t); break; }
+        if (t - this.stateT > 12 && !d.late) { d.late = true; d.fails = Math.max(d.fails, 2); }
         _d.set(d.target.x - c.position.x, 0, d.target.z - c.position.z);
         const l = _d.length();
         if (l > 0.5) dir.copy(_d.divideScalar(l));
         out.sprint = true;
+        // A parapet / kerb / rail in the way at shin height with nothing above it: hop it (the mantle takes us over).
+        if (l > 0.5 && c.grounded && t > (d.hopT || 0)) {
+          const hs = b.mgr.hitscan, p = c.position;
+          _e.set(p.x, p.y + 0.25, p.z);
+          let low = hs.castWorld(_e, _d, 0.75);
+          if (!low) { _e.y = p.y + 0.75; low = hs.castWorld(_e, _d, 0.75); }   // a rail: open below its top bar
+          if (low) {
+            _e.y = p.y + 1.45;
+            if (!hs.castWorld(_e, _d, 1.1)) { out.jump = true; d.hopT = t + 0.7; b.hopUntil = t + 0.8; }
+          }
+        }
         if (t > d.checkT) {
           d.checkT = t + 1;
-          if (c.grounded && l > d.lastD - 0.6) {      // no progress: blocked by a roof unit / wall
+          if ((c.grounded || Math.abs(c.velocity.y) < 0.5) && l > d.lastD - 0.6) {      // no progress: blocked by a roof unit / wall (or hung on a sloped roof)
             d.fails++;
             d.bad.add(d.k);
             if (d.fails % 2 === 1) out.jump = true;
