@@ -11,6 +11,7 @@ import { buildCivic, civicPads } from './civic.js';
 import { buildTown, townPads } from './town.js';
 import { buildGrounds, groundPads, KEEP_OPEN } from './grounds.js';
 import { buildTerrain, terrainSampler } from './terrain.js';
+import { SITE } from './paved.js';
 
 // Earthworks, in the fixed order of the rulebook (B7), all before anything is placed:
 //   1 campus pads -> 2 graded streets -> 3 building pads + interiors -> 4 streets.restore() -> (5 no cheek walls: the
@@ -59,6 +60,21 @@ function sitework(ctx) {
     { const dm = ti >= FILL0 ? 1.8 + 1.5 * hash(t[0], t[1], 5) : 3; if (out.some((q) => Math.abs(q[0] - p[0]) < dm && Math.abs(q[1] - p[1]) < dm && Math.hypot(q[0] - p[0], q[1] - p[1]) < dm)) continue; }   // (uneven spacing: clumps and gaps)
     out.push([p[0], p[1], ...t.slice(2)]);
   }
+  // (fix round 2, rule A1 + QA "woods too sparse") Where the tiles show CLOSED canopy (tools/data/extra.py WOODS, traced on nadirs) the lidar crown tops
+  // and the round-1 fill still stood 5-6 m apart: park trees with lawn between. Each wood is filled on a jittered 2.9 m lattice wherever no trunk
+  // stands within 2.5 m: two thirds canopy trees (0.75-1.25 of the neighbours' height), a third understorey (saplings and small trees under the
+  // crowns), one in five a conifer. Deterministic (the same hash). Open ground, paving, buildings, streets, helicopter spots and the flags keep clear.
+  const kc = ctx.campus.ctf ? [ctx.campus.ctf.red, ctx.campus.ctf.blue] : []; let added = 0;
+  const cellOf = new Map(); const ck = (x, z) => Math.floor(x / 6) + ':' + Math.floor(z / 6); for (const t of out) { const k = ck(t[0], t[1]); (cellOf.get(k) || cellOf.set(k, []).get(k)).push(t); }
+  const near = (x, z, d) => { const i = Math.floor(x / 6), j = Math.floor(z / 6); let hs = 0, n = 0, hit = false; for (let a = -2; a <= 2; a++) for (let b = -2; b <= 2; b++) for (const t of cellOf.get((i + a) + ':' + (j + b)) || []) { const dd = Math.hypot(t[0] - x, t[1] - z); if (dd < d) hit = true; if (dd < 11 && t[3] > 0.6) { hs += t[3]; n++; } } return hit ? null : (n ? hs / n : 1.0); };
+  for (const ring of SITE.woods || []) { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const p of ring) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+    for (let z = Math.ceil(z0 / 2.9) * 2.9; z <= z1; z += 2.9) for (let x = Math.ceil(x0 / 2.9) * 2.9; x <= x1; x += 2.9) { const r1 = hash(x, z, 11), r2 = hash(x, z, 12), r3 = hash(x, z, 13), r4 = hash(x, z, 14), r5 = hash(x, z, 15);
+      const px = x + (r1 - 0.5) * 2.4, pz = z + (r2 - 0.5) * 2.4; if (!pointInRing(px, pz, ring)) continue; const hN = near(px, pz, 2.5); if (hN === null) continue;
+      if (keep(px, pz) || (streets && streets.inRoad(px, pz, 1.5)) || heli.some((h) => Math.hypot(px - h[0], pz - h[2]) < 11.6) || kc.some((c) => Math.hypot(px - c[0], pz - c[1]) < 6)) continue;
+      if (bl.some((r) => pointInRing(px, pz, r) || [[3.4, 0], [-3.4, 0], [0, 3.4], [0, -3.4], [2.4, 2.4], [-2.4, 2.4], [2.4, -2.4], [-2.4, -2.4]].some(([ox, oz]) => pointInRing(px + ox, pz + oz, r)))) continue;   // (3.4 m off every wall: the walk round a building stays open)
+      const under = r3 < 0.34, con = r4 < 0.2; const sc = under ? 0.42 + 0.3 * r5 : Math.max(0.6, Math.min(2.0, hN * (0.75 + 0.5 * r5)));
+      const t = [+px.toFixed(1), +pz.toFixed(1), con ? 1 : 0, +sc.toFixed(2)]; out.push(t); const k = ck(px, pz); (cellOf.get(k) || cellOf.set(k, []).get(k)).push(t); added++; } }
+  ctx.woodFill = added;
   ctx.gen.trees = out;
 }
 

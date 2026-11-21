@@ -78,6 +78,12 @@ def main():
     gone = set(getattr(extra, 'PORTABLES_GONE', [])); buildings = [b for b in buildings if b['id'] not in gone]   # (fix round 1, rule F53: one imagery epoch; see data/extra.py and epoch.py)
     for i, t, r in extra.BUILDINGS: buildings.append(dict(id=i, tags=t, outer=[r], inner=[]))
     for i, t, r in extra.AREAS: areas.append(dict(id=i, tags=t, outer=[r], inner=[]))
+    for r in roads:
+        if r['id'] in getattr(extra, 'ROAD_SET', {}): n = extra.ROAD_SET[r['id']]; r['line'] = [r['line'][0]] + [list(map(float, q)) for q in n[1:]]
+    for r in roads:   # (fix round 2) road nodes moved onto the tiles' centreline (extra.ROAD_MOVE; epoch.py does the same on an existing campus.json)
+        for old, new in getattr(extra, 'ROAD_MOVE', {}).get(r['id'], []):
+            for p in r['line']:
+                if abs(p[0] - old[0]) < 0.6 and abs(p[1] - old[1]) < 0.6: p[0], p[1] = new[0], new[1]
     out = dict(
         frame=dict(origin_lat=ORIGIN[0], origin_lon=ORIGIN[1], meters_per_deg_lat=M_LAT, meters_per_deg_lon=M_LON, axes='+x east, +z south, y up (meters)'),
         satellite=dict(file='campuses/earlofmarch/satellite.jpg', **SAT, attribution='Esri World Imagery (Esri, Maxar, Earthstar Geographics, and the GIS User Community)'),

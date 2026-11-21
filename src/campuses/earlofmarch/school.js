@@ -6,7 +6,7 @@ import { pointInRing, mulberry32, makeCanvas, canvasTexture } from '../../world/
 import { roofUnit, wallLadder } from '../../world/facade.js';
 import { minAreaOBB, hipRoof, wallDecal } from '../marin/kit.js';
 import { SCHOOL_BLOCKS, SCHOOL_RING } from './blocks.js';
-import { curtainWall, portalWall, entryWall, slotWall } from './kit.js';
+import { curtainWall, portalWall, entryWall, slotWall, frameWall } from './kit.js';
 import { MAT, mat, brick, hasPack, bayWall, boxWall, newWall, fascia, door, ribbon, glass, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, SW, SUV, SCHOOL_ROT, SCHOOL_ID, ROOF_BROWN, ROOF_GREY, ROOF_DARK, BRICK_S, PO, centroid } from './kit.js';
 void ROOF_DARK;
 
@@ -25,6 +25,7 @@ export const WALL_SPEC = [
   { atW: [113.5, 86.3], kind: 'curtain' },                                        // the long wall on the play yard: the green curtain-wall band between brick piers
   { atW: [131.97, 71.74], kind: 'portal' },                                       // the glazed box in its silver portal frame, 2 m proud of that wall
   { atW: [137.97, 71.27], kind: 'entry' },                                        // the corner beside it: the grades 7-8 entrance under its canopy and oriel
+  { atW: [35.1, 30.0], kind: 'frame', style: 'glazed' },                           // (fix round 2, tiles t_sw3) the bay that steps out of the south-west front: glazed on both storeys
   { atW: [151.1, 64.1], kind: 'slots', slotsW: [[144.2, 70.6, 2.0], [159.7, 56.1, 2.4]], bandsW: [[148.0, 67.0, 3.5]] },   // the east part: brick, two tall green slots, a pale panel band
 ];
 // Every door (rule F47), WORLD [x, z, opts], on the wall it is nearest to: the main entrance (wide, under a precast canopy), the
@@ -100,9 +101,9 @@ export function roofPlant(ctx, blocks, rnd, rot, ok = () => true) {
       ctx.onGround([x, z], () => roofUnit(ctx, x, 0, z, rot, rnd), { mode: b.deck }); (ctx.roofClear = ctx.roofClear || []).push([x, z, 9]); k++; } }
 }
 /** Wall ladder at world point p snapped onto the nearest outside wall of `edges` (from the wall's foot to its parapet). */
-export function ladderAt(ctx, edges, p, out = PO + 0.02) { let best = null;
+export function ladderAt(ctx, edges, p, out0 = PO + 0.02) { let best = null;
   for (const e of edges) { const F = e.F; const du = (p[0] - F.ax) * F.tx + (p[1] - F.az) * F.tz, dn = Math.abs((p[0] - F.ax) * F.nx + (p[1] - F.az) * F.nz); if (du > 0.8 && du < F.L - 0.8 && dn < 2.5 && (!best || dn < best.dn)) best = { F, du, dn, e }; }
-  if (!best) { console.warn('[earlofmarch] ladder off the walls', p); return null; } const q = best.F.P(best.du, 0, out);
+  if (!best) { console.warn('[earlofmarch] ladder off the walls', p); return null; } const out = best.F.frameOut ? best.F.frameOut + 0.02 : out0; const q = best.F.P(best.du, 0, out);   /* (fix round 2: a ladder on a framed wall stands in front of the frame) */
   ctx.onGround([q[0], q[2]], () => wallLadder(ctx, q[0], q[2], best.F.nx, best.F.nz, best.e.top - best.e.y0), { mode: best.e.y0 }); return q; }
 
 export function buildSchool(ctx) {
@@ -121,6 +122,9 @@ export function buildSchool(ctx) {
       if (o.bandsW) o.bands = o.bandsW.map(([x, z, w]) => { const u = (x - F.ax) * F.tx + (z - F.az) * F.tz; return [u - w / 2, u + w / 2]; });
       if (kind === 'curtain') curtainWall(ctx, F, y0, top, o); else if (kind === 'portal') portalWall(ctx, F, y0, top, o); else if (kind === 'entry') entryWall(ctx, F, y0, top, o); else if (kind === 'slots') slotWall(ctx, F, y0, top, o);
       else if (b.kind === 'low' && !spec) { const n = Math.max(0, Math.round((F.L - 3) / 6.2)); slotWall(ctx, F, y0, top, { ...o, slots: Array.from({ length: n }, (_, i) => ({ u: 1.5 + (F.L - 3) * (i + 0.5) / n, w: 1.3, y0: 0.9, y1: 3.7 })) }); }   /* (tiles to_lowend / to_lowne: the low block is brick with a few narrow green windows, not white panel bays) */
+      // (fix round 2) the 1971 classroom block is a concrete frame (kit.js frameWall): leaning brick spandrels on the long north-east front (normal toward
+      // the north car park), window strips over brick on the stepped fronts that face the portable yard; the glazed main entrance front keeps its own wall
+      else if ((kind === 'frame' || (kind === 'bay' && !spec)) && b.kind === 'old' && F.L > 2.4 && top - y0 > 7.5 && !doors.length) frameWall(ctx, F, y0, top, { ...o, style: o.style || (F.nx * 0.728 - F.nz * 0.686 > 0.7 && F.L > 12 ? 'slope' : 'ribbon') });
       else if (kind === 'new') newWall(ctx, F, y0, top, o); else if (kind === 'bay' && F.L > 4.2) bayWall(ctx, F, y0, top, o); else { boxWall(ctx, F, y0, top, { ...o, skin: b.kind === 'pent' ? 'precast' : o.skin }); return doors.length > 0; }
       return true; } });
   for (const p of [...LADDERS, ...ROOF_LADDERS]) (ctx.roofClear = ctx.roofClear || []).push([p[0], p[1], 10]);   // no plant where a ladder lands (the trap sweep wedged a jumper between a unit and the parapet there)
@@ -190,7 +194,7 @@ export function buildPortables(ctx) {
     }
     sd.setColor(1, 1, 1);
     B.c('wood').prism(ring, base - 0.8, eave, 1, true);
-    const grey = GREY_ROOFED.has(b.id); const rk = grey ? 'stucco' : hasPack(ctx, MAT.portRoof.key) ? MAT.portRoof.key : 'shingles'; const tint = grey ? [0.42, 0.45, 0.5] : hasPack(ctx, MAT.portRoof.key) ? [1, 1, 1] : [6.0, 2.6, 1.9];
+    const grey = GREY_ROOFED.has(b.id); const rk = grey ? 'stucco' : hasPack(ctx, MAT.portRoof.key) ? MAT.portRoof.key : 'shingles'; const tint = grey ? [0.42, 0.45, 0.5] : hasPack(ctx, MAT.portRoof.key) ? MAT.portRoof.pack : [5.2, 2.9, 2.4];   /* (fix round 2: muted brown-red, see kit.js MAT) */
     hipRoof(ctx, o, eave, rise, { gable: true, overhang: 0.25, bucket: rk, tint, gableBucket: hasPack(ctx, MAT.siding.key) ? MAT.siding.key : 'stucco', gableTint: hasPack(ctx, MAT.siding.key) ? MAT.siding.pack : MAT.siding.flat, fill: true, caps: false });
     (ctx.buildingRings = ctx.buildingRings || []).push(ring); (ctx.footprints = ctx.footprints || []).push({ id: 'portable:' + b.id, ring, roof: eave, floor: base }); void info;
   });

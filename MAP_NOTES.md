@@ -1568,3 +1568,33 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     is self-contained, else the letter; rival: its letter; Hinsdale keeps the pitchfork); descriptor `ctfSpawn: { rMin, rMax }` narrows the team
     spawn band (Earl of March 45-66 m); descriptor `files.map` is an optional overview image for the menus, the loading screen and the minimap
     (Earl of March: the satellite photo with the re-laid areas replaced by a top-down render of the game, so the map shows the yard as built).
+
+- **Fix round 2 (independent QA round 2: one fix-first, four should-fix, nine nits; all fixed).**
+  - *A "frame" building is not a brick wall with fins.* The 1971 block had 0.28 m fins on a brick wall with two window strips: correct in every
+    element and still "generic office". The tiles and one Street View frame (n5) show the opposite hierarchy: the CONCRETE is the building (piers
+    0.7 m proud, a fascia a quarter of the height, a band at the first floor) and brick / glass are infill set back in its shadow. Read the depth
+    order of a facade first (what stands proud, what is recessed, what is in shadow), then its elements. `frameWall` builds outward from the wall
+    line with collision on every pier, band and fascia, so the recess is real and nothing is an invisible wall; wrap the fascia round ONE end of
+    each wall only (two wrapped ends put two faces in one plane at every convex corner).
+  - *One wall kit, three fronts.* The same frame carries leaning brick spandrels on the front that faces the car park, window strips over brick on
+    the fronts that face the yard, and full glazing on the one bay that steps out. Pick the style per wall by its outward normal plus a WALL_SPEC
+    point for the exceptions, and check which ring edge a spec point really lands on in a shot (the first try glazed the wrong bay).
+  - *Check a QA measurement before moving a street.* "Road 10 m north of the tiles" was not reproducible: on a nadir pair from one camera with the
+    grid computed from the camera, the OSM centreline was 3 m SOUTH-EAST of the tiles at one bend and right elsewhere. Two nodes moved (data level,
+    `ROAD_MOVE`); the fence already followed the tiles. A grid drawn by hand on two shots of different aspect manufactures offsets.
+  - *Closed canopy needs three things.* More trunks alone still read as a park: (1) outlines of the woods traced on the nadir (`WOODS`), filled to
+    ~3 m spacing with a third understorey; (2) the forest floor painted under them (the photo's pixels there are crown tops = bright "lawn" between
+    the trunks); (3) the fill kept 3.4 m off walls and out of flag / helicopter clearings, or the perimeter walk and the scans fail. 160 more
+    trunks near the play area cost nothing measurable on medium.
+  - *A paved outline that the classifier got wrong is replaced, not nudged.* The lot was a blob: one `lawn` op over its surroundings, then the
+    traced rectangle, then its tone; the stall rows come from the lot's own axis and the stale OSM aisle through it is trimmed in the data, or the
+    walk-through walks it into a parked car. Islands: pave a 3.5 m ring round the traced curve, then cut the curve (the bus-loop trick as EPOCH ops,
+    inserted BEFORE the ops of the neighbouring area so its walks survive).
+  - *Colour by medians inside footprints.* Sampling single pixels on a pair is noise. The median inside every portable footprint (shrunk 1.6 m) on
+    the tiles nadir and on the game nadir from the same camera gave the roof tint in one step; the same for the dirt pads.
+  - *The overview image has one source.* Photo with rendered patches = two epochs side by side again (F53 applies to the minimap too). map.jpg is
+    now 16 nadir renders of the game from 1 500 m with full-detail trees (`world.forceFullTrees`; impostor cards are crosses from above). Draped
+    colour quads z-fight from that height: bake flat surfaces (tennis courts) into the ground and keep only lines and nets as geometry.
+  - *Team spawns and walls.* The 1.2 m wall probe of the CTF spawn zone lets a spot stand 2 m from a facade, and spawns face the enemy base, i.e.
+    the wall. Descriptor `ctfSpawn.wall` (metres, eight probes): 7 m here.
+  - *Dev tabs reload together.* A source edit reloads the tiles tab as well and drops a running shot job: shoot tiles first, edit after.

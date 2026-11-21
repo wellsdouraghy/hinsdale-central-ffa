@@ -43,7 +43,9 @@ export default {
   // nothing unmodelled under either). The built site is level: no overlook on either (0 / 0 cells).
   ctf: { red: [-32, -86], blue: [-56, 172] },
   // (fix round 1) team spawns 45-66 m behind / beside their own flag: with the shared 40-80 m band the farthest-point sampling put all of them at 75-80 m
-  ctfSpawn: { rMin: 45, rMax: 66 },
+  // (fix round 2) wall: no team spawn within 7 m of a wall, a fence or a trunk in any of eight directions (one stood 2 m from the north wing, facing it;
+  // spawns face the enemy base, so a spot north of the school looks at the building: 7 m keeps it a view, not a wall)
+  ctfSpawn: { rMin: 45, rMax: 66, wall: 7 },
   practiceHeli: { x: -113, z: 85, yaw: 0 },   // the track infield
   spawnCenter: [20, 10],
   spawnBounds: { minX: -160, maxX: 205, minZ: -180, maxZ: 218 },

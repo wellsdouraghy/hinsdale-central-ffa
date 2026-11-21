@@ -62,3 +62,32 @@ English public high school in Kanata, same board and league); no source names an
 - 12 files.map = map.jpg. 13 ctfSpawn 45-66 m. 14 flags: flagBrand(campus, team) (shared; all five campuses).
 - still weak: the east drive's outline is the classifier's (wobbly kerb line); the portal / oriel are read from one 2019 panorama and mushy tiles; portable
   roofs are a brighter red than the tiles' brown-red; the paver bands' spacing (6.6 m) is measured once on the nadir.
+
+## Fix round 2 (independent QA round 2: 1 fix-first, 4 should-fix, 9 nits; all 14 done; pairs in dev/shots/earlofmarch-v3/, gitignored)
+- Helpers used: receiver on :5187 saving to dev/shots/earlofmarch-v3/; one shot list (name -> pose) loaded into BOTH dev/earlofmarch.html (`__s`) and
+  dev/earlofmarch-tiles.html (`__r`), so every pair is the same camera; nadirs get a 10 / 20 m grid drawn from the camera (x, H, z, fov).
+  A source edit reloads every open dev tab (the tiles tab too): shoot the tiles first, then edit.
+- 1 the 1971 block is a CONCRETE FRAME (kit.js `frameWall`, Street View n5 + tiles t_ne1 / t_nw1 / t_sw1 / t_sw3): piers 0.7 m proud every ~7.4 m, 1.9 m fascia,
+  first-floor band, ground storey dark in their shadow; 'slope' = leaning brick spandrels + one tall window per bay (the long north-east front), 'ribbon' =
+  window strip over brick (north-west and south-west fronts), 'glazed' = the bay that steps out of the south-west front (WALL_SPEC kind 'frame'). All of it
+  stands OUT from the wall line with its own collision (no invisible wall); a ladder on a framed wall stands in front of the frame (`F.frameOut`).
+- 2 lot west of the annex: extra.py LOT2 (rectangle, 28 deg), yellow rows along its own long side (grounds.js; the stale OSM aisle is trimmed: ROAD_SET).
+  Blue base unchanged at (-56, 172): lawn 3.7 m off the lot's north-east edge, the wood behind it (map check spawns / overlook pass, 259 m apart).
+- 3 court yard: extra.py YARD (frame o / a / b), pale concrete pad + paler border walks, cross-court marks, three hoops, target rings; the east yard is pale
+  concrete with three four-square grids (grounds.js `yardMarks`).
+- 4 woods: extra.py WOODS (five outlines traced on nadirs) -> world.js fills them on a 2.9 m jittered lattice (a third understorey, a fifth conifers,
+  3.4 m off walls, clear of flags / helicopter spots / paving) and ground_fix.py paints the forest floor. Trunks near the play area 1 574 -> 1 734.
+- 5 portables: siding tint tan, roof tint muted brown-red (medians inside the footprints on one nadir: tiles 133 103 113, game was 138 81 77).
+- 6 bare earth: browner tones, wheel ruts (DIRT_TRACKS) and mottling in the bake; lumber stacks on the two pads (grounds.js `lumber`, solid).
+- 7 bleachers: campus material `eomAlu` swapped into the shared helper. 8 tennis: red / green and green / blue acrylic baked (TENNIS, `_courts`), lines, nets,
+  3 m fence. 9 east drive: triangle island, wooded island and parking pad re-traced as clean curves (E_TRI / E_WOOD / E_PAD), four bars on the pad.
+- 10 The Parkway: two OSM nodes moved onto the tiles' centreline (ROAD_MOVE). MEASURED: the OSM line was 3 m south-east of the tiles (and of the photo) at
+  the bend, not 10 m north; the fence (PLAY_EDGE) already followed the tiles' far kerb.
+- 11 library: rust-orange end panel on the short end piece of the curtain wall. 12 pool: POOL (baked salmon deck, water + coping), 20 m beyond the fence.
+- 13 map.jpg: one source: 16 top-down game renders from 1 500 m (tools/mapimg.py; `world.forceFullTrees(true)`), no photo patches.
+- 14 team spawns: descriptor `ctfSpawn.wall: 7` (shared ctf.js option: eight probes of that length instead of four of 1.2 m).
+- Checks: `__walkAll` 880 walks 0 fails; map check 0 fails / 0 warnings; medium 3.3-5.9 ms / frame at seven poses (1280 x 800); practice CTF, CTF host and a
+  two-tab joiner without console errors; build passes.
+- still weak: the upper-storey brick on the north-east front is read as leaning from the tiles (n5 does not settle it); the court yard's key positions are
+  read off one nadir; the tennis courts and the pool are baked colour (flat) with lines / nets on top; the yard path and the car parks keep the game's dark
+  asphalt where the tiles are sun-bleached pale.

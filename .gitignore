@@ -28,3 +28,5 @@ src/campuses/earlofmarch/tools/data/cache/
 dev/shots/earlofmarch/tiles-compare/
 # Earl of March fix round 1: reference shots and game | tiles pairs (Google imagery: local review only)
 dev/shots/earlofmarch-v2/
+# Earl of March fix round 2: reference shots and game | tiles pairs (Google imagery: local review only)
+dev/shots/earlofmarch-v3/

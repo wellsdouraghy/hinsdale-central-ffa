@@ -5,7 +5,7 @@ import { hillFence, onSlope, atGround } from '../marin/kit.js';
 import { propKit } from '../../world/props.js';
 import { bleachers, landmarkKit } from '../../world/landmarks.js';
 import { kerb, meshY, drapePoly, earclip } from './lib.js';
-import { PAVED } from './paved.js';
+import { PAVED, SITE } from './paved.js';
 import { PLAY_EDGE, lineDist, segDist, SW } from './kit.js';
 import { SCHOOL_RING } from './blocks.js';
 const SCHOOL_LOOP = [...SCHOOL_RING, SCHOOL_RING[0]];
@@ -23,7 +23,8 @@ const GOALS = [TW(-49.6, 1.2), TW(52.9, 1.2)];
 // floodlight masts at the four corners of the track (nadir tiles: mast + shadow)
 const MASTS = [[-161.5, 28.5], [-67.5, 30.5], [-167, 135.5], [-68.5, 143]];
 // courts painted on the school yards (nadir tiles): [centre x, z, axis angle deg (0 = +x), length, width, colour]
-const COURTS = [[125.5, 103.5, -45, 25.6, 14.2, [0.86, 0.86, 0.84]], [68.5, 61.5, 46.7, 22, 12.5, [0.78, 0.66, 0.2]]];
+// (fix round 2: the court yard south of the grades 7-8 wing is not one full court: its marks are yardMarks() below)
+const COURTS = [[68.5, 61.5, 46.7, 22, 12.5, [0.78, 0.66, 0.2]]];
 const gY = (ctx) => meshY(ctx);
 
 export function groundPads(ctx) {
@@ -37,8 +38,8 @@ export function KEEP_OPEN(ctx) { const tr = trackRing(TRACK.w + 2.5);
 
 // painted line on the ground between two points, following the drawn surface
 function liner(ctx) { const pt = ctx.B.v('paint', true), g = gY(ctx);
-  return (x0, z0, x1, z1, w = 0.1, col = [0.82, 0.82, 0.8]) => { const L = Math.hypot(x1 - x0, z1 - z0); if (L < 0.01) return; const n = Math.max(1, Math.ceil(L / 1.6)); const tx = (x1 - x0) / L, tz = (z1 - z0) / L, nx = -tz * w / 2, nz = tx * w / 2; pt.setColor(...col);
-    for (let k = 0; k < n; k++) { const ax = x0 + tx * L * k / n, az = z0 + tz * L * k / n, bx = x0 + tx * L * (k + 1) / n, bz = z0 + tz * L * (k + 1) / n; const y = (x, z) => g(x, z) + 0.03; const q = [[ax + nx, y(ax + nx, az + nz), az + nz], [bx + nx, y(bx + nx, bz + nz), bz + nz], [bx - nx, y(bx - nx, bz - nz), bz - nz], [ax - nx, y(ax - nx, az - nz), az - nz]]; pt.quad(q[0], q[1], q[2], q[3]); pt.quad(q[3], q[2], q[1], q[0]); }
+  return (x0, z0, x1, z1, w = 0.1, col = [0.82, 0.82, 0.8], lift = 0.03) => { const L = Math.hypot(x1 - x0, z1 - z0); if (L < 0.01) return; const n = Math.max(1, Math.ceil(L / 1.6)); const tx = (x1 - x0) / L, tz = (z1 - z0) / L, nx = -tz * w / 2, nz = tx * w / 2; pt.setColor(...col);
+    for (let k = 0; k < n; k++) { const ax = x0 + tx * L * k / n, az = z0 + tz * L * k / n, bx = x0 + tx * L * (k + 1) / n, bz = z0 + tz * L * (k + 1) / n; const y = (x, z) => g(x, z) + lift; const q = [[ax + nx, y(ax + nx, az + nz), az + nz], [bx + nx, y(bx + nx, bz + nz), bz + nz], [bx - nx, y(bx - nx, bz - nz), bz - nz], [ax - nx, y(ax - nx, az - nz), az - nz]]; pt.quad(q[0], q[1], q[2], q[3]); pt.quad(q[3], q[2], q[1], q[0]); }
     pt.setColor(1, 1, 1); }; }
 
 function track(ctx) {
@@ -48,9 +49,11 @@ function track(ctx) {
   // the aluminium bleachers on the west side (fix round 1, nadir tiles ref_trk on a 20 m grid + the view from the infield): a three-row bank 53 m long
   // beside the track from z 53 to z 106, and a six-row block right behind its middle (z 71..90). Both FACE EAST, onto the track: u runs south along the
   // straight (dir = TA - 90 deg), the rows step back to the west. (They had been drawn facing west and the long bank ran north from z 53.)
+  // (fix round 2) silver mill-finish aluminium, not the shared sky-mirroring one: the same helper with the plank and frame buckets swapped
+  const ctxA = Object.create(ctx); ctxA.B = Object.create(ctx.B); ctxA.B.v = (n, ...a) => ctx.B.v(n === 'aluminum' || n === 'galv' ? 'eomAlu' : n, ...a); const bl = (o) => bleachers(ctxA, o);
   const dir = TA - Math.PI / 2, b0 = [-160.0, 53.2], b1 = [b0[0] + AX * 18 - PX * 1.9, b0[1] + AZ * 18 - PZ * 1.9];
-  atGround(ctx, b0[0] + AX * 26.5, b0[1] + AZ * 26.5, () => bleachers(ctx, { x: b0[0], z: b0[1], dir, len: 53, rows: 3, run: 0.61, rise: 0.22, frontH: 0 }), 3, 'max');
-  atGround(ctx, b1[0] + AX * 9.5, b1[1] + AZ * 9.5, () => bleachers(ctx, { x: b1[0], z: b1[1], dir, len: 19, rows: 6, run: 0.72, rise: 0.28, frontH: 0 }), 3, 'max');
+  atGround(ctx, b0[0] + AX * 26.5, b0[1] + AZ * 26.5, () => bl({ x: b0[0], z: b0[1], dir, len: 53, rows: 3, run: 0.61, rise: 0.22, frontH: 0 }), 3, 'max');
+  atGround(ctx, b1[0] + AX * 9.5, b1[1] + AZ * 9.5, () => bl({ x: b1[0], z: b1[1], dir, len: 19, rows: 6, run: 0.72, rise: 0.28, frontH: 0 }), 3, 'max');
 }
 function courts(ctx) {
   const line = liner(ctx); const { B } = ctx;
@@ -64,6 +67,66 @@ function courts(ctx) {
       const p = P(e + s * 0.9, 0), bb = P(e - s * 1.2, 0); const rot = -a;
       atGround(ctx, p[0], p[1], () => { const g = B.v('galv'); g.cyl(p[0], 0, p[1], 0.07, 0.07, 3.3, 8, 1, true); g.tube([p[0], 3.25, p[1]], [bb[0], 3.45, bb[1]], 0.05, 6); B.v('whitePanel').box(bb[0], 3.5, bb[1], 0.05, 1.07, 1.8, rot);
         const rm = P(e - s * 1.45, 0); B.v('paint', true).setColor(0.85, 0.3, 0.1).cyl(rm[0], 3.04, rm[1], 0.23, 0.23, 0.03, 12, 1, false).setColor(1, 1, 1); B.c('metal').box(p[0], 1.65, p[1], 0.2, 3.3, 0.2); B.c('metal').box(bb[0], 3.5, bb[1], 0.08, 1.07, 1.8, rot); ctx.grapplePoles.push({ x: p[0], z: p[1], y0: 1, y1: 3.3, r: 0.07 }); }, 0.5, 'max'); } }
+}
+
+// (fix round 2, tiles t_n_seplaza / t_n_sep) The court yard south of the grades 7-8 wing: a pale concrete pad (tools/data/extra.py YARD) painted for
+// cross-court basketball: a boundary line, a centre line with its spot, three keys on the south-east sideline (a = 6.4, 17.6, 30.2 m along the pad),
+// half-circles on the north-west sideline (8.2, 26.4) and at both ends, a target of three rings beyond the north-east end; three four-square grids on
+// the east yard in front of the wing. Posts and backboards at the three keys.
+function yardMarks(ctx) {
+  const { B } = ctx; const line = liner(ctx); const Y = SITE.yard; if (!Y) return; const col = [0.9, 0.89, 0.84], w = 0.07;
+  const P = (a, b) => [Y.o[0] + a * Y.a[0] + b * Y.b[0], Y.o[1] + a * Y.a[1] + b * Y.b[1]]; const seg = (a0, b0, a1, b1) => { const p = P(a0, b0), q = P(a1, b1); line(p[0], p[1], q[0], q[1], w, col); };
+  const arc = (ac, bc, r, t0, t1, n = 14) => { for (let k = 0; k < n; k++) { const u0 = t0 + (t1 - t0) * k / n, u1 = t0 + (t1 - t0) * (k + 1) / n; seg(ac + r * Math.cos(u0), bc + r * Math.sin(u0), ac + r * Math.cos(u1), bc + r * Math.sin(u1)); } };
+  const A = 35, Wd = 16.5, m = 0.45, PI = Math.PI;
+  seg(m, m, A - m, m); seg(A - m, m, A - m, Wd - m); seg(A - m, Wd - m, m, Wd - m); seg(m, Wd - m, m, m); seg(A / 2, m, A / 2, Wd - m); arc(A / 2, Wd / 2, 0.25, 0, PI * 2, 8);
+  arc(m, Wd / 2, 1.8, -PI / 2, PI / 2); arc(A - m, Wd / 2, 1.8, PI / 2, PI * 1.5); for (const a of [8.2, 26.4]) arc(a, m, 1.8, 0, PI);
+  for (const a of [6.4, 17.6, 30.2]) { const b1 = Wd - m, b0 = b1 - 5.6; seg(a - 1.8, b1, a - 1.8, b0); seg(a + 1.8, b1, a + 1.8, b0); seg(a - 1.8, b0, a + 1.8, b0); arc(a, b0, 1.8, PI, PI * 2);
+    const p = P(a, Wd + 0.9), bb = P(a, Wd - 1.0), rm = P(a, Wd - 1.25); const rot = Math.atan2(-Y.a[1], Y.a[0]);
+    atGround(ctx, p[0], p[1], () => { const g = B.v('galv'); g.cyl(p[0], 0, p[1], 0.07, 0.07, 3.3, 8, 1, true); g.tube([p[0], 3.25, p[1]], [bb[0], 3.45, bb[1]], 0.05, 6); B.v('whitePanel').box(bb[0], 3.5, bb[1], 1.8, 1.07, 0.05, rot);
+      B.v('paint', true).setColor(0.85, 0.3, 0.1).cyl(rm[0], 3.04, rm[1], 0.23, 0.23, 0.03, 12, 1, false).setColor(1, 1, 1); B.c('metal').box(p[0], 1.65, p[1], 0.2, 3.3, 0.2); B.c('metal').box(bb[0], 3.5, bb[1], 1.8, 1.07, 0.08, rot); ctx.grapplePoles.push({ x: p[0], z: p[1], y0: 1, y1: 3.3, r: 0.07 }); }, 0.5, 'max'); }
+  for (const r of [0.9, 1.9, 2.9]) arc(43.5, 6.1, r, 0, PI * 2, 22);
+  // four-square grids on the east yard (tiles: (165, 54) 2 x 3, (153, 64.5) and (171, 62.5) 2 x 2), squares of 2.4 m in the wing's own direction
+  for (const [cx, cz, nu, nv] of [[165, 54.5, 2, 3], [153.5, 64.5, 2, 2], [171, 62.5, 2, 2]]) { const q = 2.4; const G = (i, j) => [cx + (i - nu / 2) * q * Y.a[0] + (j - nv / 2) * q * Y.b[0], cz + (i - nu / 2) * q * Y.a[1] + (j - nv / 2) * q * Y.b[1]];
+    if (!(SITE.eastYard && pointInRing(cx, cz, SITE.eastYard))) continue;
+    for (let i = 0; i <= nu; i++) { const a = G(i, 0), b = G(i, nv); line(a[0], a[1], b[0], b[1], w, col); } for (let j = 0; j <= nv; j++) { const a = G(0, j), b = G(nu, j); line(a[0], a[1], b[0], b[1], w, col); } }
+  // the east parking pad's four broad bars (t_n_edrive), across the pad, 4.8 m apart
+  if (SITE.ePad) { const ux = 0.69, uz = 0.724; for (let k = 0; k < 4; k++) { const c = [147.6 + ux * 4.8 * k, -6.2 + uz * 4.8 * k]; line(c[0] - uz * 3.0, c[1] + ux * 3.0, c[0] + uz * 3.0, c[1] - ux * 3.0, 0.5, [0.8, 0.79, 0.74]); } }
+}
+// (fix round 2, tiles t_n_pads) The lumber yard on the two portable rows that left: stacks of boards on bearers on the bare earth, along each pad's axis.
+function lumber(ctx) {
+  const { B } = ctx; const rnd = mulberry32(2025); const pads = (SITE.dirt || []).slice(0, 2); const wd = B.v('stucco', true);
+  for (const pad of pads) { const a = pad[0], b = pad[1], d = pad[3]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]), tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L, Wd = Math.hypot(d[0] - a[0], d[1] - a[1]), nx = (d[0] - a[0]) / Wd, nz = (d[1] - a[1]) / Wd; const rot = Math.atan2(-tz, tx);
+    for (let u = 3.2; u < L - 3; u += 4.6) for (const v of [Wd * 0.3, Wd * 0.72]) { if (rnd() < 0.3) continue; const x = a[0] + tx * (u + rnd() * 0.8) + nx * v, z = a[1] + tz * (u + rnd() * 0.8) + nz * v; const h = 0.45 + Math.floor(rnd() * 3) * 0.3, len = 3.0 + rnd() * 1.2, wid = 1.1 + rnd() * 0.3;
+      if (!['grass', 'dirt'].includes(ctx.surfaceAt(x, z)) || (ctx.keepClear || []).some(([kx, kz, kr]) => Math.hypot(x - kx, z - kz) < kr + 2) || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r))) continue;
+      onSlope(ctx, x, z, 1.6, () => { const t = 0.86 + rnd() * 0.25; wd.setColor(0.66 * t, 0.5 * t, 0.3 * t); wd.box(x, 0.12 + h / 2, z, len, h, wid, rot, 0.6); wd.setColor(0.4, 0.3, 0.2); for (const s of [-1, 1]) wd.box(x + tx * s * len * 0.32, 0.06, z + tz * s * len * 0.32, 0.1, 0.12, wid, rot); B.c('wood').box(x, (0.12 + h) / 2, z, len, 0.12 + h, wid, rot); });
+    } }
+  wd.setColor(1, 1, 1);
+}
+// (fix round 2, tiles t_n_tennis) The March Tennis Club beyond the south fence: two blocks of four courts (acrylic: red with green courts, green with
+// blue courts; the surround's tone is baked, tools/data/extra.py TENNIS), each court with its lines, net and posts, and the club's 3 m fence round each
+// block. Outside the play area: looked at over the hedge from the Mlacak lots, from the roofs and from the helicopter.
+function tennis(ctx) {
+  const { B } = ctx; const line = liner(ctx); const g = gY(ctx);
+  for (const T of SITE.tennis || []) { const [A, Bq, C] = T.ring; const Ls = Math.hypot(Bq[0] - A[0], Bq[1] - A[1]), sx = (Bq[0] - A[0]) / Ls, sz = (Bq[1] - A[1]) / Ls, Ll = Math.hypot(C[0] - Bq[0], C[1] - Bq[1]), lx = (C[0] - Bq[0]) / Ll, lz = (C[1] - Bq[1]) / Ll;
+    const P = (l, s2) => [A[0] + lx * l + sx * s2, A[1] + lz * l + sz * s2]; const wl = [0.92, 0.92, 0.9];
+    for (let k = 0; k < 4; k++) { const lc = Ll * (k + 0.5) / 4, sc = Ls / 2; const hw = 10.97 / 2, hl = 23.77 / 2;
+      // (the court's own colour is baked into the ground with the surround: tools/data/extra.py _courts)
+      const seg = (l0, s0, l1, s1) => { const p = P(lc + l0, sc + s0), q = P(lc + l1, sc + s1); line(p[0], p[1], q[0], q[1], 0.06, wl); };
+      seg(-hw, -hl, hw, -hl); seg(hw, -hl, hw, hl); seg(hw, hl, -hw, hl); seg(-hw, hl, -hw, -hl); seg(-4.115, -hl, -4.115, hl); seg(4.115, -hl, 4.115, hl); seg(-4.115, -6.4, 4.115, -6.4); seg(-4.115, 6.4, 4.115, 6.4); seg(0, -6.4, 0, 6.4);
+      const n0 = P(lc - hw - 0.9, sc), n1 = P(lc + hw + 0.9, sc); const y0 = Math.max(g(n0[0], n0[1]), g(n1[0], n1[1]));
+      B.v('eomNet').quad([n0[0], y0 + 0.08, n0[1]], [n1[0], y0 + 0.08, n1[1]], [n1[0], y0 + 1.0, n1[1]], [n0[0], y0 + 1.0, n0[1]]); B.v('whitePanel').tube([n0[0], y0 + 1.0, n0[1]], [n1[0], y0 + 1.0, n1[1]], 0.03, 4);
+      for (const q of [n0, n1]) B.v('blackMetal').cyl(q[0], y0, q[1], 0.05, 0.05, 1.07, 6, 1, true); }
+    const edge = [...PLAY_EDGE, PLAY_EDGE[0]]; const ring = [...T.ring, T.ring[0]];
+    for (let i = 0; i < 4; i++) { const a = ring[i], b = ring[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.ceil(L / 3); let run = [];
+      for (let k = 0; k <= n; k++) { const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]; if (pointInRing(p[0], p[1], PLAY_EDGE) || lineDist(p[0], p[1], edge) < 1.2) { if (run.length > 1) hillFence(ctx, run, { h: 3.0, every: 3, black: true }); run = []; } else run.push(p); }
+      if (run.length > 1) hillFence(ctx, run, { h: 3.0, every: 3, black: true }); } }
+}
+// (fix round 2, tiles t_n_edrive) The apartment block's pool east of the east drive, beyond the fence: water at grade inside a concrete coping on its
+// salmon deck (the deck's tone is baked). Seen through the fence from the drive.
+function pool(ctx) {
+  const Pq = SITE.pool; if (!Pq) return; const g = gY(ctx); const w = Pq.water; const y = Math.max(...w.map((p) => g(p[0], p[1]))) + 0.06; const wb = ctx.B.v('eomWater');
+  void y; drapePoly(ctx, wb, w, 0.05, (x, z) => [x / 3, z / 3]); kerb(ctx, w, { color: [0.8, 0.79, 0.75], h: 0.12, w: 0.35, step: 1.0, all: true });
+  ctx.gen.trees = (ctx.gen.trees || []).filter((t) => !pointInRing(t[0], t[1], Pq.deck));
 }
 
 // ------------------------------------------------------------------------------------------ car parks
@@ -87,14 +150,20 @@ function vehicles(ctx) {
     const tpl = r1 < 0.45 ? tpls[0] : r1 < 0.8 ? tpls[1] : tpls[2]; const col = propKit.CAR_COLORS[Math.floor(r2 * propKit.CAR_COLORS.length)];
     onSlope(ctx, x, z, 2.0, () => propKit.placeCar(ctx, tpl, x, z, hd + (r3 - 0.5) * 0.05 + (r1 < 0.5 ? Math.PI : 0), col)); placed.push([x, z, nx, nz]); n++; };
   const W = 2.7, D = 5.2; let lot = { stalls: 0, cars: 0 };
-  const row = (a, b, sd, fill) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 6) return; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L, nx = -tz * sd, nz = tx * sd; const nS = Math.floor((L - 2) / W), o = (L - nS * W) / 2; let run = 0;
+  const row = (a, b, sd, fill, lcol) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 6) return; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L, nx = -tz * sd, nz = tx * sd; const nS = Math.floor((L - 2) / W), o = (L - nS * W) / 2; let run = 0;
     for (let k = 0; k <= nS; k++) { const x = a[0] + tx * (o + k * W) + nx * (3.3 + D / 2), z = a[1] + tz * (o + k * W) + nz * (3.3 + D / 2); const p0 = [x - nx * D / 2, z - nz * D / 2], p1 = [x + nx * D / 2, z + nz * D / 2];
       const ok = asph(p0[0], p0[1]) && asph(p1[0], p1[1]) && asph(x, z) && asph(p1[0] + nx * 0.5, p1[1] + nz * 0.5) === asph(p1[0] + nx * 0.5, p1[1] + nz * 0.5) && pointInRing(p1[0], p1[1], PLAY_EDGE) && !(ctx.buildingRings || []).some((r) => pointInRing(p1[0], p1[1], r));
-      if (ok) { line(p0[0], p0[1], p1[0], p1[1]); run++; } else run = 0;
+      if (ok) { line(p0[0], p0[1], p1[0], p1[1], 0.1, lcol); run++; } else run = 0;
       if (ok && run > 1) { stalls++; lot.stalls++; const n0 = n; car(x - tx * W / 2, z - tz * W / 2, nx, nz, fill); lot.cars += n - n0; } } };
+  // (fix round 2, tiles t_n_lot2) the lot west of the Mlacak annex: rows along its own long side (not the OSM aisles, which cross it at odd angles),
+  // YELLOW lines: a row against the north-west edge, a double row, a row on the far side of the second aisle; a few cars (the tiles show three)
+  const L2 = SITE.lot2;
+  if (L2) { const N = L2[0], Wc = L2[4]; const Ld = Math.hypot(Wc[0] - N[0], Wc[1] - N[1]), dx = (Wc[0] - N[0]) / Ld, dz = (Wc[1] - N[1]) / Ld, ex = dz, ez = -dx; const yel = [0.83, 0.67, 0.16];
+    lot = (ctx.lots = ctx.lots || {}).lot2 = { at: [-76, 190], stalls: 0, cars: 0 }; const A = (e, d) => [N[0] + ex * e + dx * d, N[1] + ez * e + dz * d];
+    row(A(8.5, 1.5), A(8.5, Ld - 1.5), 1, () => 0.22, yel); row(A(8.5, 1.5), A(8.5, Ld - 1.5), -1, () => 0.22, yel); row(A(25.5, 1.5), A(25.5, Ld - 1.5), 1, () => 0.22, yel); }
   for (const r of ctx.data.roads) { if (r.tags.highway !== 'service' || r.tags.service !== 'parking_aisle') continue; const c = r.line[Math.floor(r.line.length / 2)]; if (!pointInRing(c[0], c[1], PLAY_EDGE)) continue;
     const north = c[1] < -40; const fill = north ? (x, z) => (lineDist(x, z, SCHOOL_LOOP) < 45 ? 0.85 : 0.1) : () => 0.5; lot = (ctx.lots = ctx.lots || {})[r.id] = { at: [Math.round(c[0]), Math.round(c[1])], stalls: 0, cars: 0 };
-    for (let i = 0; i < r.line.length - 1; i++) { row(r.line[i], r.line[i + 1], 1, fill); row(r.line[i], r.line[i + 1], -1, fill); } }
+    for (let i = 0; i < r.line.length - 1; i++) { if (L2 && pointInRing((r.line[i][0] + r.line[i + 1][0]) / 2, (r.line[i][1] + r.line[i + 1][1]) / 2, L2)) continue; row(r.line[i], r.line[i + 1], 1, fill); row(r.line[i], r.line[i + 1], -1, fill); } }
   ctx.carCount = n; ctx.stallCount = stalls;
   // school buses at the bus loop in front of the main entrance (Street View: the loop is the bus bay)
   for (const [x, z, deg] of ctx.BUSES || []) { if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r + 4)) continue; onSlope(ctx, x, z, 5, () => propKit.placeBus(ctx, x, z, deg * Math.PI / 180)); }
@@ -209,6 +278,6 @@ function plazas(ctx) {
 }
 
 export function buildGrounds(ctx) {
-  doorWalks(ctx); entrancePavers(ctx); plazas(ctx); hedges(ctx); track(ctx); courts(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); rocks(ctx); boundary(ctx);
+  doorWalks(ctx); entrancePavers(ctx); plazas(ctx); hedges(ctx); track(ctx); courts(ctx); yardMarks(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); lumber(ctx); tennis(ctx); pool(ctx); rocks(ctx); boundary(ctx);
   void segDist; void SW;
 }

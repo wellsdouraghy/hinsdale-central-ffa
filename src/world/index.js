@@ -173,6 +173,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     navSample: nav.sample,
     heliSpawns,
     ctfSpawns,
+    forceFullTrees(v) { trees.setForceFull(!!v, camera); },   // dev: full-detail trees at any distance (top-down overview renders; impostor cards read as crosses from above)
     grapplePoles: ctx.grapplePoles,   // [{ x, z, y0, y1, r }] thin vertical poles for grapple aim assist
     ladders: ctx.ladders,             // [{ x, z, nx, nz, y0, y1, exitY }] climbable ladders
     // dev-only build registry for the map check (dev/mapcheck.html): prop footprints, tree trunks, shrubs, ground walk grid

@@ -41,9 +41,9 @@ export const MAT = {
   charcoal: { key: 'eomCharcoal', pack: [1, 1, 1], flat: [0.075, 0.08, 0.085] },     // the library's charcoal fibre-cement panels
   blockWhite: { key: 'eomBlockWhite', pack: [1, 1, 1], flat: [0.62, 0.61, 0.57] },   // ... and its pale masonry
   cedar: { key: 'eomCedar', pack: [1, 1, 1], flat: [0.42, 0.22, 0.09] },             // ... and its cedar boards
-  siding: { key: 'eomSiding', pack: [1, 1, 1], flat: [0.56, 0.50, 0.40] },           // the portables' beige vertical siding
+  siding: { key: 'eomSiding', pack: [1.1, 0.99, 0.8], flat: [0.6, 0.52, 0.38] },           // the portables' beige vertical siding
   gravel: { key: 'eomGravel', pack: [1, 1, 1], flat: [0.25, 0.18, 0.14] },           // ballasted roofs (tinted: brown on the 1971 roofs, grey on the 2015 wing)
-  portRoof: { key: 'eomPortRoof', pack: [1, 1, 1], flat: [0.22, 0.10, 0.07] },       // the portables' red-brown ribbed metal roofs
+  portRoof: { key: 'eomPortRoof', pack: [0.9, 1.1, 1.16], flat: [0.2, 0.11, 0.09] },       // the portables' red-brown ribbed metal roofs
   panelWhite: { key: 'eomPanel', pack: [1, 1, 1], flat: [0.70, 0.70, 0.68] },        // the 2015 wing's white panels
   tower: { key: 'eomTowerPanel', pack: [1, 1, 1], flat: [0.62, 0.62, 0.60] },        // 2 The Parkway: pale precast
   balcony: { key: 'eomAtrium', pack: [1, 1, 1], flat: [0.42, 0.20, 0.14] },          // The Atriums: red-brown brick
@@ -68,6 +68,9 @@ export function addMaterials(ctx) {
   M.eomGlassGreen = std({ color: 0x6f9c8c, roughness: 0.08, metalness: 0.9, envMapIntensity: 1.5 });       // the 2015 wing's green-tinted glazing
   M.eomSpandrel = std({ color: 0x23262a, roughness: 0.35, metalness: 0.5 });                                 // dark spandrel glass / panel
   M.eomTrackGrey = std({ color: 0x8d8b86, roughness: 0.95 });
+  M.eomAlu = std({ color: 0xd6d7d6, roughness: 0.5, metalness: 0.25 });   // (fix round 2) the bleachers: mill-finish aluminium planks read silver-white in the tiles; the shared mirror-like aluminium reflects the sky and read blue-grey
+  M.eomWater = std({ color: 0x2f8fd0, roughness: 0.12, metalness: 0.1 });
+  M.eomNet = std({ color: 0x14161a, roughness: 0.9, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
   M.eomRock = std({ vertexColors: true, roughness: 0.95, flatShading: true });                               // Canadian Shield outcrops: pink-grey granite gneiss
   { // painted court / field lines on a transparent canvas are made by the builders; a plain white line material:
     M.eomLine = std({ color: 0xe9e7df, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
@@ -170,6 +173,48 @@ export function bayWall(ctx, F, y0, top, o = {}) {
   if (two) { const pc = mat(ctx, MAT.precast, 0.95); cutRects(L, 0, 1, doorSpans.map(([a, b]) => [a, b, 2, 3]), (a, b) => fbox(pc, F, a, b, y0 + 2.98, y0 + 3.85, 0, 0.09, 1, uOff, 'ftb')); }
   for (let i = 0; i <= nb; i++) { if (o.noEnds && (i === 0 || i === nb)) continue; fin(ctx, F, i * bay, y0 - 0.4, wt, pw); }
   fascia(ctx, F, top, fh, o);
+}
+// ------------------------------------------------------------------------------------------ the 1971 block's concrete frame (fix round 2, rules A3 / F27 / F36)
+// Tiles obliques t_ne1 / t_ne2 / t_nw1 / t_sw1 / t_sw3 + Street View n5 (September 2019, the north-east front) and n4: the outside of the 1971 classroom
+// block is an exposed CONCRETE FRAME, not a brick wall with fins. Full-height precast piers every ~7.4 m stand 0.7 m proud of the infill; a heavy precast
+// fascia (1.9 m) and a precast band at the first floor run flush with them; the ground storey is set back in their shadow (a dark window strip under the
+// band, brick below). The upper storey differs by front:
+//   'slope'  (the long north-east front on the north car park): a brick spandrel panel that leans back under the fascia (its foot stands on the band,
+//            its head is 0.4 m further in), with one tall window at the end of each bay;
+//   'ribbon' (the stepped north-west and south-west fronts on the portable yard, n4): a window strip right under the fascia over a vertical brick panel.
+// Everything stands OUT from the wall line (the collision prism), with its own collision, so nothing is an invisible wall (rule F48).
+export const FRAME_OUT = 0.7;
+export function frameWall(ctx, F, y0, top, o = {}) {
+  const B = ctx.B, L = F.L, uOff = o.uOff || 0, out = FRAME_OUT, fh = 1.9, wt = top - fh, yb0 = y0 + 3.0, yb1 = y0 + 3.95, bo = out - 0.08, pw = 0.6;
+  const glazed = o.style === 'glazed';   // (tiles t_sw3: the bay that steps out on the south-west front is glazed on both storeys between slender paired piers)
+  const nb = Math.max(1, Math.round(L / (o.bay || (glazed ? 4.4 : 7.4)))), bay = L / nb; const slope = o.style === 'slope' && bay > 4.5; const pc = () => mat(ctx, MAT.precast, 0.97), col = B.c('concrete');
+  const cbox = (u0, u1, ya, yb, o0, o1) => { const c = F.P((u0 + u1) / 2, (ya + yb) / 2, (o0 + o1) / 2); col.box(c[0], c[1], c[2], u1 - u0, yb - ya, o1 - o0, F.rotY); };
+  const lo = [], hi = [], units = [];
+  for (let i = 0; i < nb; i++) { const a = i * bay + pw / 2 + 0.04, b = (i + 1) * bay - pw / 2 - 0.04; if (b - a < 1.6) continue;
+    const gl = glazed ? y0 + 0.5 : yb0 - 1.55;
+    if (!(o.blank && o.blank((a + b) / 2, 0))) { lo.push([a, b, gl, yb0 - 0.04]); units.push([a, b, gl, yb0 - 0.04, 0]); }
+    if (o.blank && o.blank((a + b) / 2, 1)) continue;
+    if (glazed) { hi.push([a, b, yb1 + 0.3, wt - 0.04]); units.push([a, b, yb1 + 0.3, wt - 0.04, 1]); }
+    else if (slope) { hi.push([b - 1.2, b, yb1 + 0.3, wt - 0.12]); units.push([b - 1.2, b, yb1 + 0.3, wt - 0.12, 1]); }
+    else { hi.push([a, b, wt - 1.5, wt - 0.04]); units.push([a, b, wt - 1.5, wt - 0.04, 1]); } }
+  // the infill on the wall line: the ground storey's brick sits in the frame's shadow (drawn darker: the sun never reaches it under the band)
+  { const bk = brick(ctx, 0.5); cutRects(L, y0 - 0.4, yb0, lo, (a, b, c, d) => wallRect(bk, F, a, b, c, d, 0, [(uOff + a) * BRICK_S, c * BRICK_S, (uOff + b) * BRICK_S, d * BRICK_S])); bk.setColor(1, 1, 1); }
+  { const bk = brick(ctx, slope ? 0.8 : 1); cutRects(L, yb0, wt, hi, (a, b, c, d) => wallRect(bk, F, a, b, c, d, 0, [(uOff + a) * BRICK_S, c * BRICK_S, (uOff + b) * BRICK_S, d * BRICK_S])); bk.setColor(1, 1, 1); }
+  for (const [a, b, ya, yb, k] of units) ribbon(ctx, F, a, b, ya, yb, { kind: k, module: (b - a) / Math.max(1, Math.round((b - a) / 1.45)), depth: 0.2, transom: false });
+  if (slope) { const bk = brick(ctx, 1.1), f0 = 0.56, f1 = 0.06; const sl = Math.hypot(wt - yb1, f0 - f1);   // the leaning brick panel of each bay, closed at the window end
+    for (let i = 0; i < nb; i++) { const a = i * bay + pw / 2 - 0.02, b = (i + 1) * bay - pw / 2 - 1.3; if (b - a < 1) continue;
+      quadFacing(bk, F.P(a, yb1, f0), F.P(b, yb1, f0), F.P(b, wt, f1), F.P(a, wt, f1), [F.nx, 0.2, F.nz], [[(uOff + a) * BRICK_S, 0], [(uOff + b) * BRICK_S, 0], [(uOff + b) * BRICK_S, sl * BRICK_S], [(uOff + a) * BRICK_S, sl * BRICK_S]]);
+      quadFacing(bk, F.P(b, yb1, 0), F.P(b, yb1, f0), F.P(b, wt, f1), F.P(b, wt, 0), [F.tx, 0, F.tz], [[0, 0], [f0 * BRICK_S, 0], [f1 * BRICK_S, sl * BRICK_S], [0, sl * BRICK_S]]);
+      cbox(a, b, yb1, wt, 0, f1 + 0.15); }
+    bk.setColor(1, 1, 1); }
+  baseCourse(ctx, F, y0, []);
+  // the frame: band, piers, fascia (wrapped round the wall's start only: the next wall's start closes the other corner, and no two faces lie in one plane)
+  fbox(mat(ctx, MAT.precast, 0.95), F, 0, L, yb0, yb1, 0, bo, 1, uOff, 'ftb'); cbox(0, L, yb0, yb1, 0, bo);
+  for (let i = 0; i <= nb; i++) { const a = i === 0 ? -out : i * bay - pw / 2, b = i === nb ? L : i * bay + pw / 2; if (b - a < 0.05) continue;
+    fbox(pc(), F, a, b, y0 - 0.4, wt, 0, out, 1, 0, 'f'); fbox(mat(ctx, MAT.precast, 0.8), F, a, b, y0 - 0.4, wt, 0, out, 1, 0, 's'); cbox(a, b, y0 - 0.4, wt, 0, out); }
+  fbox(pc(), F, -out, L, wt, top, 0, out, 1, uOff, 'fstb'); cbox(-out, L, wt, top, 0, out);
+  { const j = B.v('paint', true); j.setColor(0.16, 0.15, 0.13); for (let u = 1.85; u < L - 0.3; u += 3.7) wallRect(j, F, u - 0.01, u + 0.01, wt + 0.02, top - 0.02, out + 0.004); j.setColor(1, 1, 1); }
+  B.v('stucco', true).setColor(1, 1, 1); F.frameOut = out;
 }
 /** A blank box wall (gym, auditorium, plant): brick (or precast panels, o.skin = 'precast') under the fascia, fins only at the corners and every o.bay. */
 export function boxWall(ctx, F, y0, top, o = {}) {
