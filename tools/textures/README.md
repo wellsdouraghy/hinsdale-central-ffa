@@ -62,6 +62,11 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
 - `uvM` = metres per UV unit of the geometry (facade kit 2.2, limestone 3.0, roofs 3.0). The loader sets
   `repeat = uvM / sizeM`, so a course is exactly `courseM` tall everywhere. Facade-kit walls on a generated masonry
   texture snap sills and heads to its courses and make soldier lintels one brick tall.
+- Style options for a campus kit (src/world/facade.js): `frame`, `band`, `coping` = material keys for sashes / doors, the
+  panel band and the coping; `upper: '<key>'` on a 'modern' style = a closed upper storey in that keyed texture over a
+  glazed base; `noCorner` drops the corner piers. `rot: 90` on a texture spec lays a vertical-seam tile horizontally
+  (ribbed metal, louvre blades: `metal_seam` with `rib_color`, `sharp`, `posts`). Pack-only tints and styles are set
+  under `if (ctx.TX)` so `?tex=0` is still the look before the pack (Marin: `PACK` in src/campuses/marin/kit.js).
 - Corners: the facade kit carries `uOff` round the ring, so bond and courses continue across returns. Never scale a
   texture to fit a wall; change the wall (or the snap) instead.
 - No visible repetition: tiles are 2-5 m with low frequencies flattened, and every material with `weather: [grime,

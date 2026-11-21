@@ -202,15 +202,16 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
   const brick = B.v(wallKey(ctx, own), true); setTint(brick, tint);
   // generated masonry texture on this wall: openings snap to its courses (heads and sills land on a bed joint) and the
   // soldier-course lintel is one brick length tall
+  const upper = st.kind === 'modern' && st.upper && ctx.TX && ctx.TX.tex[st.upper] && ctx.TX.tex[st.upper].key ? st.upper : null;
   const wtex = texOf(ctx, ctx.wallTex || wallKey(ctx, own)); const cm = wtex && wtex.courseM ? wtex.courseM : 0; const soldier = wtex && wtex.unitM && wtex.kind === 'brick' ? wtex.unitM : 0;
   const bandH = st.top === 'panel' ? 1.15 : 0.95; const bandY = h - bandH - 0.3;
   // ---- parapet: band + coping with real thickness and drip edges
   if (st.top === 'panel') {
-    const wp = B.v('whitePanel');
+    const wp = B.v(st.band || 'whitePanel');   // (`band` / `coping`: a campus kit's own trim materials)
     fbox(wp, F, -0.04, L + 0.04, bandY, h - 0.3, 0, 0.07, 1, 0, 'fsb');
     fbox(B.v('panelGray'), F, -0.04, L + 0.04, bandY + bandH * 0.5 - 0.012, bandY + bandH * 0.5 + 0.012, 0.07, 0.09, 1, 0, 'ftb');
     for (let u = 1.2; u < L; u += 2.4) fbox(B.v('panelGray'), F, u - 0.008, u + 0.008, bandY, h - 0.3, 0.07, 0.09, 1, 0, 'fs');
-    fbox(B.v('frameAlu'), F, -0.1, L + 0.1, h - 0.3, h + 0.03, 0, 0.14, 1, 0, 'fsb');
+    fbox(B.v(st.coping || 'frameAlu'), F, -0.1, L + 0.1, h - 0.3, h + 0.03, 0, 0.14, 1, 0, 'fsb');
   } else {
     const ls = B.v('limestone');
     fbox(ls, F, -0.03, L + 0.03, bandY, h - 0.3, 0, 0.05, STONE_S, uOff, 'fsb');
@@ -235,7 +236,7 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
   const extras = [];        // deferred detail callbacks
   const m = L > 6 ? 1.3 : 0.6;
   // corner piers: hide the razor edge where two walls meet
-  if (L > 3.2 && !st.plain) { piers.push([0.3, 0.6, 0.1]); piers.push([L - 0.3, 0.6, 0.1]); }
+  if (L > 3.2 && !st.plain && !st.noCorner) { piers.push([0.3, 0.6, 0.1]); piers.push([L - 0.3, 0.6, 0.1]); }
   const usable = L - 2 * m; const nb = Math.max(0, Math.floor(usable / st.bay)); const bay = nb ? usable / nb : 0;
   const doorBay = nb >= 1 && ((st.kind === 'gym' || st.kind === 'service') ? L > 15 : L > 26) && !st.plain ? Math.floor(nb * (0.3 + 0.4 * rnd())) : -1;
 
@@ -259,16 +260,18 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
     for (let i = 3; i < nb; i += 4) { const u = m + i * bay + 0.48; extras.push(() => downspout(ctx, F, u, bandY - 0.4, pierOut(u))); }
   } else if (st.kind === 'modern') {
     // tall glazed bays: two storeys of glass with an insulated metal spandrel between
-    const r1 = [], r2 = []; const yA0 = 0.85, yA1 = h * 0.5 - 0.55, yB0 = h * 0.5 + 0.35, yB1 = wallTop - 0.55;
+    // (`upper`: the storey above the glazed base is one closed skin in its own generated texture: ribbed metal, a louvre screen)
+    const r1 = [], r2 = []; const yA0 = upper ? 0.56 : 0.85, yA1 = upper ? Math.min(h * 0.5 - 0.55, 3.6) : h * 0.5 - 0.55, yB0 = h * 0.5 + 0.35, yB1 = wallTop - 0.55;
     for (let i = 0; i < nb; i++) {
-      const c = m + (i + 0.5) * bay; const a = c - (bay - 1.3) / 2, b = c + (bay - 1.3) / 2;
+      const c = m + (i + 0.5) * bay; const a = c - (bay - (upper ? 0.5 : 1.3)) / 2, b = c + (bay - (upper ? 0.5 : 1.3)) / 2;
       if (i === doorBay) r1.push([c - 1.1, c + 1.1, 'door']); else r1.push([a, b, 'win', 0]);
+      if (upper) continue;
       r2.push([a, b, 'win', 1]);
       if (i !== doorBay) extras.push(() => { const sp = B.v('panelGray'); fbox(sp, F, a, b, yA1 + 0.23, yB0 - 0.11, 0, 0.03, 1, 0, 'fstb'); fbox(B.v('frameAlu'), F, a - 0.03, b + 0.03, yA1 + 0.2, yA1 + 0.23, 0, 0.05, 1, 0, 'fstb'); });
       if (st.beds && i !== doorBay) extras.push(() => bed(ctx, F, c, bay - 1.6));
     }
-    openings.push([yA0, yA1, r1]); openings.push([yB0, yB1, r2]);
-    for (let i = 2; i < nb; i += 3) { const u = m + i * bay; extras.push(() => downspout(ctx, F, u, bandY - 0.3, pierOut(u))); }
+    openings.push([yA0, yA1, r1]); if (!upper) openings.push([yB0, yB1, r2]);
+    for (let i = 2; i < nb && !upper; i += 3) { const u = m + i * bay; extras.push(() => downspout(ctx, F, u, bandY - 0.3, pierOut(u))); }
   } else if (st.kind === 'lowmod') {
     const r1 = []; const yA0 = 0.95, yA1 = Math.min(3.4, wallTop - 0.7);
     for (let i = 0; i < nb; i++) {
@@ -333,7 +336,11 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
     brickRect(brick, F, u, L, lo, hi, uOff);
     y = hi;
   }
-  brickRect(brick, F, 0, L, y, wallTop, uOff);
+  if (upper && wallTop - y > 1.2) {
+    const ub = B.v(upper, true); setTint(ub, st.upperTint || [1, 1, 1]); const yu = y + 0.3;
+    brickRect(brick, F, 0, L, y, yu, uOff); brickRect(ub, F, 0, L, yu, wallTop, uOff, 0.04); setTint(ub, [1, 1, 1]);
+    fbox(B.v('frameAlu'), F, -0.02, L + 0.02, yu - 0.06, yu, 0, 0.09, 1, 0, 'fstb');
+  } else brickRect(brick, F, 0, L, y, wallTop, uOff);
   // ---- pilasters / corner piers (skip where they would cross an opening)
   for (const [uc, w, out] of piers) {
     const a = Math.max(0, uc - w / 2), b = Math.min(L, uc + w / 2);

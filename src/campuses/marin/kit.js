@@ -25,6 +25,13 @@ export const tileTint = (rgb) => { const c = srgb(...rgb); return [c[0] / TILE_A
 export const CLAY = [3.7, 2.0, 1.42];                   // weathered terracotta barrel tile
 export const CLAY_DARK = [3.0, 1.6, 1.15];
 
+// Colours that go with the generated texture pack (linear, as vertex tints of the neutral tiles: stucco mean 0.85,
+// shingle mean 0.0315). Walls: materials.json swatches, corrected in game against sunlit walls. Roofs: the aerial photo
+// of the aquatic centre shows brown composition shingle on every hipped school roof (not terracotta).
+export const PACK = {
+  foster: [0.66, 0.52, 0.27], mission: [0.68, 0.60, 0.43], founders: [0.66, 0.59, 0.41], pac: [0.70, 0.63, 0.47], visArts: [0.40, 0.33, 0.19],
+  roof: [4.6, 3.5, 2.5], roofFoster: [3.6, 3.1, 2.6],
+};
 // ------------------------------------------------------------------------------------------ materials
 function solarTexture(aniso) {
   const W = 256, H = 256, c = makeCanvas(W, H), g = c.getContext('2d');
@@ -132,6 +139,9 @@ export function addMaterials(ctx) {
     for (let k = 0; k < 5200; k++) { const x = r() * S, y = r() * S, a = (r() - 0.5) * 0.9 + (r() < 0.5 ? 0 : Math.PI / 2), l = 2 + r() * 7; const t = tones[Math.floor(r() * tones.length)], v = 0.8 + r() * 0.35; g.strokeStyle = `rgba(${t[0] * v | 0},${t[1] * v | 0},${t[2] * v | 0},${0.35 + r() * 0.5})`; g.lineWidth = 0.6 + r() * 1.2;
       for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { g.beginPath(); g.moveTo(x + ox, y + oy); g.lineTo(x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l); g.stroke(); } }
     M.maVerge = std({ map: canvasTexture(c, { aniso: T.aniso }), roughness: 1 }); M.maVerge.color.setRGB(0.74, 0.76, 0.72); }
+  // window / door frames of the cream buildings: dark green painted steel (Street View, the aquatic-centre photos); Foster Hall: white sashes
+  M.maFrameGreen = std({ color: 0x1f4034, roughness: 0.5, metalness: 0.25 }); M.maFrameWhite = std({ color: 0xe6e1d2, roughness: 0.55, metalness: 0.05 });
+  M.maFosterTrim = std({ color: 0xcbbc97, roughness: 0.7 });   // Foster Hall's porch posts and entablature are painted the wall cream (school site photo), only sashes and balustrade are white
   M.maFrond = std({ color: 0x3f5a2a, roughness: 0.8, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
@@ -149,6 +159,20 @@ export function addMaterials(ctx) {
     maService: { kind: 'service', bay: 5.6, frame: 'frame', top: 'stone', tint: [0.92, 0.9, 0.84] },
     maPlain: { kind: 'service', bay: 6.0, frame: 'frame', top: 'stone', tint: [0.92, 0.9, 0.84], plain: true },
   });
+  // With the generated texture pack (tools/textures/campuses/marin/materials.json; `?tex=0` = the look before it): wall
+  // tints are the sheet's swatches over the neutral stucco tile (linear mean 0.85) as corrected against sunlit walls in
+  // game screenshots, frames are the buildings' real green / white, and the Science Center wears its own skins.
+  if (ctx.TX) Object.assign(STYLES, {
+    maMission: { ...STYLES.maMission, frame: 'maFrameGreen', tint: PACK.mission },
+    maFoster: { ...STYLES.maFoster, frame: 'maFrameWhite', tint: PACK.foster },
+    maCream: { ...STYLES.maCream, frame: 'maFrameGreen', tint: PACK.founders },
+    maPac: { ...STYLES.maPac, frame: 'maFrameGreen', coping: 'maFrameGreen', tint: PACK.pac },
+    maLowCream: { ...STYLES.maLowCream, frame: 'maFrameGreen', tint: PACK.pac },
+    maVisArts: { ...STYLES.maVisArts, frame: 'maFrameGreen', band: 'maFrameGreen', coping: 'maFrameGreen', tint: PACK.visArts },
+    maModern: { ...STYLES.maModern, wall: 'maPanel' },                                                              // off-white panel end walls and field front
+    maSciRib: { ...STYLES.maModern, wall: 'maPanel', upper: 'maRibMetal', noCorner: true, bay: 3.6 },               // west front: glazed base, charcoal ribbed metal above
+    maSciLouvre: { ...STYLES.maModern, wall: 'maPanel', upper: 'maLouvre', noCorner: true, bay: 3.6 },              // ... and the aluminium sunshade screens at both ends of it
+  });
 }
 
 // Builder proxy: the facade kit asks for 'brick' / 'limestone'; hand it other buckets instead.
@@ -164,7 +188,7 @@ export const SKIN_BRICK = {};
 // Facade-kit walls around a ring. opts: skin map, parapet (flat roofs), tintJitter, rnd, noBeds
 export function kitWalls(ctx, ringIn, h, style, opts = {}) {
   const ring = ensureCCW(ringIn); const sctx = skin(ctx, opts.skin || SKIN_STUCCO); const rnd = opts.rnd || mulberry32(Math.abs(Math.round(ring[0][0] * 13 + ring[0][1] * 7)) + 3);
-  const B = ctx.B; const st = STYLES[style]; const alu = st && st.frame === 'frameAlu';
+  const B = ctx.B; const st = STYLES[style]; const alu = st && st.frame === 'frameAlu'; const coping = alu ? 'frameAlu' : (st && st.coping) || 'frame';
   const base0 = ctx.terrain && B.off ? B.off.y : 0;   // the building's datum (its lowest ground: see `sited`)
   const plan = ctx.wallPlans ? ctx.wallPlans.get(ringKey(ring)) : null;
   let u = 0;
@@ -184,10 +208,10 @@ export function kitWalls(ctx, ringIn, h, style, opts = {}) {
       const ex = ctx.terrain && st && st.kind === 'class' && h - dy > 4.8 && h - dy < 7.4 ? h - dy - 4.6 : 0; const hh = h - dy - ex;
       if (ex) ctx.onGround([p[0], p[1]], () => { const sb = sctx.B.v('brick', true); sb.setColor(st.tint[0] * 0.9, st.tint[1] * 0.9, st.tint[2] * 0.9); wallRect(sb, F, 0, F.L, 0, ex + 0.02, 0, [u * BRICK_S, 0, (u + F.L) * BRICK_S, ex * BRICK_S]); fbox(B.v('whitePanel'), F, -0.03, F.L + 0.03, ex - 0.1, ex + 0.02, 0, 0.07, 1, 0, 'fstb'); sb.setColor(1, 1, 1); }, { mode: base0 + dy });
       const run = () => {
-        facade(sctx, F, 0, hh, plain ? (opts.plainStyle || 'maPlain') : style, u, rnd);
+        facade(sctx, F, 0, hh, plain ? (opts.plainStyle || 'maPlain') : (opts.pieceStyle && opts.pieceStyle(i, p, q, a, b)) || style, u, rnd);   // pieceStyle: a wall that changes skin along its length (Science Center)
         if (opts.parapet) {
           const roofY = hh - 0.4;
-          quadFacing(B.v(alu ? 'frameAlu' : 'frame'), F.P(-0.1, hh + 0.03, 0.13), F.P(F.L + 0.1, hh + 0.03, 0.13), F.P(F.L, hh + 0.03, -0.32), F.P(0, hh + 0.03, -0.32), [0, 1, 0]);
+          quadFacing(B.v(coping), F.P(-0.1, hh + 0.03, 0.13), F.P(F.L + 0.1, hh + 0.03, 0.13), F.P(F.L, hh + 0.03, -0.32), F.P(0, hh + 0.03, -0.32), [0, 1, 0]);
           quadFacing(B.v('concrete'), F.P(0, roofY, -0.32), F.P(F.L, roofY, -0.32), F.P(F.L, hh + 0.03, -0.32), F.P(0, hh + 0.03, -0.32), [-F.nx, 0, -F.nz]);
           const pc = F.P(F.L / 2, (roofY + hh + 0.03) / 2, -0.16); B.c('concrete').box(pc[0], pc[1], pc[2], F.L, hh + 0.03 - roofY, 0.32, F.rotY);
         }
@@ -258,7 +282,7 @@ export function hipRoof(ctx, boxOrRing, eaveY, rise, opts = {}) {
   const rA = gable ? u0 : Math.min(u0 + hw, (u0 + u1) / 2), rB = gable ? u1 : Math.max(u1 - hw, (u0 + u1) / 2);
   const A = W(u0, v0, eaveY), Bp = W(u1, v0, eaveY), C = W(u1, v1, eaveY), Dd = W(u0, v1, eaveY);
   const R0 = W(rA, vc, eaveY + rise), R1 = W(rB, vc, eaveY + rise); const sl = Math.hypot(hw, rise);
-  const bucket = B.v(opts.bucket || 'shingles', true); const t = opts.tint || CLAY; if (bucket.setColor) bucket.setColor(t[0], t[1], t[2]);
+  const bucket = B.v(opts.bucket || 'shingles', true); const t = opts.tint || ctx.roofTint || CLAY; if (bucket.setColor) bucket.setColor(t[0], t[1], t[2]);
   const col = opts.noCollision ? null : B.c('concrete'); const up = [0, 1, 0];
   // opts.planeUV: texture coordinates from the face plane itself (along the eave in world metres, up the slope), so
   // faces of two intersecting roofs that lie in one plane carry the same shingles and do not shimmer (polyRoof)
@@ -308,12 +332,12 @@ export function hipRoof(ctx, boxOrRing, eaveY, rise, opts = {}) {
 
 // Roof over an arbitrary footprint (L / T / U plans): a union of closed hip roofs over the footprint's maximal
 // rectangles, see ../roofs.js. opts: tint, overhang, noCollision, fill (solid attic).
-export function polyRoof(ctx, ring, eaveY, rise, opts = {}) { return polyRoofOf(hipRoof, minAreaOBB, ctx, ring, eaveY, rise, { ...opts, tint: opts.tint || CLAY }); }
+export function polyRoof(ctx, ring, eaveY, rise, opts = {}) { return polyRoofOf(hipRoof, minAreaOBB, ctx, ring, eaveY, rise, { ...opts, tint: opts.tint || ctx.roofTint || CLAY }); }
 
 // Hip perimeter around a flat roof well (the modern clay-tile buildings: tiled slopes outside, a grey membrane deck
 // with plant inside). box as from boxFromRect; run = horizontal depth of the tiled slope. Returns the deck frame.
 export function wellRoof(ctx, box, eaveY, rise, run, opts = {}) {
-  const { B } = ctx; let { tx, tz, u0, u1, v0, v1 } = box; const ov = opts.overhang === undefined ? 0.7 : opts.overhang; const t = opts.tint || CLAY;
+  const { B } = ctx; let { tx, tz, u0, u1, v0, v1 } = box; const ov = opts.overhang === undefined ? 0.7 : opts.overhang; const t = opts.tint || ctx.roofTint || CLAY;
   const W = (u, v, y) => [u * tx - v * tz, y, u * tz + v * tx]; const top = eaveY + rise, deck = top - 0.45, k = run + ov;
   const O = [[u0 - ov, v0 - ov], [u1 + ov, v0 - ov], [u1 + ov, v1 + ov], [u0 - ov, v1 + ov]], I = [[u0 - ov + k, v0 - ov + k], [u1 + ov - k, v0 - ov + k], [u1 + ov - k, v1 + ov - k], [u0 - ov + k, v1 + ov - k]];
   const sh = B.v('shingles', true); sh.setColor(t[0], t[1], t[2]); const col = B.c('concrete'); const up = [0, 1, 0]; const sl = Math.hypot(k, rise) / 3;
@@ -344,7 +368,7 @@ export function hipBuilding(ctx, ringIn, eaveH, style, opts = {}) {
   const { B } = ctx; const ring = kitWalls(ctx, ringIn, eaveH, style, opts);
   B.c(opts.surface || 'concrete').prism(ring, 0, eaveH, 1, true);
   (ctx.buildingRings = ctx.buildingRings || []).push(ring);
-  for (const r of opts.roofs || [ring]) hipRoof(ctx, r.box || r, r.eave || eaveH, r.rise || opts.rise || 2.6, { tint: opts.tint || CLAY, overhang: opts.overhang, gable: r.gable });
+  for (const r of opts.roofs || [ring]) hipRoof(ctx, r.box || r, r.eave || eaveH, r.rise || opts.rise || 2.6, { tint: opts.tint || ctx.roofTint || CLAY, overhang: opts.overhang, gable: r.gable });
   return ring;
 }
 

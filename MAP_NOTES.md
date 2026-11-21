@@ -249,6 +249,30 @@ Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they
    - **Frame time**: `__bench` in a hidden pane on a machine shared with other agents is +-1 ms noise. A/B inside
      one tab (toggle the uniform, e.g. `material.userData.txSurface.uAlt.value.z`), interleave the runs and take the
      minimum. The second tile sample is now taken only where the cross-fade needs it (`textureGrad`, so mips match).
+10. **Marin v3 lessons (switching on a pack of pale stucco, metal and shingle).**
+   - **An override of a tinted tile changes almost nothing by itself.** Marin's pack (neutral stucco + neutral shingle
+     with the old means) rendered within 2 sRGB levels of `?tex=0`. The look comes from the TINTS, the trim and the
+     roofs: budget the work there, and make every pack-only colour conditional on `ctx.TX` so `?tex=0` stays the true
+     "before" in the same build.
+   - **Pale walls: calibrate, do not divide.** `swatch / tile mean` put cream stucco at 218/215/212 in the sun (white:
+     the tone curve flattens everything above ~0.6 albedo and the sky fill takes the yellow out). Multiply the wall
+     material's `color` in the console by three trial factors, shoot one sunlit and one shaded wall straight on (ray
+     from outside to the wall, camera 9 m back along its normal, median of the modal-luminance pixels) and interpolate:
+     the Library's measured [0.66, 0.60, 0.52] needs a tint of [0.68, 0.60, 0.43] (albedo [0.58, 0.51, 0.37]) to read
+     211/207/196 sunlit. Going further (albedo 0.50/0.42/0.27) matches the sunlit swatch better and turns every wall
+     the sun grazes mustard: check the east and north walls before settling.
+   - **Read the roofs from an aerial, not from the style.** Mission-style cream buildings were given terracotta; the
+     aquatic-centre aerial shows brown composition shingle on all of them and a teal standing-seam Athletic Center.
+     One oblique drone photo fixes more of the helicopter view than any wall texture.
+   - **Frames and trim are part of the material sheet.** Dark green sashes on the cream buildings, white on Foster Hall
+     and porch posts painted the WALL colour (not white) are what make them recognisable; a style takes `frame`, `band`
+     and `coping` material keys from the campus kit.
+   - **A facade that changes skin along its length** (Science Center: louvre screen | ribbed metal | louvre screen over a
+     glazed base) is a per-piece style (`kitWalls` `pieceStyle`) plus `upper: '<keyed texture>'` on a 'modern' style;
+     horizontal ribs are the vertical-seam tile with `rot: 90` in the sheet (the loader rotates the sampler, UVs stay
+     in metres). Dark metal: metalness <= 0.25, or a shaded wall mirrors the sky and reads navy.
+   - **Do not ship what nothing uses**: the deck tile had no deck to go on; it came out of the sheet (the loader fetches
+     every texture a manifest lists).
 
 ## Map check (required before QA)
 

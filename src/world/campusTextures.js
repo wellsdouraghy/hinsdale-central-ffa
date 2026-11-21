@@ -95,6 +95,7 @@ function fit(tex, e, uvM, offsetM) {
   // each material owns its copy of the sampler state (repeat differs with the geometry's UV scale); the image is shared
   const t = tex.clone(); t.repeat.set(uvM / e.sizeM[0], uvM / e.sizeM[1]);
   if (offsetM) t.offset.set(offsetM[0] / e.sizeM[0], offsetM[1] / e.sizeM[1]);
+  if (e.rot) t.rotation = e.rot * Math.PI / 180;   // `rot: 90`: the tile's V axis lies along the wall (horizontal ribs, louvre blades); the normal map follows (tangents come from the UVs)
   t.needsUpdate = true; return t;
 }
 

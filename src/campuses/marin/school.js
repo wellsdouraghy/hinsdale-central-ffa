@@ -6,8 +6,8 @@
 // Ave), white modern boxes (Science + Innovation Center, Visual Arts), the barrel-vaulted Old Gym with its solar array
 // and the Athletic Center with its curved roof and translucent sea-green walls.
 import * as THREE from 'three';
-import { sited, atGround, onSlope, edgeGround, guardRail, terraceBlocks, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence , hedgeMass } from './kit.js';
-import { doorFromKit, roofUnit } from '../../world/facade.js';
+import { sited, atGround, onSlope, edgeGround, guardRail, terraceBlocks, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence , hedgeMass, PACK } from './kit.js';
+import { doorFromKit, roofUnit, STYLES } from '../../world/facade.js';
 import { propKit } from '../../world/props.js';
 import { paintedQuad } from '../../world/fields.js';
 import { bleachers } from '../../world/landmarks.js';
@@ -20,7 +20,7 @@ const TOP = { fosterWing: 12.0, thacher: 8.9, thacherWing: 8.3, science: 13.45, 
   leadership: 6.2 /* (floor = the Mission Ave walk, 1.6 m: at 5.8 the north wall stood in a 0.4 m cut behind a concrete block) */, leadershipEast: 5.8, library: 6.1, libraryWest: 5.7 /* (hip roofs: the eave is the LOW end of the samples, their 10th percentile) */, pac: 8.3, pacLow: 5.8, founders: 7.5 };
 
 export const SCHOOL_IDS = new Set([652917773, 652917775, 652917776, 652917777, 652917778, 652917779, 652917780, 652917781, 652917782, 652917783, 652917784, 652917785, 1460794276]);
-const FOSTER_ROOF = [1.75, 1.42, 1.18];   // weathered grey-brown shingle (Street View), as a tint of the tile texture
+const FOSTER_ROOF0 = [1.75, 1.42, 1.18];   // weathered grey-brown shingle (Street View), as a tint of the tile texture
 const ROT = -ANG;                                   // Bucket.box rotY that aligns a box with the street grid
 
 function gridBox(B, key, surface, cx, cy, cz, w, h, d, s = 1) { B.v(key).box(cx, cy, cz, w, h, d, ROT, s); if (surface) B.c(surface).box(cx, cy, cz, w, h, d, ROT); }
@@ -52,18 +52,18 @@ function fosterHall(ctx) {
   sited(ctx, main, (base) => fosterHallAt(ctx, main, TOP.fosterWing - base), { base: ctx.groundY(pc[0], pc[1]) });
 }
 function fosterHallAt(ctx, main, wingEave) {
-  const { B } = ctx; const eave = 8.8;
+  const { B } = ctx; const eave = 8.8; const FOSTER_ROOF = ctx.TX ? PACK.roofFoster : FOSTER_ROOF0, FW = STYLES.maFoster.tint, WP = ctx.TX ? 'maFosterTrim' : 'whitePanel';   // (with the texture pack: the sheet's roof and wall colours)
   // three-storey Italianate mansion (the original 1890s building) + the low north wing (one tall storey: it was drawn
   // two storeys high before the heights were measured against the ground it stands on)
   hipBuilding(ctx, main, eave, 'maFoster', { rise: 2.3, overhang: 0.95, tint: FOSTER_ROOF, roofs: [boxFromRect(-18.0, -45.3, 22.4, 19.4)] });
   // attic half-storey stepping up out of the main roof under its own hip (the stepped multi-hip silhouette)
-  { const ah = 2.5; B.v('stucco', true).setColor(0.95, 0.83, 0.5).box(-18.0, eave + 0.9 + ah / 2, -45.3, 12.6, ah, 10.2, ROT, 0.45); B.c('concrete').box(-18.0, eave + 0.9 + ah / 2, -45.3, 12.6, ah, 10.2, ROT);
+  { const ah = 2.5; B.v('stucco', true).setColor(FW[0], FW[1], FW[2]).box(-18.0, eave + 0.9 + ah / 2, -45.3, 12.6, ah, 10.2, ROT, 0.45); B.c('concrete').box(-18.0, eave + 0.9 + ah / 2, -45.3, 12.6, ah, 10.2, ROT);
     hipRoof(ctx, boxFromRect(-18.0, -45.3, 12.6, 10.2), eave + 0.9 + ah, 2.0, { overhang: 0.8, tint: FOSTER_ROOF });
     for (const a of [-3.6, 0, 3.6]) { const q = gp(-18.0, -45.3, a, 5.13); B.v('glassInt').box(q[0], eave + 2.35, q[1], 1.5, 1.1, 0.05, ROT); B.v('whitePanel').box(q[0], eave + 1.72, q[1], 1.8, 0.1, 0.12, ROT).box(q[0], eave + 2.98, q[1], 1.8, 0.1, 0.12, ROT); } }
   const wing = rect(-14.9, -66.6, 13.2, 23.4);
   hipBuilding(ctx, wing, wingEave, 'maFoster', { rise: 2.5, overhang: 0.6, tint: FOSTER_ROOF, roofs: [boxFromRect(-14.9, -66.6, 13.2, 23.4)] });
   // dormers on the south and west roof slopes
-  { const p = gp(-18.0, -45.3, 0, 7.6); B.v('stucco', true).setColor(0.95, 0.83, 0.5).box(p[0], eave + 0.95, p[1], 3.0, 1.5, 3.4, ROT, 0.45); hipRoof(ctx, boxFromRect(p[0], p[1], 3.4, 3.8), eave + 1.7, 0.9, { overhang: 0.2, noCollision: true, caps: false, tint: FOSTER_ROOF }); const q = gp(-18.0, -45.3, 0, 9.32); B.v('glassInt').box(q[0], eave + 1.0, q[1], 2.2, 1.0, 0.04, ROT); B.c('concrete').box(p[0], eave + 1.3, p[1], 3.2, 2.4, 3.6, ROT); }   // central dormer over the entrance
+  { const p = gp(-18.0, -45.3, 0, 7.6); B.v('stucco', true).setColor(FW[0], FW[1], FW[2]).box(p[0], eave + 0.95, p[1], 3.0, 1.5, 3.4, ROT, 0.45); hipRoof(ctx, boxFromRect(p[0], p[1], 3.4, 3.8), eave + 1.7, 0.9, { overhang: 0.2, noCollision: true, caps: false, tint: FOSTER_ROOF }); const q = gp(-18.0, -45.3, 0, 9.32); B.v('glassInt').box(q[0], eave + 1.0, q[1], 2.2, 1.0, 0.04, ROT); B.c('concrete').box(p[0], eave + 1.3, p[1], 3.2, 2.4, 3.6, ROT); }   // central dormer over the entrance
   B.v('stucco', true).setColor(1, 1, 1);
   // chimneys
   for (const [a, b] of [[-8.4, -4], [8.4, -4]]) { const p = gp(-18.0, -45.3, a, b); B.solidBox('brickRed', 'brick', p[0], eave + 2.2, p[1], 0.9, 3.4, 0.9, ROT, 0.5); B.v('concrete').box(p[0], eave + 3.95, p[1], 1.1, 0.12, 1.1, ROT); }
@@ -75,34 +75,34 @@ function fosterHallAt(ctx, main, wingEave) {
   { const a = gp(-18.0, -45.3, -3.5, 9.7 + dep), b = gp(-18.0, -45.3, 3.5, 9.7 + dep), c = gp(-18.0, -45.3, 3.5, 9.7 + dep + 1.1), d = gp(-18.0, -45.3, -3.5, 9.7 + dep + 1.1); quadFacing(B.c('concrete'), [a[0], py, a[1]], [b[0], py, b[1]], [c[0], 0, c[1]], [d[0], 0, d[1]], [0, 1, 0]); }
   for (let i = 0; i < 6; i++) {
     const a = -pw / 2 + 0.5 + i * (pw - 1) / 5; const p = gp(-18.0, -45.3, a, 9.7 + dep - 0.35);
-    B.v('whitePanel').box(p[0], py + (top - py) / 2, p[1], 0.42, top - py, 0.42, ROT); B.v('whitePanel').box(p[0], py + 0.2, p[1], 0.6, 0.4, 0.6, ROT).box(p[0], top - 0.12, p[1], 0.6, 0.24, 0.6, ROT);
+    B.v(WP).box(p[0], py + (top - py) / 2, p[1], 0.42, top - py, 0.42, ROT); B.v(WP).box(p[0], py + 0.2, p[1], 0.6, 0.4, 0.6, ROT).box(p[0], top - 0.12, p[1], 0.6, 0.24, 0.6, ROT);
     B.c('concrete').box(p[0], top / 2, p[1], 0.45, top, 0.45, ROT);
   }
   { // entablature + tiled shed roof
-    const e = gp(-18.0, -45.3, 0, 9.7 + dep - 0.35); B.v('whitePanel').box(e[0], top + 0.2, e[1], pw, 0.4, 0.5, ROT);
+    const e = gp(-18.0, -45.3, 0, 9.7 + dep - 0.35); B.v(WP).box(e[0], top + 0.2, e[1], pw, 0.4, 0.5, ROT);
     // wraparound: the porch returns along the west and east sides under the same brown shed roof
     for (const sd of [-1, 1]) {
       const Fs = sd < 0 ? edgeFrame(...gp(-18.0, -45.3, -11.2, 9.7 + dep), ...gp(-18.0, -45.3, -11.2, -3.6)) : edgeFrame(...gp(-18.0, -45.3, 11.2, -3.6), ...gp(-18.0, -45.3, 11.2, 9.7 + dep));
       fbox(B.v('concrete'), Fs, 0, Fs.L, 0, py, 0, dep, 1 / 3, 0, 'fst'); { const c = Fs.P(Fs.L / 2, py / 2, dep / 2); B.c('concrete').box(c[0], c[1], c[2], Fs.L, py, dep, Fs.rotY); }
       const s2 = B.v('shingles', true); s2.setColor(...FOSTER_ROOF);
       quadFacing(s2, Fs.P(-0.4, 5.3, 0), Fs.P(Fs.L + 0.4, 5.3, 0), Fs.P(Fs.L + 0.4, top + 0.42, dep + 0.5), Fs.P(-0.4, top + 0.42, dep + 0.5), [0, 1, 0], [[0, 0], [Fs.L / 3, 0], [Fs.L / 3, 1.3], [0, 1.3]]); s2.setColor(1, 1, 1);
-      quadFacing(B.v('whitePanel'), Fs.P(-0.4, top + 0.4, 0), Fs.P(Fs.L + 0.4, top + 0.4, 0), Fs.P(Fs.L + 0.4, top + 0.4, dep + 0.5), Fs.P(-0.4, top + 0.4, dep + 0.5), [0, -1, 0]);
+      quadFacing(B.v(WP), Fs.P(-0.4, top + 0.4, 0), Fs.P(Fs.L + 0.4, top + 0.4, 0), Fs.P(Fs.L + 0.4, top + 0.4, dep + 0.5), Fs.P(-0.4, top + 0.4, dep + 0.5), [0, -1, 0]);
       quadFacing(B.c('concrete'), Fs.P(-0.4, 5.3, 0), Fs.P(Fs.L + 0.4, 5.3, 0), Fs.P(Fs.L + 0.4, top + 0.42, dep + 0.5), Fs.P(-0.4, top + 0.42, dep + 0.5), [0, 1, 0]);   // the whole visible roof, end overhangs included
-      fbox(B.v('whitePanel'), Fs, -0.2, Fs.L + 0.2, top, top + 0.4, dep - 0.6, dep - 0.1, 1, 0, 'fstb');
-      for (const u of sd < 0 ? [Fs.L - 0.5, Fs.L * 0.62, Fs.L * 0.3] : [0.5, Fs.L * 0.38, Fs.L * 0.7]) { const c = Fs.P(u, 0, dep - 0.35); B.v('whitePanel').box(c[0], py + (top - py) / 2, c[2], 0.42, top - py, 0.42, ROT); B.c('concrete').box(c[0], top / 2, c[2], 0.45, top, 0.45, ROT); }
+      fbox(B.v(WP), Fs, -0.2, Fs.L + 0.2, top, top + 0.4, dep - 0.6, dep - 0.1, 1, 0, 'fstb');
+      for (const u of sd < 0 ? [Fs.L - 0.5, Fs.L * 0.62, Fs.L * 0.3] : [0.5, Fs.L * 0.38, Fs.L * 0.7]) { const c = Fs.P(u, 0, dep - 0.35); B.v(WP).box(c[0], py + (top - py) / 2, c[2], 0.42, top - py, 0.42, ROT); B.c('concrete').box(c[0], top / 2, c[2], 0.45, top, 0.45, ROT); }
       fbox(B.v('whitePanel'), Fs, sd < 0 ? Fs.L * 0.15 : 0.6, sd < 0 ? Fs.L - 0.6 : Fs.L * 0.85, py, py + 0.95, dep - 0.22, dep - 0.02, 1, 0, 'fstb');
     }
     const F = edgeFrame(...gp(-18.0, -45.3, pw / 2 + 0.4, 9.7), ...gp(-18.0, -45.3, -pw / 2 - 0.4, 9.7));
     const sh = B.v('shingles', true); sh.setColor(...FOSTER_ROOF);
     quadFacing(sh, F.P(0, 5.3, 0), F.P(F.L, 5.3, 0), F.P(F.L, top + 0.42, dep + 0.5), F.P(0, top + 0.42, dep + 0.5), [0, 1, 0], [[0, 0], [F.L / 3, 0], [F.L / 3, 1.3], [0, 1.3]]);
-    quadFacing(B.v('whitePanel'), F.P(0, top + 0.4, 0), F.P(F.L, top + 0.4, 0), F.P(F.L, top + 0.4, dep + 0.5), F.P(0, top + 0.4, dep + 0.5), [0, -1, 0]);
+    quadFacing(B.v(WP), F.P(0, top + 0.4, 0), F.P(F.L, top + 0.4, 0), F.P(F.L, top + 0.4, dep + 0.5), F.P(0, top + 0.4, dep + 0.5), [0, -1, 0]);
     quadFacing(B.c('concrete'), F.P(0, 5.3, 0), F.P(F.L, 5.3, 0), F.P(F.L, top + 0.42, dep + 0.5), F.P(0, top + 0.42, dep + 0.5), [0, 1, 0]);
     sh.setColor(1, 1, 1);
     // front door + name over it
     const Fd = edgeFrame(...gp(-18.0, -45.3, 6, 9.72), ...gp(-18.0, -45.3, -6, 9.72));
     const lift = { ...Fd, P: (u, y, o) => { const q = Fd.P(u, y, o); q[1] += py; return q; } };
     fbox(B.v('whitePanel'), Fd, 6 - 1.5, 6 + 1.5, py, py + 3.2, 0, 0.1, 1, 0, 'fst');
-    doorFromKit(ctx, { ...lift, P: (u, y, o = 0) => lift.P(u, y, o + 0.4) }, 6, { frame: 'frame', top: 'none', tint: [1, 1, 1] });
+    doorFromKit(ctx, { ...lift, P: (u, y, o = 0) => lift.P(u, y, o + 0.4) }, 6, { frame: ctx.TX ? 'maFrameWhite' : 'frame', top: 'none', tint: [1, 1, 1] });
     // name board on the porch entablature, large enough to read from the circle
     { const fa = gp(-18.0, -45.3, 5.2, 9.7 + dep - 0.08), fb = gp(-18.0, -45.3, -5.2, 9.7 + dep - 0.08); const Ff = edgeFrame(fa[0], fa[1], fb[0], fb[1]);
       fbox(B.v('whitePanel'), Ff, -0.2, Ff.L + 0.2, top + 0.02, top + 1.0, -0.1, 0.04, 1, 0, 'fstb');
@@ -138,7 +138,11 @@ function thacherHallAt(ctx, main, eave, eaveW) {
 function scienceCenter(ctx, ring) { sited(ctx, ring, (base) => scienceCenterAt(ctx, ring, TOP.science - base)); }   // parapet 13.45 m above the field: three storeys toward the field, one at the gym plaza
 function scienceCenterAt(ctx, ring, h) {
   const { B } = ctx;
-  const { roofY } = flatBuilding(ctx, ring, h, 'maModern', { units: 3 });
+  // West front (toward Foster Hall, EHDD's photos): a glazed base under a closed upper storey, charcoal ribbed metal in
+  // the middle and aluminium sunshade screens at both ends. Only with the texture pack (the skins are its textures).
+  const zs = ring.map((q) => q[1]), zN = Math.min(...zs), zS = Math.max(...zs);
+  const pieceStyle = !ctx.TX ? null : (i, p, q, a, b) => { const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.nx > -0.8 || F.L < 20) return null; const t = (zS - (p[1] + q[1]) / 2) / (zS - zN); return t > 0.36 && t < 0.74 ? 'maSciRib' : 'maSciLouvre'; };
+  const { roofY } = flatBuilding(ctx, ring, h, 'maModern', { units: 3, pieceStyle });
   // stair / mechanical penthouse and a screened plant enclosure, as on the real roof
   const p = gp(21, -50, 0.5, -2); gridBox(B, 'whitePanel', 'metal', p[0], roofY + 1.2, p[1], 9.0, 2.4, 20.0);
   (ctx.roofPads = ctx.roofPads || []).push([22, TOP.science - h + roofY + 2.5, -52]);   // hidden-helicopter pad on the penthouse roof: the deck height as built (it was a typed 15.5)
@@ -199,9 +203,12 @@ function athleticCenterAt(ctx, ring, lo, hi, base) {
   const cx = -1.6, cz = -104.2, w = 34.6, d = 35.6, n = 10;
   const yAt = (t) => lo - 0.1 + (hi - lo + 0.1) * Math.sin(t * Math.PI / 2 * 0.92) / Math.sin(Math.PI / 2 * 0.92);
   const pt = (t, b) => { const p = gp(cx, cz, -w / 2 - 0.6 + (w + 1.6) * t, b); return [p[0], yAt(t), p[1]]; };
+  const seam = !!(ctx.TX && ctx.TX.tex.maSeamTeal);
   for (let i = 0; i < n; i++) {
     const t0 = i / n, t1 = (i + 1) / n; const A = pt(t0, -d / 2 - 0.5), Bq = pt(t1, -d / 2 - 0.5), C = pt(t1, d / 2 + 0.5), Dd = pt(t0, d / 2 + 0.5);
-    quadFacing(B.v('whitePanel'), A, Bq, C, Dd, [0, 1, 0]); quadFacing(B.c('metal'), A, Bq, C, Dd, [0, 1, 0]);
+    // (texture pack: the real roof is teal standing-seam metal, seams running down the sweep; uv in metres)
+    if (seam) { const s0 = (w + 1.6) * t0, s1 = (w + 1.6) * t1, b0 = -d / 2 - 0.5, b1 = d / 2 + 0.5; quadFacing(B.v('maSeamTeal', true), A, Bq, C, Dd, [0, 1, 0], [[b0, s0], [b0, s1], [b1, s1], [b1, s0]]); } else quadFacing(B.v('whitePanel'), A, Bq, C, Dd, [0, 1, 0]);
+    quadFacing(B.c('metal'), A, Bq, C, Dd, [0, 1, 0]);
     quadFacing(B.v('panelGray'), [A[0], A[1] - 0.25, A[2]], [Bq[0], Bq[1] - 0.25, Bq[2]], [C[0], C[1] - 0.25, C[2]], [Dd[0], Dd[1] - 0.25, Dd[2]], [0, -1, 0]);
     // side infill between the wall top and the curved roof (north + south)
     for (const sgn of [-1, 1]) { const e0 = pt(t0, sgn * (d / 2 - 0.2)), e1 = pt(t1, sgn * (d / 2 - 0.2)); const nrm = [-UZ * sgn, 0, UX * sgn]; quadFacing(B.v('polyGreen'), [e0[0], lo, e0[2]], [e1[0], lo, e1[2]], [e1[0], e1[1] - 0.2, e1[2]], [e0[0], e0[1] - 0.2, e0[2]], nrm, [[t0 * 12, 0], [t1 * 12, 0], [t1 * 12, 0.5], [t0 * 12, 0.5]]); quadFacing(B.c('glass'), [e0[0], lo, e0[2]], [e1[0], lo, e1[2]], e1, e0, nrm); }
@@ -318,7 +325,7 @@ function performingArts(ctx, rings) {
   // Founders Hall: long two-storey white bar with a clay-tile mansard edge (parapet 7.4 m above the field)
   sited(ctx, rings.founders, (base) => {
     const H = TOP.founders - base; const f = flatBuilding(ctx, rings.founders, H, 'maCream', { units: 2 });
-    const fr = f.ring; const sh = B.v('shingles', true); sh.setColor(...CLAY);
+    const fr = f.ring; const sh = B.v('shingles', true); sh.setColor(...(ctx.roofTint || CLAY));
     for (let i = 0; i < fr.length; i++) { const a = fr[i], b = fr[(i + 1) % fr.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.L < 1) continue; quadFacing(sh, F.P(-0.5, H - 1.1, 0.62), F.P(F.L + 0.5, H - 1.1, 0.62), F.P(F.L, H + 0.1, 0.1), F.P(0, H + 0.1, 0.1), [F.nx, 1, F.nz], [[0, 0], [F.L / 3, 0], [F.L / 3, 0.45], [0, 0.45]]); quadFacing(B.v('whitePanel'), F.P(-0.5, H - 1.1, 0.0), F.P(F.L + 0.5, H - 1.1, 0.0), F.P(F.L + 0.5, H - 1.1, 0.62), F.P(-0.5, H - 1.1, 0.62), [0, -1, 0]); const mc = F.P(F.L / 2, H - 0.5, 0.31); B.c('concrete').box(mc[0], mc[1], mc[2], F.L + 1.0, 1.2, 0.62, F.rotY); }
     sh.setColor(1, 1, 1);
   });
@@ -468,6 +475,7 @@ export function schoolWalls(ctx) {
 export function buildSchool(ctx) {
   const { B, data } = ctx; const ring = (id) => data.buildings.find((b) => b.id === id).outer[0];
   B.v('stucco', true); B.v('brick', true); B.v('shingles', true);
+  ctx.roofTint = ctx.TX ? PACK.roof : null;   // the school's hipped roofs (kit.js hipRoof / wellRoof default); the town keeps its own
   fosterHall(ctx);
   thacherHall(ctx);
   scienceCenter(ctx, ring(652917782));
@@ -482,4 +490,5 @@ export function buildSchool(ctx) {
   // the Leadership Center's west wall stands ~2 m below the Cottage Ave sidewalk: a rail along the top of that drop
   hillFence(ctx, [gp(-12.4, 61.0, -6.9, -24.5), gp(-12.4, 61.0, -6.9, 24.5)], { h: 1.1, black: true, every: 2.0 });
   B.v('stucco', true).setColor(1, 1, 1); B.v('shingles', true).setColor(1, 1, 1); B.v('paint', true).setColor(1, 1, 1);
+  ctx.roofTint = null;
 }
