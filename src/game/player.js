@@ -14,6 +14,13 @@ const SPRINT_OUT = 0.18;      // seconds after sprint ends before the gun can fi
 const SLIDE_TIME = 0.8;
 const LADDER_OFF = 0.45;      // climber stands this far out from the ladder line
 const LADDER_SPEED = 4.2;     // m/s up/down (sprint key: faster)
+// Top exit search (_ladderLanding): distances in from the ladder line along its inward normal. The ladder line stands
+// 0.16-0.25 m off the wall, so 0.6 m puts the whole capsule past the wall face; further ones step past parapets,
+// copings and rooftop clutter. Last, the ladder's own side (a catwalk round a tank): the climber's spot and just beyond.
+const LADDER_LAND = [0.6, 0.8, 1.0, 1.25, 1.5, 1.8, 2.2, 2.7, 3.3, -LADDER_OFF, -0.7];
+// A parapet, coping or fence between the ladder top and the deck may stand this far above exitY: what a mantle from the
+// top rung reaches (eye height + mantleReach), so the exit at any angle gets wherever a square approach used to mantle to.
+const LADDER_LIP = 2.95;
 
 // Exo-suit movement kit.
 export const KIT = {
@@ -389,10 +396,19 @@ export class PlayerController {
     this.velocity.set(0, climb, 0);
     this.grounded = false; this.airTime = 0; this.airJumps = this.maxAirJumps;
     this.sprinting = false;
-    if (this.position.y >= L.y1) {                 // top: step off onto the platform
-      this.position.y = L.exitY ?? L.y1;
+    if (this.position.y >= L.y1) {                 // top: step off onto the deck
+      this.ladder = null; this.ladderCooldown = 1.0;
       this.velocity.set(0, 0, 0);
-      this.ladder = null; this.ladderCooldown = 0.6; this.grounded = true;
+      const land = this._ladderLanding(L);
+      if (land) {
+        // scripted climb over the edge to a spot with standing room on the deck: up to `over`, across, down onto it.
+        // The climber's facing plays no part, so an approach at any angle ends up there.
+        const rise = Math.max(0, land.over - this.position.y);
+        this.mantle = { from: this.position.clone(), to: land.to, over: land.over, t: 0, time: 0.4 + 0.15 * rise, exitSpeed: 1.5 };
+      } else {                                     // nothing found: the old exit (hold the spot at exitY)
+        this.position.y = L.exitY ?? L.y1;
+        this.grounded = true;
+      }
       this.events.push('mantle');
     } else if (this.position.y <= L.y0 - 0.5 && climb < 0) { // bottom: back on the ground
       this.ladder = null; this.ladderCooldown = 0.6;
@@ -400,6 +416,56 @@ export class PlayerController {
     const ks = 1 - Math.exp(-14 * dt);
     this.height += (STAND.height - this.height) * ks;
     this.eye += (STAND.eye - this.eye) * ks;
+  }
+
+  /**
+   * Where a climber steps off at the top of ladder L: { to: feet on the deck, over: the height carried across at }, or
+   * null. Searched along the ladder's inward normal (never the climber's facing): the first spot past the wall face /
+   * parapet where a downward probe finds a flat deck between 2 m below and a step above the exit, the standing capsule
+   * is free and nothing low covers it, and the way there is open: everything in between (a parapet, coping, lip or
+   * fence, up to LADDER_LIP above the exit) is climbed over, with a clear level sight line just above it and a metre
+   * higher. A spot without footing a body-width either side (a parapet top) is a last resort. Failing all that, a deck
+   * on the ladder's own side (a catwalk round a tank).
+   */
+  _ladderLanding(L) {
+    const top = L.exitY ?? L.y1, reach = top + LADDER_LIP;
+    const cx = L.x + L.nx * LADDER_OFF, cz = L.z + L.nz * LADDER_OFF;
+    const feet = new THREE.Vector3(); let edge = null;
+    for (const d of LADDER_LAND) {                 // metres in from the ladder line (negative = out on its own side)
+      const x = L.x - L.nx * d, z = L.z - L.nz * d;
+      const hit = this.raycast(_v.set(x, reach + 0.1, z), _down, reach + 0.1 - (top - 2), true);
+      if (!hit || hit.distance < 0.02 || hit.point.y > top + STEP) continue;
+      if (hit.face && _n.copy(hit.face.normal).transformDirection(hit.object.matrixWorld).y < 0.7) continue;
+      feet.set(x, hit.point.y + 0.04, z);
+      if (this._resolve(feet, STAND.height, _dir).lengthSq() > 1e-4) continue;       // no standing room
+      // the way over: the highest thing between the climber's spot and the landing, within reach
+      const span = Math.hypot(x - cx, z - cz); let lip = Math.max(top, feet.y), blocked = false;
+      if (span > 1e-3) {
+        const ux = (x - cx) / span, uz = (z - cz) / span;
+        for (let u = 0.05; u < span && !blocked; u += 0.1) {
+          const h = this.raycast(_v.set(cx + ux * u, reach + 0.1, cz + uz * u), _down, reach + 0.1 - (top - 0.5), true);
+          if (h && h.distance < 0.02) blocked = true; else if (h && h.point.y > lip) lip = h.point.y;
+        }
+        if (blocked) continue;
+        _m2.set(ux, 0, uz);
+        if (this.raycast(_v.set(cx, lip + 0.1, cz), _m2, span, true) || this.raycast(_v.set(cx, lip + 1.0, cz), _m2, span, true)) continue;
+      }
+      const over = Math.max(feet.y, lip + 0.06);
+      // nothing low over the landing (a roof void), nor over the height it is reached at; head room to climb up to it
+      _m1.set(0, 1, 0);
+      if (this.raycast(_v.set(x, feet.y + 0.3, z), _m1, over - feet.y + STAND.height, true)) continue;
+      if (over > top + 0.3 && this.raycast(_v.set(cx, top + 0.3, cz), _m1, over - top + STAND.height - 0.3, true)) continue;
+      // solid footing a body-width either side along the normal, or this is the top of a parapet / a ledge's lip:
+      // keep it only as a last resort
+      let solid = true;
+      for (const s of [-0.3, 0.3]) {
+        const h = this.raycast(_v.set(x - L.nx * s, feet.y + 0.3, z - L.nz * s), _down, 0.45, true);
+        if (!h || h.distance < 0.02) { solid = false; break; }
+      }
+      if (solid) return { to: feet, over };
+      if (!edge) edge = { to: feet.clone(), over };
+    }
+    return edge;
   }
 
   _updateGrapple(dt) {
@@ -501,22 +567,29 @@ export class PlayerController {
 
   _updateMantle(dt) {
     const m = this.mantle;
-    m.t += dt / KIT.mantleTime;
+    m.t += dt / (m.time ?? KIT.mantleTime);
     const k = Math.min(1, m.t);
-    // Rise first, then roll forward over the edge.
-    const up = Math.min(1, k / 0.6), fwd = Math.max(0, (k - 0.35) / 0.65);
-    this.position.set(
-      m.from.x + (m.to.x - m.from.x) * fwd,
-      m.from.y + (m.to.y - m.from.y) * (1 - (1 - up) * (1 - up)),
-      m.from.z + (m.to.z - m.from.z) * fwd,
-    );
+    if (m.over !== undefined) {
+      // Ladder top: up to the height that clears the edge, across, then down onto the deck.
+      const up = Math.min(1, k / 0.45), s = THREE.MathUtils.clamp((k - 0.3) / 0.5, 0, 1), fwd = s * s * (3 - 2 * s);
+      const y = k <= 0.8 ? m.from.y + (m.over - m.from.y) * (1 - (1 - up) * (1 - up)) : m.over + (m.to.y - m.over) * ((k - 0.8) / 0.2);
+      this.position.set(m.from.x + (m.to.x - m.from.x) * fwd, y, m.from.z + (m.to.z - m.from.z) * fwd);
+    } else {
+      // Rise first, then roll forward over the edge.
+      const up = Math.min(1, k / 0.6), fwd = Math.max(0, (k - 0.35) / 0.65);
+      this.position.set(
+        m.from.x + (m.to.x - m.from.x) * fwd,
+        m.from.y + (m.to.y - m.from.y) * (1 - (1 - up) * (1 - up)),
+        m.from.z + (m.to.z - m.from.z) * fwd,
+      );
+    }
     if (k >= 1) {
       this.mantle = null;
       this.grounded = true;
       this.airTime = 0;
       this.airJumps = this.maxAirJumps;
-      const f = _m1.subVectors(m.to, m.from).setY(0).normalize();
-      this.velocity.set(f.x * 3, 0, f.z * 3);
+      const f = _m1.subVectors(m.to, m.from).setY(0).normalize(), sp = m.exitSpeed ?? 3;   // (zero vector: no push)
+      this.velocity.set(f.x * sp, 0, f.z * sp);
     }
   }
 

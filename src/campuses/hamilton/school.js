@@ -187,6 +187,7 @@ function raisedFence(ctx, a, b, y0, h, gaps = []) {
 function tennisDeck(ctx) {
   const { B, quality } = ctx; const a0 = -153.5, a1 = -83, b0 = 129, b1 = 162, deck = 4.8, par = 0.45; const ring = ensureCCW(GR(a0, b0, a1, b1));
   const conc = B.v('concrete'), dark = B.v('blackMetal'); const stu = B.v('stucco', true); stu.setColor(...TAN);   // the deck is tan stucco over the concrete frame
+  const ladP = G((a0 + a1) / 2 + 20, b0 - 0.02);   // roof-access ladder on the north wall (built with the ramp below)
   for (let i = 0; i < 4; i++) {
     const a = ring[i], b = ring[(i + 1) % 4]; const F = edgeFrame(a[0], a[1], b[0], b[1]); const L = F.L;
     wallRect(stu, F, 0, L, 0, deck + par, 0, [0, 0, L * 0.45, (deck + par) * 0.45]); fbox(stu, F, -0.05, L + 0.05, 3.9, deck + par, 0, 0.12, 0.45, 0, 'fstb');
@@ -195,7 +196,11 @@ function tennisDeck(ctx) {
     const pc = F.P(L / 2, deck + par / 2, -0.15); B.c('concrete').box(pc[0], pc[1], pc[2], L, par, 0.3, F.rotY);
     B.v('groundDecal').quad(F.P(0, 0.025, 0.02), F.P(L, 0.025, 0.02), F.P(L, 0.025, 1.5), F.P(0, 0.025, 1.5), [0, 0], [1, 0], [1, 1], [0, 1]);
     // court fence on the parapet, with a gate gap in the middle of each side (and a wide one where the ramp lands)
-    const east = F.nx > 0.5; raisedFence(ctx, F.P(0, 0, -0.15).filter((_, k2) => k2 !== 1), F.P(L, 0, -0.15).filter((_, k2) => k2 !== 1), deck + par, 2.9, east ? [[2.2, 7.8]] : [[L / 2 - 1.3, L / 2 + 1.3]]);
+    // (plus a gate at the roof-access ladder, or the ladder would top out under the 2.9 m fence)
+    const east = F.nx > 0.5; const gaps = east ? [[2.2, 7.8]] : [[L / 2 - 1.3, L / 2 + 1.3]];
+    const lu = (ladP[0] - a[0]) * F.tx + (ladP[1] - a[1]) * F.tz, lv = (ladP[0] - a[0]) * F.nx + (ladP[1] - a[1]) * F.nz;
+    if (Math.abs(lv) < 0.2 && lu > 1 && lu < L - 1) gaps.push([lu - 0.9, lu + 0.9]);
+    raisedFence(ctx, F.P(0, 0, -0.15).filter((_, k2) => k2 !== 1), F.P(L, 0, -0.15).filter((_, k2) => k2 !== 1), deck + par, 2.9, gaps);
   }
   B.c('concrete').prism(ring, 0, deck, 1, false); B.c('concrete').poly(ring, null, deck);
   (ctx.buildingRings = ctx.buildingRings || []).push(ring);
@@ -223,7 +228,7 @@ function tennisDeck(ctx) {
       const n0 = P(aR - w / 2, b0 + 0.1, 0), n1 = P(aR - w / 2, b0 + 0.1, deck);
       for (const [bk, uv] of [[stu, true], [B.c('concrete'), false]]) { T3(bk, o0, o1, o2, uv); T3(bk, o1, o0, o2, uv); Q4(bk, o1, o3, o4, o2, uv); Q4(bk, o3, o1, o2, o4, uv); Q4(bk, o3, n0, n1, o4, uv); Q4(bk, n0, o3, o4, n1, uv); } }
     for (const [p, q] of [[o0, o2], [o2, o4]]) { const kb = B.v('concrete'); const d = [q[0] - p[0], q[1] - p[1], q[2] - p[2]]; const len = Math.hypot(d[0], d[2]); const m = new THREE.Matrix4().compose(new THREE.Vector3((p[0] + q[0]) / 2, (p[1] + q[1]) / 2 + 0.45, (p[2] + q[2]) / 2), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(d[0], d[2]), 0, 'YXZ')).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.atan2(d[1], len), 0, 0))), new THREE.Vector3(0.25, 0.9, Math.hypot(len, d[1]))); kb.boxM(m, 1 / 3); B.c('concrete').boxM(m); }
-    const lp = G((a0 + a1) / 2 + 20, b0 - 0.02); wallLadder(ctx, lp[0], lp[1], Math.sin(ANG), -Math.cos(ANG), deck, deck + par); }
+    const lp = ladP; wallLadder(ctx, lp[0], lp[1], Math.sin(ANG), -Math.cos(ANG), deck, deck + par); }
   stu.setColor(1, 1, 1);
   // floodlight masts at the corners (grapple poles)
   for (const [a, b] of [[a0 + 0.4, b0 + 0.4], [a1 - 0.4, b0 + 0.4], [a0 + 0.4, b1 - 0.4], [a1 - 0.4, b1 - 0.4], [(a0 + a1) / 2, b0 + 0.4], [(a0 + a1) / 2, b1 - 0.4]]) { const p = G(a, b); B.v('galv').cyl(p[0], deck, p[1], 0.09, 0.06, 6.2, 8, 1, true); B.v('lightEmit').box(p[0], deck + 6.25, p[1], 0.9, 0.22, 0.4, ROT); B.c('metal').box(p[0], deck + 3.1, p[1], 0.25, 6.2, 0.25); ctx.grapplePoles.push({ x: p[0], z: p[1], y0: deck + 0.5, y1: deck + 6.2, r: 0.09 }); }
