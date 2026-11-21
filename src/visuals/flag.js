@@ -10,7 +10,10 @@ const TEAM = {
 };
 const team = (t) => TEAM[t === 'blue' ? 'blue' : 'red'];
 
-function flagTexture(t) {
+// `brand` (optional, from the campus descriptor: { letter, emblem }) puts the campus's own mark on the cloth: the team's letter on the shield (red = the home
+// school, blue = its rival), and for the home flag the school's emblem SVG (100 x 112 viewBox) when it is self-contained (no page CSS classes). Without
+// `brand` the original Hinsdale art is drawn (pitchfork / star), so old callers are unchanged.
+function flagTexture(t, brand) {
   const W = 512, H = 320, c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d');
   const gr = g.createLinearGradient(0, 0, W, H); gr.addColorStop(0, t.main); gr.addColorStop(1, t.dark);
   g.fillStyle = gr; g.fillRect(0, 0, W, H);
@@ -24,7 +27,11 @@ function flagTexture(t) {
   g.save(); g.translate(W * 0.54, H * 0.5);
   g.fillStyle = 'rgba(255,255,255,0.95)'; g.beginPath(); g.moveTo(-70, -92); g.lineTo(70, -92); g.lineTo(70, 10); g.quadraticCurveTo(70, 70, 0, 100); g.quadraticCurveTo(-70, 70, -70, 10); g.closePath(); g.fill();
   g.fillStyle = t.dark; g.strokeStyle = t.dark; g.lineWidth = 11; g.lineCap = 'round';
-  if (t.label === 'RED') {
+  const letter = brand && brand.letter ? String(brand.letter).slice(0, 2) : null;
+  const pitchfork = t.label === 'RED' && (!brand || brand.pitchfork);
+  if (letter && !pitchfork) {
+    g.font = `900 ${letter.length > 1 ? 104 : 138}px Inter, "Segoe UI", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(letter, 0, 2);
+  } else if (t.label === 'RED') {
     g.beginPath(); g.moveTo(0, 78); g.lineTo(0, -40); g.stroke();
     g.beginPath(); g.moveTo(-34, -70); g.lineTo(-34, -30); g.quadraticCurveTo(-34, -8, 0, -8); g.quadraticCurveTo(34, -8, 34, -30); g.lineTo(34, -70); g.stroke();
     g.beginPath(); g.moveTo(0, -40); g.lineTo(0, -76); g.stroke();
@@ -33,10 +40,22 @@ function flagTexture(t) {
   }
   g.restore();
   const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  // the home flag takes the school's own emblem once its SVG has rasterised (drawn over the lettered shield; a failed load leaves the letter)
+  if (brand && brand.emblem && !/class=/.test(brand.emblem) && typeof Image !== 'undefined') {
+    const img = new Image();
+    img.onload = () => { try { const h = 236, w = h * 100 / 112; g.drawImage(img, W * 0.54 - w / 2, H * 0.5 - h / 2 + 4, w, h); tex.needsUpdate = true; } catch (e) { /* keep the letter */ } };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 112" width="400" height="448">${brand.emblem}</svg>`);
+  }
   return tex;
 }
+/** The flag mark of a team on a campus (descriptor with `letters`, `emblem`): pass as createFlag({ team, brand: flagBrand(campus, team) }). */
+export function flagBrand(campus, tm) {
+  if (!campus || !campus.letters) return null; const home = tm !== 'blue';
+  const selfContained = campus.emblem && !/class=/.test(campus.emblem);
+  return { letter: campus.letters[home ? 'red' : 'blue'], emblem: home && selfContained ? campus.emblem : null, pitchfork: home && !selfContained };   // (Hinsdale's emblem is styled by the page: its flag keeps the pitchfork, which IS its mark)
+}
 
-export function createFlag({ team: tm = 'red' } = {}) {
+export function createFlag({ team: tm = 'red', brand = null } = {}) {
   const t = team(tm);
   const root = new THREE.Group(); root.name = 'ctf-flag-' + t.label.toLowerCase();
   const inner = new THREE.Group(); root.add(inner);
@@ -53,7 +72,7 @@ export function createFlag({ team: tm = 'red' } = {}) {
 
   // cloth: plane hanging from the pole (local +x away from the pole); the wave is done in the vertex shader
   const geo = new THREE.PlaneGeometry(FW, FH, 26, 14); geo.translate(FW / 2, 0, 0);
-  const tex = flagTexture(t);
+  const tex = flagTexture(t, brand);
   const uniforms = { uTime: { value: Math.random() * 10 }, uWind: { value: 1.0 }, uW: { value: FW } };
   const cloth = new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.82, metalness: 0.0, emissive: new THREE.Color(t.color), emissiveIntensity: 0.12 });
   const wave = `

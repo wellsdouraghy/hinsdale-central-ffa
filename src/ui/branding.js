@@ -19,7 +19,7 @@ export function initBranding() {
       if (val) { root.setProperty(prop, val); if (prop !== '--accent-2') root.setProperty(prop + '-rgb', rgb(val)); }
       else { root.removeProperty(prop); if (prop !== '--accent-2') root.removeProperty(prop + '-rgb'); }
     }
-    const sat = `url(./${c.files.satellite})`;
+    const sat = `url(./${c.files.map || c.files.satellite})`;   // (files.map: an optional corrected overview for the menus, loading screen and minimap; same extent as the satellite image)
     document.querySelectorAll('.title-bg').forEach((b) => { b.style.backgroundImage = sat; });
     const ld = document.getElementById('ld-map');
     if (ld) ld.style.backgroundImage = sat;

@@ -46,9 +46,9 @@ if (qs.get('spawns') === '1') {
 // CTF preview: flags + bases at world.ctfBases (always shown; cheap)
 const ctfBits = [];
 if (world.ctfBases) {
-  const { createFlag, createFlagBase } = await import('../src/visuals/flag.js');
+  const { createFlag, createFlagBase, flagBrand } = await import('../src/visuals/flag.js');
   for (const team of ['red', 'blue']) {
-    const base = createFlagBase({ team }), flag = createFlag({ team });
+    const base = createFlagBase({ team }), flag = createFlag({ team, brand: flagBrand(world.campus, team) });
     base.object3D.position.copy(world.ctfBases[team]); flag.object3D.position.copy(world.ctfBases[team]);
     scene.add(base.object3D, flag.object3D); ctfBits.push(base, flag);
   }

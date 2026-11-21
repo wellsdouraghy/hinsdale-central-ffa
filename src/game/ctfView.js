@@ -1,7 +1,7 @@
 // Client-side Capture the Flag presentation: flag/base objects, flag status, announcements, waypoint data.
 // All flag state is host-authoritative; this only mirrors `flag` messages and the welcome snapshot.
 import * as THREE from 'three';
-import { createFlag, createFlagBase } from '../visuals/flag.js';
+import { createFlag, createFlagBase, flagBrand } from '../visuals/flag.js';
 import { TEAMS, TEAM_CSS, TEAM_NAMES, otherTeam } from './ctf.js';
 import { now as clock } from './authority.js';
 
@@ -14,7 +14,7 @@ export class CtfView {
     for (const team of TEAMS) {
       const base = new THREE.Vector3().fromArray(snap.bases[team]);
       this.bases[team] = base;
-      const flag = createFlag({ team });
+      const flag = createFlag({ team, brand: flagBrand(game.world && game.world.campus, team) });   // each campus's own mark (home emblem / rival letter)
       const stand = createFlagBase({ team });
       stand.object3D.position.copy(base);
       this.scene.add(stand.object3D);

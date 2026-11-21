@@ -96,7 +96,7 @@ function zoneSpawns(world, team) {
   const T = world.terrain;
   const standY = (x, z) => (T?.standY ? T.standY(x, z) : world.groundY ? world.groundY(x, z) : 0);
   const b = world.playBounds;
-  const S = CTF_SPAWN;
+  const S = { ...CTF_SPAWN, ...((world.campus && world.campus.ctfSpawn) || {}) };   // (a campus may narrow the band: descriptor `ctfSpawn: { rMin, rMax }`)
   const walk = (i, j) => i >= 0 && j >= 0 && i < g.nx && j < g.nz && g.walk[j * g.nx + i] === 1;
   // Candidates: walkable cells in the band with walkable neighbours (elbow room), gentle slope, inside the bounds.
   const cands = [];
