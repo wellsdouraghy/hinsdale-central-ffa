@@ -1,0 +1,10 @@
+[
+ {"name": "lib2", "kind": "lib2", "uv": [-6, -63, 15, -35]},
+ {"name": "libTop", "kind": "libTop", "uv": [-6, -70, 9, -61]},
+ {"name": "lib1", "kind": "lib1", "uv": [-37, -60, -6, -23]},
+ {"name": "link", "kind": "lib1", "uv": [-6, -35, 32, -20], "q": 40},
+ {"name": "hall", "kind": "arena", "uv": [-3, -20, 32, 41.5]},
+ {"name": "aisle", "kind": "aisle", "uv": [-23, -20, -3, 41.5]},
+ {"name": "annex", "kind": "annex", "uv": [-53, 36.5, -17, 57], "q": 15},
+ {"name": "southLow", "kind": "low", "uv": [-3, 41.5, 32, 50]}
+]

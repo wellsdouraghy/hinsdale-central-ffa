@@ -21,3 +21,6 @@ dev/shots/textures/*/ref-compare/
 dev/shots/textures/*/v2/ref-compare/
 dev/shots/textures/*/v3/ref-compare/
 dev/shots/textures/*/v*/ref-compare/
+
+# Earl of March: the classifier output kept for re-runs of tools/ground_fix.py
+src/campuses/earlofmarch/tools/data/cache/

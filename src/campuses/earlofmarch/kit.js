@@ -58,7 +58,7 @@ export function mat(ctx, m, k = 1, tint) {
 export const BRICK_TINT_FLAT = [1.0, 0.86, 0.78];
 export function brick(ctx, k = 1) { const b = ctx.B.v('brick', true); const t = ctx.TX ? [1, 1, 1] : BRICK_TINT_FLAT; b.setColor(t[0] * k, t[1] * k, t[2] * k); return b; }
 // roof ballast tints over the neutral gravel tile (judged beside the tiles nadir, sunlit)
-export const ROOF_BROWN = [1.0, 0.72, 0.6], ROOF_GREY = [1.55, 1.55, 1.5], ROOF_DARK = [0.55, 0.52, 0.5];
+export const ROOF_BROWN = [1.2, 0.62, 0.45], ROOF_GREY = [2.5, 2.5, 2.4], ROOF_DARK = [0.7, 0.7, 0.7];
 
 export function addMaterials(ctx) {
   addMarinMaterials(ctx);   // stucco, solar, house walls, hedge ...

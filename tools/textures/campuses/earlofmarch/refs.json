@@ -1,0 +1,265 @@
+{
+ "campus": "earlofmarch",
+ "school": "Earl of March Secondary School",
+ "note": "Reference photos are NOT in the repo (third-party copyright). They live in the gitignored src/campuses/earlofmarch/tools/data/refs/ and are re-collected with tools/textures/scrape.py. Used only to measure materials; no texture contains reference pixels.",
+ "counts": {
+  "web": 0,
+  "streetview": 27,
+  "reviewed": 0
+ },
+ "skippedByRobots": [
+  "commons search: Earl of March Secondary School",
+  "commons search: John G. Mlacak Centre",
+  "commons search: Kanata Beaverbrook library",
+  "https://api.openverse.org/v1/images/",
+  "https://en.wikipedia.org/wiki/Special:CentralAutoLogin/start",
+  "https://volunteer-success.nyc3.digitaloceanspaces.com/production/media/bubblesonly_1663581079-FiN8OHHBarMIZmQ.jpg",
+  "https://www.bing.com/images/search"
+ ],
+ "images": [],
+ "streetview": [
+  {
+   "file": "n2.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "5KAgQG0DHYAWEKZt7HFtUA",
+   "date": "2017-08",
+   "building": "n2",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "n3.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "NbxoohBLEl39rwPh5Ci_cw",
+   "date": "2019-09",
+   "building": "n3",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "n4.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "CAoSF0NJSE0wb2dLRUlDQWdJRHUzTnVEbFFF",
+   "date": "2022-08",
+   "building": "n4",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "n5.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "hPBOFFC4h1UdKywAEJAXuQ",
+   "date": "2019-09",
+   "building": "n5",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "n6.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "JQlLc2m433kXDvYO2WNRHQ",
+   "date": "2019-09",
+   "building": "n6",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "e1.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "7hI7qA3asD-fAqEoKiNS6Q",
+   "date": "2019-09",
+   "building": "e1",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "e2.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "TOlstbdj_Uet1f6Phzc2QQ",
+   "date": "2017-08",
+   "building": "e2",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "e3.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "CAoSF0NJSE0wb2dLRUlDQWdJRHUzS2VDLUFF",
+   "date": "2022-08",
+   "building": "e3",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "e4.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "QGCBtSAu0iMta6VZ_sJgvg",
+   "date": "2019-09",
+   "building": "e4",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "e5.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "CAoSF0NJSE0wb2dLRUlDQWdJRHUzS2VLaWdF",
+   "date": "2022-08",
+   "building": "e5",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "w1.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "CAoSF0NJSE0wb2dLRUlDQWdJRHUzTnVQd1FF",
+   "date": "2022-08",
+   "building": "w1",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s1.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "4D_72EVYqWjoICNLBRbU6A",
+   "date": "2019-09",
+   "building": "s1",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s2.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "JBXE6sj94-kSaz10xHzAfA",
+   "date": "2019-09",
+   "building": "s2",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s3.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "egJ5yB6wSV6d26ax5T1GCg",
+   "date": "2019-09",
+   "building": "s3",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s4.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "dBnQJTSaTEegj6Okp_y0kA",
+   "date": "2019-09",
+   "building": "s4",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s5.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "d-eCx2uwhpqkKdYQkHRznw",
+   "date": "2019-09",
+   "building": "s5",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "m1.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "AXDJj2fYi5fSIvfEfgTPFw",
+   "date": "2019-09",
+   "building": "m1",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "m2.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "2gDa86nrgoUs2y7DIm6rBQ",
+   "date": "2019-09",
+   "building": "m2",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "m3.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "zN_p4oJraVDZ80ecxXkrew",
+   "date": "2019-09",
+   "building": "m3",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "m4.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "SwANL5Ef8FQMB0GSw54EtQ",
+   "date": "2019-09",
+   "building": "m4",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "m5.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "fDyT2jH4_MGxOdWqekb-KA",
+   "date": "2019-09",
+   "building": "m5",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "l1.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "dBnQJTSaTEegj6Okp_y0kA",
+   "date": "2019-09",
+   "building": "l1",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "l2.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "JBXE6sj94-kSaz10xHzAfA",
+   "date": "2019-09",
+   "building": "l2",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "p1.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "YsvJNZ3fqGtTwUXTepTjRQ",
+   "date": "2024-11",
+   "building": "p1",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "p2.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "lYri10n5J7BauIcxfLx-1A",
+   "date": "2019-09",
+   "building": "p2",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "c1.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "f_-p7PDJYDc2cCWsLy0Rqg",
+   "date": "2024-11",
+   "building": "c1",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "c2.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "CAoSHENJQUJJaERDVEU5Y2ZteEdFRkhmY3FBSGgtU3Q.",
+   "date": "2026-08",
+   "building": "c2",
+   "shows": "",
+   "reviewed": false
+  }
+ ]
+}
