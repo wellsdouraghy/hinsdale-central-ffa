@@ -631,8 +631,11 @@ async function checkTerrain() {
   for (const p of REG.props) {
     if (!inPB(p.x, p.z, -30)) continue;
     const pts = obbCorners(p).concat([[p.x, p.z]]); let gmin = Infinity, gmax = -Infinity;
-    for (const [x, z] of pts) { const gy = T.heightAt(x, z); gmin = Math.min(gmin, gy); gmax = Math.max(gmax, gy); }
-    const base = p.y || 0, flt = base - gmin, bury = (gmax - base) / Math.max(0.3, p.h || 1);
+    // (a prop laid on the slope, marin/kit.js onSlope, registers the plane it was sheared onto: its base is that plane at every
+    // corner, not one level. Measured as a level box a car on a 9 % street read "31 % buried" while it stood on the asphalt.)
+    const baseAt = (x, z) => (p.plane ? p.plane.y0 + p.plane.gx * (x - p.plane.x) + p.plane.gz * (z - p.plane.z) : (p.y || 0));
+    let flt = -Infinity, bury = -Infinity; for (const [x, z] of pts) { const gy = T.heightAt(x, z); gmin = Math.min(gmin, gy); gmax = Math.max(gmax, gy); flt = Math.max(flt, (p.y || 0) - gy) /* (floating as before: from the registered lowest point) */; bury = Math.max(bury, (gy - baseAt(x, z)) / Math.max(0.3, p.h || 1)); }
+    const base = p.plane ? baseAt(p.x, p.z) : (p.y || 0);
     const e = { prop: p.kind, at: [r1(p.x), r2(base), r1(p.z)], floating: r2(flt), buriedFrac: r2(bury), groundRange: r2(gmax - gmin) };
     if (flt > TH.propFloat || bury > TH.propBuryFail) propFails.push(e); else if (bury > TH.propBuryWarn) propWarns.push(e);
     if (flt > TH.propFloat || bury > TH.propBuryWarn) marks.push({ kind: 'propSlope', x: p.x, z: p.z, bad: flt > TH.propFloat || bury > TH.propBuryFail });
@@ -708,6 +711,64 @@ async function checkRoads() {
   const res = { status: status(fails.length, warns.length), what: 'Graded streets (registry.streets, every 1 m of each centreline in the play area): the centreline profile may not bump (2nd difference over 4 m, less the vertical curve of the street over 12 m, > 0.08 m; the vertical curve itself > 0.2 m over 4 m; not inside an intersection, where the arms blend), the carriageway cross-slope may not exceed 4 %, a sidewalk may not step more than 0.2 m per metre nor leave the kerb range (-0.1..0.5 m over the road edge), no pad may have moved the carriageway (> 0.12 m) or a sidewalk (> 0.2 m) off its design, the surface class must be asphalt on the carriageway and concrete on the sidewalks, and no tree trunk (within 0.6 m) or post / prop may stand on a carriageway.',
     counts: { streets: SR.length, stations, failing: fails.length, ...cnt, worstBumpM: r2(worstBump), worstCrossPct: r1(worstCross * 100), worstWalkStepM: r2(worstStep), worstMovedM: r2(worstMoved) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`roads: ${res.status} ${fails.length} failing samples on ${stations} stations`); finishCheck('roads', res);
+}
+// Mound on paving (rulebook 30; Marin: a 0.6 m asphalt hump at the foot of the pool stairs, left by two wall pads). Terrain
+// campuses only. Every metre of the play area: a point whose surface class is asphalt or concrete and that stands more than
+// 0.15 m above the ground 3 m away along ALL four axes is a mound (a road crown is 6 cm over 3 m; a crest or a ramp is higher
+// than its neighbours on two sides at most). Ground hidden under a solid (a stair mass, a retaining block, a roof) is skipped.
+async function checkMounds() {
+  if (!world.terrain || !world.surfaceAt) { finishCheck('mounds', { status: 'skip', note: 'flat campus (no terrain)' }); return; }
+  const fails = [], warns = []; let n = 0, worst = 0; const hits = [];
+  for (let z = PB.minZ + 4; z <= PB.maxZ - 4; z += 1) for (let x = PB.minX + 4; x <= PB.maxX - 4; x += 1) {
+    const sf = world.surfaceAt(x, z); if (sf !== 'asphalt' && sf !== 'concrete') continue; n++;
+    // (really on paving: a single stray asphalt cell of the class map on a grass bank is not)
+    { let pv = 0; for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const q = world.surfaceAt(x + dx, z + dz); if (q === 'asphalt' || q === 'concrete') pv++; } if (pv < 2) continue; }
+    const g = GY(x, z); let e = Math.min(g - GY(x + 3, z), g - GY(x - 3, z), g - GY(x, z + 3), g - GY(x, z - 3)); if (e <= 0.15) continue;
+    // (and along the diagonals: a lane on a narrow embankment that runs diagonally to the grid is higher than its four axis
+    // neighbours without being a mound; Branson's creek causeway)
+    e = Math.min(e, g - GY(x + 2.1, z + 2.1), g - GY(x - 2.1, z - 2.1), g - GY(x + 2.1, z - 2.1), g - GY(x - 2.1, z + 2.1)); if (e <= 0.15) continue;
+    if (S.first(V(x, g + 4, z), DOWN, 3.95)) continue;
+    hits.push([x, z, g, e]); worst = Math.max(worst, e);
+  }
+  // cluster (3 m) and report the peak of each
+  const used = new Uint8Array(hits.length);
+  for (let i = 0; i < hits.length; i++) { if (used[i]) continue; const cl = [i]; used[i] = 1; for (let h = 0; h < cl.length; h++) for (let j = 0; j < hits.length; j++) if (!used[j] && Math.hypot(hits[j][0] - hits[cl[h]][0], hits[j][1] - hits[cl[h]][1]) <= 3) { used[j] = 1; cl.push(j); }
+    let pk = cl[0]; for (const k of cl) if (hits[k][3] > hits[pk][3]) pk = k; const [x, z, g, e] = hits[pk];
+    // (one grid point within 5 cm of the limit is a warning: at 1 m spacing that is the noise of the 2 m lattice at a pad edge)
+    const rec = { at: [r1(x), r2(g), r1(z)], aboveNeighboursM: r2(e), points: cl.length, surface: world.surfaceAt(x, z), note: 'mound on paving: flatten it (a pad or a wall strip left a hump)' };
+    if (cl.length === 1 && e <= 0.2) { warns.push(rec); continue; }
+    fails.push(rec); marks.push({ kind: 'vis', x0: x - 1.5, z0: z - 1.5, x1: x + 1.5, z1: z + 1.5 }); }
+  const res = { status: status(fails.length, warns.length), what: 'Mound on paving: a point on asphalt / concrete (1 m grid over the play area) more than 0.15 m above the ground 3 m away along all four axes fails (a single grid point of at most 0.2 m warns); ground under a solid is skipped. Terrain campuses only.',
+    counts: { pavedSamples: n, mounds: fails.length, warning: warns.length, worstM: r2(worst) }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`mounds: ${res.status} ${fails.length} mounds on paving`); finishCheck('mounds', res);
+}
+// Sidewalks on their design (Marin QA: sawtooth humps of 0.5 m on a walk, a walk that dropped 1.5 m into a pit at a corner;
+// the station-based `roads` check missed both, and re-surveying after a cut hid them). Every point of the play area whose
+// street design zone is 'walk' (0.5 m grid) against streetDesign(x, z).y: more than 0.15 m off fails. Ground under a solid
+// (a stair apron, a block) is skipped. Clustered (3 m); the worst point of each cluster is reported.
+async function checkWalkDesign() {
+  const SD = REG.streetDesign; if (!world.terrain || !SD) { finishCheck('walkDesign', { status: 'skip', note: 'no graded streets (registry.streetDesign) or flat campus' }); return; }
+  const hits = []; let n = 0, worst = 0;
+  for (let z = PB.minZ + 2; z <= PB.maxZ - 2; z += 0.5) for (let x = PB.minX + 2; x <= PB.maxX - 2; x += 0.5) {
+    const d = SD(x, z); if (!d || d.zone !== 'walk') continue; n++; const g = GY(x, z), e = g - d.y; if (Math.abs(e) <= 0.15) continue;
+    // (not within 0.6 m of the roadway: on the 2 m lattice the 15 cm kerb is a slope one cell wide, see `roads`)
+    if ([[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]].some(([dx, dz]) => { const q = SD(x + dx, z + dz); return q && q.zone === 'road'; })) continue;
+    if (S.first(V(x, Math.max(g, d.y) + 40, z), DOWN, 40.3)) continue;   // under a solid (down to 0.3 m below the design): a stair apron, a block that carries the walk, a building that stands in the walk
+    // (not where the design itself steps: at a corner the walks of two streets meet at different levels and the lattice blends them)
+    if ([[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => { const q = SD(x + dx, z + dz); return q && q.zone === 'walk' && Math.abs(q.y - d.y) > 0.15; })) continue;
+    hits.push([x, z, g, e]); worst = Math.max(worst, Math.abs(e));
+  }
+  const fails = [], wdWarns = []; const used = new Uint8Array(hits.length); const cell = new Map(); hits.forEach((h, i) => { const k = Math.floor(h[0] / 3) + ',' + Math.floor(h[1] / 3); let l = cell.get(k); if (!l) cell.set(k, l = []); l.push(i); });
+  for (let i = 0; i < hits.length; i++) { if (used[i]) continue; const cl = [i]; used[i] = 1;
+    for (let h = 0; h < cl.length; h++) { const cx = Math.floor(hits[cl[h]][0] / 3), cz = Math.floor(hits[cl[h]][1] / 3); for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) for (const j of cell.get((cx + a) + ',' + (cz + b)) || []) if (!used[j] && Math.hypot(hits[j][0] - hits[cl[h]][0], hits[j][1] - hits[cl[h]][1]) <= 3) { used[j] = 1; cl.push(j); } }
+    let pk = cl[0]; for (const k of cl) if (Math.abs(hits[k][3]) > Math.abs(hits[pk][3])) pk = k; const [x, z, g, e] = hits[pk];
+    const rec = { at: [r1(x), r2(g), r1(z)], offDesignM: r2(e), points: cl.length, note: 'sidewalk off its design: a pad, a cut or a wall strip moved it' };
+    if (cl.length <= 2 && Math.abs(e) <= 0.2) { wdWarns.push(rec); continue; }   // (one or two grid points within 5 cm of the limit: lattice noise, a warning)
+    fails.push(rec); marks.push({ kind: 'vis', x0: x - 1.5, z0: z - 1.5, x1: x + 1.5, z1: z + 1.5 }); }
+  fails.sort((a, b) => Math.abs(b.offDesignM) - Math.abs(a.offDesignM));
+  const res = { status: status(fails.length, wdWarns.length), what: 'Sidewalks on their design: every walk-zone point of the graded streets in the play area (0.5 m grid) against streetDesign(x, z).y; more than 0.15 m off fails (one or two points of at most 0.2 m warn; ground under a solid, the kerb strip and seams between two streets are skipped).',
+    counts: { walkSamples: n, offDesignPoints: hits.length, clusters: fails.length, warning: wdWarns.length, worstM: r2(worst) }, failures: fails.slice(0, 80), warnings: wdWarns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`walkDesign: ${res.status} ${fails.length} places where a sidewalk is off its design`); finishCheck('walkDesign', res);
 }
 async function checkRetaining() {
   const Rb = REG.retaining || []; if (!Rb.length || !world.terrain) { finishCheck('retaining', { status: 'skip', note: 'no retaining blocks registered (ctx.retaining)' }); return; }
@@ -1255,7 +1316,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'roads', 'overlook', 'seating', 'interior', 'facadePeaks', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'walkDesign', 'overlook', 'seating', 'interior', 'facadePeaks', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1299,7 +1360,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['roads', checkRoads], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadePeaks', checkFacadePeaks], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['walkDesign', checkWalkDesign], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadePeaks', checkFacadePeaks], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

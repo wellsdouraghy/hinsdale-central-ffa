@@ -3,8 +3,11 @@
 
 Source: USGS 3DEP (public domain, bare-earth lidar DEM, no roofs / trees), fetched from the National Map ImageServer and
 cached under tools/data/dem/ (not committed). Google 3D-tiles samples (tools/data/tile_heights.json) are used only for
-ROOF heights: on open ground they agree with the DEM to ~0.5 m after a constant offset, but their coarse LODs smear the
-steep hillside north-east of campus by up to 20 m, and they cannot see the ground under canopies.
+ROOF heights: on open ground they agree with the DEM to ~0.3 m after ONE constant offset, but they cannot see the
+ground under canopies or roofs.
+
+The DEM is validated on every run against USGS point elevations (epqs, 63 points over the satellite rectangle, cached in
+tools/data/dem/epqs.json): the bake fails if the mean error is over 1.5 m (MAP_NOTES rule: validate the registration).
 
 Writes
   public/campuses/marin/terrain.bin   int16 little-endian, centimetres above the Championship Field (y = 0), 2 m grid
@@ -36,25 +39,47 @@ PLAY = dict(minX=-186, maxX=182, minZ=-176, maxZ=204)
 ANG = math.radians(7.2); UX, UZ = math.cos(ANG), math.sin(ANG)
 def G(a, b): return (a * UX - b * UZ, a * UZ + b * UX)
 
-def fetch(name, half_x, half_z, px_x, px_z):
+def fetch(name, half_x, half_z, px):
+    """3DEP export as a GeoTIFF in EPSG:4326. The server keeps SQUARE DEGREE pixels whatever `size` says (asking for
+    960 x 900 px over a 960 x 900 m box came back as 960 x 1137 m: every hill 26 % too far north / south), so the request
+    is built from one pixel size in degrees (px metres east-west, px * M_LAT / M_LON north-south) and a whole number of
+    pixels each way, and the georeferencing is READ BACK from the GeoTIFF tags, never assumed."""
     p = os.path.join(HERE, 'data', 'dem', name)
     if not os.path.exists(p):
         os.makedirs(os.path.dirname(p), exist_ok=True)
-        w, e, s, n = LON0 - half_x / M_LON, LON0 + half_x / M_LON, LAT0 - half_z / M_LAT, LAT0 + half_z / M_LAT
-        url = ('https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage?bbox=%.7f,%.7f,%.7f,%.7f'
-               '&bboxSR=4326&imageSR=4326&size=%d,%d&format=tiff&pixelType=F32&interpolation=RSP_BilinearInterpolation&f=image') % (w, s, e, n, px_x, px_z)
+        deg = px / M_LON; nx = 2 * int(math.ceil(half_x / px)); nz = 2 * int(math.ceil(half_z / (deg * M_LAT)))
+        w, e, s, n = LON0 - nx / 2 * deg, LON0 + nx / 2 * deg, LAT0 - nz / 2 * deg, LAT0 + nz / 2 * deg
+        url = ('https://elevation.nationalmap.gov/arcgis/rest/services/3DEPElevation/ImageServer/exportImage?bbox=%.9f,%.9f,%.9f,%.9f'
+               '&bboxSR=4326&imageSR=4326&size=%d,%d&format=tiff&pixelType=F32&interpolation=RSP_BilinearInterpolation&f=image') % (w, s, e, n, nx, nz)
         req = urllib.request.Request(url, headers={'User-Agent': 'campus-terrain-bake'})
         open(p, 'wb').write(urllib.request.urlopen(req, timeout=180).read())
-    return tifffile.imread(p).astype(np.float64)
+    with tifffile.TiffFile(p) as t:
+        pg = t.pages[0]; a = pg.asarray().astype(np.float64); tags = {k.name: k.value for k in pg.tags}
+    sx, sy = tags['ModelPixelScaleTag'][:2]; ti, tj, _, tlon, tlat, _ = tags['ModelTiepointTag'][:6]
+    assert 4326 in tags['GeoKeyDirectoryTag'], 'DEM is not in EPSG:4326'
+    lon_w, lat_n = tlon - ti * sx, tlat + tj * sy     # outer corner of pixel (0, 0)
+    return Dem(a, lon_w, lat_n, sx, sy)
 class Dem:
-    def __init__(self, a, hx, hz): self.a, self.hx, self.hz = a, hx, hz
+    """Raster in geographic coordinates (pixel centres at lon_w + (i + 0.5) sx, lat_n - (j + 0.5) sy), sampled bilinearly
+    in the campus frame (x east, z south, metres from the origin)."""
+    def __init__(self, a, lon_w, lat_n, sx, sy):
+        self.a, self.lon_w, self.lat_n, self.sx, self.sy = a, lon_w, lat_n, sx, sy
+        self.mx, self.mz = sx * M_LON, sy * M_LAT     # pixel size in metres
+        x0, z0 = (lon_w - LON0) * M_LON, (LAT0 - lat_n) * M_LAT
+        self.ext = (x0, x0 + a.shape[1] * self.mx, z0, z0 + a.shape[0] * self.mz)
+    def with_(self, a): return Dem(a, self.lon_w, self.lat_n, self.sx, self.sy)
+    def smooth(self, metres): return self.with_(ndi.gaussian_filter(self.a, (metres / self.mz, metres / self.mx)))
     def at(self, x, z):
         a = self.a; x = np.asarray(x, float); z = np.asarray(z, float)
-        fx = np.clip((x + self.hx) / (2 * self.hx) * a.shape[1] - 0.5, 0, a.shape[1] - 1.001); fz = np.clip((z + self.hz) / (2 * self.hz) * a.shape[0] - 0.5, 0, a.shape[0] - 1.001)
+        fx = np.clip((x - self.ext[0]) / self.mx - 0.5, 0, a.shape[1] - 1.001); fz = np.clip((z - self.ext[2]) / self.mz - 0.5, 0, a.shape[0] - 1.001)
         i = np.floor(fx).astype(int); j = np.floor(fz).astype(int); u = fx - i; v = fz - j
         return a[j, i] * (1 - u) * (1 - v) + a[j, i + 1] * u * (1 - v) + a[j + 1, i] * (1 - u) * v + a[j + 1, i + 1] * u * v
-NEAR = Dem(fetch('dem_1m.tif', 480, 450, 960, 900), 480, 450)        # 1 m
-FAR = Dem(fetch('dem_10m.tif', 1700, 1700, 340, 340), 1700, 1700)    # 10 m
+NEAR = fetch('dem_near_v2.tif', 480, 450, 0.8)     # 0.8 m east-west x 1.01 m north-south
+FAR = fetch('dem_far_v2.tif', 1700, 1700, 8.0)     # 8 x 10.1 m
+for nm, d, hx, hz in (('near', NEAR, 480, 450), ('far', FAR, 1700, 1700)):
+    print('DEM %s: %d x %d px of %.3f x %.3f m, x %.1f..%.1f, z %.1f..%.1f' % (nm, d.a.shape[1], d.a.shape[0], d.mx, d.mz, *d.ext))
+    assert d.ext[0] <= -hx + 0.01 and d.ext[1] >= hx - 0.01 and d.ext[2] <= -hz + 0.01 and d.ext[3] >= hz - 0.01, 'DEM does not cover the requested box'
+    assert abs(d.mz / d.mx - M_LAT / M_LON) < 1e-3, 'DEM pixels are not square in degrees: check the georeferencing'
 
 D = json.load(open(os.path.join(OUT, 'campus.json')))
 gen = json.load(open(os.path.join(OUT, 'gen.json')))
@@ -70,7 +95,7 @@ print('field level (NAVD88 m)', round(Y0, 2), 'samples', len(pts))
 TS, TN, T0 = 20.0, 151, -1500.0
 tx = T0 + np.arange(TN) * TS; TXg, TZg = np.meshgrid(tx, tx)
 inner = (np.abs(TXg) < 440) & (np.abs(TZg) < 410)
-TER = np.where(inner, ndi.gaussian_filter(NEAR.a, 6)[np.clip(((TZg + 450) / 900 * 900).astype(int), 0, 899), np.clip(((TXg + 480) / 960 * 960).astype(int), 0, 959)], FAR.at(TXg, TZg)) - Y0
+TER = np.where(inner, NEAR.smooth(6.0).at(TXg, TZg), FAR.at(TXg, TZg)) - Y0
 def backdrop(x, z):
     fx = np.clip((np.asarray(x, float) - T0) / TS, 0, TN - 1.001); fz = np.clip((np.asarray(z, float) - T0) / TS, 0, TN - 1.001)
     i = np.floor(fx).astype(int); j = np.floor(fz).astype(int); a = fx - i; b = fz - j
@@ -80,8 +105,8 @@ def backdrop(x, z):
 STEP = 2.0
 xs = np.arange(SAT[0], SAT[1] + 0.01, STEP); zs = np.arange(SAT[2], SAT[3] + 0.01, STEP)
 Xg, Zg = np.meshgrid(xs, zs)
-sm = ndi.gaussian_filter(NEAR.a, 0.9)        # 1 m lidar noise / kerb steps: ~1 m gaussian before the 2 m resample
-Hn = Dem(sm, 480, 450).at(Xg, Zg) - Y0
+SM = NEAR.smooth(0.9)        # 1 m lidar noise / kerb steps: ~1 m gaussian before the 2 m resample
+Hn = SM.at(Xg, Zg) - Y0
 edge = np.minimum(np.minimum(Xg - SAT[0], SAT[1] - Xg), np.minimum(Zg - SAT[2], SAT[3] - Zg))
 w = np.clip(edge / 40.0, 0, 1); w = w * w * (3 - 2 * w)
 Hf = Hn * w + backdrop(Xg, Zg) * (1 - w)
@@ -92,7 +117,27 @@ print('terrain.bin', cm.shape[::-1], 'range', Hf.min().round(1), Hf.max().round(
 gy, gx = np.gradient(Hf, STEP); slope = np.degrees(np.arctan(np.hypot(gx, gy)))
 inp = (Zg > PLAY['minZ']) & (Zg < PLAY['maxZ']) & (Xg > PLAY['minX']) & (Xg < PLAY['maxX'])
 print('play-area slope: >20deg %.1f%%  >35deg %.1f%%  >42deg %.1f%%' % tuple(100 * (slope[inp] > t).mean() for t in (20, 35, 42)))
-def ground(x, z): return Dem(sm, 480, 450).at(x, z) - Y0
+def ground(x, z): return SM.at(x, z) - Y0
+
+# ------------------------------------------------------------------ registration check against USGS point elevations
+def validate():
+    p = os.path.join(HERE, 'data', 'dem', 'epqs.json'); res = json.load(open(p)) if os.path.exists(p) else {}
+    pts = [(x, z) for z in (-250, -170, -120, -60, 0, 60, 120, 200, 260) for x in (-280, -180, -90, 0, 90, 180, 280)]
+    for x, z in pts:
+        k = '%d,%d' % (x, z)
+        if k in res: continue
+        url = 'https://epqs.nationalmap.gov/v1/json?x=%.7f&y=%.7f&units=Meters&wkid=4326&includeDate=false' % (LON0 + x / M_LON, LAT0 - z / M_LAT)
+        try: res[k] = float(json.load(urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'campus-terrain-bake'}), timeout=60))['value'])
+        except Exception as e: print('epqs failed at', k, e)
+        json.dump(res, open(p, 'w'))
+    P = np.array([[*map(float, k.split(',')), v] for k, v in res.items()])
+    if len(P) < 20: print('WARNING: only %d USGS check points (need 20): registration NOT validated' % len(P)); return
+    fx = (P[:, 0] - SAT[0]) / STEP; fz = (P[:, 1] - SAT[2]) / STEP; i = np.minimum(fx.astype(int), Hf.shape[1] - 2); j = np.minimum(fz.astype(int), Hf.shape[0] - 2); u = fx - i; v = fz - j
+    bake = Hf[j, i] * (1 - u) * (1 - v) + Hf[j, i + 1] * u * (1 - v) + Hf[j + 1, i] * (1 - u) * v + Hf[j + 1, i + 1] * u * v + Y0
+    err = np.abs(bake - P[:, 2]); inp = (P[:, 0] > PLAY['minX']) & (P[:, 0] < PLAY['maxX']) & (P[:, 1] > PLAY['minZ']) & (P[:, 1] < PLAY['maxZ'])
+    print('registration vs USGS epqs: %d points, mean %.2f m, max %.2f m (play area: %d points, mean %.2f, max %.2f)' % (len(P), err.mean(), err.max(), inp.sum(), err[inp].mean(), err[inp].max()))
+    assert err.mean() <= 1.5 and err[inp].max() <= 3.0, 'baked terrain does not match USGS point elevations: the DEM is misregistered'
+validate()
 
 # ------------------------------------------------------------------ building heights against the ground round each footprint
 TH = json.load(open(os.path.join(HERE, 'data', 'tile_heights.json')))
@@ -100,27 +145,19 @@ BLD = unary_union([Polygon(b['outer'][0]).buffer(0).buffer(2.0) for b in D['buil
 prepare(BLD)
 def grid(g): return np.array([[np.nan if v is None else v for v in r] for r in g['rows']], float), g['x0'], g['z0'], g['step']
 def calibrated(g):
-    """Tile surface -> metres above y = 0. The tile heights carry a bias that changes across the map (about -13 m on the
-    flat blocks, 3 m more on the hillside north of the gyms, worse on the steep north-east slope where only coarse tile
-    LODs load), so the offset to the DEM is fitted LOCALLY on open ground next to each building: smooth tile cells clear
-    of every OSM footprint, outliers against the neighbourhood median dropped, gaussian weights (sigma 16 m)."""
+    """Tile surface -> metres above y = 0: ONE constant offset to the DEM (the tiles are ellipsoid heights, the DEM is
+    NAVD88), the median over smooth tile cells clear of every OSM footprint. With the DEM registered correctly the
+    offset is the same everywhere (-13.6 m, quartiles within 0.15 m); the "bias that changes across the map" this
+    function used to fit locally was the DEM stretched 26 % north-south. A spread here means the DEM is misplaced."""
     Hm, x0, z0, st = g; X, Z = np.meshgrid(x0 + np.arange(Hm.shape[1]) * st, z0 + np.arange(Hm.shape[0]) * st)
     T = np.nan_to_num(Hm, nan=0.0)
     rough = np.sqrt(np.maximum(ndi.uniform_filter(T * T, 3) - ndi.uniform_filter(T, 3) ** 2, 0))
     open_ = (rough < 0.3) & ~np.isnan(Hm) & ~contains_xy(BLD, X, Z)
-    d = Hm - ground(X, Z)
-    # neighbourhood median on 24 m blocks (3 x 3 blocks around each cell), then the outlier cut
-    nb = max(1, int(round(24 / st))); by, bx = -(-Hm.shape[0] // nb), -(-Hm.shape[1] // nb); bm = np.full((by, bx), np.nan)
-    for j in range(by):
-        for i in range(bx):
-            sl = (slice(max(0, (j - 1) * nb), (j + 2) * nb), slice(max(0, (i - 1) * nb), (i + 2) * nb)); v = d[sl][open_[sl]]
-            if len(v) >= 6: bm[j, i] = np.median(v)
-    med = np.repeat(np.repeat(bm, nb, 0), nb, 1)[:Hm.shape[0], :Hm.shape[1]]
-    open_ &= np.abs(d - np.nan_to_num(med, nan=1e9)) < 1.5
-    num = ndi.gaussian_filter(np.where(open_, d, 0.0), 16 / st); den = ndi.gaussian_filter(open_.astype(float), 16 / st)
-    glob = float(np.median(d[open_]))
-    off = np.where(den > 0.01, num / np.maximum(den, 1e-6), glob)
-    print('tile offset: median %.2f, local %.2f..%.2f, open cells %d' % (glob, off.min(), off.max(), open_.sum()))
+    d = (Hm - ground(X, Z))[open_]; off = float(np.median(d)); q = np.percentile(d, [10, 25, 75, 90])
+    # the same statistic by quadrant: a registration error shows as offsets that differ across the map
+    quad = [float(np.median((Hm - ground(X, Z))[open_ & m])) for m in ((Z < 0) & (X < 0), (Z < 0) & (X >= 0), (Z >= 0) & (X < 0), (Z >= 0) & (X >= 0)) if (open_ & m).sum() > 50]
+    print('tile offset: median %.2f (10/25/75/90 %%: %.2f %.2f %.2f %.2f), by quadrant %s, open cells %d' % (off, *q, ' '.join('%.2f' % v for v in quad), open_.sum()))
+    assert q[2] - q[1] < 1.0 and max(quad) - min(quad) < 1.0, 'tile heights and DEM disagree across the map: check the DEM registration'
     return Hm - off, x0, z0, st
 FINE = calibrated(grid(TH['fine'])); WIDE = calibrated(grid(TH['wide']))
 def roof_samples(g, P_, ring_in):

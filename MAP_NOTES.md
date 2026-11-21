@@ -261,7 +261,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
-- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, mounds, walkDesign, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
   visualSolid, roofSkin, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
@@ -506,6 +506,10 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     is missing), reproject to the campus frame (x east, z south, metres from `origin`), subtract the ground level,
     write PNG / .bin as above. 3DEP is bare earth already (no roofs / trees), but check it against the tiles: it can
     predate grading work.
+    **Validate the registration before anything is built on it:** read the extent back from the GeoTIFF tags (the
+    ImageServer returns square-degree pixels whatever `size` you ask for), and compare the baked file with >= 20 USGS
+    epqs point elevations across the play area and its edges (mean error <= 1.5 m). Marin shipped five rounds on a DEM
+    stretched 26 % north-south ("DEM registration" in the Marin section; tools/terrain.py does both on every run).
   - Cover the whole satellite rectangle (`extent` = `sat`) so the drawn ground and the backdrop meet; when the campus
     has its own backdrop sampler, pass it as `outside` and give `blend` 20-40 m: no seam or cliff at the edge.
 - **Flatten (descriptor `flatten` or `ctx.flatten`, BEFORE placing anything):** sports fields, courts, tracks, car parks
@@ -589,16 +593,18 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
 
 ## Marin on real terrain (lessons from the rebuild; scripts in src/campuses/marin/tools/)
 
-- **Ground source: USGS 3DEP beat the 3D tiles.** The National Map ImageServer (`3DEPElevation/ImageServer/exportImage`,
-  bbox in EPSG:4326, `format=tiff&pixelType=F32`, no key) returns bare-earth lidar at 1 m: no roofs, no canopies, no min
-  filter needed. The tile samples agree with it to ~0.5 m on open flat ground after a constant offset, but **their offset
-  drifts across the map** (3 m on the hillside streets, 20 m on a steep wooded slope where only coarse LODs load). Never
-  take absolute ground heights from tile samples on a hill; use them for roofs only (tools/terrain.py).
-- **Check the DEM against current imagery for regrading.** The lidar predated one car park (a 15 % hillside in the DEM, a
-  flat lot in the tiles: residual of a plane fit 1.0 m, where every real lot had < 0.35 m) and the north tip of the pitch.
-  A plane fit per OSM `amenity=parking` polygon finds these in seconds; flatten them to the level of the building they serve.
-- **Building heights (the "not two storey" report).** Roof = tile samples inside the footprint, shifted by an offset
-  fitted LOCALLY on open ground next to it (smooth tile cells clear of every footprint, gaussian 16 m); ground = DEM on
+- **Ground source: USGS 3DEP.** The National Map ImageServer (`3DEPElevation/ImageServer/exportImage`, `format=tiff&pixelType=F32`,
+  no key) returns bare-earth lidar at 1 m: no roofs, no canopies, no min filter needed. On open ground the 3D-tiles
+  samples agree with it to ~0.3 m after ONE constant offset (ellipsoid vs NAVD88: -13.6 m here, the same in every
+  quadrant). *This bullet used to say the tile offset "drifts across the map" by 3-20 m and that the lidar "predated the
+  regrading" of a car park and of the pitch. Both were wrong: the DEM had been fetched stretched 26 % north-south (see
+  "DEM registration" at the end of this section). On the correctly placed DEM the offset is constant, that car park is a
+  level lot (0.8 % fall) and the pitch is flat to 4 cm.* Tiles are still for roofs only: they cannot see the ground under
+  canopies.
+- **A plane fit per OSM `amenity=parking` polygon is a registration test.** Real lots are planes to < 0.2 m rms; a lot that
+  reads as a 15 % hillside means the DEM is misplaced, not that the lot was regraded. Do not flatten it away: find out why.
+- **Building heights (the "not two storey" report).** Roof = tile samples inside the footprint, shifted by the one
+  constant tile-to-DEM offset (median over smooth tile cells clear of every footprint); ground = DEM on
   the outline. Store the roof as an ABSOLUTE height plus the ground min / max. The old "roof minus the lowest ground
   nearby" read 34 of 144 buildings a storey too tall (one-storey houses on a 3 m fall became two storeys on every side);
   the gyms were 9 / 12.4 m and are 7 / 9 m. OSM had no `building:levels` here: Street View is the cross-check.
@@ -839,6 +845,212 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     another port, the same list of camera strings in both (each tested: nothing solid within 0.6 m, above the ground).
 - **Never put Street View imagery where it can be committed:** the cache is gitignored; side-by-side sheets go to
   dev/shots/<id>/streetview-compare/ (gitignored); game renders from the same poses are fine to keep.
+- **DEM registration (the terrain-fix round; tools/terrain.py). Every hill was 26 % too far from the origin north-south.**
+  - **What went wrong.** `exportImage` was asked for a 960 x 900 m box as 960 x 900 px with `bboxSR = imageSR = 4326`. The
+    server keeps SQUARE DEGREE pixels and silently grows the extent to fit the size: the tiff covered 960 x 1137 m, the
+    sampler assumed 900 m. The ground at z in the game was the real ground at 1.26 z. Near the origin nothing showed; at the
+    play-area edge hills stood 45 m from where they are, the far backdrop DEM was stretched the same way.
+  - **How it hid for five QA rounds.** Every symptom got its own explanation and its own fix: "the tile offset drifts across
+    the map" (a locally fitted offset), "the lidar predates the regrading" (a car park flattened by hand, y = 11), "a house
+    whose footprint falls 10 m" (walk-out floors, then a ziggurat), a 4 m retaining wall round the north of the pitch, gore
+    walls at a fork that is 2 m high, not 4. **Three unrelated-looking compensations in one bake are one bug upstream.**
+  - **The rule.** Build the request from ONE pixel size in degrees and a whole number of pixels each way (or ask for a metric
+    `imageSR`), READ the georeferencing back from the GeoTIFF tags (ModelPixelScale / ModelTiepoint) instead of assuming it,
+    assert the pixel aspect, and validate the BAKED file against independent point elevations on every run: 63 USGS epqs
+    points over the satellite rectangle (cached), the bake fails over 1.5 m mean. Before: mean 2.60 m, max 16.9 m (play
+    area 1.94 / 16.9). After: mean 0.04 m, max 0.27 m. Also print the tile-to-DEM offset by quadrant: it must be one number.
+  - **After a re-bake, re-measure everything that was typed in from the old ground.** Hand-entered absolute heights (the
+    school's roof tops, the helicopter deck, a pad's `y`) carry the old error: the roofs were up to 1.4 m off, the service
+    building 3 m. Keep such numbers in ONE table with their source (`TOP` in school.js). For hip roofs the eave is the LOW
+    end of the tile samples (10th percentile), for flat roofs the median; "the delta of the old value" is not a measurement.
+  - **A house above its road: the eave is the measured roof, the front is the road it is seen from.** "Street-side ground +
+    the storeys Street View shows" put the hill house four storeys up, because the nearest centre line was the lane ABOVE
+    its roof and Street View had counted the storeys from the road below. `HOUSE_FRONT` names the street, `HOUSE_LOWER`
+    takes the measured eave; the bank behind is cut to a terrace, the house is not raised to clear it.
+  - **Real ground moves the steps to where they are.** The courtyard between the Library and the Leadership Center lies
+    1.6 m below Mission Ave; on the stretched DEM that step lay out in the street and vanished in the grading. Now it is at
+    the building line: a flight in the frontage strip (`COURT_STAIR`, shared `stairFlight` with the pool stairs), a
+    retaining block either side, a forecourt at courtyard level. Lattice bookkeeping that made it work: the level pad
+    starts a lattice ROW behind the back of the walk (not "2 m": look at where the rows fall on the rotated grid), the
+    blocks cover the row that ramps, a block's return in front of a neighbouring wall is a plain mass (registering it as
+    a retaining face makes the map check sample "in front" of it inside the building), and the ground just INSIDE a
+    footprint next to a lower terrace must be cut too, or the lattice carries street level through the wall onto the
+    windows that face the terrace.
+  - **A sidewalk needs room, per stretch of street.** With real cross-slopes fewer streets are "benched hill lanes", so more
+    of them got sidewalks: two walks squeezed into the 6 m between the carriageways of a fork became one 30 deg ramp, a walk
+    on a 17 % lane kinked at every vertex. `walkRoom` (marin/world.js) splits a road at its OSM vertices and drops the walk
+    on a side where the strip to the next carriageway cannot hold both walks and a 1 : 1.5 bank, or where the lane climbs
+    more than 12 %. Splitting a street into pieces exposed an engine artefact: past the end of a piece the round cap has
+    less crown, and blending it with the piece alongside dipped the centre line 8 cm (streets.js now drops the cap when a
+    piece of the SAME street covers the point; never when only another street does: its sidewalk took over the roadway).
+  - **The walk beside a level pad, both ways.** The Mission Ave rule (walk cut back to its design after `restore()`) is now
+    one rule round the whole pitch: cut where it stands above the design, raise from a lattice cell behind the block's face
+    on, and raise the verge node just inside a walk that stands above the pitch, so the walk is level over its full width
+    and the ramp lies under the block (Bryn Mawr Drive runs 3-5 m above the east side). Anything that changes a street
+    after `restore()` used to call `streets.resurvey()`: RETRACTED (second QA below), do such changes before `restore()`.
+  - **Sight-blockers follow the ground, not the wall.** The evergreen belt was tied to "wall higher than 2.2 m". With the
+    north wall 1-2 m lower on the real ground, the gym plaza looked straight down on the red base (overlook: 117 m2 vs 0).
+    The belt now also stands wherever the ground 6-14 m behind the field edge is 3.5 m or more above the pitch.
+  - **Small things the re-bake flushed out:** a sign placed at a fixed share of a wall's height landed on the clerestory when
+    the wall grew 3 m (place it a fixed distance under the eave); cars were tested for slope at their centre only (test the
+    footprint); a team spawn on a twisted lattice cell stood 16 cm off the drawn mesh (collision.js: spawns only where mesh
+    and smooth height agree to 6 cm); trees were moved off carriageways but not off the new sidewalks (`toVerge` with the
+    walk's width when the design says 'walk').
+  - **Google 3D tiles from a dev page on another port:** the key is restricted to the referrer of the default dev server.
+    Load `dev/<id>-tiles.html` from that server and post the canvas to your own receiver; do not forward requests with a
+    spoofed Referer.
+- **QA of the terrain-fix round (NOT SHIP, then fixed): what the builder's own verification missed.**
+  - **A stair is fitted to the DESIGNED walk, not to the ground at its head.** The pool stairs took their top from the
+    terrain a metre behind the landing; after the re-bake that ground was a lattice ramp 0.4 m below the re-graded
+    sidewalk. Both flights now go through one `fitFlight` (marin/world.js): top = `streets.design` of the walk behind its
+    back edge, an apron from the walk to the top riser, nothing cut under the top tread, the floor from the foot to the
+    terrace cut level. The builder's walk test had started half way down the flight: **start a stair test on the
+    sidewalk and end it on the terrace, on every lane (both walls and the middle), both ways.** Do not aim a walk test
+    at a bench: three "failures" on the spectator terrace were the benches on its deck.
+  - **Cover that exists only to pass the overlook check is invented (A1).** The evergreen belt on the field wall was tied
+    to wall height, then to the ground behind; the tiles show open woodland there and Street View looks straight across
+    the pitch from Bryn Mawr Drive. Without it the red base on the pitch was overlooked from 1584 m2 (blue: 0). The base
+    moved to the plaza between the gyms, the Science Center and Foster Hall (buildings on every side, 259 m from blue,
+    overlook 0 / 0). **Ask "what hides this base in reality?" before placing it, not after the check fails.**
+  - **A clipped hedge is one extruded wall (rule 28).** `hedgeMass` drew bushy columns with cone tops and swelled 0.3-0.5 m
+    past its collider: on Mission Ave the cones stood on the back half of the sidewalk. It is now a plain body with a
+    narrower shoulder, exactly as deep as its collider; `hedgeRun` runs a hedge through stations with a sloping foot and
+    top (Mission Ave: fitted between the fence line and the back of the designed walk, never on it).
+  - **A retaining wall has ONE top.** A level top per 3 m panel is a sawtooth with notches of bank between the teeth.
+    `perimeter` (marin/grounds.js) is two passes: what each panel needs, then the upper envelope with a slope of at most
+    15 % (forward and backward sweep), sloping quads, one coping, corner wedges at the same top. A wall ends by tapering,
+    never in a step. Street detection must run for EVERY panel: the tapering end of a tall neighbour ran out across the
+    Mission Ave sidewalk as a 4.7 m deep block.
+  - **A block whose top is level on a street that falls 7 % is a wedge.** The blocks beside the courtyard steps are now
+    planted beds whose top runs with the sidewalk (ivy, a low clipped hedge, a wall and coping only on the forecourt side
+    and along the flight). Cheek blocks under 0.75 m are banks, not walls (0.5 m plinths stood on the frontage). A wall
+    whose floor is more than 1.2 m above the ground beyond it gets no pad at all: filled up to the floor it was a
+    2.6 m berm against the Leadership Center and a mound on the paving beside it; the foundation shows instead.
+  - **Hill lanes have no sidewalks (tiles), whatever the cross-slope rule says:** `NO_WALK` by street name. That also
+    removed the 6-8 cm centre-line bumps on Bonnie Brae (they were the walk / no-walk joints).
+  - **Furniture goes behind the walk, not "on the kerb side of it":** planters, benches and bins at 3.3 m from the kerb
+    with a design-zone test, signal masts through `toVerge`, lamps 0.4 m from the kerb, no car bumper over a walk
+    (six points of the car against `streets.design`).
+  - **Separate small pads on a slope make steps between them.** Four 2.4 m pads on the 19 % gym plaza each took their own
+    level; a table stood 0.7 m deep in the step. One terrace under the group.
+  - **New map-check rule `mounds`** (dev/mapcheck.js): a paved point more than 0.15 m above the ground 3 m away along all
+    four axes, not under a solid. It found the hump at the foot of the pool stairs, a berm beside the Leadership Center
+    and a pad joint in a concrete yard.
+- **Second QA of the terrain-fix round (v6): sidewalks on the 2 m lattice.**
+  - **A walk is only as level as every lattice node within a cell of it.** Mission Ave's walk runs 7 deg off the grid, 3 m
+    from the pitch and 1.7 m below it: each time its back edge crossed a lattice row, a pad node just behind it pulled the
+    walk up half a metre (a sawtooth every 16 m). `streets.restore()` now ends with a SKIRT pass: every non-road node within
+    2.1 m of a walk point takes that walk's design level, footprint interiors and wall pads included (`streets.skirtAt`);
+    road and walk nodes are restored even inside a footprint. Designed pads (`protect`) do it themselves: round the pitch a
+    node is raised or lowered from 2 m outside the turf, and only lowered nearer than that.
+  - **Then the step needs a structure, not terrain.** Where the street is lower than the pitch the last cell at the turf
+    edge dips: a planted margin (pitch-level slab, ivy, the hedge on its street side, collision under the turf edge) covers
+    it, and the gate gap gets a landing and a concrete ramp. Where the street is higher, the field wall's block moves its
+    face toward the turf until the ground in front of it is level, and carries on UNDER a walk that dips toward the pitch
+    (the walk there is the block's top). No `hard` exception: a pad that narrows a sidewalk made the corner pit.
+  - **Never re-baseline the street survey after a cut or fill** (`resurvey()` is gone): it turned "the walk moved" into a
+    pass. Do the designed changes BEFORE `restore()`; what restore surveys is what ships.
+  - **New map-check rule `walkDesign`:** every walk-zone point (0.5 m grid) against `streetDesign(x, z).y`, > 0.15 m fails.
+    Skipped: ground under a solid, the 0.6 m kerb strip, seams where two streets' walks meet at different levels. It found
+    22 places on the first run (the pit 2.05 m, the humps 1.3 m, a building in the walk, the pool house 2 m into the walk).
+  - **Every earthwork change can wake a dormant generator.** The skirt raised the nodes at the head of the pool stairs,
+    `planCheeks` then saw a clean step between two wall pads and filled the head of the flight with a cheek block: all
+    six lanes failed, and only the stair re-walk caught it. Designed flights register `ctx.noCheek`.
+  - **A sidewalk does not run through a building.** `walkRoom` now works per 12 m stretch and drops the walk on a side where
+    more than a quarter of it lies inside a footprint (974487547 stands at the kerb). The pool house was 2 m into the
+    Mission Ave walk: 7.2 m deep from the same deck front.
+  - **Helicopter pads are scanned at load** (`heliScan`, world.js): 2 m grid, lots first, then pitch, concrete, lawns;
+    relief, streets, footprints and trunks pre-tested; the pipeline's exact test decides (19 pads). No typed list.
+
+- **Third QA of the terrain-fix round (v7 -> fix 4): the Mission Ave / Bryn Mawr Drive ("E St") corner, built instead of patched.**
+  - **Look at the street before designing its edge.** Three rounds argued about a "field wall" along Bryn Mawr Drive. Street
+    View shows no wall and no sidewalk on the pitch side at all: a red kerb, a strip of dry grass, a planted bank with a row
+    of trees down to the ball-stop fence, a low chain-link fence behind the kerb where the bank is high, and the concrete
+    sidewalk on the EAST side (OSM maps it as a footway; the street had been put in `NO_WALK` whole). Six Street View frames
+    (one along each side, one at the corner) would have settled it before the first block was drawn.
+  - **A 7 m strip that rises 3-5 m is a built surface, not terrain.** On the 2 m lattice the retaining block needs the pad to
+    reach a cell behind its face, so the "wall" grew to the kerb: a 6 m concrete slab on a 3.5 m blank wall. `eastSide`
+    (grounds.js) is one mesh from the fence line to the kerb: toe wall (0.5 m, as high as a bank of at most 32 deg needs, rising
+    to meet the corner block), bank, verge, kerb; `eastSideGeom` is the ONE definition of that surface, used by the builder and
+    by sitework, which cuts the lattice 0.35 m under it (and to pitch level within 2.3 m of the fence line, so no node next to
+    one in front of the wall face can stand up). Trees and shrubs stand on it; the fence is continuous on the toe wall.
+  - **Where a fence corner stands 0.7 m from a sidewalk 2 m above it, the walk is built too.** No lattice holds that back edge
+    (the pit). The corner of the walk is a concrete apron at the walk's design level, kerb to back edge; the bed behind it is
+    level with the walk (a 12 cm kerb) for 2.2 m before the bank starts, so no node of the walk's skirt pokes through it.
+    **One surface, not three:** the first apron was 13 m long and ended where the field wall's blocks still carried on under
+    the back of the walk, so its end crossed their tops in a diagonal seam ("a wedge lying on the sidewalk"), and dipping
+    the end a blind 10 cm made it worse. It now starts 23 m from the corner, west of the last such block, and its first
+    1.5 m meet the walk AS LAID (ground + 1 cm, point by point), not the design.
+  - **A step in the DESIGN is copied by everything built to it.** 13 m west of the corner the sidewalk design itself stepped
+    0.19 m across the walk: in `streets.design` the "two roads at different heights" blend let Bryn Mawr Drive (0.9 m higher)
+    in at full weight the moment a point came within its reach. `gradeStreets(..., { taper: 4 })` fades an arm in over the last
+    4 m of its reach (opt-in: other campuses keep their surveyed design). Scan the walk design for jumps (two points 0.25 m
+    apart, more than 6 cm) before building anything on it; the jumps left on Marin are corner seams where two streets' walks
+    meet (the map check skips those).
+  - **A block top beside a walk or a street is planted, with a coping under the fence.** The blocks that hold the pitch were
+    bare concrete shelves 2-5 m deep (the "wedge" between the fence and the Mission Ave walk, a slab at the north-east
+    chamfer beside Bryn Mawr Drive). Street View and the satellite show dry grass, brush and woodland floor up to the fence:
+    every block top and corner wedge now carries the verge texture from the coping to the back edge of the walk (the part
+    under a dipping walk stays concrete: it is the walk).
+  - **The shoulder of a street keeps its design right up to a wall.** North of the built bank the first 2.5 m behind the
+    kerb stood 0.3-0.5 m low: the rule that hands verge nodes to the street only applied 7.2 m from the turf. The level
+    shoulder (`d.t < 0.35`) now takes its design from 5.2 m.
+  - **A gate between two levels is a flight of steps that fits BEHIND the walk** (`gateFlight` / `gateSteps`): from the turf
+    edge to the back edge of the walk (9 risers in 2.5 m), cheek walls holding the planted margin, exactly as wide as the
+    opening the fence run really leaves (one 3 m panel: the first version was 4.8 m wide and a fence panel hung across the
+    outer lanes). The ground under the flight and one cell either side is cut after the pads, before `restore()`.
+  - **Do not move a terrace over a slope and wall the difference.** The plaza terrace at the red base reached 5 m too far
+    south, over the passage between the Old Gym and the Science Center: a 1.1 m ledge, a 2.2 m wall, a cheek block in the
+    middle. The lidar shows a plain 2.3 m fall over 6 m there. A designed slope (21 deg, the terrace's level to the passage's)
+    laid BEFORE the wall plans, and long enough to cover the terrace's own blend at its foot: a 0.4 m lip left there was
+    enough for `planCheeks` to stand a block in the passage.
+  - **Rule F33 is automatic now** (`housePlan`): a plan that needs more than 1.2 m of fill gets walk-out floors instead (rows
+    step down bay by bay on the natural ground). QA named two houses on 3-6 m of fill; the map check had listed sixteen.
+  - **Street lights are what the street has.** Acorn posts "behind the walk" stood inside the 4.4 m hedge. Mission Ave is lit
+    by cobra heads on wooden utility poles: `utilityLamp`, 9 m, foot in the face of the hedge at the back of the walk, head
+    over the street, a grapple target. None on the pitch side of Bryn Mawr Drive.
+  - **Sweep the WHOLE perimeter for drops, not the wall QA named.** QA found one fence gap on the east wall; a sweep (every
+    1.5 m round the pitch, from 1.7 m outside the fence line walking in, a fall of more than 1.2 m to pitch level fails)
+    found two more openings: a 3 m gap on the 5.2 m north-east wall (closed) and the 26 m of the north-west side that is
+    open toward the campus on a 2-3 m wall. `perimeter` now runs a 1.1 m guard rail along any opening whose wall is more
+    than 1.2 m high (rule B11): it can be jumped, it cannot be walked off.
+  - **Walk every sidewalk from its own zone, not from typed coordinates.** After a rebuild QA's old probe points lay on the
+    pitch or in the bank. The test that settles a street: scan the walk zone for its centre every 3-4 m, walk centre, back
+    edge (-0.75 m) and kerb side (+0.75 m) both ways, compare the trace with `streetDesign`, then the verge on the side
+    without a walk, the two crossings at the corner, and a sweep from the kerb toward the pitch every 2 m (nobody may reach
+    pitch level: the fence is continuous).
+  - **Walk-test targets must be standable.** A target 0.6 m from a new pole, on a parked car or in a building that interrupts
+    the walk reads as "stuck" or "missed"; test from kerb-side points of the walk zone and report the nearest approach.
+  - **Small things:** the skirt gives a shoulder node the level of the NEAREST walk point, which at a seam of two walks is the
+    wrong walk (two places 0.2-0.3 m low: the shoulder's own design wins where they disagree); the dip scan of a field block
+    must start at the walk's back edge, not at the block's minimum depth; a prop laid with `onSlope` registers its plane and
+    the map check measures it against that plane (a car on a 9 % street read "31 % buried"); roof helicopter pads are
+    registered by the builder at the height it built (`ctx.roofPads`), none typed; a walk on a straight 13 % street that
+    Street View shows is kept (`keepWalk`), the 12 % rule is for lanes that kink.
+- **QA round 4 leftovers (SHIP, then fix 5): solids on walks that the map check skips, and blank walk-out floors.**
+  - **`walkDesign` skips ground under a solid, so it cannot see a building or a stoop ON a walk.** Scan every walk-zone point
+    (0.5 m) for a footprint ring within 0.4 m and for collision more than 0.12 m above the design, cluster, and look at each.
+    It found the stoop and porch posts of 974487542 on the Mission Ave walk, which QA had not named, next to the one it had.
+  - **A footprint that stands on the walk: ask Street View which one is wrong before moving either.** 974487544's front wall was
+    0.3 m into the Mission Ave walk; the frame from its own panorama shows kerb, grass strip, walk, a hedge and the facade 4-5 m
+    behind (ground distance from the image row: camera height / tan(angle below the horizon, pitch included)). The OSM outline
+    was moved 3 m (`RING_SHIFT`, world.js), not the street. A house's stoop and porch posts are dropped wherever they would land
+    on a walk or a carriageway (house(), town.js).
+  - **A satellite class is not a design.** North of the built east side, Bryn Mawr Drive's west shoulder read "concrete" (dry
+    grass from the air) and rendered as a jointed sidewalk with a tree and a lamp in it. Where Street View shows a verge, paint
+    it (`paintSurface` -> grass) and draw what edges it (`bmWestLip`: the concrete lip at the asphalt).
+  - **A curve interpolated between samples overshoots.** The east-side bed started at the walk's back edge sampled every 0.25 m
+    and linearly interpolated: round the corner fillet it cut 0.1-0.2 m into the walk, 0.14 m proud. Take the furthest of three
+    neighbouring samples plus a few centimetres.
+  - **A wall end square to the back of a walk is a snag.** The toe wall's south end stood 0.31-0.35 m over the dirt margin
+    between the Mission Ave fence and the walk, 0.4 m from a player hugging the back edge: STEP is 0.45 m but the step failed
+    there. A concrete chamfer from the margin to the coping (23 deg) fixed it; walk the back edge (centre at -0.2 m from it)
+    both ways, not only the centre line.
+  - **Walk-out bays: decide each window row by the ground under the WINDOW**, not by the highest ground across the bay (a bay
+    with a bank at one end kept a 3-6 m blank lower storey): a row is drawn when the ground under the middle 40 % of the bay is
+    below its sill (floor + 0.75 m) and the bay's ends are no higher than mid-window. The walk-out door keeps the old floor.
+  - **Bots resting on a parapeted roof is not a campus defect:** 900888955 has a working ladder (map check) and the standard
+    0.45 m parapet that a player jumps; the descent is shared bot code.
 
 ## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
 

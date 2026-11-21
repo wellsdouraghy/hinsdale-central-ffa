@@ -126,6 +126,12 @@ export function addMaterials(ctx) {
     for (let k = 0; k < 2600; k++) { const x = r() * S, y = r() * S, a = r() * Math.PI, l = 1.5 + r() * r() * 9, wd = 0.8 + r() * 2.4; const t = tones[Math.floor(r() * tones.length)]; const v = 0.8 + r() * 0.4; g.fillStyle = `rgba(${t[0] * v | 0},${t[1] * v | 0},${t[2] * v | 0},${0.45 + r() * 0.5})`;
       wrap((ox, oy) => { g.save(); g.translate(x + ox, y + oy); g.rotate(a); g.beginPath(); g.ellipse(0, 0, l, wd, 0, 0, 7); g.fill(); g.restore(); }); }
     M.maHedge = std({ map: canvasTexture(c, { aniso: T.aniso }), vertexColors: true, roughness: 1, emissive: 0x141c10, emissiveIntensity: 0.5 }); }
+  { // a roadside verge: dry grass and bare earth (Street View of Bryn Mawr Drive in summer), short strokes in straw / olive / dust
+    const S = 256, c = makeCanvas(S, S), g = c.getContext('2d'); const r = mulberry32(31); g.fillStyle = '#857a56'; g.fillRect(0, 0, S, S);
+    const tones = [[150, 138, 92], [122, 116, 76], [98, 104, 66], [170, 156, 112], [112, 98, 70], [136, 130, 90]];
+    for (let k = 0; k < 5200; k++) { const x = r() * S, y = r() * S, a = (r() - 0.5) * 0.9 + (r() < 0.5 ? 0 : Math.PI / 2), l = 2 + r() * 7; const t = tones[Math.floor(r() * tones.length)], v = 0.8 + r() * 0.35; g.strokeStyle = `rgba(${t[0] * v | 0},${t[1] * v | 0},${t[2] * v | 0},${0.35 + r() * 0.5})`; g.lineWidth = 0.6 + r() * 1.2;
+      for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { g.beginPath(); g.moveTo(x + ox, y + oy); g.lineTo(x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l); g.stroke(); } }
+    M.maVerge = std({ map: canvasTexture(c, { aniso: T.aniso }), roughness: 1 }); M.maVerge.color.setRGB(0.74, 0.76, 0.72); }
   M.maFrond = std({ color: 0x3f5a2a, roughness: 0.8, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
@@ -521,10 +527,11 @@ export function buildPadWalls(ctx) {
   for (const c of ctx.padCheeks || []) {   // steps at the mouths of corridors between two buildings (applyPads)
     /* final ground (later pads may have moved it): push the face out until the ground in front of it is the low terrace,
        raise the top over whatever stands under the block; no clean step, no block */
+    if ((ctx.noCheek || []).some((f) => f(c.x, c.z) || f(c.x + c.tx * c.len / 2, c.z + c.tz * c.len / 2) || f(c.x - c.tx * c.len / 2, c.z - c.tz * c.len / 2))) continue;   // a designed flight of steps holds this step (a cheek block filled the head of the pool stairs)
     { const W = c.gap - 0.3; let ok = false; const far = [c.x - c.tx * c.len / 2, c.z - c.tz * c.len / 2];
       for (let k = 0; k < 8 && !ok; k++) { let m = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) m = Math.max(m, ctx.groundY(far[0] + c.tx * (c.len + 0.08) + c.nx * u, far[1] + c.tz * (c.len + 0.08) + c.nz * u)); if (m - c.level <= 0.1) ok = true; else c.len += 0.4; }
       if (!ok || c.len > 7.5) continue; c.x = far[0] + c.tx * c.len / 2; c.z = far[1] + c.tz * c.len / 2;
-      let t = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) for (let v = 0; v <= c.len + 0.01; v += 0.2) t = Math.max(t, ctx.groundY(far[0] + c.tx * v + c.nx * u, far[1] + c.tz * v + c.nz * u)); c.top = Math.max(c.top, t + 0.06); if (c.top - c.level < 0.25) continue; }
+      let t = -Infinity; for (let u = -W / 2; u <= W / 2 + 0.01; u += W / 8) for (let v = 0; v <= c.len + 0.01; v += 0.2) t = Math.max(t, ctx.groundY(far[0] + c.tx * v + c.nx * u, far[1] + c.tz * v + c.nz * u)); c.top = Math.max(c.top, t + 0.06); if (c.top - c.level < 0.75) continue; }   /* (a step under 0.75 m is a bank, not a wall: 0.5 m cheek blocks stood like plinths on the Mission Ave frontage) */
     terraceBlocks(ctx, { x: c.x + c.tx * c.len / 2, z: c.z + c.tz * c.len / 2, tx: c.nx, tz: c.nz, fx: c.tx, fz: c.tz, w: c.gap, regW: c.gap - 0.3, d: c.len, frontY: c.level, top: c.top, allowTall: true });   // (a 2-3 m wide cheek at a building corner stays one wall with coping and rail: stepped, it was a giant stair to nowhere; QA accepted them as they stand)
   }
   for (const s of ctx.padCuts || []) {
@@ -680,7 +687,7 @@ export function onSlope(ctx, x, z, r, fn) {
   for (const [k, bk] of B.visual) if (!seenV.has(k)) lift(bk, 0);
   for (const [k, bk] of B.collision) if (!seenC.has(k)) lift(bk, 0);
   for (let i = nS; i < ctx.shrubs.length; i++) { const sh = ctx.shrubs[i]; sh[1] += y0 + gx * (sh[0] - x) + gz * (sh[2] - z); }
-  for (let i = nP; i < (ctx.props || []).length; i++) { const p = ctx.props[i]; p.y = ctx.terrain.minIn(p.x, p.z, Math.hypot(p.sx, p.sz) / 2); }   // map check: base = lowest ground under the prop
+  for (let i = nP; i < (ctx.props || []).length; i++) { const p = ctx.props[i]; p.y = ctx.terrain.minIn(p.x, p.z, Math.hypot(p.sx, p.sz) / 2); p.plane = { x, z, y0, gx, gz }; }   // map check: the prop's base is this plane (p.y: its lowest point, for the report)
   return out;
 }
 export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, signedArea, pointInRing, mulberry32, makeCanvas, canvasTexture };
@@ -690,25 +697,35 @@ export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, signedArea, 
  * players and bullets (collision reaches the crowns; shelves inside so no mechanic finds standing room in it).
  * (x, z) centre, y base, w along `rot`, d deep, h tall.
  */
-export function hedgeMass(ctx, x, z, y, w, d, h, rot, seed = 1, opt = {}) {   // opt.oneRow: a single row of columns of radius <= d / 2 (a narrow strip)
-  const { B } = ctx; const hb = B.v('maHedge', true); const r = mulberry32(Math.abs(Math.round(x * 31 + z * 17 + seed)) + 5); const c = Math.cos(rot), s = Math.sin(rot);
-  // An overgrown bank, not a clipped wall: a dark core (so nothing shows through) wrapped in two staggered rows of bushy
-  // columns of different girth, height and tone. The columns swell 0.3-0.5 m past the core on both faces, so the front is
-  // lumpy in depth; their tops are steep cones (nothing that looks like a ledge). Collision is the plain block below.
-  hb.setColor(0.42, 0.48, 0.4); hb.box(x, y + h * 0.42 - 0.3, z, w, h * 0.84 + 0.6, d * (opt.oneRow ? 0.7 : 0.5), rot, 1 / 3.1);
-  const n = Math.max(2, Math.round(w / 0.95));
-  for (let k = 0; k < n; k++) for (const row of (opt.oneRow ? [0] : [-1, 1])) {
-    if (row > 0 && r() < 0.12) continue;
-    const u = -w / 2 + (k + 0.5 + (row > 0 ? 0.5 : 0)) * w / n + (r() - 0.5) * 0.5, v = row * (d * 0.24 + r() * 0.22); if (Math.abs(u) > w / 2 + 0.2) continue;
-    const px = x + u * c + v * s, pz = z - u * s + v * c; const R = opt.oneRow ? d / 2 * (0.88 + r() * 0.12) : Math.min(0.7 + r() * 0.5, Math.max(0.35, d * 0.55)), H = Math.max(0.8, h * (0.72 + r() * 0.3)), cone = Math.min(1.5 + r() * 0.9, H * 0.45); /* short yard hedges get short crowns: a negative section height gives NaN normals, and one NaN pixel blacks out the whole frame through the bloom pass */ const t = 0.78 + r() * 0.4, wm = r() * 0.12;
-    hb.setColor(t * (0.92 + wm), t, t * (0.9 - wm));
-    hb.cyl(px, y - 0.3, pz, R * 0.8, R, (H - cone) * 0.45 + 0.3, 7, 1 / 3.1, false);                          // skirt
-    hb.cyl(px, y + (H - cone) * 0.45, pz, R, R * 0.92, (H - cone) * 0.55, 7, 1 / 3.1, false);                  // body
-    hb.cyl(px, y + H - cone, pz, R * 0.92, 0.22, cone, 7, 1 / 3.1, true);                                      // steep crown
+export function hedgeMass(ctx, x, z, y, w, d, h, rot, seed = 1, opt = {}) {
+  // A clipped hedge: ONE continuous extruded wall at its real height (rulebook: hedges are never rows of separate cones or
+  // blobs). A body with a slightly narrower shoulder on top, leaf texture, one tone per piece; collision is the same block.
+  const { B } = ctx; const hb = B.v('maHedge', true); const r = mulberry32(Math.abs(Math.round(x * 31 + z * 17 + seed)) + 5); const t = 0.86 + r() * 0.1;
+  const sh = Math.min(0.35, h * 0.12);
+  hb.setColor(t * 0.95, t, t * 0.9); hb.box(x, y + (h - sh) / 2 - 0.15, z, w, h - sh + 0.3, d, rot, 1 / 3.1);
+  hb.setColor(t, t * 1.04, t * 0.93); hb.box(x, y + h - sh / 2, z, w, sh, Math.max(0.2, d - 0.24), rot, 1 / 3.1);
+  hb.setColor(1, 1, 1);
+  B.c('wood').box(x, y - 0.2 + (h + 0.2) / 2, z, w, h + 0.2, d, rot);
+  for (let yy = 0.55; yy < h - 0.2; yy += 0.75) B.c('wood').box(x, y + yy, z, w - 0.1, 0.06, Math.max(0.1, d - 0.1), rot);
+}
+/**
+ * A hedge that runs with the ground: one continuous wall through stations [{ x, z, nx, nz (unit, across the hedge), d (depth),
+ * y0 (foot), y1 (top) }], sloping between them (no steps, no gaps). Solid.
+ */
+export function hedgeRun(ctx, st, tone = 0.9) {
+  const { B } = ctx; if (st.length < 2) return; const hb = B.v('maHedge', true);
+  const P = (s, side, y) => [s.x + s.nx * s.d / 2 * side, y, s.z + s.nz * s.d / 2 * side];
+  for (let i = 0; i < st.length - 1; i++) { const a = st[i], b = st[i + 1]; const L = Math.hypot(b.x - a.x, b.z - a.z); if (L < 0.05) continue; const u = L / 3.1;
+    const sa = Math.min(0.35, (a.y1 - a.y0) * 0.12), sb = Math.min(0.35, (b.y1 - b.y0) * 0.12); const A = { ...a, d: Math.max(0.2, a.d - 0.24) }, Bn = { ...b, d: Math.max(0.2, b.d - 0.24) };
+    hb.setColor(tone * 0.95, tone, tone * 0.9);
+    for (const side of [-1, 1]) quadFacing(hb, P(a, side, a.y0 - 0.3), P(b, side, b.y0 - 0.3), P(b, side, b.y1 - sb), P(a, side, a.y1 - sa), [a.nx * side, 0, a.nz * side], [[0, 0], [u, 0], [u, (b.y1 - b.y0) / 3.1], [0, (a.y1 - a.y0) / 3.1]]);
+    hb.setColor(tone, tone * 1.04, tone * 0.93);
+    for (const side of [-1, 1]) { quadFacing(hb, P(a, side, a.y1 - sa), P(b, side, b.y1 - sb), P(Bn, side, b.y1), P(A, side, a.y1), [a.nx * side, 0.5, a.nz * side], [[0, 0], [u, 0], [u, 0.12], [0, 0.12]]); }
+    quadFacing(hb, P(A, -1, a.y1), P(Bn, -1, b.y1), P(Bn, 1, b.y1), P(A, 1, a.y1), [0, 1, 0], [[0, 0], [u, 0], [u, 0.3], [0, 0.3]]);
+    if (i === 0) quadFacing(hb, P(a, -1, a.y0 - 0.3), P(a, 1, a.y0 - 0.3), P(a, 1, a.y1), P(a, -1, a.y1), [a.x - b.x, 0, a.z - b.z], [[0, 0], [0.3, 0], [0.3, 1], [0, 1]]);
+    if (i === st.length - 2) quadFacing(hb, P(b, -1, b.y0 - 0.3), P(b, 1, b.y0 - 0.3), P(b, 1, b.y1), P(b, -1, b.y1), [b.x - a.x, 0, b.z - a.z], [[0, 0], [0.3, 0], [0.3, 1], [0, 1]]);
+    const y0 = Math.min(a.y0, b.y0) - 0.2, y1 = Math.min(a.y1, b.y1), dd = Math.min(a.d, b.d), rot = Math.atan2(-(b.z - a.z), b.x - a.x); const mx = (a.x + b.x) / 2, mz = (a.z + b.z) / 2;
+    B.c('wood').box(mx, (y0 + y1) / 2, mz, L + 0.02, y1 - y0, dd, rot); for (let yy = y0 + 0.75; yy < y1 - 0.2; yy += 0.75) B.c('wood').box(mx, yy, mz, L, 0.06, Math.max(0.1, dd - 0.1), rot);
   }
   hb.setColor(1, 1, 1);
-  // (a tall mass is solid up into its crowns; a hedge under 3 m ends at its clipped top: no invisible wall over a waist-high row)
-  const ch = h < 3 ? h + 0.35 : h + 1.6;
-  B.c('wood').box(x, y - 0.2 + (ch + 0.4) / 2, z, w, ch + 0.4, opt.oneRow ? d : d + 0.3, rot);
-  for (let yy = 0.55; yy < ch - 0.2; yy += 0.75) B.c('wood').box(x, y + yy, z, w - 0.1, 0.06, d - 0.1, rot);
 }

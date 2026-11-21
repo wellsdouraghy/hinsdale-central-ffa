@@ -119,7 +119,7 @@ window.__shot = async (name, cam, frames = 8) => {
   for (let i = 0; i < frames; i++) { for (const b of ctfBits) b.update(0.016); world.update(0.016, camera); world.render(null, null); await new Promise((r) => setTimeout(r, 30)); }
   world.update(0.016, camera); world.render(null, null);
   const blob = await new Promise((r) => renderer.domElement.toBlob(r, 'image/jpeg', 0.9));
-  await fetch('http://127.0.0.1:5199/' + name, { method: 'POST', body: blob });
+  await fetch('http://127.0.0.1:' + (qs.get('shotPort') || '5199') + '/' + name, { method: 'POST', body: blob });
   return name + ' ' + blob.size;
 };
 
@@ -158,7 +158,7 @@ window.__sheet = async (name, poses, cols = 3) => {
   for (let i = 0; i < poses.length; i++) { const [label, ...a] = poses[i]; const r = window.__look(...a); out.push([label, r.ok ? r.cam : r.why]); const x = (i % cols) * W, y = Math.floor(i / cols) * H;
     if (r.ok) { for (let k = 0; k < 6; k++) { world.update(0.016, camera); world.render(null, null); await new Promise((q) => setTimeout(q, 30)); } g.drawImage(renderer.domElement, x, y, W, H); } else { g.fillStyle = '#600'; g.fillRect(x, y, W, H); }
     g.fillStyle = '#000b'; g.fillRect(x, y, 300, 16); g.fillStyle = '#ff0'; g.font = '12px monospace'; g.fillText(label + (r.ok ? '' : ' ' + r.why), x + 4, y + 12); }
-  const blob = await new Promise((q) => c.toBlob(q, 'image/jpeg', 0.85)); await fetch('http://127.0.0.1:5199/' + name, { method: 'POST', body: blob }); return out;
+  const blob = await new Promise((q) => c.toBlob(q, 'image/jpeg', 0.85)); await fetch('http://127.0.0.1:' + (qs.get('shotPort') || '5199') + '/' + name, { method: 'POST', body: blob }); return out;
 };
 // Walk test with the real player controller (stuck safety net off): forward held from (x0, z0) toward (x1, z1), no
 // jump. Returns { reached, seconds, end, maxRise (largest climb in one 60 fps tick), airTicks, minY, maxY }.
