@@ -315,6 +315,65 @@ Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they
      double-sided roof of Foster Hall's north wing seen from inside it (collision 2.9 m overhead). Check every QA pose
      with `__look` before fixing what it shows.
 
+12. **Branson v3 lessons (switching on a pack made before 8 QA rounds changed the buildings).**
+   - **A pack ages with the geometry.** The sheet said "quad roofs -> tile, Fine Arts -> board and batten" for buildings that
+     had since been rebuilt (a white flat-roofed block on the hall, a tile band on Tallant, new roof builders). Re-read every
+     building against the CURRENT builder and the tiles before wiring; put every bucket and tint of the build behind one
+     function (Branson `lookOf(ctx)` in school.js) so pack on / pack off is one answer per material, not thirty `ctx.TX ?`.
+   - **Zoom the photo before naming the cladding.** The Fine Arts Center was "board and batten" from a thumbnail; a 3x crop
+     shows horizontal lap boards in bays between vertical trim boards (generator: `siding` + `vjoint: [spacing, width]`).
+     Wrong direction of the boards is the first thing a visitor sees.
+   - **Tiles tell you what, photos tell you which colour.** Google's photogrammetry washes cream to white and terracotta to
+     salmon; three cream buildings and two white ones were indistinguishable there. Use the tiles for which surface is which
+     (white block vs tiled wing, tile band, PV fields) and a photo for the hue; where no photo exists, say so in the sheet.
+   - **A roof builder with hand-made UVs shears a real tile.** `[0, 0], [L, 0], [L / 2, slope]` per triangle was invisible on
+     a noisy shingle tile and skews barrel-tile courses on every hip. Keyed roofing takes UVs from the face's own plane: u
+     along the eave in world metres, v up the slope (Branson `eaveUV`; hipRoof `planeUV`). Same for gable-end triangles
+     drawn without UVs: a keyed siding stretches across them (wall-plane metres / 2.2).
+   - **Shared roof helpers must hand `bucket` on.** `polyRoofOf` drew its deck and caps in 'shingles' and dropped the option
+     on the way to hipRoof; one union roof stayed shingle next to tiled neighbours until it took `opts.bucket`.
+   - **A double-sided roof shows its roofing from below.** A deep overhang (the Commons) read as metal underneath; a soffit
+     in its own colour needs its own faces 6 cm under each slope, not only the flat ceiling at eave height.
+   - **Metal roofs: metalness <= 0.3.** At 0.7 a zinc-grey standing seam mirrored the sky: 107/112/131 on screen against the
+     photo's 177/178/186; at 0.3 with a tint of 1.5 it reads 177/179/189.
+   - **Pale yellow in shade is a brightness problem, not a hue problem.** A tint that hit the sunlit swatch (218/212/181)
+     left shaded walls khaki (95/95/73) although their B/G matched the photo's shade: the game's shade is darker than a
+     photo's, and G >= R under the blue fill is what reads khaki. Raising AND warming the tint (R/G 1.12: sun 229/220/193,
+     shade 112/106/85) reads pale yellow on both sides.
+   - **Probe, do not box.** `dev/world.html`: camera 9 m back along the wall normal, fov 30, `readPixels` of the middle 80 %,
+     median of the modal-luminance bin: windows, trim and leaves fall out by themselves, and the same call on `?tex=0` in a
+     second tab is the before. Save the probe view once and look at it: three of the first probes sat on glass or a tree.
+   - **Two agents, one worktree: check `lsof -p <pid> -d cwd` and the server's root argument** before trusting "the other
+     agent works elsewhere"; every file either writes into `dev/` or `public/` reloads the other's tabs and restarts a
+     running map check. Give each vite its own `cacheDir`.
+
+13. **Branson v4 lessons (independent QA of v3: "one tint pass").**
+   - **Shade decides warm tints, the sun only checks them.** Every cream / white / yellow wall that probed fine in the sun
+     read olive-khaki or blue-grey on its north side (G >= R). Set the tint on the SHADED wall until R/G >= 1.06 with
+     B < G, then look at the sunlit one: raising R alone by 8-12 % moved the shade from R/G 1.02 to 1.07 and the sunlit
+     wall by 3-5 levels (KBH [0.84, 0.70, 0.36] -> [0.94, 0.72, 0.36]: shade 105/103/87 -> 113/105/87, sun 206/198/168
+     -> 211/198/167).
+   - **A white cannot have it both ways.** Warm white at R/G 1.07 in shade is cream in the sun ([0.92, 0.74, 0.44] made
+     Tallant a cream building). Stop where the shade is warm-neutral (R/G ~1.05, B < G: 118/112/106) and say so.
+   - **Yellow: take blue out, and stop before the shade goes ochre.** The game's shade is darker than a photo's, so the
+     photo's sunlit B/G on a shaded wall reads mustard. Lap siding: B/G 0.83 in sun, 0.70 in shade, R/G 1.07 in shade.
+   - **Check what the reviewer's "sunlit" patch was.** The lap wall's "sunlit 185/181/158" was under an oak's dappled
+     shade; in open sun the same wall read 229/220/193. Probe an unshaded stretch before retinting a material.
+   - **Dark shingle siding wants almost no unit contrast.** Per-shingle tone jitter of 12 % with dark butt lines and
+     keyways turned cedar shingles into red brick at 30 m. unit_var ~0.045, a narrow palette, course shadow and keyways
+     at 0.3 (generator `course_shadow`, `gap_dark`): the courses still read close up, the wall is one brown from the field.
+   - **A second skin on part of a kit wall without touching the kit:** move the triangles. `reskinWall` (Branson
+     school.js) cuts the kit wall's triangles at a height and two stations and pushes the lower part into another
+     bucket with its own tint and wall-metre UVs; openings, frames and collision stay as laid out. A county wall bows
+     off its chord (the gym's east front by 0.6 m): take triangles up to a metre in front of the frame, or only the
+     piece that happens to lie on the chord changes.
+   - **Every wall of a building, not only the one in the photo.** The Commons wings went to concrete and the hall's own
+     side walls stayed lavender stucco beside them. After wiring a material, walk round the building.
+   - **Place a photo before distrusting it.** The "yellow house of unknown identity" beside the Fine Arts Center was
+     New House: the photo's layout (house left, Fine Arts north front right, link behind) only fits the nadir tiles
+     one way. The tiles had washed it to white.
+   - `git stash` is shared by every worktree of a repo: with other agents about, stash, shoot and pop in one go.
+
 ## Map check (required before QA)
 
 `dev/mapcheck.html?campus=<id>&mute=1` (dev server, own tab) loads the real world and validates it with the real

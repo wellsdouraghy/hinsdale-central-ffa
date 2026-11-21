@@ -11,6 +11,30 @@ export const BR_TAN = [8.6, 7.3, 5.2];        // the gym's tan composition shing
 export const BR_SEAM = [6.6, 6.4, 5.9];       // the Commons: light grey standing seam
 export const WHITE = [0.72, 0.71, 0.68];         // white stucco, toned down (no blown-out whites)
 export const CREAM = [0.86, 0.75, 0.52];
+// The generated texture pack (tools/textures/campuses/branson/materials.json; `?tex=0` = the look before it). `packKey` answers a keyed pack
+// texture's bucket, or the fallback when the pack is off. PACK = linear vertex tints that go with it: walls over the neutral stucco tile (mean 0.85),
+// roofs over the neutral shingle tile (mean 0.0315), [1, 1, 1]-ish over the keyed tiles (their colour is in the texture); all of them were set against
+// sunlit AND shaded walls in game screenshots (MAP_NOTES "Textures from references").
+// v4 (independent QA): the warm wall tints are set on the SHADED wall first (R/G >= 1.06 with B < G there, or cream reads khaki and white blue-grey).
+export const packKey = (ctx, key, fallback) => (ctx.TX && ctx.TX.tex[key] && ctx.TX.tex[key].key ? key : fallback);
+export const PACK = {
+  cream: [0.86, 0.64, 0.28],      // the quad's cream-yellow stucco (school site photos)
+  kbh: [0.94, 0.72, 0.36],        // Katharine Branson Hall: a paler cream (tiles obliques, the drone still)
+  white: [0.93, 0.74, 0.46],      // warm white stucco: the hall's west block, Tallant
+  house: [0.94, 0.74, 0.32],      // New House: pale yellow stucco (the house beside the Fine Arts Center in the architect's photo)
+  tile: [1, 0.96, 1],             // brTile
+  cedar: [1.0, 0.95, 0.8],               // brCedar
+  lap: [1.34, 1.16, 0.72],                 // brLap
+  conc: [1.12, 1.0, 0.78],                // brFormConcrete
+  seam: [1.5, 1.48, 1.4],                // brSeam
+  tan: [8.6, 7.1, 4.3],           // the gym's grey-tan composition shingle
+  grey: [4.4, 4.4, 3.9],          // Fine Arts Center: grey composition shingle
+  lightGrey: [7.0, 7.0, 6.2],     // New House
+  gymBase: [0.92, 0.69, 0.34],    // the gym's entrance block below the cedar: cream stucco
+  soffit: [0.5, 0.36, 0.2],       // the Commons: clear-finished wood under the roof overhangs
+};
+/** Texture coordinates in a roof plane, in metres / 3: u along the eave a -> b (world distance, so collinear eaves carry on), v up the slope from it. */
+export const eaveUV = (a, b) => { const ex = b[0] - a[0], ez = b[2] - a[2], L = Math.hypot(ex, ez) || 1, tx = ex / L, tz = ez / L; return (p) => { const u = (p[0] - a[0]) * tx + (p[2] - a[2]) * tz; return [(p[0] * tx + p[2] * tz) / 3, Math.hypot(p[0] - a[0] - u * tx, p[1] - a[1], p[2] - a[2] - u * tz) / 3]; }; };
 
 /** Edge frames of a CCW ring whose outward normal really points out (tested against the centroid). */
 export function outFrames(ringIn) {
@@ -165,12 +189,16 @@ export function boxOn(pts, ang) { const c = Math.cos(ang * RAD), s = Math.sin(an
  */
 export function gableRoof(ctx, o, eaveY, rise, opts = {}) {
   const { B } = ctx; const ov = opts.ov ?? 0.6, oe = opts.ovEnd ?? ov; const W = oW(o); const u0 = -o.L / 2 - oe, u1 = o.L / 2 + oe, hw = o.W / 2 + ov, top = eaveY + rise;
-  const bk = B.v('shingles', true), col = B.c('concrete'); const t = opts.tint || BR_TAN; bk.setColor(t[0], t[1], t[2]); const sl = Math.hypot(hw, rise), S = 1 / 3;
+  const bk = B.v(opts.bucket || 'shingles', true), col = B.c('concrete'); const t = opts.tint || BR_TAN; bk.setColor(t[0], t[1], t[2]); const sl = Math.hypot(hw, rise), S = 1 / 3;
   for (const sd of [-1, 1]) { const p0 = W(u0, sd * hw, eaveY), p1 = W(u1, sd * hw, eaveY), p2 = W(u1, 0, top), p3 = W(u0, 0, top); const uv = [[u0 * S, 0], [u1 * S, 0], [u1 * S, sl * S], [u0 * S, sl * S]]; quadFacing(bk, p0, p1, p2, p3, [0, 1, 0], uv); quadFacing(col, p0, p1, p2, p3, [0, 1, 0]); }
-  quadFacing(bk, W(u0, -hw, eaveY), W(u1, -hw, eaveY), W(u1, hw, eaveY), W(u0, hw, eaveY), [0, -1, 0]);
+  if (opts.soffit) { const sf = B.v('paint', true); sf.setColor(opts.soffit[0], opts.soffit[1], opts.soffit[2]); quadFacing(sf, W(u0, -hw, eaveY), W(u1, -hw, eaveY), W(u1, hw, eaveY), W(u0, hw, eaveY), [0, -1, 0]);
+    for (const sd of [-1, 1]) quadFacing(sf, W(u0, sd * hw, eaveY - 0.06), W(u1, sd * hw, eaveY - 0.06), W(u1, 0, top - 0.06), W(u0, 0, top - 0.06), [0, -1, 0]);   // boards under each slope, 6 cm below the double-sided roofing: seen under the rake and eave overhangs
+    sf.setColor(1, 1, 1); }   // (opts.soffit: the underside in its own colour, not in the roofing)
+  else quadFacing(bk, W(u0, -hw, eaveY), W(u1, -hw, eaveY), W(u1, hw, eaveY), W(u0, hw, eaveY), [0, -1, 0]);
   const wb = B.v(opts.gableBucket || 'stucco', true); const gt = opts.gableTint || [1, 1, 1]; wb.setColor(gt[0], gt[1], gt[2]); const dy = rise * ov / hw; const ends = opts.ends || [true, true];
   [-o.L / 2, o.L / 2].forEach((ug, k) => { if (!ends[k]) return; const a0 = W(ug, -o.W / 2, eaveY), a1 = W(ug, o.W / 2, eaveY), b0 = W(ug, -o.W / 2, eaveY + dy), b1 = W(ug, o.W / 2, eaveY + dy), tp = W(ug, 0, top);
-    for (const [p, q, r] of [[a0, a1, b1], [a0, b1, b0], [b0, b1, tp]]) { wb.tri(p, q, r); wb.tri(q, p, r); col.tri(p, q, r); } });
+    const gu = new Map([[a0, [-o.W / 2, eaveY]], [a1, [o.W / 2, eaveY]], [b0, [-o.W / 2, eaveY + dy]], [b1, [o.W / 2, eaveY + dy]], [tp, [0, top]]]); const guv = (p) => (opts.gableBucket && opts.gableBucket !== 'stucco' ? [gu.get(p)[0] / 2.2, gu.get(p)[1] / 2.2] : undefined);   // (siding: uv in metres on the wall plane, courses level; the plain stucco canvas keeps its old mapping)
+    for (const [p, q, r] of [[a0, a1, b1], [a0, b1, b0], [b0, b1, tp]]) { wb.tri(p, q, r, guv(p), guv(q), guv(r)); wb.tri(q, p, r, guv(q), guv(p), guv(r)); col.tri(p, q, r); } });
   wb.setColor(1, 1, 1);
   if (opts.trim) { const tp = B.v('paint', true); tp.setColor(0.8, 0.8, 0.77); [u0, u1].forEach((ug, k) => { if (!ends[k]) return; for (const sd of [-1, 1]) tp.tube(W(ug, sd * hw, eaveY - 0.05), W(ug, 0, top - 0.05), 0.11, 5, 1); }); tp.setColor(1, 1, 1); }
   for (let y0 = 0; y0 + 0.25 < rise; y0 += 0.8) { const y1 = Math.min(y0 + 0.8, rise - 0.05), b = hw * (1 - y1 / rise); if (b < 0.15) break; const p = W(0, 0, eaveY + (y0 + y1) / 2); B.c('wood').box(p[0], p[1], p[2], o.L, y1 - y0, 2 * b, -o.ang * RAD); }
@@ -183,7 +211,7 @@ export function gableRoof(ctx, o, eaveY, rise, opts = {}) {
  * eaveY / ridgeY local heights; opts: tint, ov (eave overhang). Tiled planes, a soffit, walkable collision.
  */
 export function ridgeRoof(ctx, ringIn, eaveY, ra, rb, ridgeY, opts = {}) {
-  const { B } = ctx; const ring = ensureCCW(ringIn); const ov = opts.ov ?? 0.7; const t = opts.tint || BR_CLAY; const bk = B.v('shingles', true), col = B.c('concrete'); const n = ring.length;
+  const { B } = ctx; const ring = ensureCCW(ringIn); const ov = opts.ov ?? 0.7; const t = opts.tint || BR_CLAY; const bk = B.v(opts.bucket || 'shingles', true), col = B.c('concrete'); const n = ring.length;
   // eave line: each vertex pushed out along the bisector of its two edge normals
   const out = ring.map((p, i) => { const a = ring[(i + n - 1) % n], b = ring[(i + 1) % n]; const e1 = [p[0] - a[0], p[1] - a[1]], e2 = [b[0] - p[0], b[1] - p[1]]; const l1 = Math.hypot(...e1) || 1, l2 = Math.hypot(...e2) || 1; let nx = e1[1] / l1 + e2[1] / l2, nz = -e1[0] / l1 - e2[0] / l2; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l; if (pointIn(p[0] + nx * 0.2, p[1] + nz * 0.2, ring)) { nx = -nx; nz = -nz; } return [p[0] + nx * ov, p[1] + nz * ov]; });
   const R = [[ra[0], ridgeY, ra[1]], [rb[0], ridgeY, rb[1]]]; const near = (p) => (Math.hypot(p[0] - ra[0], p[1] - ra[1]) <= Math.hypot(p[0] - rb[0], p[1] - rb[1]) ? 0 : 1);
@@ -191,8 +219,10 @@ export function ridgeRoof(ctx, ringIn, eaveY, ra, rb, ridgeY, opts = {}) {
   bk.setColor(t[0], t[1], t[2]);
   for (let i = 0; i < n; i++) { const a2 = out[i], b2 = out[(i + 1) % n]; const a = [a2[0], eaveY, a2[1]], b = [b2[0], eaveY, b2[1]]; const ka = near(a2), kb = near(b2); const L = Math.hypot(b2[0] - a2[0], b2[1] - a2[1]); const S = 1 / 3;
     const sl = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-    if (ka === kb) { tri(bk, a, b, R[ka], [[0, 0], [L * S, 0], [L * S / 2, sl(a, R[ka]) * S]]); tri(col, a, b, R[ka]); }
-    else { tri(bk, a, b, R[kb], [[0, 0], [L * S, 0], [L * S, sl(b, R[kb]) * S]]); tri(bk, a, R[kb], R[ka], [[0, 0], [L * S, sl(b, R[kb]) * S], [0, sl(a, R[ka]) * S]]); tri(col, a, b, R[kb]); tri(col, a, R[kb], R[ka]); } }
+    // (a keyed roofing tile: uv from the face's own plane, so courses lie level along the eave and columns run straight up the slope on every face)
+    const f = opts.bucket ? eaveUV(a, b) : null;
+    if (ka === kb) { tri(bk, a, b, R[ka], f ? [f(a), f(b), f(R[ka])] : [[0, 0], [L * S, 0], [L * S / 2, sl(a, R[ka]) * S]]); tri(col, a, b, R[ka]); }
+    else { tri(bk, a, b, R[kb], f ? [f(a), f(b), f(R[kb])] : [[0, 0], [L * S, 0], [L * S, sl(b, R[kb]) * S]]); tri(bk, a, R[kb], R[ka], f ? [f(a), f(R[kb]), f(R[ka])] : [[0, 0], [L * S, sl(b, R[kb]) * S], [0, sl(a, R[ka]) * S]]); tri(col, a, b, R[kb]); tri(col, a, R[kb], R[ka]); } }
   bk.setColor(t[0] * 0.8, t[1] * 0.8, t[2] * 0.8); bk.tube(R[0], R[1], 0.13, 5, 1); bk.setColor(1, 1, 1);
   const pt = B.v('paint', true); pt.setColor(0.78, 0.77, 0.73); for (let i = 0; i < n; i++) { const j = (i + 1) % n; quadFacing(pt, [ring[i][0], eaveY - 0.02, ring[i][1]], [ring[j][0], eaveY - 0.02, ring[j][1]], [out[j][0], eaveY - 0.02, out[j][1]], [out[i][0], eaveY - 0.02, out[i][1]], [0, -1, 0]); } pt.setColor(1, 1, 1);
   // a solid attic so nobody can stand inside the roof: slabs under the ridge, narrowing upward
@@ -236,10 +266,10 @@ export function offsetRing(ringIn, d) {
  */
 export function mansard(ctx, ringIn, hW, h, opts = {}) {
   const { B } = ctx; const ring = ensureCCW(ringIn); const n = ring.length; const ledge = opts.ledge ?? 1.3, run = opts.run ?? 1.6, pw = opts.parapet ?? 0.5; const tint = opts.tint || BR_CLAY, wh = opts.white || [0.8, 0.8, 0.78];
-  const r1 = offsetRing(ring, -ledge), r2 = offsetRing(ring, -(ledge + run)), r3 = offsetRing(ring, -(ledge + run + pw)); const tl = B.v('shingles', true), pt = B.v('paint', true), col = B.c('concrete'); const sl = Math.hypot(run, h - hW); const Y = (p, y) => [p[0], y, p[1]];
+  const r1 = offsetRing(ring, -ledge), r2 = offsetRing(ring, -(ledge + run)), r3 = offsetRing(ring, -(ledge + run + pw)); const tl = B.v(opts.bucket || 'shingles', true), pt = B.v('paint', true), col = B.c('concrete'); const sl = Math.hypot(run, h - hW); const Y = (p, y) => [p[0], y, p[1]];
   for (let i = 0; i < n; i++) { const j = (i + 1) % n; const L = Math.hypot(ring[j][0] - ring[i][0], ring[j][1] - ring[i][1]); const F = edgeFrame(ring[i][0], ring[i][1], ring[j][0], ring[j][1]); let nx = F.nx, nz = F.nz; if ((r1[i][0] - ring[i][0]) * nx + (r1[i][1] - ring[i][1]) * nz > 0) { nx = -nx; nz = -nz; }
     pt.setColor(wh[0], wh[1], wh[2]); quadFacing(pt, Y(ring[i], hW + 0.012), Y(ring[j], hW + 0.012), Y(r1[j], hW + 0.012), Y(r1[i], hW + 0.012), [0, 1, 0]); quadFacing(pt, Y(r2[i], h + 0.004), Y(r2[j], h + 0.004), Y(r3[j], h + 0.004), Y(r3[i], h + 0.004), [0, 1, 0]);
-    tl.setColor(tint[0], tint[1], tint[2]); quadFacing(tl, Y(r1[i], hW + 0.012), Y(r1[j], hW + 0.012), Y(r2[j], h + 0.004), Y(r2[i], h + 0.004), [nx, 1, nz], [[0, 0], [L / 3, 0], [L / 3, sl / 3], [0, sl / 3]]); tl.setColor(1, 1, 1);
+    tl.setColor(tint[0], tint[1], tint[2]); { const q4 = [Y(r1[i], hW + 0.012), Y(r1[j], hW + 0.012), Y(r2[j], h + 0.004), Y(r2[i], h + 0.004)]; const f = opts.bucket ? eaveUV(q4[0], q4[1]) : null; quadFacing(tl, q4[0], q4[1], q4[2], q4[3], [nx, 1, nz], f ? q4.map(f) : [[0, 0], [L / 3, 0], [L / 3, sl / 3], [0, sl / 3]]); } tl.setColor(1, 1, 1);
     quadFacing(col, Y(r1[i], hW), Y(r1[j], hW), Y(r2[j], h), Y(r2[i], h), [nx, 1, nz]); }
   const rc = opts.roofCol || [0.5, 0.5, 0.5]; pt.setColor(rc[0], rc[1], rc[2]); pt.poly(r3, null, h + 0.004, (x, z) => [x / 3, z / 3]); pt.setColor(1, 1, 1); col.poly(r2, null, h, (x, z) => [x / 3, z / 3]);
 }

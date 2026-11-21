@@ -89,7 +89,8 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
 - Masonry colour: `colors` + `weights` are the palette of unit faces, `target` the measured mean of the FACES (mortar is
   its own swatch), `target_tile` a whole-wall mean instead. Detail knobs (all optional): `texture` (wirecut, sand,
   smooth, split), `unit_var`, `hue_var`, `grad`, `flash`, `heart_frac`, `scum_frac`, `chips`, `wobble`, `smear`, `pits`,
-  `bake_shadow`. Concrete: `boards` (board-formed, plank height in m), `pinholes`.
+  `bake_shadow`. Concrete: `boards` (board-formed, plank height in m), `pinholes`. Lap siding: `vjoint: [spacing, width]`
+  (boards in bays between flat vertical trim boards), `butt` (0 = no butt joints inside a bay).
 - Budget: 1024 px per ~2.5 m (2048 x 1024 only for variegated brick), albedo + normal JPG, no roughness map (scalar).
   Normal maps are skipped on low quality. A pack is 2-4 MB per campus and only that campus downloads it.
 
