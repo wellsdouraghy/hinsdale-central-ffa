@@ -6,7 +6,7 @@ import { propKit } from '../../world/props.js';
 import { bleachers, landmarkKit } from '../../world/landmarks.js';
 import { kerb, meshY, drapePoly, earclip } from './lib.js';
 import { PAVED, SITE } from './paved.js';
-import { PLAY_EDGE, lineDist, segDist, SW } from './kit.js';
+import { PLAY_EDGE, lineDist, segDist, SW, mat, MAT } from './kit.js';
 import { SCHOOL_RING } from './blocks.js';
 const SCHOOL_LOOP = [...SCHOOL_RING, SCHOOL_RING[0]];
 
@@ -24,7 +24,9 @@ const GOALS = [TW(-49.6, 1.2), TW(52.9, 1.2)];
 const MASTS = [[-161.5, 28.5], [-67.5, 30.5], [-167, 135.5], [-68.5, 143]];
 // courts painted on the school yards (nadir tiles): [centre x, z, axis angle deg (0 = +x), length, width, colour]
 // (fix round 2: the court yard south of the grades 7-8 wing is not one full court: its marks are yardMarks() below)
-const COURTS = [[68.5, 61.5, 46.7, 22, 12.5, [0.78, 0.66, 0.2]]];
+// (nit pass, tiles t_n_yardS) the yard south of the 1971 block: ONE full court in yellow, 20.6 x 11 m along the gym wall (tools/data/extra.py YARD_COURT)
+const YC = SITE.yardCourt || { c: [67.3, 60.8], deg: 47, L: 20.6, W: 11, squares: [], q: 1.83 };
+const COURTS = [[YC.c[0], YC.c[1], YC.deg, YC.L, YC.W, [0.95, 0.74, 0.16]]];
 const gY = (ctx) => meshY(ctx);
 
 export function groundPads(ctx) {
@@ -58,7 +60,7 @@ function track(ctx) {
 function courts(ctx) {
   const line = liner(ctx); const { B } = ctx;
   for (const [cx, cz, deg, L, W, col] of COURTS) { const a = deg * Math.PI / 180, ux = Math.cos(a), uz = Math.sin(a); const P = (u, v) => [cx + u * ux - v * uz, cz + u * uz + v * ux];
-    const seg = (u0, v0, u1, v1) => { const p = P(u0, v0), q = P(u1, v1); line(p[0], p[1], q[0], q[1], 0.06, col); };
+    const seg = (u0, v0, u1, v1) => { const p = P(u0, v0), q = P(u1, v1); line(p[0], p[1], q[0], q[1], 0.1, col); };
     const arc = (uc, vc, r, a0, a1, n = 18) => { for (let k = 0; k < n; k++) { const t0 = a0 + (a1 - a0) * k / n, t1 = a0 + (a1 - a0) * (k + 1) / n; seg(uc + r * Math.cos(t0), vc + r * Math.sin(t0), uc + r * Math.cos(t1), vc + r * Math.sin(t1)); } };
     seg(-L / 2, -W / 2, L / 2, -W / 2); seg(L / 2, -W / 2, L / 2, W / 2); seg(L / 2, W / 2, -L / 2, W / 2); seg(-L / 2, W / 2, -L / 2, -W / 2); seg(0, -W / 2, 0, W / 2); arc(0, 0, 1.8, 0, Math.PI * 2, 24);
     for (const s of [-1, 1]) { const e = s * L / 2; seg(e, -2.45, e - s * 5.8, -2.45); seg(e, 2.45, e - s * 5.8, 2.45); seg(e - s * 5.8, -2.45, e - s * 5.8, 2.45); arc(e - s * 5.8, 0, 1.8, s > 0 ? Math.PI / 2 : -Math.PI / 2, s > 0 ? Math.PI * 1.5 : Math.PI / 2, 12);
@@ -67,6 +69,25 @@ function courts(ctx) {
       const p = P(e + s * 0.9, 0), bb = P(e - s * 1.2, 0); const rot = -a;
       atGround(ctx, p[0], p[1], () => { const g = B.v('galv'); g.cyl(p[0], 0, p[1], 0.07, 0.07, 3.3, 8, 1, true); g.tube([p[0], 3.25, p[1]], [bb[0], 3.45, bb[1]], 0.05, 6); B.v('whitePanel').box(bb[0], 3.5, bb[1], 0.05, 1.07, 1.8, rot);
         const rm = P(e - s * 1.45, 0); B.v('paint', true).setColor(0.85, 0.3, 0.1).cyl(rm[0], 3.04, rm[1], 0.23, 0.23, 0.03, 12, 1, false).setColor(1, 1, 1); B.c('metal').box(p[0], 1.65, p[1], 0.2, 3.3, 0.2); B.c('metal').box(bb[0], 3.5, bb[1], 0.08, 1.07, 1.8, rot); ctx.grapplePoles.push({ x: p[0], z: p[1], y0: 1, y1: 3.3, r: 0.07 }); }, 0.5, 'max'); } }
+  // two white four-square grids at the court's south end (2 x 2 squares of 1.83 m, turned with the court)
+  { const a = YC.deg * Math.PI / 180, ux = Math.cos(a), uz = Math.sin(a), q = YC.q; for (const [cx, cz] of YC.squares) { const G = (i, j) => [cx + (i - 1) * q * ux - (j - 1) * q * uz, cz + (i - 1) * q * uz + (j - 1) * q * ux];
+      for (let i = 0; i <= 2; i++) { let p0 = G(i, 0), p1 = G(i, 2); line(p0[0], p0[1], p1[0], p1[1], 0.09, [0.93, 0.93, 0.9]); p0 = G(0, i); p1 = G(2, i); line(p0[0], p0[1], p1[0], p1[1], 0.09, [0.93, 0.93, 0.9]); } } }
+}
+
+// (nit pass, tiles t_n_sheds / t_q_yardS_obl) Two sheds at the tip of the lawn between the portables and the yard: a cream double shed (two units
+// side by side under one flat roof) and a blue steel container. Solid.
+function sheds(ctx) {
+  const { B } = ctx; const S = SITE.sheds; if (!S) return;
+  for (const [k, [cx, cz, L, W, deg, h]] of Object.entries(S)) { const a = deg * Math.PI / 180, ux = Math.cos(a), uz = Math.sin(a), rot = -a; const P = (u, v) => [cx + u * ux - v * uz, cz + u * uz + v * ux];
+    if ((ctx.buildingRings || []).some((r) => pointInRing(cx, cz, r))) continue;
+    atGround(ctx, cx, cz, () => {
+      if (k === 'blue') { const pt = B.v('paint', true); pt.setColor(0.17, 0.4, 0.68).box(cx, h / 2, cz, L, h, W, rot); pt.setColor(0.36, 0.58, 0.82).box(cx, h + 0.02, cz, L - 0.1, 0.04, W - 0.1, rot);
+        pt.setColor(0.13, 0.32, 0.56); for (let u = -L / 2 + 0.3; u < L / 2 - 0.1; u += 0.3) for (const sd of [-1, 1]) { const p = P(u, sd * (W / 2 + 0.015)); pt.box(p[0], h / 2, p[1], 0.12, h - 0.3, 0.03, rot); }
+        const g = B.v('galv'); for (const v of [-W / 4, W / 4]) { const p = P(L / 2 + 0.03, v); g.box(p[0], h / 2, p[1], 0.04, h - 0.25, 0.05, rot); } pt.setColor(1, 1, 1); B.c('metal').box(cx, h / 2, cz, L, h, W, rot); }
+      else { const sd = mat(ctx, MAT.siding, 1, [1.12, 1.08, 0.98]); for (const s of [-1, 1]) { const p = P(s * (L / 4 + 0.02), 0); sd.box(p[0], h / 2, p[1], L / 2 - 0.04, h, W, rot, 1, { noBottom: true }); } sd.setColor(1, 1, 1);
+        B.v('whitePanel').box(cx, h + 0.05, cz, L + 0.3, 0.1, W + 0.3, rot); for (const s of [-1, 1]) { const p = P(s * L / 4, W / 2 + 0.02); B.v('whitePanel').box(p[0], 1.0, p[1], 1.5, 2.0, 0.04, rot); const q = P(s * L / 4 + 0.6, W / 2 + 0.05); B.v('blackMetal').box(q[0], 1.0, q[1], 0.04, 0.14, 0.04, rot); }
+        B.c('wood').box(cx, (h + 0.1) / 2, cz, L, h + 0.1, W, rot); }
+    }, Math.max(L, W) / 2, 'max'); }
 }
 
 // (fix round 2, tiles t_n_seplaza / t_n_sep) The court yard south of the grades 7-8 wing: a pale concrete pad (tools/data/extra.py YARD) painted for
@@ -93,14 +114,21 @@ function yardMarks(ctx) {
   if (SITE.ePad) { const ux = 0.69, uz = 0.724; for (let k = 0; k < 4; k++) { const c = [147.6 + ux * 4.8 * k, -6.2 + uz * 4.8 * k]; line(c[0] - uz * 3.0, c[1] + ux * 3.0, c[0] + uz * 3.0, c[1] - ux * 3.0, 0.5, [0.8, 0.79, 0.74]); } }
 }
 // (fix round 2, tiles t_n_pads) The lumber yard on the two portable rows that left: stacks of boards on bearers on the bare earth, along each pad's axis.
+// (nit pass) Each stack is TIMBER, not a block: layers of planks (the campus's cedar board tile, tinted to sawn wood, its boards running along the stack)
+// with ragged ends and a shifted length per layer, thin dark stickers between the layers, dark bearers underneath; one collision box per stack.
 function lumber(ctx) {
-  const { B } = ctx; const rnd = mulberry32(2025); const pads = (SITE.dirt || []).slice(0, 2); const wd = B.v('stucco', true);
+  const { B } = ctx; const rnd = mulberry32(2025); const pads = (SITE.dirt || []).slice(0, 2); const TINT = [0.95, 1.2, 1.45];
   for (const pad of pads) { const a = pad[0], b = pad[1], d = pad[3]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]), tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L, Wd = Math.hypot(d[0] - a[0], d[1] - a[1]), nx = (d[0] - a[0]) / Wd, nz = (d[1] - a[1]) / Wd; const rot = Math.atan2(-tz, tx);
     for (let u = 3.2; u < L - 3; u += 4.6) for (const v of [Wd * 0.3, Wd * 0.72]) { if (rnd() < 0.3) continue; const x = a[0] + tx * (u + rnd() * 0.8) + nx * v, z = a[1] + tz * (u + rnd() * 0.8) + nz * v; const h = 0.45 + Math.floor(rnd() * 3) * 0.3, len = 3.0 + rnd() * 1.2, wid = 1.1 + rnd() * 0.3;
       if (!['grass', 'dirt'].includes(ctx.surfaceAt(x, z)) || (ctx.keepClear || []).some(([kx, kz, kr]) => Math.hypot(x - kx, z - kz) < kr + 2) || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r))) continue;
-      onSlope(ctx, x, z, 1.6, () => { const t = 0.86 + rnd() * 0.25; wd.setColor(0.66 * t, 0.5 * t, 0.3 * t); wd.box(x, 0.12 + h / 2, z, len, h, wid, rot, 0.6); wd.setColor(0.4, 0.3, 0.2); for (const s of [-1, 1]) wd.box(x + tx * s * len * 0.32, 0.06, z + tz * s * len * 0.32, 0.1, 0.12, wid, rot); B.c('wood').box(x, (0.12 + h) / 2, z, len, 0.12 + h, wid, rot); });
+      onSlope(ctx, x, z, 1.6, () => { const nL = Math.round(h / 0.15), lay = h / nL; const dk = B.v('paint', true);
+        dk.setColor(0.2, 0.14, 0.09); for (const s of [-1, 0, 1]) dk.box(x + tx * s * len * 0.34, 0.06, z + tz * s * len * 0.34, 0.1, 0.12, wid, rot);
+        dk.setColor(0.17, 0.12, 0.08).box(x, 0.12 + h / 2, z, len - 0.5, h - 0.02, wid - 0.06, rot); dk.setColor(1, 1, 1);   // the shadowed core seen through the gaps
+        for (let i = 0; i < nL; i++) { const sh = (rnd() - 0.5) * 0.22, t = 0.82 + rnd() * 0.36; const nB = 4, bw = wid / nB;
+          for (let j = 0; j < nB; j++) { const l2 = len - rnd() * 0.3, o = sh + (rnd() - 0.5) * 0.12, vv = (j + 0.5 - nB / 2) * bw, k = t * (0.92 + rnd() * 0.16); const wd = mat(ctx, MAT.cedar, k, TINT);
+            wd.box(x + tx * o + nx * vv, 0.12 + lay * (i + 0.5) - 0.012, z + tz * o + nz * vv, l2, lay - 0.035, bw - 0.025, rot, 1.4); wd.setColor(1, 1, 1); } }
+        B.c('wood').box(x, (0.12 + h) / 2, z, len, 0.12 + h, wid, rot); });
     } }
-  wd.setColor(1, 1, 1);
 }
 // (fix round 2, tiles t_n_tennis) The March Tennis Club beyond the south fence: two blocks of four courts (acrylic: red with green courts, green with
 // blue courts; the surround's tone is baked, tools/data/extra.py TENNIS), each court with its lines, net and posts, and the club's 3 m fence round each
@@ -162,8 +190,8 @@ function vehicles(ctx) {
     lot = (ctx.lots = ctx.lots || {}).lot2 = { at: [-76, 190], stalls: 0, cars: 0 }; const A = (e, d) => [N[0] + ex * e + dx * d, N[1] + ez * e + dz * d];
     row(A(8.5, 1.5), A(8.5, Ld - 1.5), 1, () => 0.22, yel); row(A(8.5, 1.5), A(8.5, Ld - 1.5), -1, () => 0.22, yel); row(A(25.5, 1.5), A(25.5, Ld - 1.5), 1, () => 0.22, yel); }
   for (const r of ctx.data.roads) { if (r.tags.highway !== 'service' || r.tags.service !== 'parking_aisle') continue; const c = r.line[Math.floor(r.line.length / 2)]; if (!pointInRing(c[0], c[1], PLAY_EDGE)) continue;
-    const north = c[1] < -40; const fill = north ? (x, z) => (lineDist(x, z, SCHOOL_LOOP) < 45 ? 0.85 : 0.1) : () => 0.5; lot = (ctx.lots = ctx.lots || {})[r.id] = { at: [Math.round(c[0]), Math.round(c[1])], stalls: 0, cars: 0 };
-    for (let i = 0; i < r.line.length - 1; i++) { if (L2 && pointInRing((r.line[i][0] + r.line[i + 1][0]) / 2, (r.line[i][1] + r.line[i + 1][1]) / 2, L2)) continue; row(r.line[i], r.line[i + 1], 1, fill); row(r.line[i], r.line[i + 1], -1, fill); } }
+    const north = c[1] < -40; const lc = north ? [0.86, 0.72, 0.22] : [0.96, 0.96, 0.94]; /* (nit pass: on the sun-bleached paving the north lot's lines are yellow in the tiles, the south lots' white) */ const fill = north ? (x, z) => (lineDist(x, z, SCHOOL_LOOP) < 45 ? 0.85 : 0.1) : () => 0.5; lot = (ctx.lots = ctx.lots || {})[r.id] = { at: [Math.round(c[0]), Math.round(c[1])], stalls: 0, cars: 0 };
+    for (let i = 0; i < r.line.length - 1; i++) { if (L2 && pointInRing((r.line[i][0] + r.line[i + 1][0]) / 2, (r.line[i][1] + r.line[i + 1][1]) / 2, L2)) continue; row(r.line[i], r.line[i + 1], 1, fill, lc); row(r.line[i], r.line[i + 1], -1, fill, lc); } }
   ctx.carCount = n; ctx.stallCount = stalls;
   // school buses at the bus loop in front of the main entrance (Street View: the loop is the bus bay)
   for (const [x, z, deg] of ctx.BUSES || []) { if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r + 4)) continue; onSlope(ctx, x, z, 5, () => propKit.placeBus(ctx, x, z, deg * Math.PI / 180)); }
@@ -278,6 +306,6 @@ function plazas(ctx) {
 }
 
 export function buildGrounds(ctx) {
-  doorWalks(ctx); entrancePavers(ctx); plazas(ctx); hedges(ctx); track(ctx); courts(ctx); yardMarks(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); lumber(ctx); tennis(ctx); pool(ctx); rocks(ctx); boundary(ctx);
+  doorWalks(ctx); entrancePavers(ctx); plazas(ctx); hedges(ctx); track(ctx); courts(ctx); yardMarks(ctx); sheds(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); lumber(ctx); tennis(ctx); pool(ctx); rocks(ctx); boundary(ctx);
   void segDist; void SW;
 }

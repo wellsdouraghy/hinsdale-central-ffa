@@ -3,7 +3,7 @@
 (fix round 2) The whole image is a top-down render of the GAME (our own pixels, nothing from the 3D tiles and nothing from the
 satellite photo). Round 1 pasted rendered patches into the photo, which is years older than the campus as built (rule F53): the
 seams showed, and the photo's portables stood beside the rendered ones. One source, one epoch.
-Renders: dev/earlofmarch.html, 4 x 4 nadir shots from 1500 m (lean under 1 m at a tile's edge), fog off, full-detail trees
+Renders: dev/earlofmarch.html `__mapShots()` (near plane 1 000 m: with the viewer's 0.1 m the outer 20 m z-fought into black triangles), 4 x 4 nadir shots from 1500 m (lean under 1 m at a tile's edge), fog off, full-detail trees
 (world.forceFullTrees(true): impostor cards read as crosses from above):
    map_<row>_<col>.jpg, 1024 x 1024 CSS px, camera (-270 + 180 col, 1500, -247.5 + 165 row, 0, -90), fov = 2 atan(95 / 1500): each covers 190 x 190 m
 Usage: python mapimg.py SHOT_DIR      (needs numpy pillow)   -> public/campuses/earlofmarch/map.jpg (2 px / m)

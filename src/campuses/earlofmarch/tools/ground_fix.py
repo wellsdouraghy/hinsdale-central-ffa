@@ -126,6 +126,12 @@ for sel, t, k in ((toG, tG, 0.05), (toA, tA, 0.03), (toC, tC, 0.03)):
 mask[inn & newA] = [255, 0, 0, 255]; mask[inn & newC] = [0, 255, 0, 255]; mask[toG] = [0, 0, 0, 255]
 # (grass that the classifier had right keeps its own soft dirt weights; only the paved channels are zeroed)
 keepG = inn & ~newA & ~newC & ~toG; mask[keepG, 0] = 0; mask[keepG, 1] = 0
+# (nit pass) one even turf inside extra.EVEN_LAWN: the photo's own grass tone there (median of what is green in the photo), feathered 2.5 m at the ring
+for ring in getattr(extra, 'EVEN_LAWN', []):
+    rm = raster([Polygon(ring).buffer(0)]); m = rm & inn & ~newA & ~newC; gsel = m & (macro0[..., 1] > macro0[..., 0] * 1.1) & (macro0[..., 1] > macro0[..., 2] * 1.15)
+    if gsel.sum() < 500: continue
+    t = np.median(macro0[gsel], axis=0); al = np.clip(ndi.gaussian_filter(rm.astype(np.float32), 2.5 * sx) * 2 - 1, 0, 1)[..., None]
+    even = t[None, None, :] * (1 + 0.04 * noise)[..., None]; macro[m] = (macro * (1 - al) + even * al)[m]; print('even lawn tone', t)
 for ring, rgb in getattr(extra, 'RETONE', []):   # paving that keeps its outline and takes the tiles' tone
     m = raster([Polygon(ring)]) & inn & newA; macro[m] = np.array(rgb, np.float32)[None, :] * (1 + 0.03 * noise[m])[:, None]
 # (fix round 2) the forest floor: under the closed canopy the photo shows crown tops, which read as bright lawn between the trunks. Inside extra.WOODS

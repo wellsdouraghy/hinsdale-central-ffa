@@ -25,8 +25,8 @@ osm.py (-> epoch.py patches an existing campus.json to the tiles' epoch) -> sat.
 __s / __look / __sheet / __walk)
 
 ## Brand
-Lions (green / white / gold / black; Wikipedia + school athletics page). Rival: A.Y. Jackson SS (Jays, blue / white): INFERRED (the other
-English public high school in Kanata, same board and league); no source names an official rival. Teams: Lions vs Jays.
+Lions (green / white / gold / black; Wikipedia + school athletics page). Rival: A.Y. Jackson SS (Jays, blue / white): CONFIRMED BY THE USER (the other
+English public high school in Kanata, same board and league; first inferred, no web source names an official rival). Teams: Lions vs Jays.
 
 ## Gameplay
 - CTF: red (Lions) [-32, -86] = the green between the portable rows north-west of the school; blue (Jays) [-56, 172] = the lawn between the
@@ -91,3 +91,20 @@ English public high school in Kanata, same board and league); no source names an
 - still weak: the upper-storey brick on the north-east front is read as leaning from the tiles (n5 does not settle it); the court yard's key positions are
   read off one nadir; the tennis courts and the pool are baked colour (flat) with lines / nets on top; the yard path and the car parks keep the game's dark
   asphalt where the tiles are sun-bleached pale.
+
+## Nit pass after QA round 3 (verdict SHIP; four nits, all done; pairs in dev/shots/earlofmarch-v4/, local only)
+- TILES TIP: open dev/earlofmarch-tiles.html with `&h=59.5` (the viewer height above), or low / eye-level poses render underground. A source edit
+  reloads the tiles tab and drops a running shot job (it happened again): shoot the tiles first, edit after.
+- 1 paving tone (F46): every car park, drive and yard inside the fence is sun-bleached pale grey in the tiles (nadir medians 170-190, the game was ~100):
+  extra.py `BLEACH` (144 140 138) as the first RETONE over the whole fence area, the portable yard's path a step darker; LOT2 keeps its beige. Rendered
+  medians now 150-190 on the same nadirs. Stall lines: yellow in the north lot, white in the south lots (as in the tiles). The yard south of the 1971
+  block: one full court in yellow (extra.py YARD_COURT: 20.6 x 11 m at 47 deg, centre (67.3, 60.8)), two white four-square grids at its south end, the
+  paving run up to the gym wall, a cream double shed (43.4, 57.6) and a blue container (37.0, 62.8), both solid (grounds.js `sheds`).
+- 2 map.jpg: the black triangles on the outer 20 m were z-fighting between the ground and the backdrop mesh at 1 500 m with a 0.1 m near plane.
+  `__mapShots()` now lives in dev/earlofmarch.js and moves the near plane to 1 000 m for the 16 shots; then `python tools/mapimg.py SHOT_DIR`.
+- 3 lumber: layers of four planks (cedar board tile tinted to sawn brown, boards along the stack), ragged ends, a dark core behind the gaps, bearers.
+- 4 west portable-yard lawn: extra.py `W_ISLAND` (a straight-edged quadrilateral with clipped corners, paved 3.2 m round, then cut) and `EVEN_LAWN`
+  (ground_fix.py repaints the re-laid yard's lawn as one even turf in the photo's own grass tone, feathered 2.5 m).
+- Rival A.Y. Jackson (Jays): confirmed by the user.
+- Checks: `__walkAll` 882 walks 0 fails; map check 0 fails / 0 warnings; medium 2.4-4.6 ms / frame at seven poses (1280 x 800); practice and CTF host
+  (`#lb-start` twice) without console errors; build passes.

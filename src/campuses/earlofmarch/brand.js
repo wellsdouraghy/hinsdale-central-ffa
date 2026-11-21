@@ -2,7 +2,7 @@
 // crest); the teams are the Lions ("Home of the Lions!": earlofmarchss.ocdsb.ca athletics page). The emblem is an
 // original drawing in that spirit: a gold lion's head (mane, brow, muzzle) on a dark-green shield with EARL OF MARCH / LIONS lettering.
 // Teams: Lions (home) vs Jays = A.Y. Jackson Secondary School, the other English public high school in Kanata (blue and
-// white, mascot a blue jay). No source names an official rival; A.Y. Jackson is the same-board, same-suburb,
+// white, mascot a blue jay). The rival is confirmed by the user (no web source names an official one); A.Y. Jackson is the same-board, same-suburb,
 // same-league (NCSSAA) neighbour that was split off from Earl of March's catchment in 1976. Spread into campus.js.
 const GREEN = '#0b6b3a', GOLD = '#f2b632';
 

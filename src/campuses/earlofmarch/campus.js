@@ -9,7 +9,7 @@ export default {
   wordmark: ['Earl of', 'March'],
   city: 'Kanata, ON',
   stateName: 'Ontario',
-  rival: 'A.Y. Jackson',     // the Jays: the other English public high school in Kanata (same board, same league; inferred, see brand.js)
+  rival: 'A.Y. Jackson',     // the Jays: the other English public high school in Kanata (same board, same league; confirmed by the user, see brand.js)
   aliases: ['Earl of March', 'Earl of March SS', 'Earl of March High School', 'EOM', 'EOMSS', 'The Earl', 'Earl of March Lions', 'Kanata', 'Beaverbrook', 'Ottawa', 'OCDSB', 'Canada'],
   blurb: 'A 1971 precast-and-brick school among the rock outcrops and pines of Beaverbrook, on its real lidar ground: the school and its portables, the track, the Mlacak Centre and the library, The Parkway.',
   legal: 'Fan-made campus game. Not affiliated with Earl of March Secondary School or the Ottawa-Carleton District School Board.',

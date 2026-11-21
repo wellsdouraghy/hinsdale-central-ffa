@@ -1598,3 +1598,19 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - *Team spawns and walls.* The 1.2 m wall probe of the CTF spawn zone lets a spot stand 2 m from a facade, and spawns face the enemy base, i.e.
     the wall. Descriptor `ctfSpawn.wall` (metres, eight probes): 7 m here.
   - *Dev tabs reload together.* A source edit reloads the tiles tab as well and drops a running shot job: shoot tiles first, edit after.
+
+- **Nit pass after QA round 3 (SHIP; four nits).**
+  - *Tiles page: `&h=59.5`.* dev/earlofmarch-tiles.html takes the viewer height as a URL parameter; without it low and eye-level poses render
+    underground (nadirs from 100 m hide the mistake). Put the campus's constant in every tiles URL.
+  - *Paving tone is a decision per campus (F46), not the photo's.* The Esri photo's asphalt is dark; the tiles show every lot, drive and yard
+    sun-bleached (nadir medians 170-190 against ~100 in the game). One RETONE over the whole fence area (`BLEACH`), measured as medians on nadir pairs
+    from one camera (render is about 1.2 x the baked macro value), then the exceptions after it in order. Pale paving needs line colours re-checked:
+    white lines fade on it, the tiles' own yellow reads.
+  - *An overview render from 1 500 m needs its own near plane.* With the viewer's 0.1 m near plane the depth buffer cannot separate the ground from
+    the backdrop mesh under it: the outer 20 m of map.jpg were black triangles. `__mapShots` (dev/earlofmarch.js) sets near 1 000 / far 2 600 for the shots.
+  - *Timber is layers, not a tinted box.* One cream box per stack read as stone; planks per layer with ragged ends, a dark core seen through the
+    gaps and a board texture running along the stack read as lumber at 30 m for ~4 k triangles.
+  - *Even turf.* Inside a re-laid area the bake mixed the photo's bright and dark grass (blobs); `EVEN_LAWN` repaints the lawn there in the median of the
+    photo's own green, feathered at the ring. A lawn island with straight edges is its own traced ring (pave round it, cut it), not the leftover of a
+    curved apron polygon.
+  - *Rival.* A.Y. Jackson (Jays) was inferred by the builder and is now confirmed by the user.

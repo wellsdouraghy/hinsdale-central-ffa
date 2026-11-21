@@ -203,4 +203,24 @@ WOODS = [
     [(149.5, 98.5), (158, 87.5), (170.5, 84), (183.5, 85.5), (194.5, 93.5), (204, 105), (207, 113), (196, 124), (180, 140), (165, 154), (152, 150), (140, 147), (130.5, 140), (129, 128), (123, 125), (135, 112)],                # south-east of the court yard
     [(-123, 180), (-110, 174), (-99, 177), (-97, 186), (-101, 197), (-99.5, 202.5), (-90, 208), (-78, 214.5), (-70, 219), (-68, 228), (-80, 236), (-128, 236), (-136, 220), (-133, 198)],                                         # south-west of the Mlacak lot (t_n_lot2)
 ]
-SITE = dict(lot2=LOT2, yard=dict(o=YARD_O, a=YARD_A, b=YARD_B, pad=YARD_PAD), eastYard=EAST_YARD, ePad=E_PAD, tennis=TENNIS, pool=POOL, woods=WOODS, dirt=DIRT)
+# =====================================================================================================================
+# Nit pass after QA round 3 (traced on gridded nadir 3D-tiles shots, dev/shots/earlofmarch-v4/t_n_*.jpg, local only; tiles page with &h=59.5).
+# ---- sun-bleached paving (rule F46): every car park, drive and yard inside the fence is PALE grey in the tiles (nadir medians 170-190 where the
+# photo-toned game was ~100); one tone for all of it (ground_fix.py RETONE, applied in order: the lot west of the annex keeps its own beige after it),
+# the portable yard's curving asphalt path a step darker (tiles 142 against 175).
+BLEACH = (144, 140, 138)
+RETONE.insert(0, ([(-400, -400), (400, -400), (400, 400), (-400, 400)], BLEACH))
+RETONE.append((band(YARD_PATH, 6.5), (120, 119, 121)))
+# ---- the lawn island of the west portable yard (t_n_wlawn): a straight-edged quadrilateral with clipped corners between the main diagonal walk, the
+# apron and the walk in front of the row 0 / 11; the round-2 outline was the apron's curved inner edge. Pave 3.2 m round it, then cut the island.
+W_ISLAND = [(-37.8, -15.5), (-26.5, -27.6), (-23, -28.8), (-19.2, -27.2), (-16.2, -23.6), (-16.6, -22.2), (-33.6, -5.2), (-35.2, -5.6), (-38.6, -11.8)]
+EPOCH += [('concrete', _grow(W_ISLAND, 3.2)), ('lawn', W_ISLAND)]
+# lawns repainted as ONE even turf (ground_fix.py): inside the re-laid yard the bake mixed the photo's dark grass with the flat campus tone (light blobs)
+EVEN_LAWN = [_YARD]
+# ---- the yard south of the 1971 block (t_n_yardS, t_n_sheds): a full court in yellow along the gym wall, two white four-square grids at its south end,
+# a cream double shed and a blue container at the lawn's tip (grounds.js courts() / sheds()). [cx, cz, length, width, deg (0 = +x, toward +z), height]
+SHEDS = dict(tan=[43.4, 57.6, 4.9, 3.1, 50, 2.4], blue=[37.0, 62.8, 6.0, 2.5, 45.6, 2.6])
+# (the yard's paving runs up to the gym wall in the tiles: no lawn fringe under the court's north-east sideline and the second four-square grid)
+EPOCH += [('asphalt', [(52, 48), (61, 39), (91, 69), (83, 77), (74, 78.5), (81, 71), (81, 67), (63, 54)])]
+YARD_COURT = dict(c=[67.3, 60.8], deg=47, L=20.6, W=11.0, squares=[[74.3, 73.7], [79.0, 69.0]], q=1.83)
+SITE = dict(lot2=LOT2, yard=dict(o=YARD_O, a=YARD_A, b=YARD_B, pad=YARD_PAD), eastYard=EAST_YARD, ePad=E_PAD, tennis=TENNIS, pool=POOL, woods=WOODS, dirt=DIRT, sheds=SHEDS, yardCourt=YARD_COURT)

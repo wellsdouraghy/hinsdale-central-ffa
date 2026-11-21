@@ -1,4 +1,5 @@
 // Reference viewer: Google Photorealistic 3D Tiles around Earl of March Secondary School in the campus local frame (x east, z south).
+//   ALWAYS open with &h=59.5 (the viewer height of this campus: without it low and eye-level poses render underground).
 //   ?cam=x,y,z,yawDeg,pitchDeg&fov=60   window.__heights(x0,x1,z0,z1,step) samples roof/ground heights.
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer';

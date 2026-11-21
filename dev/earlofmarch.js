@@ -191,3 +191,10 @@ window.__walkAll = async (ids = ['school', 'civic', 'portable']) => {
   for (const r of data.roads) { const hw = r.tags.highway; if (!['footway', 'path', 'service', 'tertiary'].includes(hw)) continue; for (let i = 0; i < r.line.length - 1; i++) await go(hw, r.id, r.line[i], r.line[i + 1]); }
   return out;
 };
+// Top-down renders of the whole satellite rectangle for map.jpg (tools/mapimg.py): 4 x 4 shots map_<row>_<col>.jpg from 1 500 m, fog off, full-detail
+// trees. The camera's near plane is moved to 1 000 m for these shots: with the viewer's 0.1 m near plane the depth buffer cannot separate the ground
+// from the backdrop mesh at that distance, and the map's outer 20 m came out as black z-fighting triangles (nit pass after QA round 3).
+window.__mapShots = () => { window.__busy = true; window.__done = []; (async () => { const w = world; const fog = scene.fog ? scene.fog.density : null; if (scene.fog) scene.fog.density = 0; const H = 1500, half = 95; const fov0 = camera.fov, n0 = camera.near, f0 = camera.far;
+  window.__fit(1024, 1024); if (w.forceFullTrees) w.forceFullTrees(true); camera.near = 1000; camera.far = 2600; camera.updateProjectionMatrix();
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const cx = -360 + 90 + 180 * i, cz = -330 + 82.5 + 165 * j; window.__done.push(await window.__s('map_' + j + '_' + i + '.jpg', [cx, H, cz, 0, -90].join(','), 2 * Math.atan(half / H) * 180 / Math.PI)); }
+  if (w.forceFullTrees) w.forceFullTrees(false); camera.near = n0; camera.far = f0; camera.fov = fov0; camera.updateProjectionMatrix(); if (fog != null) scene.fog.density = fog; window.__fit(1024, 768); window.__busy = false; })(); return 'started'; };
