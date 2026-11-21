@@ -54,6 +54,7 @@ const hedgeBlock = (ctx, x, z, y, w, d, h, rot, k = 0) => hedgeMass(ctx, x, z, y
 function perimeter(ctx, pts, opts = {}) {
   const { B } = ctx; const step = 3.0; let dist = 0; const run = []; const gaps = opts.gaps || []; const c = G(79, -30);   // fence runs: [[x, z, lift], ...]
   const flush = () => { if (run.length > 1) { const lifts = new Map(run.map((p) => [p[0].toFixed(2) + ',' + p[1].toFixed(2), p[2]])); hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, run.map((p) => [p[0], p[1]]), { h: 3.0, black: true, every: step }); } run.length = 0; };
+  const rail = []; const flushRail = () => { if (rail.length > 1) { const lifts = new Map(rail.map((p) => [p[0].toFixed(2) + ',' + p[1].toFixed(2), p[2]])); hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, rail.map((p) => [p[0], p[1]]), { h: 1.1, black: true, every: step }); } rail.length = 0; };
   // ---- pass 1: the panels (3 m) and the top each one needs
   const panels = [], segStart = [];
   for (let i = 0; i < pts.length - 1; i++) {
@@ -122,13 +123,17 @@ function perimeter(ctx, pts, opts = {}) {
       const clear = !ctx.streets || [[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].every(([dx, dz]) => { const d = ctx.streets.design(x + dx, z + dz); return !(d && (d.zone === 'road' || d.zone === 'walk')); });
       if (clear && gY(ctx, x, z) > 0.5) ctx.gen.trees.push([+x.toFixed(1), +z.toFixed(1), j % 6 === 0 ? 1 : 0, 0.7 + ((j * 3) % 5) * 0.07]); }
     const open = opts.noFence && opts.noFence(seg) || gaps.some(([g0, g1]) => (d0 + d1) / 2 > g0 && (d0 + d1) / 2 < g1);
-    if (open) { flush(); continue; }
     const y0 = wall ? h0 : Math.max(0, gY(ctx, p[0], p[1])), y1 = wall ? h1 : Math.max(0, gY(ctx, q[0], q[1])); const o = wall ? 0.25 : 0;   /* (never below the pitch: where the street is lower the fence stands on the planted margin) */
     const P0 = [p[0] + nx * o, p[1] + nz * o, y0], P1 = [q[0] + nx * o, q[1] + nz * o, y1];
+    // An opening in the ball-stop fence is an opening at pitch level. Where the wall under it is more than 1.2 m high it is a
+    // drop: a 1.1 m guard rail runs along the top there (rule B11; the north-west side, open toward the campus, stood 2-3 m
+    // above the turf with nothing on it for 26 m). It can be jumped; it cannot be walked off.
+    if (open) { flush(); if (wall && Math.max(h0, h1) > 1.2) { if (rail.length && (Math.abs(rail[rail.length - 1][2] - y0) > 0.02 || Math.hypot(rail[rail.length - 1][0] - P0[0], rail[rail.length - 1][1] - P0[1]) > 0.05)) flushRail(); if (!rail.length) rail.push(P0); rail.push(P1); } else flushRail(); continue; }
+    flushRail();
     if (run.length && (Math.abs(run[run.length - 1][2] - y0) > 0.02 || Math.hypot(run[run.length - 1][0] - P0[0], run[run.length - 1][1] - P0[1]) > 0.05)) flush();
     if (!run.length) run.push(P0); run.push(P1);
   }
-  flush();
+  flush(); flushRail();
   return segStart.map((j) => V[j]).concat([V[N]]);   // the top at every vertex of the polyline (corner wedges)
 }
 // the outside of a convex corner between two wall runs: a wedge of the same block, so the bank does not show between them
@@ -348,7 +353,7 @@ function field(ctx) {
     // (the east side along Bryn Mawr Drive is one built piece, eastSide: toe wall, planted bank, verge. The "east path gate" that
     // used to open in that fence led nowhere: there is no path on the bank, and it was a 3.4 m drop from the slab above.)
     const east = eastSideGeom(ctx);
-    const tops = perimeter(ctx, [P[1], P[0], P[5], P[4], P[3], P[2], w1], { gaps: east ? [[38, 43], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]] : [[38, 43], [118, 122], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]], noFence: (seg) => seg === 5, wood: (m) => m[1] < -20 || m[0] > 118, skip: east ? (seg) => seg === 1 : null });
+    const tops = perimeter(ctx, [P[1], P[0], P[5], P[4], P[3], P[2], w1], { gaps: east ? [[38, 43], [D1 + 100, D1 + 126]] /* (the opening at D1 + 20 on the north-east side stood on a 5.2 m wall: closed) */ : [[38, 43], [118, 122], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]], noFence: (seg) => seg === 5, wood: (m) => m[1] < -20 || m[0] > 118, skip: east ? (seg) => seg === 1 : null });
     if (east) eastSide(ctx, tops[2]);
     cornerWedge(ctx, P[5], P[0], P[4], tops[2]); cornerWedge(ctx, P[4], P[5], P[3], tops[3]); cornerWedge(ctx, P[3], P[4], P[2], tops[4]); cornerWedge(ctx, P[2], P[3], w1, tops[5]); }
   // The hedge along Mission Ave (Street View: "solid broadleaf evergreen hedge about 4-5 m tall right at the back of the
