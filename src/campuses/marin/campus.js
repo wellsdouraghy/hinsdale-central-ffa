@@ -57,7 +57,7 @@ export default {
     // found with a scan on the terrain (5 m grid, exact 8.5 m rotor clearance, <= 0.28 m of ground relief under the skids,
     // trunks >= 11.5 m, never on a street): car parks first, then the pitch and lawns
     // (ground pads are scanned at load on the finished terrain: heliScan in world.js. Only roof decks are listed here.)
-    [22, 15.5, -52],   // flat roof: the Science + Innovation Center penthouse (absolute deck height; the west classroom block roof is covered by its solar array)
+    // (roof decks are registered by the builder at the height it built them: school.js ctx.roofPads, the Science Center penthouse)
   ],
   // walkable flood-fill seeds (CAMPUSES.md). Spelled out so the reachable area does not depend on the helicopter list:
   // the flag bases, the practice pad and open ground around campus.

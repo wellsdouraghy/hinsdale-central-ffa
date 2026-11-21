@@ -141,6 +141,7 @@ function scienceCenterAt(ctx, ring, h) {
   const { roofY } = flatBuilding(ctx, ring, h, 'maModern', { units: 3 });
   // stair / mechanical penthouse and a screened plant enclosure, as on the real roof
   const p = gp(21, -50, 0.5, -2); gridBox(B, 'whitePanel', 'metal', p[0], roofY + 1.2, p[1], 9.0, 2.4, 20.0);
+  (ctx.roofPads = ctx.roofPads || []).push([22, TOP.science - h + roofY + 2.5, -52]);   // hidden-helicopter pad on the penthouse roof: the deck height as built (it was a typed 15.5)
   B.v('frameAlu').box(p[0], roofY + 2.45, p[1], 9.3, 0.1, 20.3, ROT);
   const q = gp(21, -50, 0, 14); gridBox(B, 'louver', 'metal', q[0], roofY + 0.9, q[1], 8.0, 1.8, 5.0, 2.2);
   // east entry canopy facing the field + building name

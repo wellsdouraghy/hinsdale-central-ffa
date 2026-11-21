@@ -69,11 +69,12 @@ function perimeter(ctx, pts, opts = {}) {
       let WD = WALL_D, street = false, dip = false; const tall = top > 0.7; if (ctx.streets) for (let o = 0.6; o <= 8.0; o += 0.1) {   /* (for every panel, tall or not: the tapering end of a neighbouring wall must not run out across a sidewalk) */ const zs = [0, 0.5, 1].map((t) => ctx.streets.design(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); if (zs.some((d) => d && d.zone === 'road')) { WD = Math.max(1.2, o - 0.1); street = true; break; } if (zs.some((d) => d && d.zone === 'walk')) { WD = Math.max(o, 2.3); street = true; const oS = WD;
           // (a walk only 2-3 m from the turf cannot be level on the 2 m lattice next to the pitch: where it dips toward the pitch the
           // block carries on under it, at the walk's own level, as far as the ground is short of the design)
-          for (let o2 = oS; o2 <= o + 2.6; o2 += 0.2) { const zz = [0, 0.5, 1].map((t) => { const x = p[0] + (q[0] - p[0]) * t + nx * o2, z = p[1] + (q[1] - p[1]) * t + nz * o2; const d = ctx.streets.design(x, z); return d && d.zone === 'walk' ? ctx.groundY(x, z) - d.y : null; }); if (zz.every((v) => v === null) || !zz.some((v) => v !== null && v < -0.1)) break; WD = o2; dip = true; }
+          for (let o2 = o; o2 <= o + 2.6; o2 += 0.2) {   /* (from the back edge of the walk itself, and to the end: starting at the 2.3 m minimum the scan saw no dip on a panel whose dip lay nearer the fence, and that panel got no block) */ const zz = [0, 0.25, 0.5, 0.75, 1].map((t) => { const x = p[0] + (q[0] - p[0]) * t + nx * o2, z = p[1] + (q[1] - p[1]) * t + nz * o2; const d = ctx.streets.design(x, z); return d && d.zone === 'walk' ? Math.min(ctx.groundY(x, z), ctx.terrain ? ctx.terrain.heightAt(x, z) : Infinity) - d.y : null; }); if (zz.every((v) => v === null)) break; if (!zz.some((v) => v !== null && v < -0.07)) continue; WD = Math.max(WD, o2 + 0.2); dip = true; }   /* (five stations and both ground heights, mesh and bilinear: one point of the walk stood 0.16 m low beside the end of a block) */
           break; } }
       if (tall || dip) { if (street) top = -Infinity; for (let t = 0; t <= 1.001; t += 0.25) for (const o of [0.3, 0.85, 1.4, 1.95, 2.5, 3.05, 3.6, 4.15, 4.7, WD].filter((v) => v <= WD)) top = Math.max(top, ctx.groundY(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o)); }   // nothing under the block stands above it
       const wall = (tall || dip) && top > (street ? 0.15 : 0.7);
-      panels.push({ seg: i, k, p, q, mid, tx, tz, nx, nz, len: L / n, d0, d1, WD, street, wall, raw: wall && !street ? top + 0.12 : -Infinity });
+      const skip = !!(opts.skip && opts.skip(i));   /* (a side that is built elsewhere: the east side along Bryn Mawr Drive, eastSide) */
+      panels.push({ seg: i, k, p, q, mid, tx, tz, nx, nz, len: L / n, d0, d1, WD, street, skip, wall: wall && !skip, raw: wall && !street && !skip ? top + 0.12 : -Infinity });
     }
     dist += L;
   }
@@ -85,6 +86,7 @@ function perimeter(ctx, pts, opts = {}) {
   for (let j = 1; j <= N; j++) V[j] = Math.max(V[j], V[j - 1] - S); for (let j = N - 1; j >= 0; j--) V[j] = Math.max(V[j], V[j + 1] - S);
   for (let j = 0; j < N; j++) {
     const { p, q, mid, tx, tz, nx, nz, len, d0, d1, WD, street, k, seg } = panels[j]; let wall = panels[j].wall;
+    if (panels[j].skip) { flush(); continue; }
     const C = (t, o, y) => [p[0] + (q[0] - p[0]) * t + nx * o, y, p[1] + (q[1] - p[1]) * t + nz * o]; const e = 0.02 / len;
     let h0 = null, h1 = null, o0 = 0;
     if (wall && street) {
@@ -98,8 +100,19 @@ function perimeter(ctx, pts, opts = {}) {
       for (const bk of [B.v('concrete'), B.c('concrete')]) { const uv = bk === B.c('concrete') ? undefined : [[0, 0], [1, 0], [1, 0.8], [0, 0.8]];
         quadFacing(bk, C(-e, o0, h0), C(1 + e, o0, h1), C(1 + e, WD, h1), C(-e, WD, h0), [0, 1, 0], uv); quadFacing(bk, C(-e, o0, -0.4), C(1 + e, o0, -0.4), C(1 + e, o0, h1), C(-e, o0, h0), [-nx, 0, -nz], uv); quadFacing(bk, C(-e, WD, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, h1), C(-e, WD, h0), [nx, 0, nz], uv);
         quadFacing(bk, C(-e, o0, -0.4), C(-e, WD, -0.4), C(-e, WD, h0), C(-e, o0, h0), [-tx, 0, -tz], uv); quadFacing(bk, C(1 + e, o0, -0.4), C(1 + e, WD, -0.4), C(1 + e, WD, h1), C(1 + e, o0, h1), [tx, 0, tz], uv); }
-      if (!street) { const cp = B.v('limestone'); quadFacing(cp, C(-e, o0 - 0.03, h0 + 0.05), C(1 + e, o0 - 0.03, h1 + 0.05), C(1 + e, o0 + 0.36, h1 + 0.05), C(-e, o0 + 0.36, h0 + 0.05), [0, 1, 0], [[0, 0], [1, 0], [1, 0.13], [0, 0.13]]);
-        quadFacing(cp, C(-e, o0 - 0.03, h0 - 0.03), C(1 + e, o0 - 0.03, h1 - 0.03), C(1 + e, o0 - 0.03, h1 + 0.05), C(-e, o0 - 0.03, h0 + 0.05), [-nx, 0, -nz], [[0, 0], [1, 0], [1, 0.03], [0, 0.03]]); }   // one coping, running with the top
+      {
+        // a block between the fence and a sidewalk (and the top of every other field-wall block: the satellite shows woodland floor
+        // and brush right up to the fence on the north and east sides, never a 4.7 m concrete shelf): Street View shows a strip of dry grass and brush behind the Mission Ave walk, not
+        // a concrete shelf. A coping under the fence and a planted top as far as the back edge of the walk (where the walk dips the
+        // block carries on under it: that part stays concrete, it IS the walk).
+        const cp = B.v('limestone'), vg = B.v('maVerge'); const NS = Math.max(2, Math.round(len / 0.75)); const back = (t) => { if (street) for (let o = Math.max(0.3, o0 + 0.4); o <= WD; o += 0.05) { const d = ctx.streets.design(p[0] + (q[0] - p[0]) * t + nx * o, p[1] + (q[1] - p[1]) * t + nz * o); if (d && (d.zone === 'walk' || d.zone === 'road')) return o - 0.04; } return WD; };
+        const hT = (t) => h0 + (h1 - h0) * t;
+        quadFacing(cp, C(-e, o0 - 0.03, h0 + 0.05), C(1 + e, o0 - 0.03, h1 + 0.05), C(1 + e, o0 + 0.36, h1 + 0.05), C(-e, o0 + 0.36, h0 + 0.05), [0, 1, 0], [[0, 0], [1, 0], [1, 0.13], [0, 0.13]]);
+        quadFacing(cp, C(-e, o0 - 0.03, h0 - 0.03), C(1 + e, o0 - 0.03, h1 - 0.03), C(1 + e, o0 - 0.03, h1 + 0.05), C(-e, o0 - 0.03, h0 + 0.05), [-nx, 0, -nz], [[0, 0], [1, 0], [1, 0.03], [0, 0.03]]);
+        quadFacing(cp, C(-e, o0 + 0.36, h0 - 0.0), C(1 + e, o0 + 0.36, h1 - 0.0), C(1 + e, o0 + 0.36, h1 + 0.05), C(-e, o0 + 0.36, h0 + 0.05), [nx, 0, nz], [[0, 0], [1, 0], [1, 0.03], [0, 0.03]]);
+        for (let i = 0; i < NS; i++) { const t0 = i / NS, t1 = (i + 1) / NS, b0 = back(t0), b1 = back(t1); if (b0 < o0 + 0.5 && b1 < o0 + 0.5) continue; const a0 = o0 + 0.36;
+          quadFacing(vg, C(t0, a0, hT(t0) + 0.02), C(t1, a0, hT(t1) + 0.02), C(t1, Math.max(a0, b1), hT(t1) + 0.02), C(t0, Math.max(a0, b0), hT(t0) + 0.02), [0, 1, 0], [[d0 / 2.2 + t0 * len / 2.2, 0], [d0 / 2.2 + t1 * len / 2.2, 0], [d0 / 2.2 + t1 * len / 2.2, (b1 - a0) / 2.2], [d0 / 2.2 + t0 * len / 2.2, (b0 - a0) / 2.2]]); }
+      }
       const m = [mid[0] + nx * (WD + o0) / 2, mid[1] + nz * (WD + o0) / 2]; (ctx.retaining = ctx.retaining || []).push({ x: m[0], z: m[1], tx, tz, fx: -nx, fz: -nz, w: len, d: WD - o0, top: street ? Math.max(h0, h1) : Math.min(h0, h1), frontY: 0, allowTall: true });   // map check: retaining
     }
     // The bank behind the wall is woodland in reality (3D tiles: oaks and conifers right down to the field edge on the north and
@@ -125,6 +138,140 @@ function cornerWedge(ctx, v, prev, next, topRun) {
   const R = WALL_D / Math.max(0.35, cosH); const ring = ensureCCW([[v[0], v[1]], [v[0] + n1[0] * WALL_D, v[1] + n1[1] * WALL_D], [v[0] + bx * R, v[1] + bz * R], [v[0] + n2[0] * WALL_D, v[1] + n2[1] * WALL_D]]);
   if (!(topRun > 0.3)) return; const top = topRun - 0.12;   // the same top as the two runs that meet here
   B.v('concrete').prism(ring, -0.4, top + 0.12, 1 / 3, true); B.c('concrete').prism(ring, -0.4, top + 0.12, 1, true);
+  { const y = top + 0.14, Q = ring.map((p) => [p[0], y, p[1]]); quadFacing(B.v('maVerge'), Q[0], Q[1], Q[2], Q[3], [0, 1, 0], ring.map((p) => [p[0] / 2.2, p[1] / 2.2])); }   // planted like the block tops beside it
+}
+// ------------------------------------------------------------------------------------------ the Mission Ave gate
+// The pitch stands 1.3-1.7 m above the Mission Ave walk at the gate, 2.7 m behind its back edge. A concrete ramp from the fence
+// line needed the back metre of the sidewalk (0.3-0.55 m above the walk's design, raw wedge sides). It is a flight of steps
+// now, from the turf edge down to the BACK of the walk, between two cheek walls that hold the planted margin; the walk
+// keeps its design level over its whole width. (world.js sitework cuts the ground under the flight.)
+// (the flight is exactly as wide as the opening in the ball-stop fence: the one 3 m panel of the Mission Ave run that `perimeter`
+// leaves out for the gap [38, 43]; the fence's end posts stand in the cheek walls)
+const gateSpan = () => { const P = turfWorld(2.0), a = P[1], b = P[0], L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.round(L / 3.0)); let d0 = Infinity, d1 = -Infinity; for (let k = 0; k < n; k++) { const m = L * (k + 0.5) / n; if (m > 38 && m < 43) { d0 = Math.min(d0, L * k / n); d1 = Math.max(d1, L * (k + 1) / n); } }
+  const A = (d) => (a[0] + (b[0] - a[0]) * d / L) * UX + (a[1] + (b[1] - a[1]) * d / L) * UZ; return [A(d0) + 0.06, A(d1) - 0.06]; };
+export const GATE = { a0: gateSpan()[0], a1: gateSpan()[1], cheek: 0.3, bTurf: 16.1 };
+export function gateFlight(ctx) {
+  if (ctx._gate !== undefined) return ctx._gate; ctx._gate = null; const S = ctx.streets; if (!S) return null;
+  let bBot = Infinity, sum = 0, n = 0; for (let a = GATE.a0; a <= GATE.a1 + 0.01; a += 0.4) for (let b = 16.6; b <= 21.5; b += 0.05) { const q = G(a, b), d = S.design(q[0], q[1]); if (d && d.zone === 'road') break; if (d && d.zone === 'walk') { bBot = Math.min(bBot, b); const q2 = G(a, b + 0.2), d2 = S.design(q2[0], q2[1]); sum += (d2 && d2.zone === 'walk' ? d2 : d).y; n++; break; } }
+  if (!n) return null; const topY = 0.02, botY = sum / n + 0.02; if (topY - botY < 0.5) return null;
+  const N = Math.max(3, Math.round((topY - botY) / 0.165)), tread = Math.min(0.32, (bBot - GATE.bTurf) / N); if (tread < 0.24) return null; const bTop = bBot - N * tread;
+  return (ctx._gate = { ...GATE, bBot, bTop, n: N, tread, riser: (topY - botY) / N, topY, botY, line: (b) => topY - (topY - botY) * Math.max(0, Math.min(1, (b - bTop) / (N * tread))) });
+}
+function gateSteps(ctx) {
+  const f = gateFlight(ctx); if (!f) return; const { B } = ctx; ctx.gen.trees = (ctx.gen.trees || []).filter((t) => { const ta = t[0] * UX + t[1] * UZ, tb = -t[0] * UZ + t[1] * UX; return !(ta > f.a0 - 1.2 && ta < f.a1 + 1.2 && tb > 15.2 && tb < f.bBot + 0.6); });   /* (no trunk on the flight) */
+  const conc = B.v('concrete'), col = B.c('concrete'), cap = B.v('limestone'); const am = (f.a0 + f.a1) / 2, w = f.a1 - f.a0, y0 = f.botY - 0.6;
+  const P3 = (a, b, y) => { const q = G(a, b); return [q[0], y, q[1]]; };
+  // the head of the flight: level with the turf from the turf edge (and, collision only, under the edge of the turf, where the last lattice cell dips)
+  for (const bk of [conc, col]) quadFacing(bk, P3(f.a0, 15.9, f.topY), P3(f.a1, 15.9, f.topY), P3(f.a1, f.bTop, f.topY), P3(f.a0, f.bTop, f.topY), [0, 1, 0], bk === col ? undefined : [[0, 0], [w / 3, 0], [w / 3, 0.1], [0, 0.1]]);
+  quadFacing(col, P3(f.a0 - f.cheek, 13.6, 0.015), P3(f.a1 + f.cheek, 13.6, 0.015), P3(f.a1 + f.cheek, 15.9, 0.015), P3(f.a0 - f.cheek, 15.9, 0.015), [0, 1, 0]);
+  // treads (drawn as boxes with a nosing; collision is the plane through the nosings, as on every flight here)
+  for (let k = 0; k < f.n - 1; k++) { const y = f.topY - (k + 1) * f.riser, c = G(am, f.bTop + (k + 0.5) * f.tread); conc.box(c[0], (y0 + y) / 2, c[1], w, y - y0, f.tread, ROT, 1 / 3);
+    const nz = G(am, f.bTop + k * f.tread + 0.04); cap.box(nz[0], y + 0.006, nz[1], w, 0.012, 0.08, ROT, 1 / 3); }
+  { const c = G(am, f.bTop - 0.02); conc.box(c[0], (y0 + f.topY) / 2 - 0.005, c[1], w, f.topY - y0 - 0.01, 0.04, ROT, 1 / 3); }   // the top riser
+  quadFacing(col, P3(f.a0, f.bTop, f.topY), P3(f.a1, f.bTop, f.topY), P3(f.a1, f.bBot, f.botY), P3(f.a0, f.bBot, f.botY), [0, 1, 0]);
+  // the foot: a strip at the walk's own level at each side (the walk falls 3 % along the gate)
+  { const yW = (a) => { const q = G(a, f.bBot + 0.3), d = ctx.streets.design(q[0], q[1]); return (d ? d.y : f.botY - 0.02) + 0.02; };
+    for (const bk of [conc, col]) quadFacing(bk, P3(f.a0, f.bBot - f.tread, f.botY), P3(f.a1, f.bBot - f.tread, f.botY), P3(f.a1, f.bBot + 0.3, yW(f.a1)), P3(f.a0, f.bBot + 0.3, yW(f.a0)), [0, 1, 0], bk === col ? undefined : [[0, 0], [w / 3, 0], [w / 3, 0.2], [0, 0.2]]); }
+  // cheek walls: they hold the planted margin (pitch level) either side, coping 0.3 m above it, from the turf edge to the back of the walk
+  for (const a of [f.a0 - f.cheek / 2, f.a1 + f.cheek / 2]) { const b0 = 15.9, b1 = f.bBot, c = G(a, (b0 + b1) / 2); conc.box(c[0], (y0 + 0.3) / 2, c[1], f.cheek, 0.3 - y0, b1 - b0, ROT, 1 / 3); col.box(c[0], (y0 + 0.35) / 2, c[1], f.cheek, 0.35 - y0, b1 - b0, ROT);
+    cap.box(c[0], 0.325, c[1], f.cheek + 0.08, 0.05, b1 - b0 + 0.06, ROT, 1 / 3); }
+  // a handrail down the middle
+  { const g = B.v('galv'); const t0 = P3(am, f.bTop - 0.3, f.topY + 0.92), t1 = P3(am, f.bTop, f.topY + 0.92), b1 = P3(am, f.bBot - f.tread, f.botY + f.riser + 0.92), b2 = P3(am, f.bBot - f.tread + 0.3, f.botY + f.riser + 0.92); g.tube(t0, t1, 0.022, 6).tube(t1, b1, 0.022, 6).tube(b1, b2, 0.022, 6);
+    for (const t of [0, 0.5, 1]) { const b = f.bTop + (f.bBot - f.tread - f.bTop) * t, y = f.topY - (f.topY - f.botY - f.riser) * t; g.tube(P3(am, b, y + 0.92), P3(am, b, y - 0.05), 0.016, 5); B.c('metal').box(...P3(am, b, y + 0.46), 0.06, 0.92, 0.06, ROT); } }
+}
+// ------------------------------------------------------------------------------------------ the east side (Bryn Mawr Drive)
+// Street View (2025) of the pitch side of Bryn Mawr Drive: NO sidewalk. A red kerb, a strip of dry grass, then a planted bank
+// (shrubs, a row of trees) down to the black ball-stop fence at the edge of the pitch, a low black chain-link fence behind
+// the kerb where the bank is high, and at Mission Ave a level bed behind the corner of the sidewalk. The strip is 7 m wide
+// and rises 2.7-5.4 m. On the 2 m lattice that cannot be terrain (a 0.7 m gap between the fence corner and the Mission Ave
+// walk was a pit, and the "field wall" grew into a 6 m concrete slab from the fence to the kerb): it is ONE built surface
+// (toe wall with the fence, bank at 32 deg or less, verge, kerb), the ground is cut below it (world.js sitework), and the
+// corner of the Mission Ave walk is a built apron at the walk's design level.
+const EB = { K: 0.1, V: 1.25, WF: 0.35, BED: 0.12, FLAT: 2.2, BLEND: 8, GRADE: 0.62 };
+/** Frame and designed surface of the east side: u along the fence line from the Mission Ave corner (north), o outward from it. */
+export function eastSideGeom(ctx) {
+  if (ctx._east !== undefined) return ctx._east; const S = ctx.streets; ctx._east = null; if (!S) return null;
+  const P = turfWorld(2.0), A = P[0], Q = P[5]; const L = Math.hypot(Q[0] - A[0], Q[1] - A[1]), tx = (Q[0] - A[0]) / L, tz = (Q[1] - A[1]) / L; let nx = -tz, nz = tx; { const c = G(79, -30); if (nx * (A[0] - c[0]) + nz * (A[1] - c[1]) < 0) { nx = -nx; nz = -nz; } }
+  const at = (u, o) => [A[0] + tx * u + nx * o, A[1] + tz * u + nz * o], uo = (x, z) => [(x - A[0]) * tx + (z - A[1]) * tz, (x - A[0]) * nx + (z - A[1]) * nz];
+  const { K, V, WF, BED, FLAT, BLEND, GRADE } = EB; const DU = 0.5, NU = Math.round(L / DU) + 1;
+  // per station: W = distance from the fence line to the edge of the carriageway, R = the level of that edge
+  const W = new Float64Array(NU), R = new Float64Array(NU);
+  for (let k = 0; k < NU; k++) { const u = Math.min(L, k * DU); for (let o = 2; o <= 12; o += 0.05) { const p = at(u, o), d = S.design(p[0], p[1]); if (d && d.zone === 'road') { W[k] = o; R[k] = d.y; break; } if (d && d.zone === 'walk') break; } if (!(W[k] > 3.5)) return null; }
+  const lin = (arr, u) => { const f = Math.max(0, Math.min(NU - 1, u / DU)), i = Math.min(NU - 2, Math.floor(f)); return arr[i] + (arr[i + 1] - arr[i]) * (f - i); };
+  // the south end of every line o = const: the back of the Mission Ave walk (or its roadway), and the walk's level there
+  const DO = 0.25, NO = Math.ceil(12 / DO) + 1, uS = new Float64Array(NO).fill(-6), yS = new Float64Array(NO).fill(NaN);
+  for (let j = 0; j < NO; j++) for (let u = 1.5; u >= -6; u -= 0.05) { const p = at(u, j * DO), d = S.design(p[0], p[1]); if (d && (d.zone === 'walk' || d.zone === 'road')) { uS[j] = u; yS[j] = d.y; break; } }
+  for (let j = 0; j < NO; j++) if (Number.isNaN(yS[j])) return null;
+  const linO = (arr, o) => { const f = Math.max(0, Math.min(NO - 1, o / DO)), i = Math.min(NO - 2, Math.floor(f)); return arr[i] + (arr[i + 1] - arr[i]) * (f - i); };
+  // the toe wall: as low as a bank of at most GRADE allows (0.5 m at the least), one top with a slope of at most 15 %
+  const hb = new Float64Array(NU); for (let k = 0; k < NU; k++) hb[k] = Math.max(0.5, R[k] + K - GRADE * (W[k] - V - WF));
+  for (let k = 1; k < NU; k++) hb[k] = Math.max(hb[k], hb[k - 1] - 0.15 * DU); for (let k = NU - 2; k >= 0; k--) hb[k] = Math.max(hb[k], hb[k + 1] - 0.15 * DU);
+  const E = { A, L, tx, tz, nx, nz, at, uo, ...EB,
+    Wat: (u) => lin(W, u), Rat: (u) => lin(R, u), uSat: (o) => linO(uS, Math.min(o, lin(W, 0) - 0.3)), ySat: (o) => linO(yS, Math.min(o, lin(W, 0) - 0.3)),
+    /** top of the toe wall (topN: the top of the field wall that carries on north of the corner; the toe wall rises to meet it) */
+    hAt: (u, topN = -Infinity) => Math.min(lin(R, u) + K, Math.max(lin(hb, u), topN - 0.22 * (L - u))),
+    /** the built surface */
+    surf(u, o, topN) { const w = lin(W, u), r = lin(R, u) + K, h = E.hAt(u, topN); const bank = o <= WF ? h : o >= w - V ? r : h + (r - h) * (o - WF) / (w - V - WF);
+      const d = u - E.uSat(o); if (d >= FLAT + BLEND) return bank; const t = d <= FLAT ? 0 : (d - FLAT) / BLEND; return (E.ySat(o) + BED) * (1 - t) + bank * t; },
+    /** the level a lattice node under the surface takes (null: not under it). Nothing rises within 2.3 m of the fence line (no
+     * node next to one in front of the wall face may stand above the pitch), the rest follows the lowest bank, 0.35 m below it. */
+    ground(x, z) { const [u, o] = uo(x, z); if (o < -0.2 || u > L + 0.4 || u < -6) return null; const w = lin(W, u); if (o > w + 0.3 || u < E.uSat(Math.max(0, o)) - 0.05) return null;
+      if (o < 2.3) return 0; const r = lin(R, u); return Math.max(0, Math.min(r - 0.08, (r + K) * (o - WF) / (w - V - WF) - 0.35, E.ySat(o) - 0.05 + Math.max(0, u - E.uSat(o)) * 0.5)); } };
+  return (ctx._east = E);
+}
+/** Builds the east side: toe wall + ball-stop fence, planted bank, verge, red kerb, kerb fence, trees, and the apron at the corner. */
+function eastSide(ctx, topN) {
+  const E = eastSideGeom(ctx); if (!E) return false; const { B } = ctx; const { L, tx, tz, nx, nz, K, V, WF } = E; const tN = topN > 0.3 ? topN : -Infinity;
+  const conc = B.v('concrete'), cap = B.v('limestone'), col = B.c('concrete'), dirt = B.c('dirt'), ivy = B.v('maHedge', true), mulch = B.v('maVerge');
+  const NR = Math.ceil((L + 2) / 1.5), NC = 6;
+  const colO = (c, u) => { const w = E.Wat(Math.max(0, u)); return [0, WF, WF + (w - V - WF) / 3, WF + (w - V - WF) * 2 / 3, w - V, w][c]; };
+  // every column runs from its own south end (the back of the Mission Ave walk) to u = L, in NR rows
+  const grid = []; for (let c = 0; c < NC; c++) { const row = []; for (let i = 0; i <= NR; i++) { let u = 0, o = 0; for (let it = 0; it < 3; it++) { o = colO(c, u); const us = E.uSat(o); u = us + (L - us) * i / NR; } const p = E.at(u, o); row.push({ u, o, x: p[0], z: p[1], y: E.surf(u, Math.max(o, WF), tN) }); } grid.push(row); }
+  const P3 = (g, dy = 0) => [g.x, g.y + dy, g.z];
+  for (let i = 0; i < NR; i++) {
+    const a0 = grid[0][i], a1 = grid[0][i + 1], b0 = grid[1][i], b1 = grid[1][i + 1]; const uvL = Math.hypot(a1.x - a0.x, a1.z - a0.z) / 3;
+    // toe wall: face toward the pitch, coping, the lip behind it
+    for (const bk of [conc, col]) quadFacing(bk, [a0.x, -0.4, a0.z], [a1.x, -0.4, a1.z], P3(a1, 0.06), P3(a0, 0.06), [-nx, 0, -nz], bk === col ? undefined : [[0, 0], [uvL, 0], [uvL, (a1.y + 0.46) / 3], [0, (a0.y + 0.46) / 3]]);
+    quadFacing(cap, P3(a0, 0.07), P3(a1, 0.07), P3(b1, 0.07), P3(b0, 0.07), [0, 1, 0], [[0, 0], [uvL, 0], [uvL, 0.13], [0, 0.13]]); quadFacing(col, P3(a0, 0.07), P3(a1, 0.07), P3(b1, 0.07), P3(b0, 0.07), [0, 1, 0]);
+    quadFacing(cap, [a0.x - nx * 0.03, a0.y - 0.02, a0.z - nz * 0.03], [a1.x - nx * 0.03, a1.y - 0.02, a1.z - nz * 0.03], [a1.x - nx * 0.03, a1.y + 0.07, a1.z - nz * 0.03], [a0.x - nx * 0.03, a0.y + 0.07, a0.z - nz * 0.03], [-nx, 0, -nz], [[0, 0], [uvL, 0], [uvL, 0.03], [0, 0.03]]);
+    quadFacing(cap, P3(b0, -0.02), P3(b1, -0.02), P3(b1, 0.07), P3(b0, 0.07), [nx, 0, nz], [[0, 0], [uvL, 0], [uvL, 0.03], [0, 0.03]]);
+    // bank (ivy and brush), verge (dry grass)
+    for (let c = 1; c < NC - 1; c++) { const p0 = grid[c][i], p1 = grid[c][i + 1], q0 = grid[c + 1][i], q1 = grid[c + 1][i + 1]; const verge = c === NC - 2;
+      const tn = 0.92 + ((i * 7 + c * 3) % 5) * 0.04; if (!verge) ivy.setColor(0.44 * tn, 0.52 * tn, 0.4 * tn);
+      quadFacing(verge ? mulch : ivy, P3(p0), P3(p1), P3(q1), P3(q0), [0, 1, 0], [[p0.o / 2.2, p0.u / 2.2], [p1.o / 2.2, p1.u / 2.2], [q1.o / 2.2, q1.u / 2.2], [q0.o / 2.2, q0.u / 2.2]]);
+      quadFacing(dirt, P3(p0), P3(p1), P3(q1), P3(q0), [0, 1, 0]); }
+    // kerb: the face down to the roadway and the red paint on top
+    { const k0 = grid[NC - 1][i], k1 = grid[NC - 1][i + 1]; for (const bk of [conc, col]) quadFacing(bk, [k0.x, k0.y - 0.5, k0.z], [k1.x, k1.y - 0.5, k1.z], P3(k1), P3(k0), [nx, 0, nz], bk === col ? undefined : [[0, 0], [uvL, 0], [uvL, 0.17], [0, 0.17]]);
+      const red = B.v('paint', true); red.setColor(0.36, 0.045, 0.035); quadFacing(red, [k0.x - nx * 0.16, k0.y + 0.006, k0.z - nz * 0.16], [k1.x - nx * 0.16, k1.y + 0.006, k1.z - nz * 0.16], P3(k1, 0.006), P3(k0, 0.006), [0, 1, 0]);
+      quadFacing(red, [k0.x + nx * 0.004, k0.y - 0.13, k0.z + nz * 0.004], [k1.x + nx * 0.004, k1.y - 0.13, k1.z + nz * 0.004], [k1.x + nx * 0.004, k1.y + 0.006, k1.z + nz * 0.004], [k0.x + nx * 0.004, k0.y + 0.006, k0.z + nz * 0.004], [nx, 0, nz]); red.setColor(1, 1, 1); }
+  }
+  ivy.setColor(1, 1, 1);
+  // the two ends: a kerb edging along the back of the Mission Ave walk, a closing face at the north end (the field wall's corner block stands there)
+  for (let c = 0; c < NC - 1; c++) { const p = grid[c][0], q = grid[c + 1][0]; for (const bk of [conc, col]) quadFacing(bk, [p.x, p.y - 0.6, p.z], [q.x, q.y - 0.6, q.z], P3(q, c === 0 ? 0.07 : 0), P3(p, c === 0 ? 0.07 : 0), [-tx, 0, -tz], bk === col ? undefined : [[0, 0], [0.4, 0], [0.4, 0.2], [0, 0.2]]);
+    const pn = grid[c][NR], qn = grid[c + 1][NR]; for (const bk of [conc, col]) quadFacing(bk, [pn.x, -0.4, pn.z], [qn.x, -0.4, qn.z], P3(qn), P3(pn), [tx, 0, tz], bk === col ? undefined : [[0, 0], [0.5, 0], [0.5, 1], [0, 1]]); }
+  // the ball-stop fence on the toe wall, from the end of the Mission Ave run to the corner block
+  { const u0 = -0.25, n = Math.max(1, Math.round((L - u0) / 3)); const pts = [], lifts = new Map(); for (let k = 0; k <= n; k++) { const u = u0 + (L - u0) * k / n, p = E.at(u, 0.17); pts.push(p); lifts.set(p[0].toFixed(2) + ',' + p[1].toFixed(2), E.surf(u, WF, tN) + 0.07); }
+    hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, pts, { h: 3.0, black: true, every: 4 }); }
+  // the low fence behind the kerb where the bank is high (Street View: from about the middle of the pitch north)
+  { const u0 = 30, n = Math.max(1, Math.round((L - u0) / 2.5)); const pts = [], lifts = new Map(); for (let k = 0; k <= n; k++) { const u = u0 + (L - u0) * k / n, o = E.Wat(u) - V + 0.04, p = E.at(u, o); pts.push(p); lifts.set(p[0].toFixed(2) + ',' + p[1].toFixed(2), E.surf(u, o, tN)); }
+    hillFence({ ...ctx, groundY: (x, z) => lifts.get(x.toFixed(2) + ',' + z.toFixed(2)) ?? gY(ctx, x, z) }, pts, { h: 1.1, black: true, every: 4 }); }
+  // planting: the row of trees on the bank (canopy scan trees that stand on the wall, the verge or the bed's edge go), shrubs in drifts
+  { const inStrip = (t) => { const [u, o] = E.uo(t[0], t[1]); return u > E.uSat(Math.max(0, Math.min(o, 6))) - 0.4 && u < L + 0.5 && o > -0.6 && o < E.Wat(u) + 0.3; };
+    ctx.gen.trees = (ctx.gen.trees || []).filter((t) => !inStrip(t) && !(Math.hypot(t[0] - E.A[0], t[1] - E.A[1]) < 3.2 && E.uo(t[0], t[1])[1] < 0));   /* (nor a trunk through the fence at the end of the Mission Ave run) */
+    for (let k = 0, u = 3.2; u < L - 2; k++, u += 6.6 + ((k * 5) % 3) * 1.1) { const o = 2.9 + ((k * 7) % 4) * 0.55, p = E.at(u, o); ctx.gen.trees.push([+p[0].toFixed(1), +p[1].toFixed(1), 0, 0.62 + ((k * 3) % 5) * 0.06]); }
+    for (let k = 0, u = 1.2; u < L - 1.5; k++, u += 2.3 + ((k * 3) % 4) * 0.5) { const w = E.Wat(u), f = [0.24, 0.62, 0.42, 0.8][k % 4], o = WF + (w - V - WF) * f, len = 1.5 + ((k * 5) % 3) * 0.5, p = E.at(u, o); const y = Math.min(E.surf(u - len / 2, o, tN), E.surf(u + len / 2, o, tN), E.surf(u, o - 0.4, tN));
+      ctx.shrubs.push([p[0], y - 0.12, p[1], len, 0.75 + ((k * 7) % 4) * 0.09, Math.atan2(-tz, tx)]); } }
+  // ---- the corner of the Mission Ave walk: a concrete apron at the walk's design level, kerb to back edge, from 22.75 m west of the
+  // fence corner to Bryn Mawr Drive (from where the field wall's blocks begin to carry on under the back of the walk: started 3 m
+  // from the corner, its end crossed those block tops in a diagonal seam, and the walk was a patchwork of three surfaces). The pitch is 2 m below the walk and 0.7 m from it here: the lattice cannot hold the walk's
+  // back edge, and what showed was a 0.5-1 m pit with a concrete wedge beside it.
+  { const P = turfWorld(2.0), a = P[1], b = P[0]; const Ls = Math.hypot(b[0] - a[0], b[1] - a[1]), sx = (b[0] - a[0]) / Ls, sz = (b[1] - a[1]) / Ls; let mx = -sz, mz = sx; if (mx * (b[0] - G(79, -30)[0]) + mz * (b[1] - G(79, -30)[1]) < 0) { mx = -mx; mz = -mz; }
+    const S0 = -22.75; const rows = []; for (let s = S0; s <= 9.01; s += 0.25) { let ob = null, of = null; for (let o = -0.6; o <= 7; o += 0.05) { const x = b[0] + sx * s + mx * o, z = b[1] + sz * s + mz * o; const d = ctx.streets.design(x, z); if (d && d.zone === 'walk') { if (ob === null) ob = o; of = o; } else if (ob !== null || (d && d.zone === 'road')) break; }
+      if (ob === null || of - ob < 1.0) { if (rows.length) break; continue; } const pt = (o, oh = o) => { const x = b[0] + sx * s + mx * o, z = b[1] + sz * s + mz * o; const d = ctx.streets.design(b[0] + sx * s + mx * oh, b[1] + sz * s + mz * oh); const f = Math.max(0, Math.min(1, (s - S0) / 1.5)); return [x, (gY(ctx, x, z) + 0.012) * (1 - f) + (d.y + 0.03) * f, z]; };   /* (the west end meets the walk AS LAID over two metres, point by point: the terrain walk stands 0-8 cm under its design there, and an end at design level, or one dipped a blind 10 cm, showed as a step or a diagonal seam: a wedge lying on the sidewalk) */ rows.push({ s, pts: [pt(ob - 0.08, ob), pt((ob + of) / 2), pt(of)] }); }
+    for (let i = 0; i < rows.length - 1; i++) { const r0 = rows[i], r1 = rows[i + 1]; for (let c = 0; c < 2; c++) for (const bk of [conc, col]) quadFacing(bk, r0.pts[c], r1.pts[c], r1.pts[c + 1], r0.pts[c + 1], [0, 1, 0], bk === col ? undefined : [[r0.s / 3, c * 0.4], [r1.s / 3, c * 0.4], [r1.s / 3, c * 0.4 + 0.4], [r0.s / 3, c * 0.4 + 0.4]]);
+      const k0 = r0.pts[2], k1 = r1.pts[2]; for (const bk of [conc, col]) quadFacing(bk, [k0[0], k0[1] - 0.4, k0[2]], [k1[0], k1[1] - 0.4, k1[2]], k1, k0, [mx, 0, mz], bk === col ? undefined : [[0, 0], [0.17, 0], [0.17, 0.13], [0, 0.13]]); }
+    if (rows.length) { const r = rows[rows.length - 1]; for (let c = 0; c < 2; c++) for (const bk of [conc, col]) quadFacing(bk, [r.pts[c][0], r.pts[c][1] - 0.4, r.pts[c][2]], [r.pts[c + 1][0], r.pts[c + 1][1] - 0.4, r.pts[c + 1][2]], r.pts[c + 1], r.pts[c], [sx, 0, sz], bk === col ? undefined : [[0, 0], [0.4, 0], [0.4, 0.13], [0, 0.13]]); } }
+  return true;
 }
 function field(ctx) {
   const { B, quality } = ctx;   const a0 = 31, a1 = 127, b0 = -90, b1 = 18; const ppm = quality === 'high' ? 18 : quality === 'low' ? 9 : 12; const W = Math.round((b1 - b0) * ppm), H = Math.round((a1 - a0) * ppm);
@@ -198,25 +345,26 @@ function field(ctx) {
   // one run round the pitch: south (Mission Ave), east, north-east, north, north-west, then the wall alone on the west
   // side north of the spectator terrace (campus side, no fence)
   { const t = (-33 - TURF[2][1]) / (TURF[1][1] - TURF[2][1]); const w1 = [P[2][0] + (P[1][0] - P[2][0]) * t, P[2][1] + (P[1][1] - P[2][1]) * t]; const len = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]); const D1 = len(P[1], P[0]) + len(P[0], P[5]);
-    const tops = perimeter(ctx, [P[1], P[0], P[5], P[4], P[3], P[2], w1], { gaps: [[38, 43], [118, 122], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]], noFence: (seg) => seg === 5, wood: (m) => m[1] < -20 || m[0] > 118 });
+    // (the east side along Bryn Mawr Drive is one built piece, eastSide: toe wall, planted bank, verge. The "east path gate" that
+    // used to open in that fence led nowhere: there is no path on the bank, and it was a 3.4 m drop from the slab above.)
+    const east = eastSideGeom(ctx);
+    const tops = perimeter(ctx, [P[1], P[0], P[5], P[4], P[3], P[2], w1], { gaps: east ? [[38, 43], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]] : [[38, 43], [118, 122], [D1 + 20, D1 + 24], [D1 + 100, D1 + 126]], noFence: (seg) => seg === 5, wood: (m) => m[1] < -20 || m[0] > 118, skip: east ? (seg) => seg === 1 : null });
+    if (east) eastSide(ctx, tops[2]);
     cornerWedge(ctx, P[5], P[0], P[4], tops[2]); cornerWedge(ctx, P[4], P[5], P[3], tops[3]); cornerWedge(ctx, P[3], P[4], P[2], tops[4]); cornerWedge(ctx, P[2], P[3], w1, tops[5]); }
   // The hedge along Mission Ave (Street View: "solid broadleaf evergreen hedge about 4-5 m tall right at the back of the
   // sidewalk"): one continuous clipped wall between the fence line and the BACK of the designed walk, never on it. Mission
   // Ave is not parallel to the pitch, so every station is fitted to its own strip (depth 0.6-1.3 m); where the walk comes
   // right up to the fence the hedge stands on the pitch side of the line. Its top runs with the street (slope <= 10 %).
   { const b0 = 17.55; const runs = [[]];
-    const gate = []; for (let a = 37; a <= 122.01; a += 2.35) { const inGap = a > 68 && a < 78;
+    // (the hedge stops at the cheek walls of the gate steps: a station on each, none between them)
+    const gf = gateFlight(ctx), gA0 = gf ? gf.a0 - gf.cheek - 0.02 : 68, gA1 = gf ? gf.a1 + gf.cheek + 0.02 : 78; const As = []; for (let a = 37; a <= 122.01; a += 2.35) if (!(a > gA0 - 0.7 && a < gA1 + 0.7)) As.push(a); if (gf) As.push(gA0, (gA0 + gA1) / 2, gA1); As.sort((p, q) => p - q);
+    for (const a of As) { const inGap = a > gA0 + 0.01 && a < gA1 - 0.01;
       let edge = 21.0; if (ctx.streets) for (let b = 16.6; b <= 21.0; b += 0.1) if ([-1.2, 0, 1.2].some((da) => { const q = G(a + da, b); const d = ctx.streets.design(q[0], q[1]); return ctx.streets.inRoad(q[0], q[1], 0.1) || (d && (d.zone === 'walk' || d.zone === 'road')); })) { edge = b; break; }
       const back = edge - 0.12, d = Math.max(0.6, Math.min(1.3, back - b0)), bc = back - d / 2; const c = G(a, bc); let lo = Infinity, hi = -Infinity;
       for (const da of [-1.1, 0, 1.1]) for (const db of [-d / 2, 0, d / 2]) { const q = G(a + da, bc + db); const g = gY(ctx, q[0], q[1]); lo = Math.min(lo, g); hi = Math.max(hi, g); }
-      if (inGap) { if (runs[runs.length - 1].length) runs.push([]); const q = G(a, back + 0.1); gate.push({ a, back, y: gY(ctx, q[0], q[1]) }); continue; }
+      if (inGap) { if (runs[runs.length - 1].length) runs.push([]); continue; }
       runs[runs.length - 1].push({ x: c[0], z: c[1], nx: -UZ, nz: UX, d, y0: lo, y1: Math.max(hi, 0) + 4.4, a, bc }); }
-    // the gate gap: where the street is lower than the pitch a concrete ramp runs from the turf edge down to the back of the walk
-    // (the step lies in that last cell: without the ramp the gate opened onto a drop)
-    { const conc = B.v('concrete'), col = B.c('concrete'); for (let j = 0; j < gate.length - 1; j++) { const g0 = gate[j], g1 = gate[j + 1]; if (Math.min(g0.y, g1.y) > -0.2) continue; const P = (g, b, y) => { const q = G(g.a + (g === g0 ? -2.35 : g === g1 ? 2.35 : 0) * (j === 0 && g === g0 ? 1 : j === gate.length - 2 && g === g1 ? 1 : 0), b); return [q[0], y, q[1]]; };
-        const A0 = P(g0, 16.02, 0.02), B0 = P(g1, 16.02, 0.02), A = P(g0, 17.7, 0.02), Bq = P(g1, 17.7, 0.02), C = P(g1, g1.back + 1.0, g1.y + 0.03), D = P(g0, g0.back + 1.0, g0.y + 0.03);   /* (level to 1.7 m from the turf, then down over the back metre of the walk: 35 deg) */
-        for (const bk of [conc, col]) { quadFacing(bk, A0, B0, Bq, A, [0, 1, 0], bk === col ? undefined : [[0, 0], [0.8, 0], [0.8, 0.5], [0, 0.5]]); quadFacing(bk, A, Bq, C, D, [0, 1, 0], bk === col ? undefined : [[0, 0.5], [0.8, 0.5], [0.8, 1.3], [0, 1.3]]); }
-        const U0 = P(g0, 13.6, 0.015), U1 = P(g1, 13.6, 0.015); quadFacing(col, U0, U1, B0, A0, [0, 1, 0]); } }
+    gateSteps(ctx);
     for (const st of runs) { const S = 0.1 * 2.35; for (let j = 1; j < st.length; j++) st[j].y1 = Math.max(st[j].y1, st[j - 1].y1 - S); for (let j = st.length - 2; j >= 0; j--) st[j].y1 = Math.max(st[j].y1, st[j + 1].y1 - S); hedgeRun(ctx, st, 0.88);
       // the planted margin: where the street is lower than the pitch the step lies between the turf edge and the hedge (the walk
       // and the lattice row behind it are at street level). Pitch-level ground, ivy-covered as in Street View, from the turf edge
@@ -352,7 +500,7 @@ function vehicles(ctx) {
     if (ctx.terrain && [[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].some(([dx, dz]) => ctx.terrain.slopeAt(x + dx, z + dz) > 0.10)) {   /* (anywhere under the car, not only at its centre) */ rnd(); rnd(); rnd(); placed.push([x, z]); return; }
     // ...nor across a step in the ground: the car is laid on the plane through its middle (onSlope), and beside a pad edge that plane is not the ground (one sat 0.75 m deep)
     if (ctx.terrain && ctx.terrain.meshHeightAt) { const g = ctx.groundY, y0 = g(x, z), gx = (g(x + 2, z) - g(x - 2, z)) / 4, gz = (g(x, z + 2) - g(x, z - 2)) / 4, c = Math.cos(heading), s = Math.sin(heading);
-      if ([[2.2, 0.9], [2.2, -0.9], [-2.2, 0.9], [-2.2, -0.9], [0, 0]].some(([l, w]) => { const px = x + l * c + w * s, pz = z - l * s + w * c; return Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.35; })) { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }   // nobody parks on a bank (and a car cannot be laid on more than ~11 %)
+      if ([[2.2, 0.9], [2.2, -0.9], [-2.2, 0.9], [-2.2, -0.9], [0, 0], [2.45, 0], [-2.45, 0]].some(([l, w]) => { const px = x + l * c + w * s, pz = z - l * s + w * c; return Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.26; }))   /* (the bumpers too, and 0.26 m: a car on a crest of Bryn Mawr Drive had its uphill end 0.46 m in the road) */ { rnd(); rnd(); rnd(); placed.push([x, z]); return; } }   // nobody parks on a bank (and a car cannot be laid on more than ~11 %)
     if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.5)) return;
     for (const r of ctx.buildingRings || []) if (pointInRing(x, z, r)) return;
     // (no bumper over a sidewalk: a car parked in a lot beside a street stood half across the walk)
@@ -439,12 +587,27 @@ function vehicles(ctx) {
   ctx.stats = { cars: n, paintLines: stripes.length / 18 };
 }
 
+// A wooden utility pole with a cobra-head street light on an arm (the street lighting of Mission Ave and the lanes round the
+// campus: Street View). (dx, dz): unit vector toward the street. Solid, 9 m: a grapple target.
+function utilityLamp(ctx, x, y, z, dx, dz) {
+  const { B } = ctx; const H = 9.3; const wd = B.v('paint', true); wd.setColor(0.105, 0.078, 0.06); const ry = Math.atan2(dx, dz);
+  wd.cyl(x, y, z, 0.15, 0.1, H, 9, 1, true); wd.box(x, y + H - 0.7, z, 2.3, 0.11, 0.11, ry); wd.box(x, y + H - 1.5, z, 1.5, 0.1, 0.1, ry); wd.setColor(1, 1, 1);
+  const g = B.v('galv'); g.tube([x, y + 7.2, z], [x + dx * 1.2, y + 7.9, z + dz * 1.2], 0.035, 6).tube([x + dx * 1.2, y + 7.9, z + dz * 1.2], [x + dx * 2.3, y + 7.95, z + dz * 2.3], 0.035, 6);
+  g.box(x + dx * 2.55, y + 7.93, z + dz * 2.55, 0.26, 0.11, 0.62, ry); B.v('lightEmit').box(x + dx * 2.6, y + 7.865, z + dz * 2.6, 0.2, 0.03, 0.42, ry);
+  B.c('wood').box(x, y + H / 2, z, 0.3, H, 0.3); ctx.grapplePoles.push({ x, z, y0: y + 1, y1: y + H, r: 0.15 });
+}
 // ------------------------------------------------------------------------------------------ streets
 function streets(ctx) {
   const { B, data, playBounds: pb } = ctx; const rnd = mulberry32(94901);
   const inPlay = (x, z, m = 2) => x > pb.minX + m && x < pb.maxX - m && z > pb.minZ + m && z < pb.maxZ - m;
   const clearOfBuildings = (x, z) => !(ctx.buildingRings || []).some((r) => pointInRing(x, z, r) || pointInRing(x + 0.6, z, r) || pointInRing(x - 0.6, z, r) || pointInRing(x, z + 0.6, r) || pointInRing(x, z - 0.6, r));
-  const lamps = [];
+  const lamps = []; const east = eastSideGeom(ctx);
+  // Mission Ave along the pitch (Street View 2025): the street lights are cobra heads on the wooden utility poles on the pitch
+  // side, about 30 m apart, the last one at the Bryn Mawr Drive corner. Each stands at the BACK edge of the walk (its foot in
+  // the face of the hedge, never in the walking line), 9 m tall, the head out over the street: seen from everywhere, easy to grapple.
+  if (ctx.streets) for (const a0 of [41, 66.5, 97, 131.5]) { let p = null; for (let b = 16.8; b <= 22; b += 0.05) { const q = G(a0, b), d = ctx.streets.design(q[0], q[1]); if (d && d.zone === 'road') break; if (d && d.zone === 'walk') { p = G(a0, b - 0.2); break; } } if (!p || !inPlay(p[0], p[1])) continue;
+    if (east) { const [, o] = east.uo(p[0], p[1]); if (o > 0) { const q = east.at(east.uSat(o) + 0.45, o); p = [q[0], q[1], east.ySat(o) + east.BED]; } }   /* (the corner pole stands in the bed behind the corner of the walk) */
+    const base = p[2] ?? Math.min(gY(ctx, p[0], p[1]), gY(ctx, p[0] + UZ * 0.6, p[1] - UX * 0.6)); utilityLamp(ctx, p[0], base - 0.3, p[1], -UZ, UX); lamps.push([p[0], p[1]]); }
   for (const r of data.roads) {
     const hw = r.tags.highway; if (!STREETS.includes(hw)) continue; const w = ROADW[hw]; let side = 1; let carry = 8 + rnd() * 10;
     for (let i = 0; i < r.line.length - 1; i++) {
@@ -456,8 +619,9 @@ function streets(ctx) {
         if (ctx.streets && ctx.streets.inRoad(x, z, lo < 0.5 ? 0.15 : 0.4)) continue;
         // (nothing solid on a sidewalk, lamp posts included: where the street has a walk the lamp stands behind it; none in the hedge along the pitch)
         if (ctx.streets) { const q = ctx.streets.design(x, z); if (q && q.zone === 'walk') { const v = ctx.streets.toVerge(x, z, 3.2); if (!v) continue;
-          if (pointInRing(v[0], v[1], turfWorld(9))) { let k = 0; while (k < 30 && (() => { const q3 = ctx.streets.design(x + sx * 0.12, z + sz * 0.12); return q3 && q3.zone === 'walk'; })()) { x += sx * 0.12; z += sz * 0.12; k++; } x += sx * 0.3; z += sz * 0.3; }   /* (along the pitch: just behind the back edge of the walk, in the face of the hedge) */
+          if (pointInRing(v[0], v[1], turfWorld(9))) continue;   /* (along the pitch the lights are the utility poles' cobra heads, placed above: an acorn post behind the walk stood INSIDE the 4.4 m hedge, invisible) */
           else { const q2 = ctx.streets.design(v[0], v[1]); if (q2 && (q2.zone === 'walk' || q2.zone === 'road')) continue; x = v[0]; z = v[1]; } } }   /* (a fork or a crossing street: never a lamp on a carriageway) */
+        if (east) { const [u, o] = east.uo(x, z); if (u > -4 && u < east.L + 4 && o > -1 && o < east.Wat(u) + 0.4) continue; }   /* (none on the pitch side of Bryn Mawr Drive: Street View shows the poles on the house side) */
         if (!inPlay(x, z) || !clearOfBuildings(x, z) || lamps.some(([lx, lz]) => Math.hypot(lx - x, lz - z) < 14)) continue;
         if (z < -60 && hw === 'residential' && rnd() < 0.5) continue;      // the hillside lanes are sparsely lit
         atGround(ctx, x, z, () => lampPost(ctx, x, z), 0.3, 'min'); lamps.push([x, z]);

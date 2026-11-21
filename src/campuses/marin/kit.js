@@ -126,6 +126,12 @@ export function addMaterials(ctx) {
     for (let k = 0; k < 2600; k++) { const x = r() * S, y = r() * S, a = r() * Math.PI, l = 1.5 + r() * r() * 9, wd = 0.8 + r() * 2.4; const t = tones[Math.floor(r() * tones.length)]; const v = 0.8 + r() * 0.4; g.fillStyle = `rgba(${t[0] * v | 0},${t[1] * v | 0},${t[2] * v | 0},${0.45 + r() * 0.5})`;
       wrap((ox, oy) => { g.save(); g.translate(x + ox, y + oy); g.rotate(a); g.beginPath(); g.ellipse(0, 0, l, wd, 0, 0, 7); g.fill(); g.restore(); }); }
     M.maHedge = std({ map: canvasTexture(c, { aniso: T.aniso }), vertexColors: true, roughness: 1, emissive: 0x141c10, emissiveIntensity: 0.5 }); }
+  { // a roadside verge: dry grass and bare earth (Street View of Bryn Mawr Drive in summer), short strokes in straw / olive / dust
+    const S = 256, c = makeCanvas(S, S), g = c.getContext('2d'); const r = mulberry32(31); g.fillStyle = '#857a56'; g.fillRect(0, 0, S, S);
+    const tones = [[150, 138, 92], [122, 116, 76], [98, 104, 66], [170, 156, 112], [112, 98, 70], [136, 130, 90]];
+    for (let k = 0; k < 5200; k++) { const x = r() * S, y = r() * S, a = (r() - 0.5) * 0.9 + (r() < 0.5 ? 0 : Math.PI / 2), l = 2 + r() * 7; const t = tones[Math.floor(r() * tones.length)], v = 0.8 + r() * 0.35; g.strokeStyle = `rgba(${t[0] * v | 0},${t[1] * v | 0},${t[2] * v | 0},${0.35 + r() * 0.5})`; g.lineWidth = 0.6 + r() * 1.2;
+      for (const [ox, oy] of [[0, 0], [S, 0], [-S, 0], [0, S], [0, -S]]) { g.beginPath(); g.moveTo(x + ox, y + oy); g.lineTo(x + ox + Math.cos(a) * l, y + oy + Math.sin(a) * l); g.stroke(); } }
+    M.maVerge = std({ map: canvasTexture(c, { aniso: T.aniso }), roughness: 1 }); M.maVerge.color.setRGB(0.74, 0.76, 0.72); }
   M.maFrond = std({ color: 0x3f5a2a, roughness: 0.8, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
@@ -681,7 +687,7 @@ export function onSlope(ctx, x, z, r, fn) {
   for (const [k, bk] of B.visual) if (!seenV.has(k)) lift(bk, 0);
   for (const [k, bk] of B.collision) if (!seenC.has(k)) lift(bk, 0);
   for (let i = nS; i < ctx.shrubs.length; i++) { const sh = ctx.shrubs[i]; sh[1] += y0 + gx * (sh[0] - x) + gz * (sh[2] - z); }
-  for (let i = nP; i < (ctx.props || []).length; i++) { const p = ctx.props[i]; p.y = ctx.terrain.minIn(p.x, p.z, Math.hypot(p.sx, p.sz) / 2); }   // map check: base = lowest ground under the prop
+  for (let i = nP; i < (ctx.props || []).length; i++) { const p = ctx.props[i]; p.y = ctx.terrain.minIn(p.x, p.z, Math.hypot(p.sx, p.sz) / 2); p.plane = { x, z, y0, gx, gz }; }   // map check: the prop's base is this plane (p.y: its lowest point, for the report)
   return out;
 }
 export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, signedArea, pointInRing, mulberry32, makeCanvas, canvasTexture };
