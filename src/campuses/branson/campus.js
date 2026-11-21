@@ -35,9 +35,11 @@ export default {
   // Both bases stand on the school's own ground on the upper plateau (y ~ 10), at its two ends, ~240 m apart, and both were put on a
   // nadir tiles shot first (rule F39): red (Bulls) = the wood between the faculty car park and its west drive, south of Fernhill Ave
   // (QA round 4: 24 m in from the west edge, reached from the lot, both drives, the clearing and the wood below);
-  // blue (Wildcats) = the lawn north of New House on Circle Drive. Cover (map check, 16 rays, 30 m): 0.44 and 0.50, from trees,
-  // hedges, parked cars and buildings that are really there; nothing was added for it (F31). No overlook on either.
-  ctf: { red: [-188, -29], blue: [48, -28] },
+  // blue (Wildcats) = the lawn north of New House on Circle Drive. Cover (map check, 16 rays, 30 m): 0.50 and 0.50, from trees,
+  // hedges, parked cars and buildings that are really there (the oaks round red are the tiles' closed canopy, F31). No overlook on either.
+  // (fix round 4: red stands IN the wood, on its leaf-litter floor, three oaks 4-7 m from the flag. The engine snaps bases to its nav cells:
+  // red is drawn at (-190, -29), blue at (48, -29); cover there 0.50 / 0.50 in the map check, 3 x 3 means 0.49 / 0.49)
+  ctf: { red: [-189.5, -29.5], blue: [48, -28] },
   practiceHeli: { x: -33, z: 92, yaw: 0 },
   spawnCenter: [-60, 30],
   spawnBounds: { minX: -205, maxX: 76, minZ: -88, maxZ: 126 },   // (not on the wooded hill south of the field)

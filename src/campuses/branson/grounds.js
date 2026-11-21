@@ -4,7 +4,7 @@
 import { atGround, onSlope, hillFence, guardRail, wallDecal, edgeFrame, pointInRing, makeCanvas, mulberry32, hipRoof } from '../marin/kit.js';
 import * as THREE from 'three';
 import { paintedQuad } from '../../world/fields.js';
-import { nameBoard, kerb, lineRing, plainBlock, WHITE, drapePoly } from './extras.js';
+import { nameBoard, kerb, lineRing, plainBlock, WHITE, drapePoly, winRow } from './extras.js';
 import { lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
 import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, LOT_ISLANDS, LOOP_SWALE, STEPS_WALK, obb, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
@@ -12,7 +12,7 @@ import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PA
 const RAD = Math.PI / 180;
 // the Alumni Steps: from Katharine Branson Hall's south lawn down the bank to the car-park loop (graded in sitework)
 // (the first build's long grey flight at (-70, 12) -> (-76, 33) is in no tiles view: removed, rule A1)
-export const ALUMNI_STEPS = [{ a: [-87.5, 19.0], b: [-88.3, 28.3], w: 2.4, brick: true }];   // the red-brick flight down the bank: north-south at x ~ -88, from the lawn walk (z 19) to the brick landing on the terrace (z 28.5): nadir tiles, QA round 4
+export const ALUMNI_STEPS = [{ a: [-87.5, 19.0], b: [-88.3, 28.3], w: 2.4, brick: true, head: 3.6 }];   // the red-brick flight down the bank: north-south at x ~ -88, from the lawn walk (z 19) to the brick landing on the terrace (z 28.5): nadir tiles, QA round 4
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
 export const CAR_FREE = [[-112, 30]];
 export const SHED = obb(-154.2, -8.4, 11.6, 2.9, -46.5);   // the white storage shed on the north-west edge of the Commons' service yard
@@ -163,7 +163,7 @@ function streetscape(ctx) {
     const cut = (pts, keep) => { const runs = []; let cur = []; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.ceil(L / 2.35)); for (let k = 0; k <= n; k++) { const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]; if (keep(p)) cur.push(p); else { if (cur.length > 1) runs.push(cur); cur = []; } } } if (cur.length > 1) runs.push(cur); return runs; };
     const clearOf = (p) => !drives.some(([x, z, r]) => Math.hypot(p[0] - x, p[1] - z) < r) && inPlay(p[0], p[1], -6);
     for (const run of cut(offset(line, sideN * (w / 2 + 2.0)), clearOf)) hedgeRun(ctx, run, { h: 3.4, d: 1.5, seed: 11 });
-    const southOk = (p) => clearOf(p) && ((p[0] > -99 && p[0] < -13) || (p[0] > 5 && p[0] < 76) || p[0] < -199.5 || (p[0] > -192.5 && p[0] < -188)) && inPlay(p[0], p[1], 1);   // (+ the screen along the wood west of the faculty lot, open at its two drives)
+    const southOk = (p) => clearOf(p) && ((p[0] > -99 && p[0] < -13) || (p[0] > 5 && p[0] < 76) || p[0] < -199.5 || (p[0] > -193.6 && p[0] < -187.0)) && inPlay(p[0], p[1], 1);   // (+ the screen along the wood west of the faculty lot, open at its two drives)
     for (const run of cut(offset(line, -sideN * (w / 2 + 2.0)), southOk)) hedgeRun(ctx, run, { h: 3.6, d: 1.5, seed: 29 });
   }
   // (no centre line on Fernhill Ave: the tiles show a bare lane; QA round 4)
@@ -322,7 +322,9 @@ function landmarks(ctx) {
       for (let k = 0; k < 10; k++) { const a0 = k / 10 * 6.2832, a1 = (k + 1) / 10 * 6.2832; m.tube([x + Math.cos(a0) * 0.42, 1.25 + Math.sin(a0) * 0.42, z + Math.cos(a0) * 0.1], [x + Math.cos(a1) * 0.42, 1.25 + Math.sin(a1) * 0.42, z + Math.cos(a1) * 0.1], 0.03, 5, 1); }
       B.c('metal').box(x, 0.9, z, 0.9, 1.8, 0.9, 0.4); propKit.registerProp(ctx, 'sculpture', x, z, 0.4, 1.2, 1.2, 1.9); }, 0.8, 'max'); }
   // the white storage shed along the north-west edge of the Commons' service yard (nadir tiles: a white roof ~12 x 3 m)
-  { const sh = SHED; atGround(ctx, -154.2, -8.4, () => { plainBlock(ctx, sh, -0.8, 2.7, WHITE, [0.74, 0.74, 0.72]); (ctx.buildingRings = ctx.buildingRings || []).push(sh); const g = Math.max(...sh.map((p) => gY(ctx, p[0], p[1])), gY(ctx, -154.2, -8.4)); (ctx.footprints = ctx.footprints || []).push({ id: 'Commons yard shed', ring: sh, roof: gY(ctx, -154.2, -8.4) + 2.7, floor: g }); }, 0.5, 'min'); }
+  { const sh = SHED; atGround(ctx, -154.2, -8.4, () => { plainBlock(ctx, sh, -0.8, 2.7, WHITE, [0.74, 0.74, 0.72]); (ctx.buildingRings = ctx.buildingRings || []).push(sh);
+      { let F = edgeFrame(sh[3][0], sh[3][1], sh[2][0], sh[2][1]); if (pointInRing((sh[2][0] + sh[3][0]) / 2 + F.nx, (sh[2][1] + sh[3][1]) / 2 + F.nz, sh)) F = edgeFrame(sh[2][0], sh[2][1], sh[3][0], sh[3][1]);   // the yard side: a pair of doors and two windows (no long blank wall, rule F41)
+        const dr = B.v('door'); for (const u of [F.L / 2 - 0.95, F.L / 2 + 0.95]) { const a = F.P(u - 0.85, 0.02, 0.03), b = F.P(u + 0.85, 0.02, 0.03), c = F.P(u + 0.85, 2.1, 0.03), d = F.P(u - 0.85, 2.1, 0.03); dr.quad(a, b, c, d); dr.quad(b, a, d, c); } winRow(ctx, F, 0.9, F.L / 2 - 2.4, 1.0, 2.0, 1.1, 2.6); winRow(ctx, F, F.L / 2 + 2.4, F.L - 0.9, 1.0, 2.0, 1.1, 2.6); } const g = Math.max(...sh.map((p) => gY(ctx, p[0], p[1])), gY(ctx, -154.2, -8.4)); (ctx.footprints = ctx.footprints || []).push({ id: 'Commons yard shed', ring: sh, roof: gY(ctx, -154.2, -8.4) + 2.7, floor: g }); }, 0.5, 'min'); }
 }
 
 // ------------------------------------------------------------------------------------------ name boards, the organic garden

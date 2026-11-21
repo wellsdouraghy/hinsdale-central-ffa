@@ -5,7 +5,7 @@ import { addMaterials, minAreaOBB, mulberry32, planWalls, applyPads, planCheeks,
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, DRY } from './kit.js';
+import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, DRY, LITTER } from './kit.js';
 import { buildSchool, schoolWalls } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF, SHED } from './grounds.js';
@@ -93,7 +93,7 @@ function sitework(ctx) {
   // the academic quad's courtyard is an open lawn (nadir tiles): no scanned tree inside it, only the three round clipped ones pushed below
   { const Q = [[-160.5, 114.5], [-151.5, 121.5], [-141.5, 147.5], [-150.5, 157], [-166, 151], [-174.5, 140.5]]; ctx.gen.trees = (ctx.gen.trees || []).filter((t) => !pointInRing(t[0], t[1], Q)); }
   // the arts court's lawn panel is open grass (nadir tiles), and nothing grows through the yard shed
-  { const lawn = shapeSDF({ outline: ARTS_LAWN }).sd, shed = shapeSDF({ outline: SHED }).sd; ctx.gen.trees = (ctx.gen.trees || []).filter((t) => lawn(t[0], t[1]) > 2.2 && shed(t[0], t[1]) > 4.5); }
+  { const lawn = shapeSDF({ outline: ARTS_LAWN }).sd, shed = shapeSDF({ outline: SHED }).sd, yard = shapeSDF({ outline: PAVED_POLYS[0] }).sd; ctx.gen.trees = (ctx.gen.trees || []).filter((t) => lawn(t[0], t[1]) > 2.2 && shed(t[0], t[1]) > 10.5 && yard(t[0], t[1]) > (t[2] === 1 ? 6.5 : 2.5)); }   // (a conifer's low branches reach 5-6 m: none over the yard or through the shed)
   // Landmark trees through the tree kit (rule: no hand-built cones): the Blue Atlas Cedar on the visitor-lot island (crown ~25 m
   // across, 26 m tall in the tiles) and the three big clipped trees of the quad lawn (nadir tiles)
   (ctx.gen.trees = ctx.gen.trees || []).push([-3.5, -32, 2, 1.68], [-56, -51, 0, 0.95], [-166.4, 134.2, 0, 0.6], [-148.3, 144.1, 0, 0.6], [-160.0, 150.5, 0, 0.58]);
@@ -114,11 +114,14 @@ function sitework(ctx) {
   // The slope between Fernhill Ave and the Commons' service drive, west of the faculty car park, is dense oak / bay wood round one dry
   // clearing (nadir tiles; QA round 4: the game had mown parkland): filled on a jittered 6 m grid, clear of the clearing, the drives,
   // the car park, the red base and the buildings.
-  { const rnd = mulberry32(2104); const trees = ctx.gen.trees = ctx.gen.trees || []; const dry = DRY.map((r) => shapeSDF({ outline: r }).sd); const lot = shapeSDF({ outline: PAVED_POLYS[1] }).sd; const red = ctx.campus.ctf?.red || [0, 0];
+  { const rnd = mulberry32(2104); const trees = ctx.gen.trees = ctx.gen.trees || []; const dry = DRY.map((r) => shapeSDF({ outline: r }).sd); const lot = shapeSDF({ outline: PAVED_POLYS[1] }).sd; const litter = LITTER.map((r) => shapeSDF({ outline: r }).sd);   // (the red base stands IN this wood: trunks come to 4.6 m of the flag, on a floor of leaf litter)
+    const shedSd = shapeSDF({ outline: SHED }).sd, yardSd = shapeSDF({ outline: PAVED_POLYS[0] }).sd; const red = ctx.campus.ctf?.red || [0, 0];
     const svc = (ctx.data.roads || []).filter((r) => r.tags.highway === 'service').map((r) => r.line); const nearLine = (x, z, d) => svc.some((L) => { for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1]; const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); if (Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) < d) return true; } return false; });
+    // the canopy is closed over the red base in the tiles: three oaks stand round it, 5-6 m from the flag (trunks are its cover, with the hedge and the parked cars)
+    for (const [tx, tz, sc] of [[-191.6, -33.2, 0.95], [-185.2, -24.5, 1.0], [-191.4, -24.4, 0.9]]) if (!(streets && streets.inRoad(tx, tz, 1.5)) && !nearLine(tx, tz, 3.2)) trees.push([tx, tz, 0, sc]);
     for (let z = -38; z < 6; z += 6) for (let x = -214; x < -150; x += 6) { const px = x + (rnd() - 0.5) * 4, pz = z + (rnd() - 0.5) * 4, k = rnd(), sc = 0.8 + rnd() * 0.45;
-      if (dry.some((sd) => sd(px, pz) < 2.5) || lot(px, pz) < 3 || nearLine(px, pz, 4.2) || (streets && streets.inRoad(px, pz, 3)) || Math.hypot(px - red[0], pz - red[1]) < 7.5) continue;
-      if (ctx.surfaceAt(px, pz) !== 'grass' || (ctx.allRings || []).some((r) => pointInRing(px, pz, r) || pointInRing(px + 3, pz, r) || pointInRing(px - 3, pz, r) || pointInRing(px, pz + 3, r) || pointInRing(px, pz - 3, r))) continue;
+      if (dry.some((sd) => sd(px, pz) < 2.5) || lot(px, pz) < 3 || nearLine(px, pz, 4.2) || (streets && streets.inRoad(px, pz, 3)) || Math.hypot(px - red[0], pz - red[1]) < 4.6 || shedSd(px, pz) < 10.5 || yardSd(px, pz) < 5) continue;   // (nothing over the Commons' service yard and its shed)
+      if ((ctx.surfaceAt(px, pz) !== 'grass' && !litter.some((sd) => sd(px, pz) < 0)) || (ctx.allRings || []).some((r) => pointInRing(px, pz, r) || pointInRing(px + 3, pz, r) || pointInRing(px - 3, pz, r) || pointInRing(px, pz + 3, r) || pointInRing(px, pz - 3, r))) continue;
       if ((ctx.campus.heliPark || []).some((p) => Math.hypot(px - p[0], pz - p[2]) < 11.6) || trees.some((t) => Math.hypot(t[0] - px, t[1] - pz) < 4.4)) continue;
       trees.push([+px.toFixed(1), +pz.toFixed(1), k < 0.2 ? 1 : 0, +sc.toFixed(2)]);
       // understory (toyon, coffeeberry, young bay: the tiles show no open ground under this canopy): a shrub clump beside about every other trunk

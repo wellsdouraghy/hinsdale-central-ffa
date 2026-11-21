@@ -34,6 +34,7 @@ export const ARTS_PLAZA = [[19.6, -9.3], [21.5, -9.6], [36.5, -10.2], [37.0, -12
 export const LOT_ISLANDS = [[-56.0, -51.0, 2.3]];   // a tree island in the faculty car park
 export const LOOP_SWALE = [[-100.5, 50.8], [-95.5, 48.6], [-90.0, 46.6], [-84.0, 45.2], [-80.5, 44.6]];   // the loop island's dry creek of pale cobbles
 export const DRY = [[[-219, -31], [-212, -34.5], [-203, -34], [-197.5, -31], [-198.5, -26.5], [-204, -24], [-213, -24.5], [-218, -27]]];   // the dry clearing in the wood west of the faculty lot drive (tools/data/extra.py DRY)
+export const LITTER = [[[-193.0, -36.5], [-183.5, -36.5], [-180.0, -31.5], [-180.5, -23.0], [-185.5, -16.5], [-192.0, -17.5]]];   // the wood floor round the red base: leaf litter under a closed canopy (tools/data/extra.py LITTER)
 export const STEPS_WALK = [[-87.3, 18.4], [-86.6, 14.5], [-82.0, 9.5], [-73.5, 3.4]];   // from the head of the Alumni Steps up to the hall's south drive
 // the two tennis courts north of the Commons (one slab, courts side by side)
 export const TENNIS = { cx: -96.7, cz: -27.2, ang: 32.2, w: 36.6, d: 33.5 };
@@ -149,7 +150,8 @@ export function hedgeRun(ctx, pts, opts = {}) {
 export function stairGrade(ctx, spec) {
   const T = ctx.terrain; if (!T) return; const { a, b, w } = spec; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L;
   const ya = T.heightAt(a[0] - tx * 1.5, a[1] - tz * 1.5), yb = T.heightAt(b[0] + tx * 1.5, b[1] + tz * 1.5); spec.ya = ya; spec.yb = yb;
-  const rect = { cx: (a[0] + b[0]) / 2, cz: (a[1] + b[1]) / 2, w: L + 3.0, d: w + 0.8, angle: Math.atan2(tz, tx) };
+  // (a level head longer than one 2 m lattice cell, or the drawn ground at the top tread sags below it and the first step shows a riser on its uphill side)
+  const head = spec.head ?? 1.5, uc = (L + 1.5 - head) / 2; const rect = { cx: a[0] + tx * uc, cz: a[1] + tz * uc, w: L + 1.5 + head, d: w + 0.8, angle: Math.atan2(tz, tx) };
   ctx.flatten({ rect }, { blend: 1.6, y: (x, z) => { const t = Math.max(0, Math.min(1, ((x - a[0]) * tx + (z - a[1]) * tz) / L)); return ya + (yb - ya) * t; } });
 }
 export function buildStairs(ctx, spec) {

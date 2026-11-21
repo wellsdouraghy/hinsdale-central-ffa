@@ -99,6 +99,7 @@ mid &= ~bld & ~pale & strict; paint(mid, ASPH, np.array((138, 134, 127), np.floa
 paint(garden, DIRT, np.array((150, 128, 98), np.float32), 2, True)                    # the island's dry garden: decomposed granite
 paint(line_mask(*extra.LOOP_SWALE) & garden, DIRT, np.array((176, 170, 158), np.float32), 2, True)   # ...with a dry creek of pale cobbles
 for pts in extra.DRY: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((158, 134, 92), np.float32), 3)   # the dry clearing in the wood west of the faculty lot                    # the island's boulder garden: mulch
+for pts in extra.LITTER: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((122, 108, 78), np.float32), 3)   # the wood floor round the red base: leaf litter, not lawn
 print('play area: %d m2 of false paving -> lawn, %d m2 of car park filled in' % (n_g, n_a))
 # 3. real paved places get one even class and tone (terrace: stone pavers; arts court: pale pavers + a brick square; quad strips)
 paint(terrace, CONC, T_PAVER, 1, True); paint(paths, CONC, T_PAVER, 1, True); paint(plaza, CONC, np.array((158, 142, 126), np.float32), 1, True); paint(brick, CONC, np.array((142, 92, 74), np.float32), 1, True)

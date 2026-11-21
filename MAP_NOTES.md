@@ -129,12 +129,22 @@ map breaking one of these rules has not finished.
     photos never ship; only licence-permitted images may feed example-based synthesis, with attribution. Method:
     "Textures from references" below.
 
+44. A landmark tree is measured like a building: crown diameter, height and the height of its lowest branches from the tiles, no
+    random size jitter. Multiply the kit variant's radius by the scale before placing it (Branson's cedar spread 40 m over a car park
+    where the real crown is 25 m), and look at it from underneath at eye level. Measure the crown the generator DRAWS (spray cards
+    reach past the limb ends: a nominal 24 m crown drew 33 m), not the radius it was asked for.
+45. Never leave a pad level on a wall line after the ground outside goes back to the natural slope: the 2 m lattice draws it as a
+    sawtooth of grass peaks up the facade. Reset the ground from a few metres INSIDE the walls and run the walls down as a base
+    course (map check `facadePeaks`).
+46. Count the cars. A car park in the tiles with twenty cars is a paved lot with stall rows, not a drive through lawn; and paving
+    takes its tone from the tiles too (pale concrete drives beside dark asphalt streets).
+
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F43 above is ticked off explicitly in the hand-off.
+- Every rule A1-F46 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
@@ -871,4 +881,39 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     Where pads had FILLED a creek bank (Richardson Hall), the ground outside the walls is clamped back to `terrain.sourceAt`.
   - *Landmark conifer:* tree kit variant 5 (gen.trees kind 2): a broad blue-grey cedar. The needle texture is dark green, so
     the material colour goes above 1 (1.05, 1.5, 1.85).
-
+- **Fix round after the fourth QA (cedar skirt over the car park, sawtooth ground on Richardson Hall, a car park drawn as a drive):**
+  - *Tree kit scale is multiplied three times* (variant radius x gen scale x a random 0.9-1.15): the cedar variant (R 16) at scale 1.75 was
+    56 m across. The landmark variant is now its own generator (`makeCedar` in src/world/trees.js: clear bole, tiers of flat sprays plus
+    upright sprays, an egg profile) and kind 2 keeps the scale it is given. The needle texture is dark green: a blue-grey needs red and blue
+    lifted far more than green (material colour 6.2, 3.3, 6.2), judged beside the tiles oblique.
+  - *A pad level left on the wall line is a sawtooth.* Resetting the ground to the DEM from 0.3 m OUTSIDE Richardson Hall's walls kept the
+    pad on the lattice nodes at the wall: triangular peaks 1.4 m high. The reset now starts 3.2 m inside; `stuccoWalls` draws a base course
+    (opts.plinth) and no door where the ground is over 0.6 m below the floor. The map check's `facadePeaks` samples the drawn ground along
+    every footprint wall (a tooth = more than 0.5 m lower within 2 m on both sides; two on one wall fail); it caught exactly that building.
+  - *The street painter keeps the baked tone where the class does not change* (`paintSurface`): paint drives pale in tools/ground_fix.py as
+    class asphalt with a pale photo tone and the engine leaves it; cars, kerbs and stall tests still read 'asphalt'.
+  - *A flat paved polygon across two pads floats or sinks.* The arts court ran from a street's blend zone (0.35 m up) to the music hall's
+    pad (0.7 m down): `drapePoly` (extras.js) cuts the outline into 1 m cells on the drawn ground. Walls that face a court take it as a
+    zone (no wall pad over the pavers), and the court's level is given, not averaged.
+  - *A stair head must be longer than one lattice cell* (`head` in the steps spec): a 1.5 m platform between 2 m nodes sagged 0.4 m below the
+    top tread.
+  - *Roofs with a measured ridge:* `ridgeRoof` (extras.js) raises every eave edge of an outline to the nearer end of a given ridge segment;
+    a footprint is split again wherever the EAVE height changes (the hall's north block is 0.9 m lower). Print game minus tiles on the 2 m
+    grid as a table (dev/shots/branson-v5/kbh2.py), not only the mean.
+  - *A partial entry in a fix table can poison the terrain:* a colour override added to `HOUSE_FIX` (which also carries `top`) made a pad at
+    NaN and 800 NaN vertices. Look overrides have their own table (`LOOK_FIX`). After any builder edit, check the console for NaN bounds.
+  - *Shrubs are not solid and may not top 1.1 m* (map check visualSolid): understory makes a wood read dense, it is not CTF cover. The cover
+    figure itself moves a ray or two with the parked cars' random layout: scan spots with `__coverAt` in dev/mapcheck.html.
+  - *Helicopter spots stand 30 m apart:* filling a car park with cars cost its spot and no pitch spot could be added; the spare went to the
+    other car park. Fill trees and wood fills must skip yards, sheds and lawn panels, or the next nadir shot shows a canopy where the tiles
+    show a roof.
+  - *A base "in a wood" needs the wood:* the red base stood in a 15 m mown gap (trees kept 7.5 m back) while the tiles show a closed canopy.
+    Trunks now come to 4-6 m of the flag (three placed oaks + the fill at 4.6 m), on a leaf-litter floor (`LITTER` in tools/data/extra.py and
+    kit.js, painted by ground_fix.py as class dirt; the wood fill accepts dirt inside it). Cover is noisy cell to cell (2-10 rays of 16 within
+    a 10 m square): compare bases on the 3 x 3 mean of `__coverAt` at 0.5 m spacing as well as the point value (red 0.50 / 0.49, blue 0.50 / 0.49).
+  - *Roof tints are not colours:* the kit's roof tint multiplies a dark shingle texture (clay is 3.7, 2.0, 1.42; a light taupe needs about
+    13, 11, 9.4). Sample the sunlit roof in the game shot and in the tiles shot (same pose) and compare the RGB, do not judge by eye.
+  - *Walk targets:* `__walk` reports a miss when a lamp post or tree nudges the walker 1 m off the line or when the target is inside a
+    building; read the trace before calling it a defect, and end walks at the door, not behind it.
+  - *Pair poses:* a tiles camera inside a crown gives a useless pair. Nadir pairs (fov 30) and obliques from 30 m up are safe; eye-level
+    game sheets go beside them (`__sheet`).

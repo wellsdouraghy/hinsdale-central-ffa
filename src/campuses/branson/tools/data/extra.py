@@ -60,6 +60,9 @@ PATHS = [([[-165.8, 127.2], [-158.8, 117.3]], 5.0), ([[-176.3, 138.8], [-167.0, 
 LOT_ISLANDS = [(-56.0, -51.0, 2.3)]
 LOOP_SWALE = ([[-100.5, 50.8], [-95.5, 48.6], [-90.0, 46.6], [-84.0, 45.2], [-80.5, 44.6]], 2.2)
 DRY = [[(-219, -31), (-212, -34.5), (-203, -34), (-197.5, -31), (-198.5, -26.5), (-204, -24), (-213, -24.5), (-218, -27)]]
+# the floor of the wood round the red base, between the west drive and the faculty lot's entrance: bare earth and leaf litter under a closed canopy
+# (nadir tiles: no lawn anywhere in this wood; every gap in the canopy shows dry ground)
+LITTER = [[(-193.0, -36.5), (-183.5, -36.5), (-180.0, -31.5), (-180.5, -23.0), (-185.5, -16.5), (-192.0, -17.5)]]
 # OSM service ways: paved width (the faculty car park is an aisle with stalls on both sides)
 SERVICE_W = {570965048: 5.0, 570965046: 6.0, 570965047: 4.5, 785563172: 4.0}
 
