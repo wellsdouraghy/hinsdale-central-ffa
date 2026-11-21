@@ -30,7 +30,9 @@ const SKIP = new Set([900888954]);
 // terrace of fill, and the lot keeps its natural bank. The value is the number of walk-out floors.
 // (975052239, above Bryn Mawr Drive: its footprint falls 3.8 m, one storey uphill and two toward the road. On the DEM
 // that was stretched north-south it "fell 10 m" and was drawn four storeys tall with two walk-out floors.)
-const HOUSE_LOWER = { 975052239: 1 };
+// (975051798 and 975058385 stand BELOW Bryn Mawr Drive: one storey at the street (Street View), their footprints fall 6.6 m and
+// 4.2 m behind it. Planned as one-storey houses they stood on 5.7 m and 3 m of fill with a blank wall over a 7 m bank.)
+const HOUSE_LOWER = { 975052239: 1, 975051798: 3, 975058385: 2 };
 // ...and the street such a house fronts where the nearest centre line is the wrong one (975052239: Bonnie Brae Drive
 // runs 2 m nearer but 8 m above the roof; Street View shows the garage and the brick steps up from Bryn Mawr Drive)
 const HOUSE_FRONT = { 975052239: 'Bryn Mawr Drive' };
@@ -90,8 +92,12 @@ function housePlan(ctx, ring, info, fa, id) {
   let top = fa.lv ? gF + walls * 2.9 + (lv >= 3 ? 0.8 : 0.3) : Math.min(Math.max(info.top ?? g.max + info.h, gF + 2.7), gF + 6.4);
   if (fix) top = gF + fix.eave;
   const lower = HOUSE_LOWER[id] || 0; if (lower && info.top != null) top = info.top + 0.5;   /* a house above its road: the measured eave (gen top is the low quartile of the roof samples); where the bank behind stands higher it is cut down to a terrace (housePad `cut`), not the house raised */
-  const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
-  return { top, rows, walls: walls + lower, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
+  let rows = walls + (fa.garage ? 1 : 0) + lower, pad = top - (rows * 2.9 + 0.9), extra = 0;   // + the garage level under the house where Street View shows one, + walk-out floors
+  // Rule F33 for EVERY house, not only the listed ones: a plan that needs more than 1.2 m of fill under the house (the footprint
+  // falls further than its storeys) shows walk-out floors on the downhill side instead, on the natural ground. (QA found two
+  // more houses on 3-6 m terraces of fill; the map check listed fourteen.)
+  if (!lower && pad - g.min > 1.2) { extra = Math.min(3, Math.ceil((pad - g.min - 0.6) / 2.9)); rows += extra; pad = top - (rows * 2.9 + 0.9); }
+  return { top, rows, walls: walls + lower + extra, lower: lower + extra, auto: extra > 0, garage: !!fa.garage, pad, cut: top - 2.8, g };
 }
 // where the front door (and the garage door) stand on the street-side wall: fixed per house, so the plan can level an
 // apron in front of each sill before the house is built
@@ -126,7 +132,7 @@ function house(ctx, ring, info, rnd, fa, id) {
       const rows = Math.max(1, Math.min(plan.rows, Math.floor((eave - hi + 0.3) / 2.9))); const yb = Math.max(0, eave - rows * 2.9); rowsDrawn = Math.max(rowsDrawn, rows);
       const bermed = eave - hi < 2.6;   // the hill stands above this wall's sill line: a blank wall, no windows (bermed side)
       w.setColor(...tint);
-      if (HOUSE_LOWER[id] && L > 3.2 && !bermed) {
+      if (plan.lower && L > 3.2 && !bermed) {
         // walk-out floors: the rows of windows step down with the ground, bay by bay (one module each), so the house stands on
         // the bank with its lower floors open to it and no blank base taller than a storey's sill
         for (let k = 0; k < n; k++) { const u0 = L * k / n, u1 = L * (k + 1) / n; const gb = Math.max(0, edgeGround(ctx, [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]).max - base);
@@ -141,7 +147,7 @@ function house(ctx, ring, info, rnd, fa, id) {
       if (!(ctx.allRings || []).some((r) => r !== ring && pointInRing((a[0] + b[0]) / 2 + F.nx * 1.2, (a[1] + b[1]) / 2 + F.nz * 1.2, r))) (ctx.walls = ctx.walls || []).push({ id, a, b, floor: base + yb, top: base + eave, open: L > 3.2 && !bermed });   // map check: seating
     }
     w.setColor(1, 1, 1); pl.setColor(1, 1, 1);
-    if (lowerBays) {
+    if (lowerBays && !plan.auto) {   /* (the door and its landing only on the houses checked against Street View, HOUSE_LOWER) */
       // The walk-out door: at a bay joint (plain wall between two windows) where both bays stand on the same floor and that
       // floor is nearest the ground; its sill IS that floor. A concrete landing founded 0.3 m below the lowest ground under
       // it, steps down to the bank on the uphill side (drawn risers, collision = the plane through the nosings), a guard
@@ -364,7 +370,7 @@ export function recutHouses(ctx) {
   const T = ctx.terrain, S = ctx.streets; if (!T || !ctx.townPlan) return;
   for (const [ring, pl] of ctx.townPlan.pads || []) {   /* (every house, beyond the boundary too: a cut spills nothing, and the ground that buries a wall is often a NEIGHBOUR's fill, not this lot's own hill) */ let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
     const out = ring.map(([x, z]) => { const d = Math.hypot(x - cx, z - cz) || 1; return [x + (x - cx) / d * 1.6, z + (z - cz) / d * 1.6]; });
-    ctx.flatten({ outline: out }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); if (S) { const d = S.design(x, z); if (d && (d.zone === 'road' || d.zone === 'walk')) return h; } return Math.min(h, pl.cut); } }); }
+    ctx.flatten({ outline: out }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); if (S) { const d = S.design(x, z); if (d && (d.zone === 'road' || d.zone === 'walk')) return h; if (S.skirtAt && S.skirtAt(x, z) !== null) return h;   /* (nor a node within a cell of a sidewalk: cut, it pulled the back of the walk 0.2-0.3 m under its design, map check walkDesign) */ } return Math.min(h, pl.cut); } }); }
 }
 
 export function buildTown(ctx) {
