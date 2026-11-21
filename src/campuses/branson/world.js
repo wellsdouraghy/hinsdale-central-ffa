@@ -5,7 +5,7 @@ import { addMaterials, minAreaOBB, mulberry32, planWalls, applyPads, planCheeks,
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, PAVED_LINES, DRY, LITTER, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL } from './kit.js';
+import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, PAVED_LINES, DRY, LITTER, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL, KBH_TERR, KBH_TERR_Y, KBH_STEPS } from './kit.js';
 import { buildSchool, schoolWalls, KBH_LOW } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF, SHED } from './grounds.js';
@@ -70,6 +70,12 @@ function sitework(ctx) {
   // Richardson Hall stands on the creek bank: its wall pads had FILLED the bank up to 3.4 m (map check: fill above the source DEM).
   // Outside its walls the ground goes back to the lidar surface; the walls run down to it (rule F33: natural ground, no fill).
   for (const wl of sw) { if (wl.key !== 'richardson' || !T.sourceAt) continue; const sd = shapeSDF({ outline: wl.ring }).sd; const c = centroid(wl.ring); ctx.flatten({ circle: { x: c[0], z: c[1], r: 34 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const d = sd(x, z); return d > -3.2 && d < 16 ? Math.min(h, T.sourceAt(x, z) + 0.2 + Math.max(0, d - 12) * 1.0) : h; } }); }   // (from 3.2 m INSIDE the walls: a pad level left on the wall line drew as a sawtooth of grass peaks up the facade; the walls go down to the natural bank as a base course)
+  // Katharine Branson Hall's south-east end (fix round 7; tiles 2 m grid = the lidar within 0.2 m: the ground there is 8.5-8.7, a paved terrace against a
+  // walk-out lower storey). The wall pads had filled it to the floor (10.3, 1.7 m of fill): from u 41 on (wing frame) the ground outside the walls goes
+  // back to the lidar surface, from 3.2 m inside them (rule F45), the terrace is level at 8.6 and the flight at its north corner is graded up to the lot.
+  for (const wl of sw) { if (wl.key !== 'kbh' || !T.sourceAt) continue; const sd = shapeSDF({ outline: wl.ring }).sd; const U = (x, z) => 0.804 * (x + 41.5) + 0.595 * (z + 25.2);
+    ctx.flatten({ circle: { x: -5.4, z: 12, r: 27 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z), d = sd(x, z); const wg = Math.max(0, Math.min(1, (U(x, z) - 41) / 5)) * (d > 10 ? Math.max(0, (14 - d) / 4) : 1); return d < -3.2 || wg <= 0 ? h : h + (Math.min(h, T.sourceAt(x, z)) - h) * wg; } });
+    ctx.flatten({ outline: KBH_TERR }, { y: KBH_TERR_Y, blend: 1.8 }); stairGrade(ctx, KBH_STEPS); }
   // the white shed on the edge of the Commons' service yard stands on the yard's level (cut into the foot of the bank behind it, no fill)
   { const y = Math.min(T.heightAt(-152.2, -6.3), T.heightAt(-150.4, -8.2), T.heightAt(-154.4, -4.4)); const sd = shapeSDF({ outline: SHED }).sd; ctx.flatten({ circle: { x: -154.2, z: -8.4, r: 11 } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z), d = sd(x, z); return d < 0.8 ? Math.min(h, y) : d < 3.2 ? Math.min(h, y + (d - 0.8) * 0.9) : h; } }); }
   // ---- Ross Creek at the Bridge (campus map item 12; OSM cycleway 1286714176 from the end of Park Drive to the quad path).
@@ -77,12 +83,13 @@ function sitework(ctx) {
   // (bed -2.7, 3 m wide, banks rising to the abutments) and level the two bridgeheads.
   { const B0 = BRIDGE; const ca = Math.cos(B0.creekAng), sa = Math.sin(B0.creekAng); B0.y = T.heightAt(B0.a[0] + 0.6, B0.a[1] - 0.6) + 0.01;   // the deck takes the level of the street's designed end, whatever the grading made it
     ctx.flatten({ rect: { cx: B0.mid[0], cz: B0.mid[1], w: 18, d: B0.span + 1.0, angle: B0.creekAng } }, { blend: 0, y: (x, z) => { const h = T.heightAt(x, z); const dx = x - B0.mid[0], dz = z - B0.mid[1]; const across = Math.abs(-dx * sa + dz * ca), al = Math.abs(dx * ca + dz * sa); const prof = -2.7 + Math.max(0, across - 1.5) * 1.9 + Math.max(0, al - 6) * 0.6; return Math.min(h, Math.max(prof, -2.7)); } });
-    ctx.flatten({ circle: { x: B0.b[0], z: B0.b[1], r: 1.6 } }, { y: B0.y, blend: 3.0 }); }   // only the quad-side bridgehead: the road end keeps its street design
+    { const tx = (B0.b[0] - B0.a[0]) / B0.span, tz = (B0.b[1] - B0.a[1]) / B0.span; ctx.flatten({ circle: { x: B0.b[0] + tx * 1.0, z: B0.b[1] + tz * 1.0, r: 2.6 } }, { y: B0.y - 0.035, blend: 3.0 }); } }   // (fix round 7: the ground under the deck's south end lies 4 cm under the deck top, level for 2.6 m round the head of the walk; it stood 1 cm above the deck and grass grew through it)   // only the quad-side bridgehead: the road end keeps its street design
   // ---- 6 + 7. everything respects the designed section: surface classes painted from it, trees off the carriageways
   if (streets) {
     const turf = zoneShapes[0], courts = shapeSDF({ outline: tennisRing(0) }).sd;
     const creek = creekSDF(ctx); const bsd = shapeSDF({ rect: { cx: BRIDGE.mid[0], cz: BRIDGE.mid[1], w: 16, d: BRIDGE.span - 1.2, angle: BRIDGE.creekAng } }).sd;
-    if (ctx.paintSurface) ctx.paintSurface((x, z) => (bsd(x, z) <= 0 ? 'dirt' : null) || streets.surface(x, z) || (courts(x, z) <= 0 ? 'concrete' : creek(x, z) < 1.6 && T.heightAt(x, z) < -0.9 ? 'dirt' : null));
+    const deckSd = shapeSDF({ rect: { cx: BRIDGE.mid[0], cz: BRIDGE.mid[1], w: BRIDGE.w + 0.5, d: BRIDGE.span + 5.0, angle: BRIDGE.creekAng } }).sd;   // (no grass under the deck's ends or on the join with the walk)
+    if (ctx.paintSurface) ctx.paintSurface((x, z) => (bsd(x, z) <= 0 ? 'dirt' : null) || streets.surface(x, z) || (courts(x, z) <= 0 || deckSd(x, z) <= 0 ? 'concrete' : creek(x, z) < 1.6 && T.heightAt(x, z) < -0.9 ? 'dirt' : null));
     const solid = streets.solid[0] || (() => false); const out = [];
     for (const t of ctx.gen.trees || []) { const p = streets.toVerge(t[0], t[1], 1.0); if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // no tree on the pitch pad, the courts, the dining terrace, the steps, or deep inside a car park
@@ -134,7 +141,8 @@ function sitework(ctx) {
   // fix round 5: no trunk in the white block of Katharine Branson Hall (its real outline is larger than the old one), on the new walks, the hall's
   // south drive, the round patio or the entrance forecourt
   { const low = shapeSDF({ outline: KBH_LOW }).sd, court = shapeSDF({ outline: ENTR_COURT }).sd; const dl = (x, z, L) => { let m = 1e9; for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1]; const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); m = Math.min(m, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return m; };
-    ctx.gen.trees = (ctx.gen.trees || []).filter((t) => low(t[0], t[1]) > 4.5 && court(t[0], t[1]) > 2 && Math.hypot(t[0] - PATIO[0], t[1] - PATIO[1]) > PATIO[2] + 2 && ![...WALKS, ...PAVED_LINES].some(([pts, w]) => dl(t[0], t[1], pts) < w / 2 + 1.5)); }
+    const terr = shapeSDF({ outline: KBH_TERR }).sd;   // (fix round 7: open lawn round the hall's south-east terrace and its steps, paving up to the gym's north wall: nadir tiles)
+    ctx.gen.trees = (ctx.gen.trees || []).filter((t) => low(t[0], t[1]) > 4.5 && court(t[0], t[1]) > 2 && terr(t[0], t[1]) > 6.5 && dl(t[0], t[1], [KBH_STEPS.a, KBH_STEPS.b]) > 5 && !(t[1] < 80 && dl(t[0], t[1], [[-122, 81], [-99, 76], [-93, 73]]) < 7) && Math.hypot(t[0] - PATIO[0], t[1] - PATIO[1]) > PATIO[2] + 2 && ![...WALKS, ...PAVED_LINES].some(([pts, w]) => dl(t[0], t[1], pts) < w / 2 + 1.5)); }
   // ---- 5. cheek walls where two terraces meet (built in build(): buildPadWalls)
   planCheeks(ctx);
 }

@@ -78,7 +78,7 @@ for r in D['roads']:
     if r['tags'].get('highway') in ('cycleway', 'footway', 'path', 'pedestrian', 'steps'): osm_paths |= line_mask(r['line'], 7)
 walks = np.zeros((H, W), bool)
 for pts, wd in extra.WALKS: walks |= line_mask(pts, wd)
-walks |= ((wx - extra.PATIO[0]) ** 2 + (wz - extra.PATIO[1]) ** 2 < extra.PATIO[2] ** 2); walks &= ~bld; court = poly_mask(extra.ENTR_COURT) & ~bld
+walks |= ((wx - extra.PATIO[0]) ** 2 + (wz - extra.PATIO[1]) ** 2 < extra.PATIO[2] ** 2); walks |= poly_mask(extra.KBH_TERR); walks &= ~bld; court = poly_mask(extra.ENTR_COURT) & ~bld
 paths &= ~bld; keep = terrace | plaza | paths | walks | court
 courts = poly_mask(extra.obb(extra.TENNIS['cx'], extra.TENNIS['cz'], 36.6 + 3, 33.5 + 3, extra.TENNIS['ang']))
 thin = conc & ~ndi.binary_opening(conc, iterations=max(1, int(1.6 * ppm)))      # paths under ~3 m wide
@@ -111,10 +111,14 @@ paint(garden, DIRT, np.array((150, 128, 98), np.float32), 2, True)              
 paint(line_mask(*extra.LOOP_SWALE) & garden, DIRT, np.array((176, 170, 158), np.float32), 2, True)   # ...with a dry creek of pale cobbles
 for pts in extra.DRY: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((158, 134, 92), np.float32), 3)   # the dry clearing in the wood west of the faculty lot                    # the island's boulder garden: mulch
 for pts in extra.LITTER: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((122, 108, 78), np.float32), 3)   # the wood floor round the red base: leaf litter, not lawn
-Gd = extra.GARDEN; paint(poly_mask(extra.obb(Gd['cx'], Gd['cz'], Gd['w'], Gd['d'], Gd['ang'])) & ~bld, DIRT, np.array((128, 98, 80), np.float32), 2, True)   # the organic garden's fenced plot: bark mulch between the raised beds
+Gd = extra.GARDEN; paint(poly_mask(extra.obb(-64.5, 17.0, 11.3, 8.1, -5.6)) & ~poly_mask(extra.obb(Gd['cx'], Gd['cz'], Gd['w'], Gd['d'], Gd['ang'])), GRASS, np.array((110, 116, 70), np.float32), 2)   # (the plot's outline before fix round 7: back to lawn where the new one does not cover it)
+paint(poly_mask(extra.obb(Gd['cx'], Gd['cz'], Gd['w'], Gd['d'], Gd['ang'])) & ~bld, DIRT, np.array((128, 98, 80), np.float32), 2, True)   # the organic garden's fenced plot: bark mulch between the raised beds
 print('play area: %d m2 of false paving -> lawn, %d m2 of car park filled in' % (n_g, n_a))
 # 3. real paved places get one even class and tone (terrace: stone pavers; arts court: pale pavers + a brick square; quad strips)
 paint(terrace, CONC, T_PAVER, 1, True); paint(paths, CONC, T_PAVER, 1, True); paint(walks & ~(mask[..., 0] > 128), CONC, np.array((160, 146, 122), np.float32), 1, True); paint(plaza, CONC, np.array((158, 142, 126), np.float32), 1, True); paint(brick, CONC, np.array((142, 92, 74), np.float32), 1, True)
+# fix round 7: the neighbour's tennis court (green acrylic; class concrete) and the gravel garden in the south-west corner
+C = extra.NB_COURT; paint(poly_mask(extra.obb(C['cx'], C['cz'], C['w'], C['d'], 0)), CONC, np.array((112, 132, 96), np.float32), 1, True)
+paint(poly_mask(extra.NB_GRAVEL) & ~bld, DIRT, np.array((176, 160, 136), np.float32), 2, True)
 paint(poly_mask(extra.POOL_DECK) & ~bld, CONC, np.array((150, 140, 124), np.float32), 1, True)
 # no blown-out paving anywhere in the photo (driveways and patios outside the play area included)
 conc = (mask[..., 1] > 100); lum = macro.mean(axis=2); hot = (lum > 150) & ndi.binary_dilation(conc, iterations=3)

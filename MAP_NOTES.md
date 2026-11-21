@@ -1321,3 +1321,27 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - *vite 504 on a dynamically imported game module* (map check `bots`: "Failed to fetch dynamically imported module") is the shared node_modules
     re-optimising under another agent's server: restart your own server, do not debug the module. And never dump a served module's source in a tool
     result: vite inlines `import.meta.env`, API key included.
+- **Fix round after the seventh QA (expected to ship: a fill pad under a walk-out storey, a "fixed" bay unbuilt again, nits):**
+  - *A pad that fills natural ground hides a storey.* The hall's south-east end stood on a 10.3 pad over ground that the lidar AND the tiles put at 8.6: the
+    game showed one storey, a draped sawtooth walk and no door where the real building has a walk-out lower storey on a terrace. Before accepting a wall
+    pad, print game ground, `terrain.sourceAt` and the tiles on one 2 m grid round every school building; where the pad is over 1 m above both, reset the
+    ground from 3.2 m inside the walls (F45), lay the terrace as a level polygon and give that wall its own layout (`per(F).custom` in `stuccoWalls`).
+  - *Draw the metre grid on the nadir before tracing.* `gridpic.py` (session scratch; 30 lines of PIL: pixels per metre = image height / (2 (camY - groundY)
+    tan(fov / 2)), yaw 0 so up = -z) put the round patio 4 m east of where two earlier rounds had it, the garden 1.5 m west and 30 % larger, the loop island's
+    end a full lobe. Grid the game shot from the same pose to check the tool, and remember that roofs are displaced outward by (camY - ground) / (camY - roof).
+  - *A reviewer's reading of a height grid can be right where the obliques show nothing.* The low bay outside the bowed end was built, removed and built again:
+    when the photo cannot settle it, build what the grid says, say in the hand-off what is not resolved, and do not flip it a third time without new evidence.
+  - *Prisms inside another building fail the roof-skin check.* A bay drawn as a prism whose inner faces lay inside the white block gave "open" rays: draw
+    such add-ons as outward quads + a top + a collision prism. Near another roof's eave even that left three rays: the bay stops 6 degrees short there.
+  - *A changed footprint list re-samples the trap sweep.* Adding two small footprints moved the wall-jump sample points and the sweep found an old hole in New
+    House (a mantle onto the lower walls' cap inside the upper block). Fill every stacked block with collision slabs; re-run the whole map check after any
+    footprint is added, even far from the building that then fails.
+  - *Vertex colours only work on buckets created with them.* `B.v('maPaver', true)` and `B.v('concrete', true)` ignored `setColor` (the bucket already existed
+    without colours); the salmon forecourt is on `B.v('stucco', true)`. Sample the result in the pair (tiles 225/150/125, game after the change) instead of
+    trusting the constant.
+  - *Things off campus but inside the bounds cost gameplay checks.* The neighbour's tennis court has two helicopter spots beside it: its fence and net would
+    fail both, so it is paint only; the round pool's coping is kept under 0.3 m (the rotor test's floor) and the play-area fence stops at it. Look at the
+    descriptor's helicopter spots and bases before adding any neighbour feature.
+  - *Grass through a deck:* ground 1 cm above a bridge deck shows as grass on it. Keep the ground 4 cm under the deck for a full lattice cell round the
+    bridgehead and paint the surface there as paving (`paintSurface`), so no blades grow under the deck's end or on the join with the walk.
+

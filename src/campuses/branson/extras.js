@@ -47,11 +47,17 @@ export function stuccoWalls(ctx, ringIn, h, opts = {}) {
     // a wall whose ground lies well below the floor (a building on a bank): a plain base course from the ground up to the floor line
     // and no door hanging in the air (opts.plinth = colour)
     let gLow = 1e9; if (ctx.groundY) for (let t = 0.05; t <= 0.96; t += 0.1) gLow = Math.min(gLow, ctx.groundY(F.ax + F.tx * F.L * t + F.nx * 0.4, F.az + F.tz * F.L * t + F.nz * 0.4) - base); const hung = opts.plinth && gLow < 1e8 && f0 - gLow > 0.6;
-    if (hung) { const yb = Math.min(gLow, opts.y0 ?? -0.6) - 0.5, yt = f0 + 0.04; const bk = ctx.B.v(opts.bucket || 'stucco', true); bk.setColor(...opts.plinth); const o = 0.07, S = 0.45;   // (faces drawn from outside only: a box here showed its inner face to the roof-skin check's rays)
+    if (per.custom) { per.custom(F, f0, hW, gLow); continue; }   // (fix round 7) a wall laid out by hand (the hall's south-east end: a walk-out lower storey)
+    // (fix round 7, rule F41) opts.lower: a base course over 2.2 m high is a walk-out lower storey, in the wall's own colour with small windows wherever the
+    // ground stands 2.3 m or more under the floor; per.plinth overrides the base course colour for one wall
+    const deep = hung && opts.lower && f0 - gLow > 2.2;
+    if (hung) { const yb = Math.min(gLow, opts.y0 ?? -0.6) - 0.5, yt = f0 + 0.04; const bk = ctx.B.v(opts.bucket || 'stucco', true); bk.setColor(...(deep ? color : per.plinth || opts.plinth)); const o = 0.07, S = 0.45;   // (faces drawn from outside only: a box here showed its inner face to the roof-skin check's rays)
       quadFacing(bk, F.P(-o, yb, o), F.P(F.L + o, yb, o), F.P(F.L + o, yt, o), F.P(-o, yt, o), [F.nx, 0, F.nz], [[0, yb * S], [F.L * S, yb * S], [F.L * S, yt * S], [0, yt * S]]); quadFacing(bk, F.P(-o, yt, 0), F.P(F.L + o, yt, 0), F.P(F.L + o, yt, o), F.P(-o, yt, o), [0, 1, 0]);
-      quadFacing(bk, F.P(-o, yb, 0), F.P(-o, yb, o), F.P(-o, yt, o), F.P(-o, yt, 0), [-F.tx, 0, -F.tz]); quadFacing(bk, F.P(F.L + o, yb, 0), F.P(F.L + o, yb, o), F.P(F.L + o, yt, o), F.P(F.L + o, yt, 0), [F.tx, 0, F.tz]); bk.setColor(1, 1, 1); }
+      quadFacing(bk, F.P(-o, yb, 0), F.P(-o, yb, o), F.P(-o, yt, o), F.P(-o, yt, 0), [-F.tx, 0, -F.tz]); quadFacing(bk, F.P(F.L + o, yb, 0), F.P(F.L + o, yb, o), F.P(F.L + o, yt, o), F.P(F.L + o, yt, 0), [F.tx, 0, F.tz]); bk.setColor(1, 1, 1);
+      if (deep) { const pt = ctx.B.v('paint', true); const tr = opts.trim || [0.8, 0.78, 0.72]; pt.setColor(tr[0], tr[1], tr[2]); const c = F.P(F.L / 2, f0 - 0.02, o + 0.04); pt.box(c[0], c[1], c[2], F.L + 2 * o, 0.14, 0.08, F.rotY); pt.setColor(1, 1, 1);   // a string course on the floor line
+        const pw = opts.pitch || 2.7, nw = Math.max(1, Math.floor((F.L - 2) / pw)), sw = (F.L - 2) / nw; for (let k = 0; k < nw; k++) { const u = 1 + sw * (k + 0.5); const g = Math.max(ctx.groundY(F.ax + F.tx * (u - 0.6) + F.nx * 0.4, F.az + F.tz * (u - 0.6) + F.nz * 0.4), ctx.groundY(F.ax + F.tx * (u + 0.6) + F.nx * 0.4, F.az + F.tz * (u + 0.6) + F.nz * 0.4)) - base; if (f0 - g < 2.3) continue; winRow(ctx, F, u - 0.56, u + 0.56, f0 - 1.8, f0 - 0.7, 1.0, 1.0, o + 0.03); } } }
     const hh = hW - f0; if (hh < 2.4) continue; const st = Math.max(1, Math.min(opts.storeys || 9, Math.round(hh / 3.3))); const fh = hh / st;
-    if (opts.glazedEnds && F.L < opts.glazedEnds && opts.gableGlass) { gableGlazing(ctx, F, f0 + 0.15, hW, opts.gableRise || 0, { trim: [0.8, 0.8, 0.78] }); continue; }
+    if (opts.glazedEnds && F.L < opts.glazedEnds && opts.gableGlass) { const gd = !!(opts.gableDoor && opts.gableDoor(F)); gableGlazing(ctx, F, f0 + 0.15, hW, opts.gableRise || 0, { trim: [0.8, 0.8, 0.78], door: gd ? f0 + 0.03 : null }); if (gd) noteDoor(ctx, F, F.L / 2, opts.id || ringIn.id); continue; }
     if (opts.glazedEnds && F.L < opts.glazedEnds) { archOpening(ctx, F, F.L / 2, f0 + 0.25, Math.min(F.L - 2.4, 7), Math.max(1.6, hh - 0.4 - Math.min(F.L - 2.4, 7) / 2 + (opts.gableRise || 0) * 0.6), { trim: [0.75, 0.75, 0.73], mullions: 5, bars: [f0 + 1.3, f0 + 2.4, f0 + 3.5] }); continue; }
     // Rule F47: a door only where the tiles or photos show one. The kit's default (a door on every wall over 13 m) is switched off per wall by
     // opts.noDoor = [[x, z], ...] (a wall whose door would stand within 3 m of a listed point gets a window there instead). A door whose floor stands
@@ -105,6 +111,19 @@ export function gableGlazing(ctx, F, y0, eave, rise, opts = {}) {
   for (let k = 0; k <= nb; k++) { const u = u0 + bw * k; QF(fr, P(u - t / 2, y0, out + 0.02), P(u - t / 2, top(u), out + 0.02), P(u + t / 2, top(u), out + 0.02), P(u + t / 2, y0, out + 0.02)); }
   for (let y = y0; y < eave + rise; y += 1.25) for (let k = 0; k < nb; k++) { const a = u0 + bw * k, b = a + bw; if (y + t > Math.min(top(a), top(b))) continue; QF(fr, P(a, y - t / 2, out + 0.02), P(a, y + t / 2, out + 0.02), P(b, y + t / 2, out + 0.02), P(b, y - t / 2, out + 0.02)); }
   for (let k = 0; k < nb; k++) { const a = u0 + bw * k, b = a + bw; QF(fr, P(a, top(a) - t, out + 0.02), P(a, top(a) + t * 0.6, out + 0.02), P(b, top(b) + t * 0.6, out + 0.02), P(b, top(b) - t, out + 0.02)); }   // the raking head under the roof
+  if (opts.door != null) {   // (fix round 7) a pair of glazed doors in the middle of the glazing: dark leaves in a heavier frame, a canopy bar over them
+    const yd = opts.door, hw = 1.0, hd = 2.3; QF(B.v('door'), P(mid - hw, yd, out + 0.04), P(mid - hw, yd + hd, out + 0.04), P(mid + hw, yd + hd, out + 0.04), P(mid + hw, yd, out + 0.04), [0, 0], [0, 1], [1, 1], [1, 0]);
+    fr.setColor(0.3, 0.31, 0.32); for (const [a, b, c, d] of [[-hw - 0.1, -hw, yd, yd + hd + 0.1], [hw, hw + 0.1, yd, yd + hd + 0.1], [-hw - 0.1, hw + 0.1, yd + hd, yd + hd + 0.1], [-0.03, 0.03, yd, yd + hd]]) QF(fr, P(mid + a, c, out + 0.06), P(mid + a, d, out + 0.06), P(mid + b, d, out + 0.06), P(mid + b, c, out + 0.06));
+    const c = F.P(mid, yd + hd + 0.28, 0.5); fr.setColor(0.72, 0.72, 0.7); fr.box(c[0], c[1], c[2], 2 * hw + 1.0, 0.1, 0.9, F.rotY); }
+  fr.setColor(1, 1, 1);
+}
+/** A pair of glazed French doors (rectangular, small panes) on a wall frame: glass, a pale frame, a kick rail and glazing bars. */
+export function frenchDoor(ctx, F, uc, y0, w, h, opts = {}) {
+  QF.n = [F.nx, F.nz]; const { B } = ctx; const out = opts.out ?? 0.05; const P = (u, y, o = out) => F.P(uc + u, y, o); const r = w / 2;
+  QF(B.v('glass'), P(-r, y0), P(-r, y0 + h), P(r, y0 + h), P(r, y0), [0, 0], [0, 1], [1, 1], [1, 0]);
+  const fr = B.v('paint', true); const tr = opts.trim || [0.8, 0.78, 0.72]; fr.setColor(tr[0], tr[1], tr[2]); const t = 0.1; const bar = (u0, u1, ya, yb) => QF(fr, P(u0, ya, out + 0.02), P(u0, yb, out + 0.02), P(u1, yb, out + 0.02), P(u1, ya, out + 0.02));
+  bar(-r - t, -r, y0, y0 + h + t); bar(r, r + t, y0, y0 + h + t); bar(-r - t, r + t, y0 + h, y0 + h + t); bar(-0.04, 0.04, y0, y0 + h); bar(-r, r, y0, y0 + 0.24);
+  for (const sd of [-1, 1]) { bar(sd * r / 2 - 0.02, sd * r / 2 + 0.02, y0 + 0.24, y0 + h); for (const y of [0.34, 0.56, 0.78]) bar(sd > 0 ? 0.04 : -r, sd > 0 ? r : -0.04, y0 + h * y - 0.02, y0 + h * y + 0.02); }
   fr.setColor(1, 1, 1);
 }
 /** Arched opening drawn on a wall frame: a dark recess (rect + half round) with a pale surround. kind 'glass' | 'door'. */

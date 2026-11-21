@@ -39,12 +39,12 @@ PAVED = [
     [(-181.5, -27.5), (-153, -43.2), (-110.3, -55.2), (-105.7, -38.8), (-149, -26.8), (-176, -12.5)],   # faculty car park along Fernhill (aisle + stalls both sides)
     [(-95.9, -56.5), (-88, -57.6), (-82.5, -62), (-76, -64.8), (-58.6, -68.6), (-50, -68.9), (-43.5, -69.2), (-40.2, -64), (-42.3, -60.2), (-46.2, -54.5), (-46.3, -36.7), (-53.3, -35.5), (-57.5, -34), (-59.5, -36.5), (-70.3, -45.2), (-71.7, -44), (-75, -46.6), (-79.2, -41.5), (-81.5, -42.5), (-90.5, -48.5), (-92.9, -52.4)],   # the faculty car park north of the tennis shed: the whole lot (nadir tiles, QA round 4), not a Y-shaped drive
     [[-29, -25.5], [-19.5, -37], [-16.5, -37.5], [-14, -34.5], [-12.5, -25], [-5.5, -20.3], [12, -21.5], [13.1, -6.4], [15.5, -1.7], [12, -0.5], [0.3, -5.2], [-16, -8.7], [-23, -13.3], [-30, -22.7]],   # the visitor lot (fix round 5: on north along the hall's green strip to the lane)
-    [(-112, 58), (-102.7, 62.7), (-96.8, 70.9), (-109.1, 72.6), (-121.3, 76.7), (-122.5, 93), (-120.7, 95.3), (-126.6, 95.9), (-134.1, 84.3), (-143.5, 88.3), (-144.6, 86), (-134.1, 80.8), (-123.6, 70.9)],
+    [(-112, 58), (-102.7, 62.7), (-96.8, 70.9), (-93.9, 72.9), (-99.1, 75.5), (-122.3, 80.6), (-122.5, 93), (-120.7, 95.3), (-126.6, 95.9), (-134.1, 84.3), (-143.5, 88.3), (-144.6, 86), (-134.1, 80.8), (-123.6, 70.9)],
 ]
 # The car-park loop (nadir tiles, 12.5 px/m): a one-way lane round an island whose north half is a boulder garden and whose
 # south half is a stall row; a second stall row on the outer south-east kerb. Asphalt = LOOP_OUTER minus LOOP_GARDEN.
 LOOP_OUTER = [[-106.8, 44.4], [-101.6, 40.8], [-95.2, 37.2], [-87.2, 35.2], [-75.2, 35.6], [-66.4, 37.8], [-62.4, 39.8], [-68.4, 45.2], [-67.6, 48.3], [-66.0, 51.0], [-66.5, 55.4], [-68.1, 59.4], [-71.1, 62.5], [-74.4, 65.0], [-77.7, 67.1], [-81.3, 68.7], [-85.0, 69.8], [-89.0, 70.2], [-93.1, 69.6], [-95.6, 66.0], [-101.6, 65.3], [-107.2, 62.4], [-109.7, 58.0], [-110.4, 53.2], [-109.2, 47.6]]
-LOOP_GARDEN = [[-100.0, 47.1], [-95.8, 44.5], [-90.2, 42.5], [-86.4, 41.8], [-82.7, 41.8], [-79.6, 42.5], [-77.1, 43.6], [-76.3, 44.3], [-75.8, 45.1], [-75.7, 45.9], [-75.9, 46.7], [-76.5, 47.4], [-77.6, 48.0], [-82.8, 49.1], [-85.5, 50.1], [-90.5, 52.9], [-98.8, 56.0], [-101.9, 56.4], [-103.3, 55.9], [-104.2, 54.7], [-104.5, 52.3], [-103.7, 50.5]]   # (fix round 6: rounded ends)
+LOOP_GARDEN = [[-95.8, 44.5], [-90.2, 42.5], [-86.4, 41.8], [-82.7, 41.8], [-79.6, 42.5], [-77.1, 43.6], [-76.3, 44.3], [-75.8, 45.1], [-75.7, 45.9], [-75.9, 46.7], [-76.5, 47.4], [-77.6, 48.0], [-82.8, 49.1], [-85.5, 50.1], [-90.5, 52.9], [-98.4, 54.9], [-99.5, 55.5], [-100.2, 57.0], [-101.0, 58.2], [-102.3, 58.4], [-103.5, 57.5], [-104.3, 55.8], [-104.5, 53.6], [-103.9, 51.4], [-102.6, 49.3], [-100.8, 47.5], [-98.4, 45.8]]   # (fix round 7: a broad round west lobe)
 # the Commons' dining terrace: a paved stone plaza between the hall's south-east end and the loop
 TERRACE = [[-120.4, 26.4], [-112.4, 17.6], [-108.0, 21.2], [-103.2, 23.6], [-98.4, 27.2], [-92.5, 28.2], [-87.0, 28.5], [-86.6, 35.2], [-95.2, 37.2], [-101.6, 40.8], [-106.8, 44.4], [-109.6, 42.0], [-115.2, 34.0]]
 # the paved court between New House and the Fine Arts studios, its lawn panel and the brick square with the sculpture
@@ -52,7 +52,7 @@ ARTS_PLAZA = [[19.6, -9.3], [21.5, -9.6], [36.5, -10.2], [37.0, -12.6], [42.5, -
 ARTS_LAWN = [[22.6, -5.0], [32.7, -5.5], [33.0, 3.2], [24.0, 4.6]]   # (a lawn panel south of the walk: outside the paved outline now)
 ARTS_BRICK = [[36.0, -7.0], [41.5, -7.0], [41.5, -1.5], [36.0, -1.5]]
 # asphalt drive along Katharine Branson Hall's south front, and the paved strips of the quad (line, width)
-PAVED_LINES = [([[-176.9, 5.2], [-166.6, 14.6], [-156.3, 21.0], [-150.0, 30.5]], 3.4), ([[-73.1, 3.0], [-62, 1.4], [-56, 2.6], [-50, 4.9], [-44, 6.6], [-38, 7.7], [-32, 9.2], [-27, 12], [-22.5, 15.8], [-17.5, 23.5]], 3.0)]
+PAVED_LINES = [([[-176.9, 5.2], [-166.6, 14.6], [-156.3, 21.0], [-150.0, 30.5]], 3.4), ([[-73.1, 3.0], [-62, 1.4], [-56, 2.6], [-50, 4.9], [-44, 6.6], [-38, 7.7], [-32, 9.2], [-27, 12], [-22.5, 15.8], [-17.5, 23.5], [-14.0, 26.3]], 3.0)]
 PATHS = [([[-165.8, 127.2], [-158.8, 117.3]], 5.0), ([[-176.3, 138.8], [-167.0, 149.3], [-153.0, 156.3]], 3.5), ([[-153.0, 122.5], [-146.0, 148.2]], 3.0),
          ([[-87.3, 18.4], [-86.6, 14.5], [-82.0, 9.5], [-73.5, 3.4]], 2.0)]   # the walk from the head of the Alumni Steps up to the hall's south drive
 # a tree island in the faculty car park (x, z, radius), the loop island's dry creek of pale cobbles, the dry clearing west of the
@@ -75,9 +75,8 @@ POOL_HOUSE = [[-195, -58], [-188, -58], [-188, -54], [-195, -54]]
 # lawns and beds that are dry gold in the (summer) tiles, as (outline, tone); the faculty car park is pale grey paving
 WALKS = [
     ([[-17.9, -36.5], [-16.2, -40], [-15.8, -48], [-16.6, -56], [-17.8, -61.5]], 2.6),   # the lane along the hall east wall
-    ([[2.6, 6.4], [-7, 18.6]], 3.2),   # the terrace along the hall south-east end
-    ([[-7, 18.6], [-12, 23.5], [-15, 26.6]], 2.6),   # its walk to the round patio
-    ([[2.6, 6.4], [5.5, 1.5], [7, -1.8]], 2.0),   # from the terrace to the visitor lot
+    ([[-6.6, 18.0], [-8.1, 20.3], [-9.7, 22.9], [-10.9, 25.0]], 2.6),   # from the hall's south-east terrace (KBH_TERR) to the round patio
+    ([[1.95, 3.5], [2.1, 0.0], [2.4, -4.4]], 1.6),   # from the head of the terrace steps to the visitor lot
     ([[-44.7, -48.5], [-46.8, -48.2]], 2.4),   # north block, west door
     ([[-28.1, -63.9], [-26.9, -65.5], [-21.5, -63.6], [-17.9, -61.3]], 1.8),   # north block, north-east door
     ([[-19.9, -50.1], [-16.2, -50.5]], 2.2),   # north block, east door
@@ -91,10 +90,22 @@ WALKS = [
     ([[-121.6, 94.6], [-119.5, 95.9], [-116.1, 109.3], [-110.9, 131.3]], 2.2),   # the service walk along the gym's west wall, from the car bays past its three service doors
     ([[-144.4, 137.7], [-146.3, 138.7]], 2.2),   # Richardson Hall's door: apron to the quad path
     ([[44.9, 8.3], [46.5, 8.05]], 2.2),   # Fine Arts east door: apron to the court walk
+    # fix round 7
+    ([[-91.04, 73.63], [-80.33, 128.06]], 3.6),   # the slab under the gym's east colonnades
+    ([[-121.6, 80.37], [-99.4, 75.55]], 1.3),   # a concrete margin along the foot of the gym's north wall
+    ([[-145.5, 158.7], [-145.9, 157.2], [-152.6, 156.4]], 2.2),   # Tallant Science Center's north door: apron and walk to the quad path
+    ([[1.75, 4.1], [0.45, 8.0]], 1.8),   # the flight of steps at the terrace's north corner (kit.js KBH_STEPS)
 ]
-PATIO = (-15, 27, 3.0)
+# Katharine Branson Hall's south-east terrace (kit.js KBH_TERR): gridded nadir tiles, fix round 7
+KBH_TERR = [[-1.6, 6.65], [0.3, 8.3], [1.5, 10.5], [0.6, 12.4], [-0.4, 14.0], [-1.6, 15.9], [-3.0, 17.3], [-5.2, 18.4], [-7.6, 19.2], [-8.6, 18.3], [-10.3, 17.55]]
+# Fix round 7, off campus but inside the play area (nadir tiles): the neighbour's tennis court west of the Commons (a green hard court, lines painted by
+# the builder) and the gravel garden round a circular pool in the south-west corner (paths and gravel = one pale tone, the pool is built by the builder)
+NB_COURT = dict(cx=-211.0, cz=38.2, w=18.4, d=37.6)
+NB_GRAVEL = [(-222, 170.5), (-216, 170), (-204, 171), (-196.5, 171.5), (-193, 178), (-192, 186), (-195, 194), (-200, 200), (-222, 200)]
+NB_POOL = (-209.3, 183.0, 6.0)
+PATIO = (-11.2, 27.3, 2.9)
 ENTR_COURT = [[-40.44, -0.4], [-34.89, 3.71], [-36.9, 6.43], [-37.68, 6.24], [-44.44, 4.99]]
-GARDEN = dict(cx=-64.5, cz=17.0, w=10.7, d=7.5, ang=-5.6)   # the organic garden's fenced plot (bark mulch)
+GARDEN = dict(cx=-66.0, cz=17.0, w=13.0, d=8.0, ang=-7)   # the organic garden's fenced plot (bark mulch)
 DRY_LAWNS = [
     ([(-72, 5.5), (-60, 4), (-52, 6.5), (-44, 9), (-36, 10), (-30, 12), (-25, 16), (-19, 23), (-17, 30), (-30, 36), (-50, 34), (-70, 28), (-84, 20), (-80, 10)], (110, 116, 70)),   # the hall's south lawn: mown, pale olive
     ([(-150, -24), (-128, -30), (-116, -30), (-112, -12), (-122, -2), (-138, -16), (-146, -10)], (138, 126, 90)),   # the bank between the faculty car park and the Commons
