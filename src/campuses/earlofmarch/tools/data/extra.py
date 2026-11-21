@@ -31,3 +31,5 @@ CONCRETE = []
 TONED = [(track_ring(TRACK['w']), [track_ring(0.0)], 'asphalt', (126, 125, 122))]
 # the library / Mlacak forecourt: banded concrete paving between the library's east wall and the drop-off loop (nadir tiles)
 CONCRETE += [[[45.5, 131], [55, 126.5], [71, 142], [69, 158], [52, 163.5], [46.5, 152]]]
+# the March Tennis Club's courts south of the fence (OSM 228647260 clay, 1502896439 hard): seen from the Mlacak lot, painted only
+TONED += [([[-53.7, 253.8], [-27.2, 228.2], [16.2, 272.8], [-10.2, 298.4]], [], 'dirt', (150, 78, 58)), ([[-81.6, 280.9], [-55.1, 255.2], [-11.6, 299.8], [-38.1, 325.5]], [], 'concrete', (58, 84, 128))]

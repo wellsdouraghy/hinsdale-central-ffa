@@ -26,7 +26,7 @@ export const DOORS = [
 ];
 // roof ladders, WORLD [x, z]: on clear outside wall (snapped to the nearest wall) and between roofs (snapped to the nearest step)
 export const SOLAR = [[-34.5, -98, -17.5, -74], [-37, -40, -29.5, -10], [-34, -4, -6, 9], [6, 47.5, 30, 78], [-36, 43.5, -8, 46.8], [-8, 56, -2, 69]];
-export const LADDERS = [[66.0, 50.3], [39.0, -64.6], [121.5, 78.8]];
+export const LADDERS = [[79.6, 64.6], [39.0, -64.6], [121.5, 78.8]];
 export const ROOF_LADDERS = [[39.8, -9.0], [60.7, 3.6], [148.8, 37.4]];
 
 const outFrame = (ring, i) => { const a = ring[i], b = ring[(i + 1) % ring.length]; let F = edgeFrame(a[0], a[1], b[0], b[1]); const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (pointInRing(mx + F.nx * 0.25, mz + F.nz * 0.25, ring)) F = edgeFrame(b[0], b[1], a[0], a[1]); F.i = i; return F; };
@@ -53,6 +53,8 @@ export function buildBlocks(ctx, blocks, o) {
       const nb = others.find((q) => pointInRing(mx + F.nx * 0.4, mz + F.nz * 0.4, q.ring)); const u0 = uOff; uOff += F.L;
       if (nb && nb.deck >= deck - 0.25) continue;
       const step = !!nb, y0 = nb ? nb.deck : o.floor(F, b); const info = { block: b, uOff: u0, nb, deck };
+      // a low step between two roofs (under 0.9 m) is a plain curb at the upper deck: with a parapet on it the step is a 1 m wall across the roof
+      if (step && deck - nb.deck < 0.9) { o.step(F, y0, deck + 0.02, info); edgesOut.steps.push({ F, b, top: deck, deck, y0 }); continue; }
       if (step) { o.step(F, y0, top, info); edgesOut.steps.push({ F, b, top, deck, y0 }); } else { const open = o.wall(F, y0, top, info) !== false; fmin = Math.min(fmin, y0); fmax = Math.max(fmax, y0); (ctx.walls = ctx.walls || []).push({ id: o.id + ':' + b.name, a: [F.ax, F.az], b: [F.ax + F.tx * F.L, F.az + F.tz * F.L], floor: y0, top, open }); edgesOut.push({ F, b, top, deck, y0 }); }
       if (top - deck > 0.05) { const pm = o.parapetMat ? o.parapetMat(b) : null; const pt = pm === 'alu' ? B.v('frameAlu') : mat(ctx, pm || MAT.precast, 0.92);
         quadFacing(pt, F.P(0, top, 0), F.P(F.L, top, 0), F.P(F.L, top, -0.3), F.P(0, top, -0.3), [0, 1, 0]);

@@ -26,10 +26,21 @@ __s / __look / __sheet / __walk)
 Lions (green / white / gold / black; Wikipedia + school athletics page). Rival: A.Y. Jackson SS (Jays, blue / white): INFERRED (the other
 English public high school in Kanata, same board and league); no source names an official rival. Teams: Lions vs Jays.
 
+## Gameplay
+- CTF: red (Lions) [-32, -86] = the green between the portable rows north-west of the school; blue (Jays) [-56, 172] = the lawn between the
+  Mlacak Centre and the wood by the track. 259 m apart (nav path 284 m), cover 0.44 / 0.38 (map check), overlook 0 / 0.
+- 15 scanned helicopter spots in the descriptor (lawns first, 34 m apart); practice heli on the track infield (-113, 85)
+- 6 ladders: three on outside walls (gym wall (79.6, 64.6), north-east face, the 2015 wing's south-west face), two up to the raised roofs,
+  one from the low block; 32 FFA spawns, 10 per team; lot lights, floodlight masts and hoops are grapple poles
+- doors: 11 on the school (`DOORS` in school.js), 3 on the Mlacak Centre / library (`CIVIC_DOORS_W`), one per portable; each gets a level
+  apron (the building pads) and a concrete walk to the nearest paving (grounds.js `doorWalks`)
+
 ## Status
-- [x] data + terrain + a loading skeleton (school blocks with the precast / brick wall kit, portables, fence line)
-- [ ] school facades per wall (doors, glazed entrances), ladders, signs; Mlacak Centre + library; context buildings
-- [ ] grounds: track + field, courts, car parks (stalls, cars), paving truth + kerbs, The Parkway streetscape, boundary barriers
-- [ ] textures from references (scrape, material sheet, generate, wire)
-- [ ] gameplay: CTF bases (nadir tiles), heli scan -> descriptor, spawns, map check, play test
-- [ ] pairs, MAP_NOTES section, final report
+- [x] data + terrain; school roof blocks + wall kit; portables; Mlacak Centre + library blocks; context buildings (343 OSM footprints)
+- [x] grounds: track (painted oval) + goals + masts + bleachers, two courts, stall rows on the OSM aisles (~240 cars), kerbs on the
+      vectorised paving, rocks, fence line + barriers
+- [x] textures: 27 Street View frames + tiles (the 44 scraped web images were all off-topic and pruned), material sheet, 14 generated
+      tiles (2.9 MB), wired through the descriptor
+- [x] map check 0 fails / 0 warnings (houses, retaining: skip, nothing registered); Hinsdale / Hamilton pass after the map-check change
+- [ ] not done / weak (see the hand-off report): salmon pavers at the main entrance, the bus-loop islands' exact outlines, hand correction of
+      the vectorised paving, signs, the 2025-26 addition under construction (not in the tiles), per-wall facade review beyond the default bays

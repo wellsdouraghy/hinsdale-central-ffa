@@ -147,12 +147,29 @@ map breaking one of these rules has not finished.
     pool takes the clamp with it (or leaves the feature OUTSIDE by bowing in). Branson's straight clamp stopped players
     in the middle of a pool 6 m short of the fence, and on every campus 1.2 m short of the fence line (map check `edgeClamp`).
 
+49. Where a country has open lidar with a first-return surface (Canada: NRCan HRDEM DTM + DSM; many US states and European
+    countries too), use BOTH models from day one: DTM = the ground, DSM - DTM = every roof, crown and canopy edge, measured.
+    Building heights, roof blocks inside one footprint, tree positions and heights, and the "is this pixel open ground?" mask
+    of the ground classifier all come from it; the 3D tiles become the cross-check and the source of looks, not of numbers.
+50. Read the CRS, do not assume a grid is metres north-up. Canada's national elevation grids are EPSG:3979 (Lambert conformal
+    conic): at Ottawa the grid is rotated 17 deg from true north and its "metre" is 1.6 % long. Sample through a real
+    projection library (local x, z -> lat / lon -> grid), and make the validation script PROVE its own sensitivity: score the
+    bake against the independent source under deliberate mis-registrations (the 1.6 % scale, the 17 deg rotation, a 30 m
+    shift, the 26 % squash) and require "as baked" to win.
+51. One footprint is not one building. When the map has a school as a single polygon, print (DSM - ground) on a 2 m table
+    in the building's own frame, cut the outline into roof blocks along the levels, node the rings where blocks meet, and let
+    the builder decide per edge: outside wall, step wall up from the lower roof, or nothing.
+52. On a campus whose fence line is a polygon (a diagonal street's far kerb, a wood line), the play area is the POLYGON:
+    the map check samples only inside `world.playEdge`, the fence must be closed for collision (the walk flood fill, spawns
+    and nav follow it), and everything typed from the playBounds rectangle (helicopter scans, car rows, rocks, lights) tests
+    the ring as well.
+
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F48 above is ticked off explicitly in the hand-off.
+- Every rule A1-F52 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
@@ -1438,3 +1455,46 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - *A re-run of ground_fix.py on baked files is not idempotent* (it converted another 800 m2 on a second pass). A targeted fix goes into the script for the
     next bake AND is applied once to the baked files by a script that does only that step (walk pixels saved and restored). Tallant's door: the
     classifier's thin "path" strips beside the walk (kept next to the OSM footway) and their soft fringes drew whitish smears; window `TALL` in ground_fix.py.
+
+## Earl of March (Kanata, Ottawa: the first campus outside the US; scripts in src/campuses/earlofmarch/tools/)
+
+- **Terrain source.** NRCan HRDEM, the City of Ottawa 2020 lidar project at 1 m, as cloud-optimised GeoTIFFs on the CanElevation
+  bucket (STAC: datacube.services.geo.ca, collection `hrdem-lidar`; Open Government Licence - Canada). No GDAL needed: `tifffile`
+  reads the header over HTTP (`fsspec`), the tile offsets give the 512 px tiles under the window, and `page.decode` unpacks them
+  (tools/dem.py; overviews serve the 8 m backdrop window). Georeferencing from the tags, sampling through `pyproj` (rule F50).
+- **Validation (rules F24 / F25).** Three sources, all in tools/terrain.py: MRDEM-30 (NRCan's Copernicus-derived 30 m model, same
+  datum) at 61 points: mean |err| 0.19 m, and every deliberate mis-registration scores worse (rotation 0.87, 30 m shift 0.27-0.37,
+  squash 0.34); 223 open-ground samples of the Google 3D tiles: ONE constant in all four quadrants (-0.49 .. -0.54), residual 0.13 m;
+  the CDEM point service (1 : 50 000 contours, integer metres, CGVD28): bias -1.46 m, scatter 1.46 m, reported but too coarse to gate
+  on. A coarse national model is a sanity check, not a registration test: keep one fine independent source.
+- **Flat or hilly?** The built part (school, car parks, track) lies within +-0.6 m of one level; the wooded Canadian Shield knolls
+  beside the track, by the portables and in the north-east wood stand 3-6 m (play rectangle -2.9 .. +4.8 m, p2..p98 3.7 m). That is
+  over the ~2 m limit, so it is a terrain campus; because the built part is level, every building takes ONE level pad at its lidar
+  floor (the ground 2 m outside the school's walls spans 0.31 m) and none of the wall-pad machinery of the hilly campuses is needed.
+- **Lidar instead of tile samples** (rule F49): 343 building heights in one pass with no offset fitting; the school's nine roof
+  levels (8.99 / 9.32 / 9.5 / 9.6 / 13.4 / 5.68 ...) from a 2 m table; 1 328 crown tops of the canopy-height model + 675 fill
+  trunks where closed canopy stood more than 5.5 m from any top (a crown-top scan alone gives ~100 trunks / ha, which reads as a
+  park: the fill is what closes the wood). The 2020 survey is leaf-off: crowns are thinner than in the tiles, never taller.
+- **Paving from the photo, vectorised.** With crowns and roofs masked by the lidar the colour classifier is right about open
+  ground; tools/ground_fix.py turns its asphalt / concrete into polygons (1 m cells -> union -> round-buffer smoothing ->
+  simplify 0.9 m), cuts the public streets and the track out, applies hand corrections, repaints the baked files from the
+  polygons with a hard edge, and writes paved.js so the kerbs lie on exactly the painted outline. It keeps the classifier's files in
+  a gitignored cache so a re-run starts from them (the Branson "not idempotent" lesson).
+- **A designed surface can be paint.** The track is a plain grey oval without lane lines: painted into the baked mask from its
+  measured geometry (class asphalt, its own pale tone) it has a crisp edge and no z-fighting; only goals, masts and bleachers
+  are geometry. Courts on a yard are draped line quads on the yard's asphalt.
+- **Shared worktree.** Another agent edited src/campuses/branson/ in the same checkout while this campus was built, including
+  the helper module this builder first imported from. Copy the few helpers a campus needs into its own lib.js (from HEAD, not from
+  the working tree), and commit with explicit pathspecs (`git commit -- <paths>`): `git add -A` would have swept up the other
+  agent's staged files.
+- **The school's own site may give nothing.** earlofmarchss.ocdsb.ca renders its pictures with scripts, Wikipedia has no photo
+  of the building, the search / Commons / Openverse APIs are closed to crawlers: 44 images came back and all 44 were pruned
+  (posters, another architect's projects, unrelated news). The material sheet then stands on Street View (27 frames, several of
+  them inside the car parks) and tiles obliques; say so in the sheet, crop every swatch patch and LOOK at the crop sheet (two of
+  seventeen boxes were sky or overexposed and were dropped).
+- **Roof plant and ladders.** A random mechanical unit landed 3 m from a ladder's landing and the trap sweep wedged a jumper
+  between it and the parapet: ladder points go into the roof-plant exclusion list before the plant is placed.
+- **Polygon fence.** `ctx.playEdge` = kit.js PLAY_EDGE (far kerb of The Parkway, the wood line, the near side of Campeau Drive, the
+  line between the Mlacak Centre and the tennis club); the first map check failed `terrain` and `visualSolid` on the rectangle's
+  corners BEYOND the fence until the check learned the ring (rule F52). Barriers stand in front of the fence wherever both sides of
+  it are paved; two barriers that meet at a ring vertex overlap unless the second is skipped.

@@ -67,7 +67,7 @@ export function buildCivic(ctx) {
   const onWall = (F) => doorsW.map((d) => { const du = (d.p[0] - F.ax) * F.tx + (d.p[1] - F.az) * F.tz, dn = (d.p[0] - F.ax) * F.nx + (d.p[1] - F.az) * F.nz; return Math.abs(dn) < 1.6 && du > 1.2 && du < F.L - 1.2 ? { u: du, ...d.o } : null; }).filter(Boolean);
   const flat = blocks.filter((b) => b.kind !== 'annex'), annex = blocks.filter((b) => b.kind === 'annex');
   const edges = buildBlocks(ctx, flat, { id: 'civic', bottom: -0.6, floor: (F) => Math.max(LIB_FLOOR, groundAt(ctx, F) + 0.02), floorOf: () => LIB_FLOOR, floorMax: true,
-    top: (b) => b.deck + (MLACAK.has(b.kind) ? 0.12 : 0.3), tint: (b) => (MLACAK.has(b.kind) ? [1.25, 0.62, 0.5] : [2.5, 2.45, 2.3]), parapetMat: (b) => (MLACAK.has(b.kind) ? MAT.shake : 'alu'),
+    top: (b) => b.deck + (MLACAK.has(b.kind) ? 0.12 : 0.3), tint: (b) => (MLACAK.has(b.kind) ? [0.95, 0.45, 0.36] : [1.85, 1.82, 1.7]), parapetMat: (b) => (MLACAK.has(b.kind) ? MAT.shake : 'alu'),
     step: (F, y0, top, { block: b, uOff }) => { const m = mat(ctx, MLACAK.has(b.kind) ? MAT.shake : b.kind === 'lib1' ? MAT.blockWhite : MAT.charcoal); wallRect(m, F, 0, F.L, y0, top, 0, [uOff, y0, uOff + F.L, top]); m.setColor(1, 1, 1); },
     wall: (F, y0, top, { block: b, uOff }) => { const doors = onWall(F);
       if (MLACAK.has(b.kind)) { if (top - y0 < 2.6) { const m = mat(ctx, MAT.mlacakWall); wallRect(m, F, 0, F.L, y0 - 0.9, top, 0, [uOff, y0, uOff + F.L, top]); m.setColor(1, 1, 1); return false; } shakeWall(ctx, F, y0, top, { uOff, doors, base: b.kind === 'low' ? 2.3 : 2.45 }); return doors.length > 0; }

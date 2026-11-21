@@ -36,9 +36,10 @@ export default {
   // grid (gen.terrain), which also answers beyond the rectangle. Pads are flattened by the builder (sitework in world.js).
   terrain: { file: 'campuses/earlofmarch/terrain.bin', format: 'i16', nx: 361, nz: 331, scale: 0.01, offset: 0, extent: { minX: -360, maxX: 360, minZ: -330, maxZ: 330 }, outside: backdropY, blend: 20, cell: 2 },
   // Both bases stand on lawn at opposite ends of the school, 259 m apart, with the school between them: red (Lions) on the green
-  // between the portable rows north-west of the school, blue (Jays) on the lawn between the Mlacak Centre and the wood beside the
-  // track. Found with a scan of the map check's own cover measure (16 rays, 30 m; 5-point means 0.44 / 0.47) over every nav cell
-  // 14 m inside the fence, then put on nadir tiles shots (rule F39). The built site is level: no overlook on either (0 / 0 cells).
+  // between the portable rows north-west of the school, blue (Jays) at the north edge of the Mlacak Centre's south-west car park, where it meets the lawn
+  // and the wood beside the track. Found with a scan of the map check's own cover measure (16 rays, 30 m; 5-point means 0.44 / 0.47) over every nav cell
+  // 14 m inside the fence, then put on nadir tiles shots (rule F39: red stands on the paved lane between two portable rows, blue on the lot's edge;
+  // nothing unmodelled under either). The built site is level: no overlook on either (0 / 0 cells).
   ctf: { red: [-32, -86], blue: [-56, 172] },
   practiceHeli: { x: -113, z: 85, yaw: 0 },   // the track infield
   spawnCenter: [20, 10],

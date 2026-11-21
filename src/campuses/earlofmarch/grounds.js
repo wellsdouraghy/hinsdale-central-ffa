@@ -146,7 +146,9 @@ function rocks(ctx) {
 function doorWalks(ctx) {
   const walks = []; for (const d of ctx.doors || []) { let L = 2.6; for (let t = 0.8; t <= 16; t += 0.5) { L = t + 0.8; if (ctx.surfaceAt(d.x + d.nx * t, d.z + d.nz * t) !== 'grass') break; }
     const w = Math.max(2.0, (d.w || 1.9) + 0.8) / 2, tx = -d.nz, tz = d.nx; walks.push([[d.x + tx * w + d.nx * 0.05, d.z + tz * w + d.nz * 0.05], [d.x + tx * w + d.nx * L, d.z + tz * w + d.nz * L], [d.x - tx * w + d.nx * L, d.z - tz * w + d.nz * L], [d.x - tx * w + d.nx * 0.05, d.z - tz * w + d.nz * 0.05]]); }
-  if (ctx.paintSurface) ctx.paintSurface((x, z) => (ctx.surfaceAt(x, z) === 'grass' && walks.some((r) => pointInRing(x, z, r)) ? 'concrete' : null));
+  // (painted 0.45 m inside the slab's outline: the mask is 4 px / m and bleeds; the slab's own edge is the hard edge, rule F42)
+  const inner = walks.map((r) => { const c = [(r[0][0] + r[2][0]) / 2, (r[0][1] + r[2][1]) / 2]; return r.map((p) => { const L = Math.hypot(c[0] - p[0], c[1] - p[1]) || 1; return [p[0] + (c[0] - p[0]) * 0.62 / L, p[1] + (c[1] - p[1]) * 0.62 / L]; }); });
+  if (ctx.paintSurface) ctx.paintSurface((x, z) => (ctx.surfaceAt(x, z) === 'grass' && inner.some((r) => pointInRing(x, z, r)) ? 'concrete' : null));
   const c = ctx.B.v('concrete'); for (const r of walks) drapePoly(ctx, c, r, 0.03, (x, z) => [x / 3, z / 3]);
   ctx.gen.trees = (ctx.gen.trees || []).filter((t) => !walks.some((r) => pointInRing(t[0], t[1], r) || pointInRing(t[0] + 1.2, t[1], r) || pointInRing(t[0] - 1.2, t[1], r) || pointInRing(t[0], t[1] + 1.2, r) || pointInRing(t[0], t[1] - 1.2, r)));
   ctx.doorWalks = walks;

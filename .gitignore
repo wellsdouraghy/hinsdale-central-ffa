@@ -24,3 +24,5 @@ dev/shots/textures/*/v*/ref-compare/
 
 # Earl of March: the classifier output kept for re-runs of tools/ground_fix.py
 src/campuses/earlofmarch/tools/data/cache/
+# Earl of March: game | tiles pairs and Street View sheets contain Google imagery (local review only)
+dev/shots/earlofmarch/tiles-compare/
