@@ -629,8 +629,11 @@ async function checkTerrain() {
   for (const p of REG.props) {
     if (!inPB(p.x, p.z, -30)) continue;
     const pts = obbCorners(p).concat([[p.x, p.z]]); let gmin = Infinity, gmax = -Infinity;
-    for (const [x, z] of pts) { const gy = T.heightAt(x, z); gmin = Math.min(gmin, gy); gmax = Math.max(gmax, gy); }
-    const base = p.y || 0, flt = base - gmin, bury = (gmax - base) / Math.max(0.3, p.h || 1);
+    // (a prop laid on the slope, marin/kit.js onSlope, registers the plane it was sheared onto: its base is that plane at every
+    // corner, not one level. Measured as a level box a car on a 9 % street read "31 % buried" while it stood on the asphalt.)
+    const baseAt = (x, z) => (p.plane ? p.plane.y0 + p.plane.gx * (x - p.plane.x) + p.plane.gz * (z - p.plane.z) : (p.y || 0));
+    let flt = -Infinity, bury = -Infinity; for (const [x, z] of pts) { const gy = T.heightAt(x, z); gmin = Math.min(gmin, gy); gmax = Math.max(gmax, gy); flt = Math.max(flt, (p.y || 0) - gy) /* (floating as before: from the registered lowest point) */; bury = Math.max(bury, (gy - baseAt(x, z)) / Math.max(0.3, p.h || 1)); }
+    const base = p.plane ? baseAt(p.x, p.z) : (p.y || 0);
     const e = { prop: p.kind, at: [r1(p.x), r2(base), r1(p.z)], floating: r2(flt), buriedFrac: r2(bury), groundRange: r2(gmax - gmin) };
     if (flt > TH.propFloat || bury > TH.propBuryFail) propFails.push(e); else if (bury > TH.propBuryWarn) propWarns.push(e);
     if (flt > TH.propFloat || bury > TH.propBuryWarn) marks.push({ kind: 'propSlope', x: p.x, z: p.z, bad: flt > TH.propFloat || bury > TH.propBuryFail });

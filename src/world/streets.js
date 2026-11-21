@@ -14,6 +14,8 @@
 //                                                                     left / right of the line's direction, as OSM)
 //   opts:  { sigma = 15 (m, low-pass), crown = 0.02, kerb = 0.15, walkFall = 0.02, shoulder = 2.5 (m, level strip behind
 //            the sidewalk), blend = 5 (m, verge beyond it),
+//            taper = 0 (m: a road's influence on the ground between two roads at different heights fades in over this
+//            distance at the edge of its reach; 0 = the old hard edge),
 //            maxGrade = 0.3, protect = [(x, z) => bool]   designed pads the verge / shoulder must not touch,
 //            hard = [(x, z) => bool]   designed pads that even narrow a sidewalk (never the carriageway),
 //            solid = [(x, z) => bool] (later, via streets.solid)   building footprints: restore() leaves them alone }
@@ -25,7 +27,7 @@ const DS = 2;
 export function gradeStreets(ctx, roads, opts = {}) {
   const T = ctx.terrain; if (!T || !roads || !roads.length) return null;
   const sigma = opts.sigma ?? 15, CROWN = opts.crown ?? 0.02, KERB = opts.kerb ?? 0.15, FALL = opts.walkFall ?? 0.02, BLEND = opts.blend ?? 5, SHOULDER = opts.shoulder ?? 2.5, maxGrade = opts.maxGrade ?? 0.3;
-  const protect = opts.protect || [], hard = opts.hard || [];
+  const protect = opts.protect || [], hard = opts.hard || []; const TAPER = opts.taper || 0;
   // A road benched across a steep hillside (mean natural cross-slope over opts.hillside.cross) is a narrow drive without
   // sidewalks: a full street section there would be a terrace many metres high.
   const HS = opts.hillside === false ? null : { cross: 0.14, width: 7, shoulder: 1, ...(opts.hillside || {}) };
@@ -104,8 +106,12 @@ export function gradeStreets(ctx, roads, opts = {}) {
     for (const b of c) { if (b.zone !== zone) continue; const w = 1 / (Math.pow(zone === 'verge' ? b.t * BLEND : b.d, 4) + 0.05); ws += w; y += b.y * w; if (zone === 'verge') t = Math.min(t, b.t); }
     // two roads at different heights side by side (a fork on a hill, a hairpin): no class wins, the ground between them is
     // one bank blended by distance
-    if (c.length > 1) { let lo = Infinity, hi = -Infinity; for (const b of c) { lo = Math.min(lo, b.yc); hi = Math.max(hi, b.yc); }
-      if (hi - lo > 0.3) { let w2 = 0, y2 = 0; for (const b of c) { const w = 1 / (Math.pow(b.d, 4) + 0.05); w2 += w; y2 += b.y * w; } const m = Math.min(1, (hi - lo - 0.3) / 0.7); return { y: (y / ws) * (1 - m) + (y2 / w2) * m, zone, t: zone === 'verge' ? t : 0 }; } }
+    // (opts.taper, metres: an arm's say fades in over the last metres of its reach. Without it a street 0.9 m higher entered
+    // this blend at full weight the moment the point came within its reach: a 0.19 m step ACROSS the other street's sidewalk,
+    // 13 m from the corner of Mission Ave and Bryn Mawr Drive on Marin, which every structure built to the design then copied.)
+    if (c.length > 1) { let lo = Infinity, hi = -Infinity, ref = c[0]; if (TAPER) for (const b of c) { if (b.d < ref.d) ref = b; b.f = smooth(Math.max(0, Math.min(1, (b.s.hw + b.sw + b.s.r.shoulder + BLEND - b.d) / TAPER))); }
+      for (const b of c) { const ye = TAPER ? ref.yc + (b.yc - ref.yc) * b.f : b.yc; lo = Math.min(lo, ye); hi = Math.max(hi, ye); }
+      if (hi - lo > 0.3) { let w2 = 0, y2 = 0; for (const b of c) { const w = (TAPER ? b.f : 1) / (Math.pow(b.d, 4) + 0.05); w2 += w; y2 += b.y * w; } const m = Math.min(1, (hi - lo - 0.3) / 0.7); return { y: (y / ws) * (1 - m) + (y2 / w2) * m, zone, t: zone === 'verge' ? t : 0 }; } }
     return { y: y / ws, zone, t: zone === 'verge' ? t : 0 };
   }
   const smooth = (t) => t * t * (3 - 2 * t);
