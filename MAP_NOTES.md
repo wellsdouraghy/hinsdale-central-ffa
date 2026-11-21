@@ -861,6 +861,72 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   - **Helicopter pads are scanned at load** (`heliScan`, world.js): 2 m grid, lots first, then pitch, concrete, lawns;
     relief, streets, footprints and trunks pre-tested; the pipeline's exact test decides (19 pads). No typed list.
 
+- **Third QA of the terrain-fix round (v7 -> fix 4): the Mission Ave / Bryn Mawr Drive ("E St") corner, built instead of patched.**
+  - **Look at the street before designing its edge.** Three rounds argued about a "field wall" along Bryn Mawr Drive. Street
+    View shows no wall and no sidewalk on the pitch side at all: a red kerb, a strip of dry grass, a planted bank with a row
+    of trees down to the ball-stop fence, a low chain-link fence behind the kerb where the bank is high, and the concrete
+    sidewalk on the EAST side (OSM maps it as a footway; the street had been put in `NO_WALK` whole). Six Street View frames
+    (one along each side, one at the corner) would have settled it before the first block was drawn.
+  - **A 7 m strip that rises 3-5 m is a built surface, not terrain.** On the 2 m lattice the retaining block needs the pad to
+    reach a cell behind its face, so the "wall" grew to the kerb: a 6 m concrete slab on a 3.5 m blank wall. `eastSide`
+    (grounds.js) is one mesh from the fence line to the kerb: toe wall (0.5 m, as high as a bank of at most 32 deg needs, rising
+    to meet the corner block), bank, verge, kerb; `eastSideGeom` is the ONE definition of that surface, used by the builder and
+    by sitework, which cuts the lattice 0.35 m under it (and to pitch level within 2.3 m of the fence line, so no node next to
+    one in front of the wall face can stand up). Trees and shrubs stand on it; the fence is continuous on the toe wall.
+  - **Where a fence corner stands 0.7 m from a sidewalk 2 m above it, the walk is built too.** No lattice holds that back edge
+    (the pit). The corner of the walk is a concrete apron at the walk's design level, kerb to back edge; the bed behind it is
+    level with the walk (a 12 cm kerb) for 2.2 m before the bank starts, so no node of the walk's skirt pokes through it.
+    **One surface, not three:** the first apron was 13 m long and ended where the field wall's blocks still carried on under
+    the back of the walk, so its end crossed their tops in a diagonal seam ("a wedge lying on the sidewalk"), and dipping
+    the end a blind 10 cm made it worse. It now starts 23 m from the corner, west of the last such block, and its first
+    1.5 m meet the walk AS LAID (ground + 1 cm, point by point), not the design.
+  - **A step in the DESIGN is copied by everything built to it.** 13 m west of the corner the sidewalk design itself stepped
+    0.19 m across the walk: in `streets.design` the "two roads at different heights" blend let Bryn Mawr Drive (0.9 m higher)
+    in at full weight the moment a point came within its reach. `gradeStreets(..., { taper: 4 })` fades an arm in over the last
+    4 m of its reach (opt-in: other campuses keep their surveyed design). Scan the walk design for jumps (two points 0.25 m
+    apart, more than 6 cm) before building anything on it; the jumps left on Marin are corner seams where two streets' walks
+    meet (the map check skips those).
+  - **A block top beside a walk or a street is planted, with a coping under the fence.** The blocks that hold the pitch were
+    bare concrete shelves 2-5 m deep (the "wedge" between the fence and the Mission Ave walk, a slab at the north-east
+    chamfer beside Bryn Mawr Drive). Street View and the satellite show dry grass, brush and woodland floor up to the fence:
+    every block top and corner wedge now carries the verge texture from the coping to the back edge of the walk (the part
+    under a dipping walk stays concrete: it is the walk).
+  - **The shoulder of a street keeps its design right up to a wall.** North of the built bank the first 2.5 m behind the
+    kerb stood 0.3-0.5 m low: the rule that hands verge nodes to the street only applied 7.2 m from the turf. The level
+    shoulder (`d.t < 0.35`) now takes its design from 5.2 m.
+  - **A gate between two levels is a flight of steps that fits BEHIND the walk** (`gateFlight` / `gateSteps`): from the turf
+    edge to the back edge of the walk (9 risers in 2.5 m), cheek walls holding the planted margin, exactly as wide as the
+    opening the fence run really leaves (one 3 m panel: the first version was 4.8 m wide and a fence panel hung across the
+    outer lanes). The ground under the flight and one cell either side is cut after the pads, before `restore()`.
+  - **Do not move a terrace over a slope and wall the difference.** The plaza terrace at the red base reached 5 m too far
+    south, over the passage between the Old Gym and the Science Center: a 1.1 m ledge, a 2.2 m wall, a cheek block in the
+    middle. The lidar shows a plain 2.3 m fall over 6 m there. A designed slope (21 deg, the terrace's level to the passage's)
+    laid BEFORE the wall plans, and long enough to cover the terrace's own blend at its foot: a 0.4 m lip left there was
+    enough for `planCheeks` to stand a block in the passage.
+  - **Rule F33 is automatic now** (`housePlan`): a plan that needs more than 1.2 m of fill gets walk-out floors instead (rows
+    step down bay by bay on the natural ground). QA named two houses on 3-6 m of fill; the map check had listed sixteen.
+  - **Street lights are what the street has.** Acorn posts "behind the walk" stood inside the 4.4 m hedge. Mission Ave is lit
+    by cobra heads on wooden utility poles: `utilityLamp`, 9 m, foot in the face of the hedge at the back of the walk, head
+    over the street, a grapple target. None on the pitch side of Bryn Mawr Drive.
+  - **Sweep the WHOLE perimeter for drops, not the wall QA named.** QA found one fence gap on the east wall; a sweep (every
+    1.5 m round the pitch, from 1.7 m outside the fence line walking in, a fall of more than 1.2 m to pitch level fails)
+    found two more openings: a 3 m gap on the 5.2 m north-east wall (closed) and the 26 m of the north-west side that is
+    open toward the campus on a 2-3 m wall. `perimeter` now runs a 1.1 m guard rail along any opening whose wall is more
+    than 1.2 m high (rule B11): it can be jumped, it cannot be walked off.
+  - **Walk every sidewalk from its own zone, not from typed coordinates.** After a rebuild QA's old probe points lay on the
+    pitch or in the bank. The test that settles a street: scan the walk zone for its centre every 3-4 m, walk centre, back
+    edge (-0.75 m) and kerb side (+0.75 m) both ways, compare the trace with `streetDesign`, then the verge on the side
+    without a walk, the two crossings at the corner, and a sweep from the kerb toward the pitch every 2 m (nobody may reach
+    pitch level: the fence is continuous).
+  - **Walk-test targets must be standable.** A target 0.6 m from a new pole, on a parked car or in a building that interrupts
+    the walk reads as "stuck" or "missed"; test from kerb-side points of the walk zone and report the nearest approach.
+  - **Small things:** the skirt gives a shoulder node the level of the NEAREST walk point, which at a seam of two walks is the
+    wrong walk (two places 0.2-0.3 m low: the shoulder's own design wins where they disagree); the dip scan of a field block
+    must start at the walk's back edge, not at the block's minimum depth; a prop laid with `onSlope` registers its plane and
+    the map check measures it against that plane (a car on a 9 % street read "31 % buried"); roof helicopter pads are
+    registered by the builder at the height it built (`ctx.roofPads`), none typed; a walk on a straight 13 % street that
+    Street View shows is kept (`keepWalk`), the 12 % rule is for lanes that kink.
+
 ## Branson (first campus built from the rulebook; scripts in src/campuses/branson/tools/)
 
 - **RETRACTED: "the lidar can be older than the campus".** The first build read Ross Creek's channel and a hill toe under
