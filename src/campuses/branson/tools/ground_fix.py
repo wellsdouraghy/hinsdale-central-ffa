@@ -68,8 +68,9 @@ bld = np.zeros((H, W), bool)
 for b_ in D['buildings']:
     if len(b_['outer'][0]) >= 3: bld |= poly_mask(b_['outer'][0])
 lots &= ~ndi.binary_dilation(bld, iterations=2); lots &= ~garden
+for ix, iz, ir in extra.LOT_ISLANDS: lots &= ~((wx - ix) ** 2 + (wz - iz) ** 2 < ir * ir)
 asph = mask[..., 0] > 128; conc = mask[..., 1] > 128
-terrace = poly_mask(extra.TERRACE) & ~bld; plaza = poly_mask(extra.ARTS_PLAZA) & ~poly_mask(extra.ARTS_LAWN) & ~bld; brick = poly_mask(extra.ARTS_BRICK)
+terrace = poly_mask(extra.TERRACE) & ~bld; plaza = poly_mask(extra.ARTS_PLAZA) & ~bld; brick = poly_mask(extra.ARTS_BRICK)
 paths = np.zeros((H, W), bool)
 for pts, wd in extra.PATHS: paths |= line_mask(pts, wd)
 osm_paths = np.zeros((H, W), bool)
@@ -83,7 +84,22 @@ to_g = strict & ((asph & ~lots & ~streets) | (conc & ~thin & ~keep & ~courts & ~
 to_a = strict & lots & ~asph
 n_g, n_a = int(to_g.sum() / ppm ** 2), int(to_a.sum() / ppm ** 2)
 paint(to_g, GRASS, T_GRASS); paint(strict & lots, ASPH, T_ASPH, 2, True)
-paint(garden, DIRT, np.array((96, 84, 62), np.float32), 2, True)                    # the island's boulder garden: mulch
+# the school's own drives are pale concrete in the tiles (Park Drive from the gate to the Bridge, the loop, the gym service drive), not dark asphalt:
+# same class (cars, kerbs and the street painter read 'asphalt'), the photo tone the shader takes its colour from made pale
+pale = poly_mask(extra.LOOP_OUTER) | poly_mask(extra.PAVED[4])
+for r in D['roads']:
+    if r['id'] in (12187517, 570965050, 570965049, 570965051): pale |= line_mask([p for p in r['line'] if p[1] > -86], 7.4)
+pale &= ~garden & ~bld & strict; paint(pale, ASPH, np.array((166, 159, 148), np.float32), 1, True)
+# the faculty car park north of the tennis shed, the Commons' service yard and its drive read mid grey-tan in the tiles (worn asphalt), lighter than Fernhill Ave
+mid = poly_mask(extra.PAVED[0]) | poly_mask(extra.PAVED[2])
+for r in D['roads']:
+    if r['id'] == 570965047: mid |= line_mask(r['line'], extra.SERVICE_W.get(r['id'], 4.5))
+for ix, iz, ir in extra.LOT_ISLANDS: mid &= ~((wx - ix) ** 2 + (wz - iz) ** 2 < ir * ir)
+mid &= ~bld & ~pale & strict; paint(mid, ASPH, np.array((138, 134, 127), np.float32), 1, True)
+paint(garden, DIRT, np.array((150, 128, 98), np.float32), 2, True)                    # the island's dry garden: decomposed granite
+paint(line_mask(*extra.LOOP_SWALE) & garden, DIRT, np.array((176, 170, 158), np.float32), 2, True)   # ...with a dry creek of pale cobbles
+for pts in extra.DRY: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((158, 134, 92), np.float32), 3)   # the dry clearing in the wood west of the faculty lot                    # the island's boulder garden: mulch
+for pts in extra.LITTER: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((122, 108, 78), np.float32), 3)   # the wood floor round the red base: leaf litter, not lawn
 print('play area: %d m2 of false paving -> lawn, %d m2 of car park filled in' % (n_g, n_a))
 # 3. real paved places get one even class and tone (terrace: stone pavers; arts court: pale pavers + a brick square; quad strips)
 paint(terrace, CONC, T_PAVER, 1, True); paint(paths, CONC, T_PAVER, 1, True); paint(plaza, CONC, np.array((158, 142, 126), np.float32), 1, True); paint(brick, CONC, np.array((142, 92, 74), np.float32), 1, True)

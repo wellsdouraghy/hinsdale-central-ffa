@@ -4,17 +4,18 @@
 import { atGround, onSlope, hillFence, guardRail, wallDecal, edgeFrame, pointInRing, makeCanvas, mulberry32, hipRoof } from '../marin/kit.js';
 import * as THREE from 'three';
 import { paintedQuad } from '../../world/fields.js';
-import { nameBoard, kerb, lineRing, plainBlock, WHITE } from './extras.js';
+import { nameBoard, kerb, lineRing, plainBlock, WHITE, drapePoly, winRow } from './extras.js';
 import { lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
-import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
+import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, LOT_ISLANDS, LOOP_SWALE, STEPS_WALK, obb, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
 
 const RAD = Math.PI / 180;
 // the Alumni Steps: from Katharine Branson Hall's south lawn down the bank to the car-park loop (graded in sitework)
 // (the first build's long grey flight at (-70, 12) -> (-76, 33) is in no tiles view: removed, rule A1)
-export const ALUMNI_STEPS = [{ a: [-86.6, 27.7], b: [-92.0, 28.6], w: 3.2, brick: true }];   // the red-brick steps from the lawn path down to the dining terrace (nadir tiles)
+export const ALUMNI_STEPS = [{ a: [-87.5, 19.0], b: [-88.3, 28.3], w: 2.4, brick: true, head: 3.6 }];   // the red-brick flight down the bank: north-south at x ~ -88, from the lawn walk (z 19) to the brick landing on the terrace (z 28.5): nadir tiles, QA round 4
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
 export const CAR_FREE = [[-112, 30]];
+export const SHED = obb(-154.2, -8.4, 11.6, 2.9, -46.5);   // the white storage shed on the north-west edge of the Commons' service yard
 // The Bridge over Ross Creek (campus map item 12): from the end of Park Drive (a) to the quad path (b); deck level y
 export const BRIDGE = { a: [-141.6, 89.6], b: [-147.4, 95.4], y: 1.13, w: 3.2 };   // deck level = the designed end of Park Drive (a pad 0.16 m above it was a hump on the road end: map check `mounds`)
 BRIDGE.mid = [(BRIDGE.a[0] + BRIDGE.b[0]) / 2, (BRIDGE.a[1] + BRIDGE.b[1]) / 2]; BRIDGE.span = Math.hypot(BRIDGE.b[0] - BRIDGE.a[0], BRIDGE.b[1] - BRIDGE.a[1]);
@@ -132,7 +133,8 @@ function vehicles(ctx) {
   row([-149.2, -29.9], [-107.2, -41.6], 1, 0.85); row([-150.6, -40.2], [-110.6, -51.4], -1, 0.85);
   row([-176.5, -15.3], [-150.5, -29.3], 1, 0.8); row([-181.5, -24.7], [-154.5, -39.2], -1, 0.8);
   // the car park north of the tennis shed (nadir 3D tiles: a row nose-in on the north edge, one along the shed)
-  row([-79.5, -62.9], [-59.7, -66.4], -1, 0.9); row([-82.4, -53.0], [-73.1, -47.7], 1, 0.8);
+  // (QA round 4: a full lot, ~20 stalls: nose-in on the north edge, along the shed's north wall, a bay by the courts, a bay by the hall)
+  row([-81.0, -59.9], [-57.0, -64.4], -1, 1); row([-80.5, -52.4], [-64.0, -42.0], 1, 0.95); row([-89.6, -52.6], [-83.4, -45.9], 1, 1); row([-59.5, -44.6], [-50.6, -42.4], -1, 1);
   // visitor parking in front of Katharine Branson Hall: the long row on the south kerb, the island side, the bay by the hall
   row([-13, -10.5], [13, -3.6], 1, 0.9); row([-5, -19.8], [9, -18.6], -1, 0.75); row([-25.3, -28.5], [-17.8, -32], -1, 0.8);
   // the Commons' service yard under its west gable (nadir tiles: cars along the gable)
@@ -161,11 +163,10 @@ function streetscape(ctx) {
     const cut = (pts, keep) => { const runs = []; let cur = []; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.ceil(L / 2.35)); for (let k = 0; k <= n; k++) { const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n]; if (keep(p)) cur.push(p); else { if (cur.length > 1) runs.push(cur); cur = []; } } } if (cur.length > 1) runs.push(cur); return runs; };
     const clearOf = (p) => !drives.some(([x, z, r]) => Math.hypot(p[0] - x, p[1] - z) < r) && inPlay(p[0], p[1], -6);
     for (const run of cut(offset(line, sideN * (w / 2 + 2.0)), clearOf)) hedgeRun(ctx, run, { h: 3.4, d: 1.5, seed: 11 });
-    const southOk = (p) => clearOf(p) && ((p[0] > -99 && p[0] < -13) || (p[0] > 5 && p[0] < 76)) && inPlay(p[0], p[1], 1);
+    const southOk = (p) => clearOf(p) && ((p[0] > -99 && p[0] < -13) || (p[0] > 5 && p[0] < 76) || p[0] < -199.5 || (p[0] > -193.6 && p[0] < -187.0)) && inPlay(p[0], p[1], 1);   // (+ the screen along the wood west of the faculty lot, open at its two drives)
     for (const run of cut(offset(line, -sideN * (w / 2 + 2.0)), southOk)) hedgeRun(ctx, run, { h: 3.6, d: 1.5, seed: 29 });
   }
-  // Fernhill Ave: a double yellow centre line (Street View), on the designed carriageway
-  if (fern && ctx.gline) { const L = fern.line.filter((p) => p[0] > pb.minX - 2 && p[0] < pb.maxX + 2 && p[1] > pb.minZ - 1); for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]); const nx = -(b[1] - a[1]) / d * 0.11, nz = (b[0] - a[0]) / d * 0.11; for (const sd of [-1, 1]) ctx.gline(a[0] + nx * sd, a[1] + nz * sd, b[0] + nx * sd, b[1] + nz * sd, 0.1, [0.78, 0.6, 0.08]); } }
+  // (no centre line on Fernhill Ave: the tiles show a bare lane; QA round 4)
   // The Branson Gate on Fernhill Ave: two cream piers with lanterns where Park Drive enters, low wing walls, the name on the east one
   const park = data.roads.find((r) => r.id === 12187517);
   if (park) {
@@ -255,19 +256,27 @@ function bridge(ctx) {
 }
 
 // ------------------------------------------------------------------------------------------ boulders, sundial, sculpture
-/** A boulder: a low rounded dome of two jittered rings (grey-tan, vertex-coloured), bedded in the ground; solid over half a metre. */
-function boulder(ctx, x, z, r, rnd) {
-  const { B } = ctx; const y0 = gY(ctx, x, z) - r * 0.3; const pt = B.v('paint', true); const hgt = r * (0.6 + rnd() * 0.3); const N = 7; const sx = 0.8 + rnd() * 0.5, rot = rnd() * 3;
-  const ringAt = (rr, yy) => { const o = []; for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2 + rot; const j = 0.88 + rnd() * 0.24; o.push([x + Math.cos(a) * rr * j * sx, y0 + yy * (0.9 + rnd() * 0.2), z + Math.sin(a) * rr * j]); } return o; };
-  const r0 = ringAt(r, 0), r1 = ringAt(r * 0.95, hgt * 0.55), r2 = ringAt(r * 0.55, hgt * 0.95), top = [x, y0 + hgt * 1.05, z]; const v0 = 0.2 + rnd() * 0.07;
-  const tri = (a, b, c, v) => { pt.setColor(v * 1.05, v, v * 0.9); pt.tri(a, b, c); pt.tri(c, b, a); };
-  for (let k = 0; k < N; k++) { const n = (k + 1) % N; const sh = 0.8 + 0.4 * ((k * 3) % N) / N; tri(r0[k], r1[k], r1[n], v0 * 0.75 * sh); tri(r0[k], r1[n], r0[n], v0 * 0.75 * sh); tri(r1[k], r2[k], r2[n], v0 * sh); tri(r1[k], r2[n], r1[n], v0 * sh); tri(r2[k], top, r2[n], v0 * 1.15 * sh); }
-  pt.setColor(1, 1, 1); if (hgt > 0.5) B.c('concrete').box(x, y0 + hgt * 0.5, z, r * 1.3, hgt, r * 1.3, rot);
+/** A boulder: a smooth, slightly lopsided dome (rings of jittered radii, shared vertex normals: no facets), stone-textured,
+ * bedded a third into the ground; solid over half a metre. */
+function boulder(ctx, x, z, r, rnd, tone = [0.56, 0.53, 0.48]) {
+  const { B } = ctx; const y0 = gY(ctx, x, z) - r * 0.35; const bk = B.v('concrete', true); const hgt = r * (0.75 + rnd() * 0.35); const N = 12, M = 5; const sx = 0.85 + rnd() * 0.4, rot = rnd() * 3; const v0 = 0.85 + rnd() * 0.25;
+  const ja = []; for (let k = 0; k < N; k++) ja.push(0.84 + rnd() * 0.32); const jb = ja.map((v, k) => (v * 2 + ja[(k + 1) % N] + ja[(k + N - 1) % N]) / 4); const lob = rnd() * 6, la = 0.1 + rnd() * 0.12;
+  const V = (i, k) => { const ph = (i / M) * Math.PI / 2, a = (k % N) / N * Math.PI * 2 + rot; const j = jb[k % N] * (1 + la * Math.sin(2 * a + lob + i * 0.7)); const rr = r * Math.pow(Math.cos(ph), 0.75) * j; const cx = Math.cos(a), sz = Math.sin(a);
+    const p = [x + cx * rr * sx, y0 + hgt * Math.pow(Math.sin(ph), 0.85) * (0.94 + 0.12 * j), z + sz * rr]; const pn = ph * 0.85 + 0.2; const sh = v0 * (0.72 + 0.4 * Math.sin(ph)); return { p, n: [cx * Math.cos(pn), Math.sin(pn), sz * Math.cos(pn)], c: [tone[0] * sh, tone[1] * sh, tone[2] * sh], uv: [(k / N) * r * 3, ph * r] }; };
+  const put = (v) => { bk.setColor(v.c[0], v.c[1], v.c[2]); bk._v(v.p[0], v.p[1], v.p[2], v.n[0], v.n[1], v.n[2], v.uv[0], v.uv[1]); };
+  for (let i = 0; i < M; i++) for (let k = 0; k < N; k++) { const a = V(i, k), b = V(i, k + 1), c = V(i + 1, k + 1), d = V(i + 1, k); for (const t of [[a, c, b], [a, d, c], [a, b, c], [a, c, d]]) { if (i === M - 1 && (t === undefined)) continue; t.forEach(put); } }
+  bk.setColor(1, 1, 1); if (hgt > 0.5) B.c('concrete').box(x, y0 + hgt * 0.5, z, r * 1.3, hgt, r * 1.3, rot);
 }
 function rocks(ctx) {
   const rnd = mulberry32(4107); let n = 0; const inG = (x, z, m) => [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].every(([dx, dz]) => pointInRing(x + dx, z + dz, LOOP_GARDEN));
   // the loop island's north half: a planted boulder garden (nadir tiles): low shrub masses from the shrub kit between a few boulders
-  for (let k = 0; k < 600 && n < 26; k++) { const x = -104 + rnd() * 28, z = 41 + rnd() * 15; if (!inG(x, z, 1.4)) continue; if (n % 4 === 0) boulder(ctx, x, z, 0.45 + rnd() * 0.4, rnd); else ctx.shrubs.push([x, gY(ctx, x, z) + 0.05, z, 1.6 + rnd() * 1.6, 0.55 + rnd() * 0.4, rnd() * 3]); n++; }
+  // (QA round 4, nadir tiles: no trees on it; a dry garden on decomposed granite: low shrub tufts from the shrub kit, a few boulders, a dry creek of pale cobbles)
+  const swale = (x, z) => { let m = 1e9; for (let i = 0; i < LOOP_SWALE.length - 1; i++) { const a = LOOP_SWALE[i], b = LOOP_SWALE[i + 1]; const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz))); m = Math.min(m, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return m; };
+  const placed = []; for (let k = 0; k < 900 && n < 34; k++) { const x = -104 + rnd() * 28, z = 41 + rnd() * 15; if (!inG(x, z, 1.1) || swale(x, z) < 1.5 || placed.some((q) => Math.hypot(q[0] - x, q[1] - z) < 2.0)) continue; placed.push([x, z]);
+    if (n % 5 === 0) boulder(ctx, x, z, 0.4 + rnd() * 0.35, rnd); else ctx.shrubs.push([x, gY(ctx, x, z) + 0.02, z, 0.9 + rnd() * 0.9, 0.3 + rnd() * 0.3, rnd() * 3]); n++; }
+  for (let i = 0; i < LOOP_SWALE.length - 1; i++) { const a = LOOP_SWALE[i], b = LOOP_SWALE[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); for (let d = 0; d < L; d += 0.55) { const x = a[0] + (b[0] - a[0]) * d / L + (rnd() - 0.5) * 1.5, z = a[1] + (b[1] - a[1]) * d / L + (rnd() - 0.5) * 1.5; if (inG(x, z, 0.4)) boulder(ctx, x, z, 0.12 + rnd() * 0.16, rnd, [0.7, 0.68, 0.63]); } }
+  // the arts court's lawn panel: two pale boulders (nadir tiles)
+  boulder(ctx, 27.2, -1.9, 0.55, rnd, [0.66, 0.63, 0.58]); boulder(ctx, 28.6, -3.4, 0.4, rnd, [0.66, 0.63, 0.58]);
   // Ross Creek: cobbles and boulders only on the gravel bed itself (the 'dirt' class tools/ground_fix.py painted along the waterway)
   const pb = ctx.playBounds; let m = 0;
   for (const r of ctx.data.roads) { if (r.tags.name !== 'Ross Creek') continue; for (let i = 0; i < r.line.length - 1; i++) { const a = r.line[i], b = r.line[i + 1]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -275,16 +284,27 @@ function rocks(ctx) {
         if (x < pb.minX + 2 || x > pb.maxX - 2 || z < pb.minZ + 2 || z > pb.maxZ - 2 || ctx.surfaceAt(x, z) !== 'dirt' || pointInRing(x, z, LOOP_GARDEN) || Math.hypot(x - BRIDGE.mid[0], z - BRIDGE.mid[1]) < 1.5) continue;
         boulder(ctx, x, z, Math.min(rr, 0.45), rnd); m++; } } }
   ctx.rockCount = n + m;
+  // understory of the wood west of the faculty car park (planned in sitework): shrub-kit clumps standing on their lowest ground
+  for (const [x, z, len, h, rot] of ctx.understory || []) { const c = Math.cos(rot) * len / 2, sn = Math.sin(rot) * len / 2; const y = Math.min(gY(ctx, x, z), gY(ctx, x + c, z - sn), gY(ctx, x - c, z + sn)); if (Math.max(gY(ctx, x + c, z - sn), gY(ctx, x - c, z + sn)) - y > 0.7 || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r))) continue; ctx.shrubs.push([x, y + 0.02, z, len, h, rot]); }
 }
 // ------------------------------------------------------------------------------------------ hard paving edges, plazas, the pool
 // Rule F42: every paved outline ends on a kerb; the flat plazas are real paver / brick surfaces with their own edges.
 function paving(ctx) {
   const { B } = ctx; const uv = (x, z) => [x / 3, z / 3];
-  for (const r of [...PAVED_POLYS, LOOP_OUTER]) kerb(ctx, r);
+  const inB = (x, z) => (ctx.buildingRings || []).some((r) => pointInRing(x, z, r));
+  for (const r of [...PAVED_POLYS, LOOP_OUTER]) kerb(ctx, r, { skip: inB });
   for (const [pts, w] of PAVED_LINES) kerb(ctx, lineRing(pts, w));
+  for (const [x, z, r] of LOT_ISLANDS) kerb(ctx, Array.from({ length: 10 }, (_, k) => [x + Math.cos(k / 10 * 6.2832) * r, z + Math.sin(k / 10 * 6.2832) * r]), { all: true, h: 0.14, w: 0.24 });
+  // the loop's north edge against the dining terrace: a red-brick band kerb (nadir tiles), and the paved walk from the head of the steps
+  kerb(ctx, lineRing([LOOP_OUTER[0], LOOP_OUTER[1], LOOP_OUTER[2], LOOP_OUTER[3], [-86.6, 35.2]], 0.3), { all: true, h: 0.1, w: 0.12, color: [0.5, 0.27, 0.21] });
+  { const ring = lineRing(STEPS_WALK, 2.0); const pv = B.v('maPaver'); const L = STEPS_WALK; const g = (x, z) => gY(ctx, x, z) + 0.035;
+    for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.ceil(d / 1.2)); const nx = -(b[1] - a[1]) / d, nz = (b[0] - a[0]) / d;
+      for (let k = 0; k < n; k++) { const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], q = [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]; const c = [[p[0] + nx, p[1] + nz], [q[0] + nx, q[1] + nz], [q[0] - nx, q[1] - nz], [p[0] - nx, p[1] - nz]].map(([x, z]) => [x, g(x, z), z]);
+        pv.quad(c[0], c[1], c[2], c[3], uv(c[0][0], c[0][2]), uv(c[1][0], c[1][2]), uv(c[2][0], c[2][2]), uv(c[3][0], c[3][2])); pv.quad(c[3], c[2], c[1], c[0], uv(c[3][0], c[3][2]), uv(c[2][0], c[2][2]), uv(c[1][0], c[1][2]), uv(c[0][0], c[0][2])); } }
+    kerb(ctx, ring, { h: 0.05, w: 0.16, color: [0.56, 0.54, 0.5] }); }
   kerb(ctx, LOOP_GARDEN, { all: true, h: 0.16, w: 0.28 });
-  { const y = (ctx.terraceY ?? gY(ctx, -106, 31)) + 0.03; B.v('maPaver').poly(TERRACE, null, y, uv); kerb(ctx, TERRACE, { h: 0.06, w: 0.3, color: [0.56, 0.54, 0.5] }); }
-  { const y = gY(ctx, 37, -4) + 0.03; B.v('maPaver').poly(ARTS_PLAZA, [ARTS_LAWN], y, uv); B.v('brickRed').poly(ARTS_BRICK, null, y + 0.015, (x, z) => [x / 2.2, z / 2.2]); kerb(ctx, ARTS_PLAZA, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] }); kerb(ctx, ARTS_LAWN, { all: true, h: 0.08, w: 0.2, color: [0.56, 0.54, 0.5] }); }
+  { const y = (ctx.terraceY ?? gY(ctx, -106, 31)) + 0.03; B.v('maPaver').poly(TERRACE, null, y, uv); kerb(ctx, TERRACE, { h: 0.06, w: 0.3, color: [0.56, 0.54, 0.5] }); B.v('brickRed').poly([[-92.0, 28.5], [-87.1, 28.7], [-86.9, 31.8], [-91.6, 31.5]], null, y + 0.015, (x, z) => [x / 2.2, z / 2.2]); }   // (the brick landing at the foot of the Alumni Steps)
+  { const y = gY(ctx, 38.7, -4.3) + 0.045; drapePoly(ctx, B.v('maPaver'), ARTS_PLAZA, 0.045, uv); B.v('brickRed').poly(ARTS_BRICK, null, y + 0.015, (x, z) => [x / 2.2, z / 2.2]); kerb(ctx, ARTS_PLAZA, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] }); }
   // the neighbour's swimming pool north of Fernhill Ave (nadir tiles): water in a coped basin on a paved deck, a small pool house
   { const y = ctx.poolY ?? gY(ctx, -188, -67); B.v('maPaver').poly(POOL_DECK, [POOL], y + 0.03, uv); B.v('water').poly(POOL, null, y - 0.12, uv); kerb(ctx, POOL, { all: true, h: 0.1, w: 0.4, color: [0.7, 0.69, 0.66] }); kerb(ctx, POOL_DECK, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] });
     atGround(ctx, -191.5, -56, () => { plainBlock(ctx, POOL_HOUSE, -0.4, 2.6, WHITE, [0.3, 0.3, 0.3]); hipRoof(ctx, POOL_HOUSE, 2.6, 1.1, { tint: [3.2, 3.2, 3.3], overhang: 0.4, fill: true }); (ctx.buildingRings = ctx.buildingRings || []).push(POOL_HOUSE); }, 3, 'max'); }
@@ -295,8 +315,16 @@ function landmarks(ctx) {
   if (ctx.gline) ctx.gline(-86.2, 104.5, -82.4, 124.5, 1.1, [0.1, 0.25, 0.6]);
   // the lawn sundial south of Katharine Branson Hall (nadir tiles: a pale stone disc ~3 m across with a gnomon)
   { const x = -41.6, z = 20.4; atGround(ctx, x, z, () => { B.v('limestone').cyl(x, -0.2, z, 1.6, 1.6, 0.42, 20, 1 / 3, true); B.c('concrete').cyl(x, -0.2, z, 1.6, 1.6, 0.42, 10, 1, true); const pt = B.v('paint', true); pt.setColor(0.42, 0.33, 0.2); pt.tri([x - 0.03, 0.22, z + 0.7], [x - 0.03, 1.0, z - 0.5], [x - 0.03, 0.22, z - 0.5]); pt.tri([x + 0.03, 0.22, z - 0.5], [x + 0.03, 1.0, z - 0.5], [x + 0.03, 0.22, z + 0.7]); pt.setColor(1, 1, 1); propKit.registerProp(ctx, 'sundial', x, z, 0, 3.2, 3.2, 0.3); }, 1.7, 'max'); }
-  // the sculpture on the brick square of the arts court: a weathered-steel upright on a low plinth
-  { const x = 38.0, z = -3.6; atGround(ctx, x, z, () => { B.solidBox('concrete', 'concrete', x, 0.15, z, 1.4, 0.3, 1.4, 0.3, 1 / 3); const pt = B.v('paint', true); pt.setColor(0.3, 0.17, 0.1); for (let k = 0; k < 5; k++) pt.box(x + Math.sin(k * 1.3) * 0.12, 0.5 + k * 0.42, z + Math.cos(k * 1.7) * 0.12, 0.62 - k * 0.07, 0.4, 0.5 - k * 0.05, 0.3 + k * 0.55); pt.setColor(1, 1, 1); B.c('metal').box(x, 1.3, z, 0.6, 2.0, 0.6, 0.5); propKit.registerProp(ctx, 'sculpture', x, z, 0.3, 1.4, 1.4, 2.4); }, 0.8, 'max'); }
+  // the sculpture on the brick square of the arts court (nadir tiles: a dark, open, spindly metal piece ~2.5 m across, lower than
+  // a person; no photo of it found): three dark bronze bars leaning into an open tripod with a ring, on the bricks, no plinth
+  { const x = 38.7, z = -4.3; atGround(ctx, x, z, () => { const m = B.v('blackMetal'); const ft = [[-1.15, 0.5], [1.05, 0.75], [0.1, -1.2]], ap = [[0.35, 1.75, 0.1], [-0.3, 1.55, -0.2], [0.05, 1.95, 0.3]];
+      ft.forEach((f, k) => { m.tube([x + f[0], 0.02, z + f[1]], [x + ap[k][0], ap[k][1], z + ap[k][2]], 0.045, 6, 1); });
+      for (let k = 0; k < 10; k++) { const a0 = k / 10 * 6.2832, a1 = (k + 1) / 10 * 6.2832; m.tube([x + Math.cos(a0) * 0.42, 1.25 + Math.sin(a0) * 0.42, z + Math.cos(a0) * 0.1], [x + Math.cos(a1) * 0.42, 1.25 + Math.sin(a1) * 0.42, z + Math.cos(a1) * 0.1], 0.03, 5, 1); }
+      B.c('metal').box(x, 0.9, z, 0.9, 1.8, 0.9, 0.4); propKit.registerProp(ctx, 'sculpture', x, z, 0.4, 1.2, 1.2, 1.9); }, 0.8, 'max'); }
+  // the white storage shed along the north-west edge of the Commons' service yard (nadir tiles: a white roof ~12 x 3 m)
+  { const sh = SHED; atGround(ctx, -154.2, -8.4, () => { plainBlock(ctx, sh, -0.8, 2.7, WHITE, [0.74, 0.74, 0.72]); (ctx.buildingRings = ctx.buildingRings || []).push(sh);
+      { let F = edgeFrame(sh[3][0], sh[3][1], sh[2][0], sh[2][1]); if (pointInRing((sh[2][0] + sh[3][0]) / 2 + F.nx, (sh[2][1] + sh[3][1]) / 2 + F.nz, sh)) F = edgeFrame(sh[2][0], sh[2][1], sh[3][0], sh[3][1]);   // the yard side: a pair of doors and two windows (no long blank wall, rule F41)
+        const dr = B.v('door'); for (const u of [F.L / 2 - 0.95, F.L / 2 + 0.95]) { const a = F.P(u - 0.85, 0.02, 0.03), b = F.P(u + 0.85, 0.02, 0.03), c = F.P(u + 0.85, 2.1, 0.03), d = F.P(u - 0.85, 2.1, 0.03); dr.quad(a, b, c, d); dr.quad(b, a, d, c); } winRow(ctx, F, 0.9, F.L / 2 - 2.4, 1.0, 2.0, 1.1, 2.6); winRow(ctx, F, F.L / 2 + 2.4, F.L - 0.9, 1.0, 2.0, 1.1, 2.6); } const g = Math.max(...sh.map((p) => gY(ctx, p[0], p[1])), gY(ctx, -154.2, -8.4)); (ctx.footprints = ctx.footprints || []).push({ id: 'Commons yard shed', ring: sh, roof: gY(ctx, -154.2, -8.4) + 2.7, floor: g }); }, 0.5, 'min'); }
 }
 
 // ------------------------------------------------------------------------------------------ name boards, the organic garden
@@ -306,7 +334,7 @@ const BOARDS = [
   [-9.5, -5.5, -36, ['KATHARINE', 'BRANSON HALL']], [-97, 24.5, 40, ['THE COMMONS']], [26, 14, 90, ['DOUGLAS', 'FINE ARTS CENTER']], [62, 25.5, 9, ['MAXWELL', 'MUSIC HALL']],
   [47.5, 2.2, 15, ['NEW HOUSE']], [30, -44, -20, ['CROSSWAYS']], [-86.5, 70.5, 12, ['GYM COMPLEX']], [-40, 61, 9, ['TOM RYAN FIELD']],
   [-155.5, 108, 60, ['STUDY HALL']], [-153.8, 124, 65, ['RICHARDSON HALL']], [-162.9, 149.9, -45, ['NEW OAKS']], [-146, 155.3, 0, ['TALLANT', 'SCIENCE CENTER']],
-  [-95.2, 31.0, 80, ['ALUMNI STEPS']], [-64, 13.2, 0, ['ORGANIC GARDEN']],
+  [-91.4, 29.4, 20, ['ALUMNI STEPS']], [-64, 13.2, 0, ['ORGANIC GARDEN']],
 ];
 function boards(ctx) {
   const S = ctx.streets; let n = 0;

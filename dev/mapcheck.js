@@ -134,6 +134,8 @@ function buildSolid() {
   };
 }
 const S = buildSolid();
+// dev helper: the base-cover measure of checkSpawns at any point (fraction of 16 directions blocked within 30 m at chest height): scan base candidates with it
+window.__coverAt = (x, z, y = null) => { const yy = y ?? (world.groundY ? world.groundY(x, z) : 0); let n = 0; for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; if (S.first(V(x, yy + 1.3, z), V(Math.cos(a), 0, Math.sin(a)), 30)) n++; } return n / 16; };
 const navOK = (x, z) => (world.navSample ? world.navSample(x, z) : true);
 // ground height (0 on flat campuses; every "ground level" test below is relative to it)
 const GY = world.terrain ? (x, z) => world.terrain.heightAt(x, z) : () => 0;
@@ -830,6 +832,30 @@ async function checkInterior() {
     counts: { footprints: Fp.length, samples: nS, failing: fails.length, warning: warns.length }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
   log(`interior: ${res.status} ${fails.length} footprints with ground through the roof`); finishCheck('interior', res);
 }
+// Sawtooth ground on a facade: per-wall pads that were lowered again between the lattice nodes (or a pad level left at the
+// wall while the ground just outside went back to the natural slope) draw as triangular peaks of grass climbing the wall.
+// Along every wall of every registered footprint (ctx.footprints) the drawn ground 0.4 m outside is sampled every 0.5 m; a
+// "tooth" is a local high point with ground more than 0.5 m lower within 2 m on BOTH sides along the wall. Two or more
+// teeth on one wall fail (a single one, e.g. a door apron on a slope, warns).
+async function checkFacadePeaks() {
+  const Fp = REG.footprints || []; if (!Fp.length || !world.terrain) { finishCheck('facadePeaks', { status: 'skip', note: 'no footprints registered (ctx.footprints) or flat campus' }); return; }
+  const inRing = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) if ((r[i][1] > z) !== (r[j][1] > z) && x < (r[j][0] - r[i][0]) * (z - r[i][1]) / (r[j][1] - r[i][1]) + r[i][0]) c = !c; return c; };
+  const G = world.groundY ? (x, z) => world.groundY(x, z) : GY; const Rb = REG.retaining || []; const underBlock = (x, z) => Rb.some((b) => { const dx = x - b.x, dz = z - b.z; return Math.abs(dx * b.tx + dz * b.tz) <= b.w / 2 + 0.3 && Math.abs(dx * b.fx + dz * b.fz) <= b.d / 2 + 0.3; });
+  const fails = [], warns = []; let nS = 0;
+  for (const f of Fp) {
+    const r = f.ring; let teeth = 0, worstWall = 0, worst = 0, at = null;
+    for (let i = 0; i < r.length; i++) { const a = r[i], b = r[(i + 1) % r.length]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 4) continue; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; let nx = tz, nz = -tx; if (inRing((a[0] + b[0]) / 2 + nx * 0.3, (a[1] + b[1]) / 2 + nz * 0.3, r)) { nx = -nx; nz = -nz; }
+      const g = []; for (let u = 0.3; u <= L - 0.3 + 1e-6; u += 0.5) { const x = a[0] + tx * u + nx * 0.4, z = a[1] + tz * u + nz * 0.4; g.push(!inPB(x, z, -30) || underBlock(x, z) || Fp.some((o) => o !== f && inRing(x, z, o.ring)) ? null : [G(x, z), x, z]); nS++; }
+      let n = 0; for (let k = 2; k < g.length - 2; k++) { if (!g[k]) continue; let lo0 = Infinity, lo1 = Infinity, top = true; for (let d = 1; d <= 4; d++) { const p = g[k - d], q = g[k + d]; if (p) { lo0 = Math.min(lo0, p[0]); if (p[0] >= g[k][0]) top = false; } if (q) { lo1 = Math.min(lo1, q[0]); if (q[0] > g[k][0]) top = false; } }
+        const drop = Math.min(g[k][0] - lo0, g[k][0] - lo1); if (top && drop > 0.5 && drop < 1e6) { n++; if (drop > worst) { worst = drop; at = [r1(g[k][1]), r2(g[k][0]), r1(g[k][2])]; } } }
+      teeth += n; worstWall = Math.max(worstWall, n); }
+    if (worstWall >= 2) { fails.push({ id: f.id, teeth, onOneWall: worstWall, worstM: r2(worst), at, note: 'the ground climbs the wall in peaks: seat the wall on the natural ground (walk-out / plinth) or level the strip along it' }); marks.push({ kind: 'vis', x0: at[0] - 2, z0: at[2] - 2, x1: at[0] + 2, z1: at[2] + 2 }); }
+    else if (teeth) warns.push({ id: f.id, teeth, worstM: r2(worst), at });
+  }
+  const res = { status: status(fails.length, warns.length), what: 'Sawtooth ground on facades: the drawn ground 0.4 m outside every wall of every registered footprint, every 0.5 m; a tooth = a high point with ground more than 0.5 m lower within 2 m on both sides along the wall. Fail: two or more teeth on one wall. Warn: a single tooth.',
+    counts: { footprints: Fp.length, samples: nS, failing: fails.length, warning: warns.length }, failures: fails.slice(0, 60), warnings: warns.slice(0, 20).map((w) => JSON.stringify(w)) };
+  log(`facadePeaks: ${res.status} ${fails.length} buildings with sawtooth ground on a wall`); finishCheck('facadePeaks', res);
+}
 // Geometry sweeps over the DRAWN meshes (no registry): they catch what a builder forgot to register.
 //  glassBuried: glazing triangles (glass / storefront materials) whose lower edge is below the ground 0.35 m in front.
 //  wallGap: wall triangles (stucco / brick / house wall materials) whose foot hangs above the ground with nothing drawn
@@ -1290,7 +1316,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'walkDesign', 'overlook', 'seating', 'interior', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'walkDesign', 'overlook', 'seating', 'interior', 'facadePeaks', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1334,7 +1360,7 @@ async function drawMap() {
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['walkDesign', checkWalkDesign], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['walkDesign', checkWalkDesign], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadePeaks', checkFacadePeaks], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();

@@ -165,6 +165,33 @@ function makeConifer(seed, o) {
   return { wood: wood.build(), leaves: leaves.build(), height: H + 0.6, radius: R + 0.8, trunkR: 0.3 };
 }
 
+// Broad specimen cedar (Blue Atlas Cedar habit): a clear bole, ascending limbs in tiers, a compact rounded crown that is
+// tallest in the middle (never a skirt of long cards down to the ground). H = height, R = crown radius.
+function makeCedar(seed, o) {
+  const rnd = mulberry32(seed); const H = o.H, R = o.R;
+  const wood = new GeoAcc(), leaves = new GeoAcc(); const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  limb(wood, [V(0, -0.3, 0), V(0.1, H * 0.35, 0.05), V(0, H * 0.7, 0), V(0, H * 0.93, 0)], 0.52, 0.05, 8);
+  const y0 = H * 0.2, tiers = 15;
+  for (let l = 0; l < tiers; l++) {
+    const t = l / (tiers - 1); const y = y0 + t * (H - y0 - 1.0); const prof = (0.7 + 0.3 * Math.min(1, t / 0.36)) * Math.sqrt(Math.max(0, 1 - Math.pow(Math.max(0, t - 0.36) / 0.7, 2)));   // an egg: widest a third of the way up, a round top
+    const rad = R * prof; const n = Math.max(8, 13 - Math.floor(t * 5));
+    for (let k = 0; k < n; k++) {
+      const az = (k / n) * Math.PI * 2 + l * 1.1 + (rnd() - 0.5) * 0.5; const dx = Math.cos(az), dz = Math.sin(az); const len = rad * (0.68 + rnd() * 0.18); const rise = len * (0.1 + rnd() * 0.1) * (1 - t * 0.6);   // (the outer spray ends 1.26 len out: the crown's tips stay within ~1.08 R, the measured crown)
+      if (t < 0.7) limb(wood, [V(0, y - rise * 0.4, 0), V(dx * len * 0.5, y + rise * 0.2, dz * len * 0.5), V(dx * len * 0.92, y + rise, dz * len * 0.92)], 0.16 * (1 - t * 0.6), 0.03, 5);
+      const hw = Math.max(1.5, len * 0.36), hl = Math.max(1.4, len * 0.28);
+      for (const f of [0.42, 0.72, 0.98]) {   // flat sprays stepping out along the limb, each a little tilted
+        const u = len * f; const yy = y - rise * 0.4 + rise * 1.4 * f + 0.25; const tilt = (rnd() - 0.5) * 0.5, dr = (rnd() - 0.35) * 0.3; const w = hw * (0.75 + 0.35 * f) * (0.85 + rnd() * 0.3);
+        const sn = V(dx * 0.45, 0.85, dz * 0.45).normalize(); const shade = (0.7 + 0.3 * t) * (0.8 + 0.2 * f);
+        card(leaves, dx * u, yy, dz * u, -dz * w, tilt * w * 0.4, dx * w, dx * hl, -dr * hl, dz * hl, sn.x, sn.y, sn.z, shade);
+      }
+      for (const fu of [0.5, 0.85]) { const u = len * fu; const hh = Math.max(1.2, len * 0.24); const sn = V(-dz * 0.6, 0.6, dx * 0.6).normalize();   // an upright spray along the limb: the crown has depth seen from the side and from below
+        card(leaves, dx * u, y + rise * 0.7 + hh * 0.5, dz * u, dx * len * 0.3, 0, dz * len * 0.3, 0, hh, 0, sn.x, sn.y, sn.z, 0.68 + 0.3 * t); }
+    }
+  }
+  for (let k = 0; k < 6; k++) { const a = k * 0.55; card(leaves, 0, H - 1.1, 0, Math.cos(a) * R * 0.5, 0, Math.sin(a) * R * 0.5, 0, 1.3, 0, Math.cos(a + 1.57) * 0.5, 0.8, Math.sin(a + 1.57) * 0.5, 1); }
+  return { wood: wood.build(), leaves: leaves.build(), height: H + 0.6, radius: R + 0.6, trunkR: 0.5 };
+}
+
 // ---------------------------------------------------------------------------------- main
 export function createTrees(ctx) {
   const { T, gen, quality, scene, B } = ctx; const pb = ctx.playBounds; const terrain = ctx.terrain || null;
@@ -195,7 +222,7 @@ export function createTrees(ctx) {
   const uSunDirV = { value: new THREE.Vector3() }, uTime = { value: 0 };
   const barkMat = new THREE.MeshStandardMaterial({ map: T.barkColor, normalMap: quality === 'low' ? null : T.barkNormal, roughness: 0.95, color: 0x6e5d50, vertexColors: true });
   const leafMats = [mkLeaf(leafTexA, 0xffffff), mkLeaf(leafTexB, 0xf2ffd8), mkLeaf(conTex, 0xffffff), mkLeaf(conTex, 0xa9c6d6)];   // (last: blue-grey needles, the broad cedar)
-  leafMats[3].color.setRGB(1.35, 1.65, 1.9);   // (the needle texture is a dark green: lift it to a silvery blue-grey)
+  leafMats[3].color.setRGB(6.2, 3.3, 6.2);   // (the needle texture is a dark green: lift it to a silvery blue-grey)
   const cards = quality === 'low' ? 110 : quality === 'medium' ? 190 : 400;
   const cs = quality === 'low' ? 1.35 : quality === 'medium' ? 1.1 : 0.86;
   const variants = [
@@ -204,7 +231,7 @@ export function createTrees(ctx) {
     { ...makeDeciduous(37, { H: 18.0, R: 7.0, cards: Math.round(cards * 1.15), cardSize: cs * 1.1, trunk: 0.52 }), leafMat: leafMats[0] },
     { ...makeConifer(51, { H: 14.5, R: 3.4 }), leafMat: leafMats[2] },
     { ...makeDeciduous(71, { H: 7.5, R: 3.0, cards: Math.round(cards * 0.5), cardSize: cs * 0.75, trunk: 0.2 }), leafMat: leafMats[1] },   // young/ornamental
-    { ...makeConifer(67, { H: 15.5, R: 16 }), leafMat: leafMats[3] },   // broad blue-grey cedar (gen.trees kind 2: landmark specimens, e.g. a Blue Atlas Cedar)
+    { ...makeCedar(67, { H: 15.5, R: 7.3 }), leafMat: leafMats[3] },   // specimen blue-grey cedar (gen.trees kind 2: landmark trees, e.g. a Blue Atlas Cedar): tall compact crown on a clear bole
   ];
 
   // ---- impostor atlas (one column per variant), lit like the scene
@@ -256,7 +283,7 @@ export function createTrees(ctx) {
     if (kind === 2) vi = 5; else if (kind === 1) vi = 3; else { const r = rnd(); vi = s < 0.82 && r < 0.5 ? 4 : r < 0.42 ? 0 : r < 0.78 ? 1 : 2; }
     const key = Math.floor(x / CHUNK) + ':' + Math.floor(z / CHUNK);
     let ch = chunks.get(key); if (!ch) { ch = { lists: variants.map(() => []), cx: 0, cz: 0, n: 0 }; chunks.set(key, ch); }
-    const sc = (vi === 4 ? 1.0 : s) * (0.9 + rnd() * 0.25);
+    const jit = 0.9 + rnd() * 0.25; const sc = vi === 5 ? s : (vi === 4 ? 1.0 : s) * jit;   // (a landmark specimen keeps its measured size)
     ch.lists[vi].push({ x, y: ty, z, s: sc, r: rnd() * Math.PI * 2, tint: rnd() });
     ch.cx += x; ch.cz += z; ch.n++;
     // trunk collision near the play area
