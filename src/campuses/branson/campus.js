@@ -25,6 +25,7 @@ export default {
     groundMask: 'campuses/branson/ground_mask.png',
     roofs: 'campuses/branson/roofs.jpg',
     surfaceClasses: 'campuses/branson/surface_classes.png',
+    textures: 'campuses/branson/tex/tex.json',   // generated building textures (tools/textures/campuses/branson/materials.json); `?tex=0` = without
   },
   sat: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 },
   playBounds: { minX: -215, maxX: 82, minZ: -100, maxZ: 184 },   // (south edge: behind Tallant Science Center and across the toe of the wooded hill south of Ross Creek)

@@ -2,6 +2,7 @@
 // the campus's own geometry constants, facade styles and a few builders (retaining run, hedge run, graded steps).
 import { STYLES, quadFacing as qf } from '../../world/facade.js';
 import { ensureCCW, hedgeMass, terraceBlocks, hillFence, guardRail, quadFacing, pointInRing } from '../marin/kit.js';
+import { PACK } from './extras.js';
 void qf;
 
 const RAD = Math.PI / 180;
@@ -98,7 +99,7 @@ export function simplify(ring, tol = 0.6) {
 }
 export const centroid = (r) => { let x = 0, z = 0; for (const p of r) { x += p[0]; z += p[1]; } return [x / r.length, z / r.length]; };
 
-export function addStyles() {
+export function addStyles(ctx) {
   Object.assign(STYLES, {
     brKbh: { kind: 'class', bay: 4.4, frame: 'frame', top: 'stone', tint: [0.86, 0.75, 0.52], beds: true },          // cream stucco, clay tile roofs
     brQuadLow: { kind: 'lowmod', bay: 4.4, frame: 'frame', top: 'stone', tint: [0.86, 0.75, 0.52], beds: true },
@@ -109,6 +110,9 @@ export function addStyles() {
     brNewHouse: { kind: 'class', bay: 3.6, frame: 'frame', top: 'stone', tint: [0.6, 0.62, 0.64] },                     // New House: grey clapboard, white trim
     brArtsLow: { kind: 'lowmod', bay: 4.4, frame: 'frameAlu', top: 'panel', tint: [0.62, 0.62, 0.6] },
   });
+  // with the generated texture pack the gym's walls are the keyed cedar-shingle tile (school.js lookOf hands the kit that bucket): its colour is in the
+  // texture, the tint only trims it (`?tex=0`: the brown tint over the shared wood-siding tile, as before the pack)
+  if (ctx && ctx.TX && ctx.TX.tex.brCedar && ctx.TX.tex.brCedar.key) STYLES.brGym = { ...STYLES.brGym, tint: PACK.cedar };
 }
 
 /**
