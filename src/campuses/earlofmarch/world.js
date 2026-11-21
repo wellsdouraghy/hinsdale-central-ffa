@@ -77,6 +77,6 @@ export function build(ctx, progress = () => {}) {
   progress(0.68, 'Laying out the grounds');
   buildGrounds(ctx);
   buildTerrain(ctx);     // the land beyond the satellite photo (visual backdrop)
-  ctx.buildNotes = { doors: ctx.doors, stairs: ctx.stairNotes };
+  ctx.buildNotes = { doors: ctx.doors, stairs: ctx.stairNotes, lots: ctx.lots, cars: ctx.carCount, stalls: ctx.stallCount };
   void shapeSDF; void centroid;
 }

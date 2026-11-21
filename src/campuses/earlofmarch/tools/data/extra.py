@@ -33,3 +33,18 @@ TONED = [(track_ring(TRACK['w']), [track_ring(0.0)], 'asphalt', (126, 125, 122))
 CONCRETE += [[[45.5, 131], [55, 126.5], [71, 142], [69, 158], [52, 163.5], [46.5, 152]]]
 # the March Tennis Club's courts south of the fence (OSM 228647260 clay, 1502896439 hard): seen from the Mlacak lot, painted only
 TONED += [([[-53.7, 253.8], [-27.2, 228.2], [16.2, 272.8], [-10.2, 298.4]], [], 'dirt', (150, 78, 58)), ([[-81.6, 280.9], [-55.1, 255.2], [-11.6, 299.8], [-38.1, 325.5]], [], 'concrete', (58, 84, 128))]
+
+# ---- round 2: hand corrections traced on gridded nadir tiles with the vector outlines drawn on them (rules F34 / F42)
+def obox(cx, cz, length, width, deg):
+    a = math.radians(deg); ux, uz = math.cos(a), math.sin(a); hl, hw = length / 2, width / 2
+    return [[round(cx + ux * su * hl - uz * sv * hw, 2), round(cz + uz * su * hl + ux * sv * hw, 2)] for su, sv in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+# the bus loop's two islands: the classifier's outlines wobbled with the crowns' shadows; clean curves instead
+_OVAL = [[84, -37], [88, -41], [94, -41.5], [99, -38], [100.5, -32], [98, -25.5], [93, -23.5], [87, -25], [83.5, -30]]
+_BIG = [[100, -66], [108, -75], [116, -78], [122, -75], [129, -68], [137, -58], [144, -48], [146, -40], [143, -33], [136, -30], [128, -31], [121, -36], [115, -45], [108, -50], [102, -57]]
+def _scaled(r, k):
+    cx = sum(p[0] for p in r) / len(r); cz = sum(p[1] for p in r) / len(r); return [[round(cx + (p[0] - cx) * k, 2), round(cz + (p[1] - cz) * k, 2)] for p in r]
+PAVED_ADD += [_scaled(_OVAL, 1.3), _scaled(_BIG, 1.12)]   # (paves over the old wobbly outline; the clean island is then cut out of it)
+PAVED_CUT += [_OVAL, _BIG]
+# the north car park's planted end islands and median (too narrow for the 1 m vectoriser): grass strips with kerbs
+PAVED_CUT += [obox(-3.9, -129.8, 9, 2.6, 46), obox(10.1, -114.9, 9, 2.6, 46), obox(24, -101, 9, 2.6, 46), obox(36.3, -87.9, 9, 2.6, 46),
+              obox(74.7, -122.8, 12, 5, 46), obox(88.6, -108.8, 9, 2.6, 46), obox(62.5, -106, 27, 3.5, 37)]

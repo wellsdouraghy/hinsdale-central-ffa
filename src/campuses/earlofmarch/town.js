@@ -7,7 +7,7 @@ import { pointInRing, mulberry32 } from '../../world/util.js';
 import { minAreaOBB, hipRoof, polyRoof } from '../marin/kit.js';
 import { eaveOverhang } from '../roofs.js';
 import { offsetRing } from './lib.js';
-import { MAT, mat, hasPack, glass, cutRects, wallRect, fbox, edgeFrame, ensureCCW, PLAY_EDGE, lineDist, SCHOOL_ID, MLACAK_ID, LIBRARY_ID, TOWER_ID } from './kit.js';
+import { MAT, mat, hasPack, glass, cutRects, wallRect, fbox, quadFacing, edgeFrame, ensureCCW, PLAY_EDGE, lineDist, SCHOOL_ID, MLACAK_ID, LIBRARY_ID, TOWER_ID } from './kit.js';
 
 const ATRIUMS = 69097540, GARAGE = 68609335;
 const OWN = new Set([SCHOOL_ID, MLACAK_ID, LIBRARY_ID]);
@@ -28,6 +28,17 @@ function windowWall(ctx, F, bk, y0, top, storeys, uvS, o = {}) {
   const n = Math.floor((L - 0.8) / mod); if (n >= 1 && wh > 0.6 && !o.blank) for (let s = 0; s < storeys; s++) for (let i = 0; i < n; i++) { const c = (L - n * mod) / 2 + (i + 0.5) * mod; holes.push([c - ww / 2, c + ww / 2, y0 + s * H + (o.sill || 0.95), y0 + s * H + (o.sill || 0.95) + wh]); }
   cutRects(L, o.foot ?? y0 - 1.2, top, holes, (a, b, c, d) => wallRect(bk, F, a, b, c, d, 0, [a * uvS, c * uvS, b * uvS, d * uvS]));
   if (holes.length) { const fr = ctx.B.v(o.frame || 'frameAlu'); for (const h of holes) { wallRect(fr, F, h[0], h[1], h[2], h[3], -0.07); if (o.far) wallRect(ctx.B.v('eomSpandrel'), F, h[0] + 0.05, h[1] - 0.05, h[2] + 0.05, h[3] - 0.05, -0.05); else { glass(ctx, F, h[0] + 0.05, h[1] - 0.05, h[2] + 0.05, h[3] - 0.05, -0.05, 1); fbox(fr, F, (h[0] + h[1]) / 2 - 0.02, (h[0] + h[1]) / 2 + 0.02, h[2], h[3], -0.07, -0.02, 1, 0, 'fs'); } } }
+}
+
+// A townhouse unit's roof: the ridge runs ALONG THE ROW (across the unit's narrow front), so a row of units reads as one long roof with its
+// gables on the party walls (Street View h_se1). One gable per unit along its depth made a picket fence of spikes on the skyline.
+function rowRoof(ctx, o, eave, rise, tint, wallCol, solid) {
+  let { tx, tz, u0, u1, v0, v1 } = o; if (v1 - v0 > u1 - u0) { const ntx = -tz, ntz = tx; [u0, u1, v0, v1] = [v0, v1, -u1, -u0]; tx = ntx; tz = ntz; }   // u = the unit's depth (long), v = along the row
+  const W = (u, v, y) => [u * tx - v * tz, y, u * tz + v * tx]; const uc = (u0 + u1) / 2, ov = 0.3, sl = Math.hypot((u1 - u0) / 2 + ov, rise) / 3; const sh = ctx.B.v('shingles', true); sh.setColor(tint[0], tint[1], tint[2]);
+  const yo = eave - rise * ov / ((u1 - u0) / 2);
+  for (const s of [-1, 1]) { const ue = s < 0 ? u0 - ov : u1 + ov; const a = W(ue, v0, yo), b = W(ue, v1, yo), c = W(uc, v1, eave + rise), d = W(uc, v0, eave + rise); quadFacing(sh, a, b, c, d, [0, 1, 0], [[v0 / 3, 0], [v1 / 3, 0], [v1 / 3, sl], [v0 / 3, sl]]); if (solid) quadFacing(ctx.B.c('concrete'), a, b, c, d, [0, 1, 0]); }
+  quadFacing(sh, W(u0 - ov, v0, yo), W(u1 + ov, v0, yo), W(u1 + ov, v1, yo), W(u0 - ov, v1, yo), [0, -1, 0]); sh.setColor(1, 1, 1);
+  const wb = ctx.B.v('stucco', true); wb.setColor(wallCol[0], wallCol[1], wallCol[2]); for (const v of [v0, v1]) { const p0 = W(u0 - ov, v, yo), p1 = W(u1 + ov, v, yo), p2 = W(uc, v, eave + rise);   /* (the whole roof profile in the party-wall plane, overhangs included: a triangle from the wall corners left slits the roof-skin check found) */ wb.tri(p0, p1, p2); wb.tri(p1, p0, p2); if (solid) ctx.B.c('concrete').tri(p0, p1, p2); } wb.setColor(1, 1, 1);
 }
 
 export function buildTown(ctx) {
@@ -51,14 +62,14 @@ export function buildTown(ctx) {
       (ctx.buildingRings = ctx.buildingRings || []).push(ring); return;
     }
     // ---- pitched: a house or a townhouse unit
-    const eave = top, rise = Math.max(1.0, Math.min(info.rise || 2.2, 4.2)); const storeys = eave - base > 4.3 ? 2 : 1; const wc = WALLS[(b.id * 7 + Math.floor(rnd() * 3)) % WALLS.length], rc = ROOFS[(b.id * 3) % ROOFS.length];
+    const eave = top, rise = Math.max(1.0, Math.min(info.rise || 2.2, 4.2)); const storeys = Math.max(1, Math.min(3, Math.round((eave - base) / 2.9)));   /* (Street View h_se1: the townhouse rows beyond Campeau Drive are three storeys under steep gables; the lidar eaves say the same) */ const wc = WALLS[(b.id * 7 + Math.floor(rnd() * 3)) % WALLS.length], rc = ROOFS[(b.id * 3) % ROOFS.length];
     const bk = B.v('stucco', true); const terrace = b.tags.building === 'terrace';
     for (let i = 0; i < ring.length; i++) { const F = outF(ring, i); if (F.L < 0.3) continue; const party = rings.some((r, j) => j !== k && pointInRing(F.ax + F.tx * F.L / 2 + F.nx * 0.5, F.az + F.tz * F.L / 2 + F.nz * 0.5, r));
       bk.setColor(wc[0], wc[1], wc[2]); windowWall(ctx, F, bk, base, eave, storeys, 0.45, { mod: 3.4, ww: 1.3, wh: 1.25, far: !near, blank: party || F.L < 2.6 }); }
     bk.setColor(1, 1, 1);
     if (solid) { B.c('wood').prism(ring, base - 1.5, eave, 1, true); (ctx.footprints = ctx.footprints || []).push({ id: b.id, ring, roof: eave, floor: base }); }
     const ov = eaveOverhang(ring, ctx.playRings, 0.45);
-    if (terrace) { const o = minAreaOBB(ring); if (o) hipRoof(ctx, o, eave, rise, { gable: true, overhang: Math.min(ov, 0.3), tint: rc, gableBucket: 'stucco', gableTint: wc, noCollision: !solid, fill: solid, caps: false }); }
+    if (terrace) { const o = minAreaOBB(ring); if (o) rowRoof(ctx, o, eave, Math.min(rise, 3.4), rc, wc, solid); }
     else polyRoof(ctx, ring, eave, rise, { tint: rc, overhang: ov, noCollision: !solid, fill: solid });
     (ctx.buildingRings = ctx.buildingRings || []).push(ring);
   });

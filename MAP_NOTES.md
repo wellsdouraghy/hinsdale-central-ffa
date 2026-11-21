@@ -1498,3 +1498,24 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
   line between the Mlacak Centre and the tennis club); the first map check failed `terrain` and `visualSolid` on the rectangle's
   corners BEYOND the fence until the check learned the ring (rule F52). Barriers stand in front of the fence wherever both sides of
   it are paved; two barriers that meet at a ring vertex overlap unless the second is skipped.
+- **Round 2 (the builder's own walk-through, before QA): what the definition of done found that the map check had not.**
+  - *A walk-through is a script.* `__walkAll` (dev/earlofmarch.js): the real controller, forward only, both ways, 1.3 m out along every
+    registered outside wall, along every door's walk and along every OSM footway / path / service way inside the fence: 902 walks. It failed
+    34 times, all at the portables: a 0.18 m door slab stops the terrain controller at its edge (the step-up wants a walkable landing normal,
+    a box edge has none). Door pads are flush and visual now. Low slabs need a ramp or no collision; "under the step limit" proves nothing.
+  - *"One door per wing" is the door default in disguise.* Eleven school doors had been placed from the plan; Street View shows four (the
+    glazed main front behind salmon pavers, the grades 7-8 entrance at the end of its path, a steel door in the gym wall, the east block's
+    recessed entrance). Seven went, with their walks. A frame aimed at each door from the nearest panorama settles it in one contact sheet.
+  - *The opposite of a blank wall is also a defect.* Every outside wall of the 1971 building had been given the classroom bays; the photos
+    show the gym / auditorium boxes as blank brick under the fascia (one with the school crest). `WALL_SPEC` marks them; list walls over 8 m
+    with no openings AND compare windowed walls with the photos.
+  - *A noded ring cuts a wall into short edges.* The library's cedar band and upper windows had a "wall longer than 6 m" test and vanished:
+    the block rings are noded where blocks meet, so one facade is three or four edges. Lay bands out per edge with no minimum length.
+  - *Row houses: the ridge runs along the row.* One gable per narrow unit made a picket fence of spikes beyond the fence; `rowRoof` puts the
+    ridge across the unit and the gables on the party walls, drawn as the whole roof profile (overhangs included) or the roof-skin check
+    finds the slit.
+  - *The vectoriser drops narrow islands.* Seven planted end islands and a median of the north car park (2.6-5 m wide) were under its
+    1 m cells: traced by hand on a gridded nadir with the vector outlines drawn over it (tools/data/extra.py `PAVED_CUT`, `obox`).
+  - *A sign on a roof edge needs a backing.* The Mlacak Centre's name stands on the fascia at the eave: a decal there is "not backed by a
+    wall" until the band behind it is solid.
+  - *Frame time, not fps, in a hidden pane:* `__bench` on medium at 1280 x 800: 2.6-7.4 ms per frame at five poses (aerial and ground).

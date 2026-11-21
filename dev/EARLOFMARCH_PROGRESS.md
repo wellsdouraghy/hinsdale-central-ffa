@@ -42,5 +42,8 @@ English public high school in Kanata, same board and league); no source names an
 - [x] textures: 27 Street View frames + tiles (the 44 scraped web images were all off-topic and pruned), material sheet, 14 generated
       tiles (2.9 MB), wired through the descriptor
 - [x] map check 0 fails / 0 warnings (houses, retaining: skip, nothing registered); Hinsdale / Hamilton pass after the map-check change
-- [ ] not done / weak (see the hand-off report): salmon pavers at the main entrance, the bus-loop islands' exact outlines, hand correction of
+- [x] round 2 (builder's definition of done): 902 scripted walks 0 fails; doors confirmed against Street View (4 school + 2 civic kept, 8 removed);
+      crest + Mlacak / library name bands; tennis hedges; salmon pavers; hand-traced islands; blank gym walls; library cedar band; row-house roofs;
+      game | tiles and game | Street View pair sheets in dev/shots/earlofmarch/tiles-compare/ (gitignored); medium 2.6-7.4 ms / frame
+- [ ] still weak (see the hand-off report): salmon pavers at the main entrance, the bus-loop islands' exact outlines, hand correction of
       the vectorised paving, signs, the 2025-26 addition under construction (not in the tiles), per-wall facade review beyond the default bays

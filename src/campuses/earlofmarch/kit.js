@@ -6,7 +6,7 @@
 // under a thin metal coping. None of that is the shared facade kit's brick-and-limestone school, so the walls are built
 // here (rule F36). Heights are ABSOLUTE (y = 0 is the ground round the school; the site is level to +-0.2 m there).
 import * as THREE from 'three';
-import { addMaterials as addMarinMaterials } from '../marin/kit.js';
+import { addMaterials as addMarinMaterials, wallDecal } from '../marin/kit.js';
 import { edgeFrame, quadFacing, wallRect, fbox, BRICK_S } from '../../world/facade.js';
 import { ensureCCW, makeCanvas, canvasTexture, mulberry32 } from '../../world/util.js';
 
@@ -121,6 +121,11 @@ export function door(ctx, F, uc, y0, o = {}) {
   fbox(fr, F, u0, u1, y0 + hd, y0 + hd + 0.06, -D, -D + 0.1, 1, 0, 'ftb');
   fbox(B.v('concrete'), F, u0 - 0.3, u1 + 0.3, y0 - 0.25, y0 + 0.02, -D, 0.35, 1 / 3, 0, 'fst');   // threshold slab
   const p = F.P(uc, y0, 0); (ctx.doors = ctx.doors || []).push({ id: o.id || null, x: p[0], z: p[2], nx: F.nx, nz: F.nz, y: y0, w, canopy: !!o.canopy });
+  if (o.sign) {   // a name band over the door (o.sign = { lines, w, out, y }): white panel, dark letters sized from the text
+    const sw = Math.min(F.L - 0.5, o.sign.w || Math.max(w + 1.2, 0.36 * Math.max(...o.sign.lines.map((l) => l.length)))), sh = 0.34 + 0.4 * o.sign.lines.length, so = o.sign.out ?? 0.02, sy = y0 + (o.sign.y ?? ht + 0.12); const ucD = uc; uc = Math.max(sw / 2 + 0.25, Math.min(F.L - sw / 2 - 0.25, uc));   /* (the band stays on its own wall: the Mlacak name ran behind the next wall and read "N G. MLACAK CENTRE") */
+    fbox(B.v('whitePanel'), F, uc - sw / 2, uc + sw / 2, sy, sy + sh, so, so + 0.07, 1, 0, 'fstb'); { const pc = F.P(uc, sy + sh / 2, so - 0.1); B.c('metal').box(pc[0], pc[1], pc[2], sw, sh, 0.34, F.rotY); }   /* (a solid band: the map check wants a sign backed by something) */
+    const cw2 = 1024, ch2 = Math.round(1024 * sh / sw); const font = Math.min(Math.round(ch2 / o.sign.lines.length * 0.6), Math.round(cw2 * 1.5 / Math.max(...o.sign.lines.map((l) => l.length))));
+    const tex = ctx.M.textDecal(o.sign.lines, { w: cw2, h: ch2, font, color: '#1c2a33', align: 'center', weight: 700, spacing: '2px' }); wallDecal(ctx, tex, F, uc, sy + sh / 2, sw - 0.12, sh - 0.08, so + 0.076, { opaque: false }); uc = ucD; }
   if (o.canopy) { const cw = o.canopy.w || w + 2.4, cd = o.canopy.d || 2.2, cy = y0 + (o.canopy.y || 3.0); const pc = mat(ctx, MAT.precast); fbox(pc, F, uc - cw / 2, uc + cw / 2, cy, cy + 0.32, 0, cd, 1, 0, 'fstb'); const c = F.P(uc, cy + 0.16, cd / 2); B.c('concrete').box(c[0], c[1], c[2], cw, 0.32, cd, F.rotY); fbox(B.v('lightEmit'), F, uc - 0.4, uc + 0.4, cy - 0.03, cy, cd * 0.4, cd * 0.4 + 0.5, 1, 0, 'fsb'); }
   return [u0, u1, y0, y0 + ht];
 }
@@ -144,24 +149,24 @@ function baseCourse(ctx, F, y0, spans) { const c = ctx.B.v('concrete'); cutRects
  * the first floor. o.doors = [{ u, w, canopy, solid }] in metres along the wall. Floor at y0, parapet top at `top`.
  */
 export function bayWall(ctx, F, y0, top, o = {}) {
-  const L = F.L, uOff = o.uOff || 0; const fh = o.fascia ?? (top - y0 > 7 ? 1.5 : 1.1), wt = top - fh; const two = wt - y0 > 5.6;
+  const L = F.L, uOff = o.uOff || 0; const fh = o.fascia ?? (top - y0 > 7 ? 1.9 : 1.1), wt = top - fh; const two = wt - y0 > 5.6;   /* (round 2, pairs n4 / n5 / d_78: the fascia is nearly a quarter of the wall) */
   const nb = Math.max(1, Math.round(L / (o.bay || 6.1))), bay = L / nb, pw = 0.5; const holes = [], units = [], doorSpans = [];
   const doors = (o.doors || []).filter((d) => d.u > 0.9 && d.u < L - 0.9);
   for (const d of doors) { const w = d.w || 1.9; holes.push([d.u - w / 2, d.u + w / 2, y0 - 0.5, y0 + (d.h || 2.75)]); doorSpans.push([d.u - w / 2 - 0.3, d.u + w / 2 + 0.3]); }
   const blank = o.blank || (() => false);
   for (let i = 0; i < nb; i++) {
     const a = i * bay + pw / 2 + 0.03, b = (i + 1) * bay - pw / 2 - 0.03; if (b - a < 1.3) continue; const um = (a + b) / 2;
-    if (two && !blank(um, 1)) { holes.push([a, b, wt - 1.64, wt]); units.push([a, b, wt - 1.64, wt, 1]); }
+    if (two && !blank(um, 1)) { holes.push([a, b, wt - 1.55, wt]); units.push([a, b, wt - 1.55, wt, 1]); }
     const hasDoor = doors.some((d) => d.u + (d.w || 1.9) / 2 > a && d.u - (d.w || 1.9) / 2 < b); if (hasDoor || blank(um, 0)) continue;
     const g = o.ground || 'strip';
     if (g === 'glass') { holes.push([a, b, y0 + 0.45, y0 + 2.95]); units.push([a, b, y0 + 0.45, y0 + 2.95, 0]); }
-    else if (g === 'strip') { const ya = two ? y0 + 1.3 : wt - 1.5, yb = two ? y0 + 2.85 : wt; holes.push([a, b, ya, yb]); units.push([a, b, ya, yb, two ? 0 : 1]); }
+    else if (g === 'strip') { const ya = two ? y0 + 1.45 : wt - 1.5, yb = two ? y0 + 2.95 : wt; holes.push([a, b, ya, yb]); units.push([a, b, ya, yb, two ? 0 : 1]); }
   }
   brickField(ctx, F, y0 - 0.4, wt, holes, uOff);
   for (const [a, b, ya, yb, k] of units) ribbon(ctx, F, a, b, ya, yb, { kind: k, module: (b - a) / Math.max(2, Math.round((b - a) / 1.45)) });
   for (const d of doors) door(ctx, F, d.u, y0, d);
   baseCourse(ctx, F, y0, doorSpans);
-  if (two) { const pc = mat(ctx, MAT.precast, 0.95); cutRects(L, 0, 1, doorSpans.map(([a, b]) => [a, b, 2, 3]), (a, b) => fbox(pc, F, a, b, y0 + 3.08, y0 + 3.55, 0, 0.07, 1, uOff, 'ftb')); }
+  if (two) { const pc = mat(ctx, MAT.precast, 0.95); cutRects(L, 0, 1, doorSpans.map(([a, b]) => [a, b, 2, 3]), (a, b) => fbox(pc, F, a, b, y0 + 2.98, y0 + 3.85, 0, 0.09, 1, uOff, 'ftb')); }
   for (let i = 0; i <= nb; i++) { if (o.noEnds && (i === 0 || i === nb)) continue; fin(ctx, F, i * bay, y0 - 0.4, wt, pw); }
   fascia(ctx, F, top, fh, o);
 }

@@ -79,14 +79,14 @@ function vehicles(ctx) {
     if (placed.some(([px, pz, qx, qz]) => { const dd = Math.hypot(px - x, pz - z); return dd < 2.5 || (dd < 5.3 && (Math.abs(qx * nx + qz * nz) < 0.96 || Math.abs((px - x) * nx + (pz - z) * nz) > 1.2)); }) || trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 3.2)) return;
     const tpl = r1 < 0.45 ? tpls[0] : r1 < 0.8 ? tpls[1] : tpls[2]; const col = propKit.CAR_COLORS[Math.floor(r2 * propKit.CAR_COLORS.length)];
     onSlope(ctx, x, z, 2.0, () => propKit.placeCar(ctx, tpl, x, z, hd + (r3 - 0.5) * 0.05 + (r1 < 0.5 ? Math.PI : 0), col)); placed.push([x, z, nx, nz]); n++; };
-  const W = 2.7, D = 5.2;
+  const W = 2.7, D = 5.2; let lot = { stalls: 0, cars: 0 };
   const row = (a, b, sd, fill) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 6) return; const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L, nx = -tz * sd, nz = tx * sd; const nS = Math.floor((L - 2) / W), o = (L - nS * W) / 2; let run = 0;
     for (let k = 0; k <= nS; k++) { const x = a[0] + tx * (o + k * W) + nx * (3.3 + D / 2), z = a[1] + tz * (o + k * W) + nz * (3.3 + D / 2); const p0 = [x - nx * D / 2, z - nz * D / 2], p1 = [x + nx * D / 2, z + nz * D / 2];
       const ok = asph(p0[0], p0[1]) && asph(p1[0], p1[1]) && asph(x, z) && asph(p1[0] + nx * 0.5, p1[1] + nz * 0.5) === asph(p1[0] + nx * 0.5, p1[1] + nz * 0.5) && pointInRing(p1[0], p1[1], PLAY_EDGE) && !(ctx.buildingRings || []).some((r) => pointInRing(p1[0], p1[1], r));
       if (ok) { line(p0[0], p0[1], p1[0], p1[1]); run++; } else run = 0;
-      if (ok && run > 1) { stalls++; car(x - tx * W / 2, z - tz * W / 2, nx, nz, fill); } } };
+      if (ok && run > 1) { stalls++; lot.stalls++; const n0 = n; car(x - tx * W / 2, z - tz * W / 2, nx, nz, fill); lot.cars += n - n0; } } };
   for (const r of ctx.data.roads) { if (r.tags.highway !== 'service' || r.tags.service !== 'parking_aisle') continue; const c = r.line[Math.floor(r.line.length / 2)]; if (!pointInRing(c[0], c[1], PLAY_EDGE)) continue;
-    const fill = c[1] < -40 ? 0.7 : 0.62;
+    const fill = c[1] < -40 ? 0.7 : 0.62; lot = (ctx.lots = ctx.lots || {})[r.id] = { at: [Math.round(c[0]), Math.round(c[1])], stalls: 0, cars: 0 };
     for (let i = 0; i < r.line.length - 1; i++) { row(r.line[i], r.line[i + 1], 1, fill); row(r.line[i], r.line[i + 1], -1, fill); } }
   ctx.carCount = n; ctx.stallCount = stalls;
   // school buses at the bus loop in front of the main entrance (Street View: the loop is the bus bay)
@@ -154,7 +154,31 @@ function doorWalks(ctx) {
   ctx.doorWalks = walks;
 }
 
+// The salmon brick pavers in front of the main entrance (nadir tiles g_60_-30, Street View d_78): a strip 5 m deep along the glazed front in the
+// notch between the north wing and the east block.
+const ENTR_A = [71.61, -23.62], ENTR_B = [93.39, -0.59];
+function entrancePavers(ctx) {
+  const L = Math.hypot(ENTR_B[0] - ENTR_A[0], ENTR_B[1] - ENTR_A[1]), tx = (ENTR_B[0] - ENTR_A[0]) / L, tz = (ENTR_B[1] - ENTR_A[1]) / L, nx = tz, nz = -tx;
+  const r = [[ENTR_A[0] + nx * 0.08, ENTR_A[1] + nz * 0.08], [ENTR_B[0] + nx * 0.08 - tx * 0.3, ENTR_B[1] + nz * 0.08 - tz * 0.3], [ENTR_B[0] + nx * 5 - tx * 0.3, ENTR_B[1] + nz * 5 - tz * 0.3], [ENTR_A[0] + nx * 5, ENTR_A[1] + nz * 5]];
+  const bk = ctx.B.v('stucco', true); bk.setColor(0.62, 0.3, 0.22); drapePoly(ctx, bk, r, 0.035, (x, z) => [x / 0.9, z / 0.9]); bk.setColor(1, 1, 1); kerb(ctx, r, { color: [0.5, 0.25, 0.19], h: 0.05, w: 0.14, step: 1.0, all: true, skip: (px, pz) => (ctx.buildingRings || []).some((q) => pointInRing(px, pz, q)) });
+  ctx.gen.trees = (ctx.gen.trees || []).filter((t) => !pointInRing(t[0], t[1], r)); ctx.entrancePavers = r;
+}
+// The March Tennis Club's cedar hedges south of the fence (rule F28: one continuous clipped wall each, at the lidar's height): about 4.5 m along the
+// courts' north and north-east sides (seen from the Mlacak lots, Street View t_hedge), 9 m along the Campeau Drive side. Outside the play area.
+const HEDGES = [[[-53.7, 253.8], [-27.2, 228.2], 4.5], [[-27.2, 228.2], [16.2, 272.8], 4.5], [[16.2, 272.8], [-10.2, 298.4], 9], [[-11.6, 299.8], [-38.1, 325.5], 9], [[-81.6, 280.9], [-53.7, 253.8], 4.2]];
+function hedges(ctx) {
+  const hb = ctx.B.v('maHedge', true); const edge = [...PLAY_EDGE, PLAY_EDGE[0]]; const g = gY(ctx);
+  for (const [a, b, h] of HEDGES) { const L = Math.hypot(b[0] - a[0], b[1] - a[1]), tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; let nx = tz, nz = -tx; const c = [(-53.7 + 16.2) / 2, (253.8 + 272.8) / 2]; if ((a[0] + nx - c[0]) ** 2 + (a[1] + nz - c[1]) ** 2 < (a[0] - c[0]) ** 2 + (a[1] - c[1]) ** 2) { nx = -nx; nz = -nz; }
+    const n = Math.max(1, Math.round(L / 2)); const P = (u, o) => [a[0] + tx * u + nx * o, a[1] + tz * u + nz * o];
+    for (let k = 0; k < n; k++) { const u0 = L * k / n, u1 = L * (k + 1) / n; const q = [P(u0, 1.0), P(u1, 1.0), P(u1, 2.6), P(u0, 2.6)]; if (q.some((p) => pointInRing(p[0], p[1], PLAY_EDGE) || lineDist(p[0], p[1], edge) < 0.8)) continue;
+      const tone = 0.62 + 0.12 * Math.sin(k * 1.7); hb.setColor(0.5 * tone, 0.62 * tone, 0.42 * tone); const Y = (p, y) => [p[0], g(p[0], p[1]) + y, p[1]];
+      const quad = (p0, p1, y0, y1, nr) => { const v = [Y(p0, y0), Y(p1, y0), Y(p1, y1), Y(p0, y1)]; const ux = v[1][0] - v[0][0], uz = v[1][2] - v[0][2]; if ((uz * nr[0] - ux * nr[2]) * 1 > 0) hb.quad(v[0], v[1], v[2], v[3], [u0 / 2, 0], [u1 / 2, 0], [u1 / 2, h / 2], [u0 / 2, h / 2]); else hb.quad(v[1], v[0], v[3], v[2], [u1 / 2, 0], [u0 / 2, 0], [u0 / 2, h / 2], [u1 / 2, h / 2]); };
+      quad(q[0], q[1], -0.3, h, [-nx, 0, -nz]); quad(q[3], q[2], -0.3, h, [nx, 0, nz]); hb.quad(Y(q[0], h), Y(q[1], h), Y(q[2], h), Y(q[3], h), [0, 0], [1, 0], [1, 1], [0, 1]); hb.quad(Y(q[3], h), Y(q[2], h), Y(q[1], h), Y(q[0], h), [0, 0], [1, 0], [1, 1], [0, 1]);
+      if (k === 0) quad(q[3], q[0], -0.3, h, [-tx, 0, -tz]); if (k === n - 1) quad(q[1], q[2], -0.3, h, [tx, 0, tz]); } }
+  hb.setColor(1, 1, 1);
+}
+
 export function buildGrounds(ctx) {
-  doorWalks(ctx); track(ctx); courts(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); rocks(ctx); boundary(ctx);
+  doorWalks(ctx); entrancePavers(ctx); hedges(ctx); track(ctx); courts(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); rocks(ctx); boundary(ctx);
   void segDist; void SW;
 }

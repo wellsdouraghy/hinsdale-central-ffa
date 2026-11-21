@@ -16,9 +16,9 @@
     1024
    ],
    "meanLinear": [
-    0.3439,
-    0.1735,
-    0.1059
+    0.4254,
+    0.2214,
+    0.1342
    ],
    "courseM": 0.0665,
    "unitM": 0.2035,
@@ -28,7 +28,7 @@
    ],
    "roughness": 0.9,
    "normalScale": 1.0,
-   "notes": "the 1971 red-orange wirecut brick (Street View n4 / w1 sunlit: faces 0.19 0.08 0.045 on a phone-grade camera; lifted ~35 % per MAP_NOTES item 7, pale grey mortar); overrides the shared brick bucket | v2: judged in the game beside Street View n4: the first tile (target 0.275 0.105 0.054) read dark red-brown in shade; lifted to 0.37 0.148 0.072"
+   "notes": "the 1971 red-orange wirecut brick (Street View n4 / w1 sunlit: faces 0.19 0.08 0.045 on a phone-grade camera; lifted ~35 % per MAP_NOTES item 7, pale grey mortar); overrides the shared brick bucket | v2: judged in the game beside Street View n4: the first tile (target 0.275 0.105 0.054) read dark red-brown in shade; lifted to 0.37 0.148 0.072 | v3 (game | Street View pairs n4, n5): still darker and browner than the sunlit orange-red of the photos; lifted to 0.465 0.20 0.10"
   },
   {
    "name": "eomBrickNew",
@@ -114,9 +114,9 @@
     512
    ],
    "meanLinear": [
-    0.5188,
-    0.429,
-    0.2993
+    0.5986,
+    0.4988,
+    0.3592
    ],
    "altM": [
     1.1285,
@@ -131,7 +131,7 @@
     0.25,
     0.0
    ],
-   "notes": "exposed-aggregate precast (fins, fascias, the raised roofs): warm beige, w1 sunlit 0.36 0.28 0.195, e3 in shade 0.20 0.19 0.175; a pebbly face"
+   "notes": "exposed-aggregate precast (fins, fascias, the raised roofs): warm beige, w1 sunlit 0.36 0.28 0.195, e3 in shade 0.20 0.19 0.175; a pebbly face | v3: lighter and warmer after the n4 / n5 pairs (it read grey)"
   },
   {
    "name": "eomBoard",

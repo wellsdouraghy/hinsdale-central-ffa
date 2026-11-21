@@ -10,16 +10,19 @@ import { polyRoof, minAreaOBB } from '../marin/kit.js';
 import { CIVIC_BLOCKS, CIVIC_FRAME } from './blocks.js';
 import { offsetRing } from './lib.js';
 import { MAT, mat, hasPack, ribbon, door, cutRects, quadFacing, wallRect, fbox, ensureCCW } from './kit.js';
-import { buildBlocks, roofPlant, ladderAt } from './school.js';
+import { buildBlocks, roofPlant, ladderAt, outFrame } from './school.js';
 
 const UX = Math.cos(CIVIC_FRAME.ang), UZ = Math.sin(CIVIC_FRAME.ang);
 export const CW = (u, v) => [CIVIC_FRAME.cx + u * UX - v * UZ, CIVIC_FRAME.cz + u * UZ + v * UX];
-export const civicBlocks = () => CIVIC_BLOCKS.map((b) => ({ ...b, ring: ensureCCW(b.ring.map((p) => [p[0], p[1]])) }));
+export const civicBlocks = () => CIVIC_BLOCKS.map((b) => ({ ...b, kind: (b.kind === 'lib1' || b.kind === 'libTop') && b.deck > 8 ? 'lib2' : b.kind, ring: ensureCCW(b.ring.map((p) => [p[0], p[1]])) }));   // (every two-storey piece of the library is the charcoal box with its cedar band: the leftover piece at 9.8 m and the raised top too)
 const MLACAK = new Set(['arena', 'aisle', 'low', 'annex']);
 export const LIB_FLOOR = 0.36, ARENA_FLOOR = 0.36;
 // doors the tiles / Street View show, in the civic frame [u, v, opts] (rule F47)
 export const CIVIC_DOORS = [];   // (set from the nadir tiles in CIVIC_DOORS_W below)
-export const CIVIC_DOORS_W = [[47.5, 138.0, { w: 3.8, id: 'library' }], [45.6, 161.5, { w: 3.8, id: 'Mlacak Centre' }], [-40.0, 205.5, { id: 'Mlacak hall', w: 1.9 }]];   // WORLD [x, z, opts]
+// WORLD [x, z, opts]. Street View d_ml: the Mlacak Centre's entrance under a name fascia at the roof edge, between the arena's shake roof and the
+// library; d_ml2 / d_lib: the library's glazed front on the forecourt with a white name band beside it (its wording is not legible in any frame:
+// the branch's name is used). (round 2: a third door on the arena's west side had no evidence and is gone.)
+export const CIVIC_DOORS_W = [[47.5, 138.0, { w: 3.8, id: 'library', sign: { lines: ['OTTAWA PUBLIC LIBRARY', 'BEAVERBROOK'], y: 3.0 } }], [45.6, 161.5, { w: 3.8, id: 'Mlacak Centre', sign: { lines: ['JOHN G. MLACAK CENTRE'], w: 8.5, shake: true } }]];
 export const CIVIC_LADDERS = [[-2.0, 139.6]];   // WORLD
 
 export function civicPads(ctx) {
@@ -38,7 +41,7 @@ function shakeWall(ctx, F, y0, top, o = {}) {
   const cw = mat(ctx, MAT.mlacakWall); const holes = []; const doors = (o.doors || []).filter((d) => d.u > 1.2 && d.u < L - 1.2);
   for (const d of doors) holes.push([d.u - (d.w || 1.9) / 2, d.u + (d.w || 1.9) / 2, y0 - 0.5, y0 + 2.3]);
   cutRects(L, y0 - 0.9, eave, holes, (a, b, c, d) => wallRect(cw, F, a, b, c, d, 0, [o.uOff + a, c, o.uOff + b, d])); cw.setColor(1, 1, 1);
-  for (const d of doors) door(ctx, F, d.u, y0, { ...d, h: 2.3, frame: 'frame' });
+  for (const d of doors) door(ctx, F, d.u, y0, { ...d, h: 2.3, frame: 'frame', sign: d.sign ? { ...d.sign, out: out + 0.04, y: eave - y0 - 0.1 } : undefined });
   const sk = mat(ctx, MAT.shake); const sl = Math.hypot(out, top - eave);
   const a = F.P(-out, eave, out), b = F.P(L + out, eave, out), c = F.P(L, top, 0), d = F.P(0, top, 0);
   quadFacing(sk, a, b, c, d, [F.nx, 0.4, F.nz], [[o.uOff - out, 0], [o.uOff + L + out, 0], [o.uOff + L, sl], [o.uOff, sl]]); sk.setColor(1, 1, 1);
@@ -51,11 +54,12 @@ function libWall(ctx, F, y0, top, o) {
   const { B } = ctx; const L = F.L, two = o.kind === 'lib2' || o.kind === 'libTop'; const holes = [], units = []; const doors = (o.doors || []).filter((d) => d.u > 1.2 && d.u < L - 1.2);
   for (const d of doors) holes.push([d.u - (d.w || 1.9) / 2, d.u + (d.w || 1.9) / 2, y0 - 0.5, y0 + 2.75]);
   const free = (a, b) => !doors.some((d) => d.u + 1.3 > a && d.u - 1.3 < b);
-  if (o.kind === 'lib2' && L > 6) { if (o.glazed) { holes.push([0.6, L - 0.6, y0 + 0.3, y0 + 3.6]); units.push([0.6, L - 0.6, y0 + 0.3, y0 + 3.6, 1.5]); }
-    const n = Math.max(1, Math.floor((L - 2) / 5.2)); for (let i = 0; i < n; i++) { const c = 1 + (L - 2) * (i + 0.5) / n; holes.push([c - 1.5, c + 1.5, y0 + 5.2, y0 + 7.0]); units.push([c - 1.5, c + 1.5, y0 + 5.2, y0 + 7.0, 1.5]); if (!o.glazed && free(c - 1.5, c + 1.5)) { holes.push([c - 1.5, c + 1.5, y0 + 1.0, y0 + 3.0]); units.push([c - 1.5, c + 1.5, y0 + 1.0, y0 + 3.0, 1.5]); } } }
+  if (o.kind === 'lib2' && L > 3.2) { if (o.glazed && !doors.length) { holes.push([0.6, L - 0.6, y0 + 0.3, y0 + 3.6]); units.push([0.6, L - 0.6, y0 + 0.3, y0 + 3.6, 1.5]); }
+    const n = Math.max(1, Math.floor((L - 1.2) / 5.2)), hw = Math.min(1.5, (L - 1.6) / 2); for (let i = 0; i < n; i++) { const c = 0.6 + (L - 1.2) * (i + 0.5) / n; holes.push([c - hw, c + hw, y0 + 5.35, y0 + 6.85]); units.push([c - hw, c + hw, y0 + 5.35, y0 + 6.85, 1.5]); if (!o.glazed && free(c - hw, c + hw)) { holes.push([c - hw, c + hw, y0 + 1.0, y0 + 3.0]); units.push([c - hw, c + hw, y0 + 1.0, y0 + 3.0, 1.5]); } } }
+  else if (o.kind === 'lib1' && o.glazed && L > 5 && top - y0 > 3.4) { let u = 0.5; const yb = Math.min(top - 0.5, y0 + 3.5); for (const d of [...doors].sort((p, q) => p.u - q.u).concat([{ u: L + 2.4, w: 3.8 }])) { const e = Math.min(L - 0.5, d.u - (d.w || 1.9) / 2 - 0.5); if (e - u > 1.5) { holes.push([u, e, y0 + 0.3, yb]); units.push([u, e, y0 + 0.3, yb, 1.5]); } u = d.u + (d.w || 1.9) / 2 + 0.5; } }   /* (the glazed ground floor on the forecourt side: d_lib, d_ml2) */
   else if (o.kind === 'lib1' && L > 5 && !o.blank) { const n = Math.max(1, Math.floor((L - 1.6) / 4.6)); for (let i = 0; i < n; i++) { const c = 0.8 + (L - 1.6) * (i + 0.5) / n; if (!free(c - 1.2, c + 1.2) || top - y0 < 3.4) continue; holes.push([c - 1.2, c + 1.2, y0 + 1.0, y0 + 2.7]); units.push([c - 1.2, c + 1.2, y0 + 1.0, y0 + 2.7, 1.2]); } }
-  const m = mat(ctx, two ? MAT.charcoal : MAT.blockWhite); cutRects(L, y0 - 0.9, top, holes, (a, b, c, d) => wallRect(m, F, a, b, c, d, 0, [o.uOff + a, c, o.uOff + b, d])); m.setColor(1, 1, 1);
-  if (o.kind === 'lib2' && L > 6) { const cd = mat(ctx, MAT.cedar); wallRect(cd, F, 0.4, L - 0.4, y0 + 3.75, y0 + 5.05, 0.03, [o.uOff, 0, o.uOff + L, 1.3]); fbox(cd, F, 0.4, L - 0.4, y0 + 3.75, y0 + 5.05, 0, 0.03, 1, 0, 'stb'); cd.setColor(1, 1, 1); }
+  const m = mat(ctx, two ? MAT.charcoal : MAT.blockWhite); cutRects(L, o.foot ?? y0 - 0.9, top, holes, (a, b, c, d) => wallRect(m, F, a, b, c, d, 0, [o.uOff + a, c, o.uOff + b, d])); m.setColor(1, 1, 1);
+  if (o.kind === 'lib2' && L > 2) { const cd = mat(ctx, MAT.cedar); cutRects(L, y0 + 5.15, y0 + 7.05, holes, (a, b, cc, d) => wallRect(cd, F, a, b, cc, d, 0.02, [o.uOff + a, cc, o.uOff + b, d])); cd.setColor(1, 1, 1); }   /* (round 2, pair l1: the cedar band is the strip the upper windows sit in, and it runs the whole wall: the ring is noded, so a wall is several short edges) */
   for (const [a, b, c, d, mod] of units) ribbon(ctx, F, a, b, c, d, { frame: 'blackMetal', module: mod, depth: 0.18 });
   for (const d of doors) door(ctx, F, d.u, y0, { frame: 'blackMetal', ...d });
   fbox(B.v(two ? 'blackMetal' : 'frameAlu'), F, -0.06, L + 0.06, top - 0.16, top, -0.02, 0.08, 1, 0, 'fstb');
@@ -68,14 +72,20 @@ export function buildCivic(ctx) {
   const flat = blocks.filter((b) => b.kind !== 'annex'), annex = blocks.filter((b) => b.kind === 'annex');
   const edges = buildBlocks(ctx, flat, { id: 'civic', bottom: -0.6, floor: (F) => Math.max(LIB_FLOOR, groundAt(ctx, F) + 0.02), floorOf: () => LIB_FLOOR, floorMax: true,
     top: (b) => b.deck + (MLACAK.has(b.kind) ? 0.12 : 0.3), tint: (b) => (MLACAK.has(b.kind) ? [0.95, 0.45, 0.36] : [1.85, 1.82, 1.7]), parapetMat: (b) => (MLACAK.has(b.kind) ? MAT.shake : 'alu'),
-    step: (F, y0, top, { block: b, uOff }) => { const m = mat(ctx, MLACAK.has(b.kind) ? MAT.shake : b.kind === 'lib1' ? MAT.blockWhite : MAT.charcoal); wallRect(m, F, 0, F.L, y0, top, 0, [uOff, y0, uOff + F.L, top]); m.setColor(1, 1, 1); },
+    step: (F, y0, top, { block: b, uOff }) => {
+      // (round 2, pairs l1 / d_lib: the charcoal box is the library's UPPER storey: a cedar band with its windows runs round it above the lower roofs)
+      if (b.kind === 'lib2' && F.L > 2 && top - y0 > 3.6) { const L = F.L, ya = y0 + 1.0, yb = y0 + 2.5; const holes = []; const n = L > 3.6 ? Math.max(1, Math.floor((L - 1) / 4.6)) : 0, hw = Math.min(1.3, (L - 1.4) / 2); for (let i = 0; i < n; i++) { const cc = 0.5 + (L - 1) * (i + 0.5) / n; holes.push([cc - hw, cc + hw, ya + 0.1, yb - 0.1]); }
+        const m = mat(ctx, MAT.charcoal); cutRects(L, y0, top, [[0, L, ya, yb]], (a, bb, cc, d) => wallRect(m, F, a, bb, cc, d, 0, [uOff + a, cc, uOff + bb, d])); m.setColor(1, 1, 1);
+        const cd = mat(ctx, MAT.cedar); cutRects(L, ya, yb, holes, (a, bb, cc, d) => wallRect(cd, F, a, bb, cc, d, 0.02, [uOff + a, cc, uOff + bb, d])); cd.setColor(1, 1, 1);
+        for (const h of holes) ribbon(ctx, F, h[0], h[1], h[2], h[3], { frame: 'blackMetal', module: 1.3, depth: 0.14 }); fbox(B.v('blackMetal'), F, -0.06, L + 0.06, top - 0.16, top, -0.02, 0.08, 1, 0, 'fstb'); return; }
+      const m = mat(ctx, MLACAK.has(b.kind) ? MAT.shake : b.kind === 'lib1' ? MAT.blockWhite : MAT.charcoal); wallRect(m, F, 0, F.L, y0, top, 0, [uOff, y0, uOff + F.L, top]); m.setColor(1, 1, 1); },
     wall: (F, y0, top, { block: b, uOff }) => { const doors = onWall(F);
       if (MLACAK.has(b.kind)) { if (top - y0 < 2.6) { const m = mat(ctx, MAT.mlacakWall); wallRect(m, F, 0, F.L, y0 - 0.9, top, 0, [uOff, y0, uOff + F.L, top]); m.setColor(1, 1, 1); return false; } shakeWall(ctx, F, y0, top, { uOff, doors, base: b.kind === 'low' ? 2.3 : 2.45 }); return doors.length > 0; }
       const mx = F.ax + F.tx * F.L / 2, mz = F.az + F.tz * F.L / 2; const faces = F.nx * UX + F.nz * UZ;   // > 0: the forecourt side (north-east)
-      libWall(ctx, F, y0, top, { kind: b.kind, uOff, doors, glazed: b.kind === 'lib2' && faces > 0.5, blank: ctx.groundY(mx + F.nx, mz + F.nz) > y0 + 0.4 }); return true; } });
+      libWall(ctx, F, y0, top, { kind: b.kind, uOff, doors, glazed: faces > 0.5, blank: ctx.groundY(mx + F.nx, mz + F.nz) > y0 + 0.4 }); return true; } });
   // the annex: pale walls under grey-shingled hips, the verdigris cupola over its entrance
-  for (const b of annex) { const ring = b.ring; const g = Math.max(...ring.map((p) => ctx.groundY(p[0], p[1]))); const eave = Math.max(g + 2.7, 4.6), rise = 3.3; const w = mat(ctx, MAT.blockWhite);
-    for (let i = 0; i < ring.length; i++) { const p = ring[i], q = ring[(i + 1) % ring.length]; if (flat.some((f) => pointInRing((p[0] + q[0]) / 2, (p[1] + q[1]) / 2, offsetRing(f.ring, 0.4)))) continue; w.wall(p[0], p[1], q[0], q[1], g - 2.6, eave, 1); (ctx.walls = ctx.walls || []).push({ id: 'civic:annex', a: p, b: q, floor: g, top: eave, open: false }); }
+  for (const b of annex) { const ring = b.ring; const g = Math.max(...ring.map((p) => ctx.groundY(p[0], p[1]))); const eave = Math.max(g + 3.0, 4.9), rise = 3.3; const w = mat(ctx, MAT.blockWhite);
+    for (let i = 0; i < ring.length; i++) { const p = ring[i], q = ring[(i + 1) % ring.length]; if (flat.some((f) => pointInRing((p[0] + q[0]) / 2, (p[1] + q[1]) / 2, offsetRing(f.ring, 0.4)))) continue; const F = outFrame(ring, i); const gw = Math.max(g, groundAt(ctx, F)); libWall(ctx, F, gw, eave, { kind: 'lib1', uOff: 0, doors: [], blank: false, foot: gw - 2.6 });   /* (round 2: punched windows like the tiles' annex; it had 25-29 m of blank wall) */ (ctx.walls = ctx.walls || []).push({ id: 'civic:annex', a: [F.ax, F.az], b: [F.ax + F.tx * F.L, F.az + F.tz * F.L], floor: gw, top: eave, open: true }); }
     w.setColor(1, 1, 1); B.c('concrete').prism(ring, g - 1.2, eave, 1, true);
     polyRoof(ctx, ring, eave, rise, { tint: [5.2, 5.4, 5.6], overhang: 0.7, fill: true });
     (ctx.buildingRings = ctx.buildingRings || []).push(ring); (ctx.footprints = ctx.footprints || []).push({ id: 'civic:annex', ring, roof: eave, floor: g });

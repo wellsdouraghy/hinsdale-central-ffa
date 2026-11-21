@@ -2,7 +2,7 @@
 // footprint split along the lidar roof levels by tools/blocks.py), and the portable classrooms west of it.
 // Every block is a prism up to its measured deck with a parapet; each ring edge is an outside wall (the school's own wall
 // kit, kit.js), a step up from a lower roof, or nothing (the neighbour is as high or higher).
-import { pointInRing, mulberry32 } from '../../world/util.js';
+import { pointInRing, mulberry32, makeCanvas, canvasTexture } from '../../world/util.js';
 import { roofUnit, wallLadder } from '../../world/facade.js';
 import { minAreaOBB, hipRoof, wallDecal } from '../marin/kit.js';
 import { SCHOOL_BLOCKS, SCHOOL_RING } from './blocks.js';
@@ -15,15 +15,21 @@ const PAR = 0.38;               // parapet above the deck
 //   kind: 'bay' (classroom wall) | 'box' (blank brick) | 'new' ; ground: 'strip' | 'glass' | 'none' ; doors: [[u, v, opts]]
 export const WALL_SPEC = [
   { at: [17.7, -22], kind: 'bay', ground: 'glass' },      // the main entrance front in the notch between the north wing and the east block (salmon pavers in front of it)
-  { at: [45, 10], kind: 'bay', ground: 'glass' },         // the east block's two-storey glazed front on the bus loop (Street View e3)
+  // blank brick boxes under the precast fascia (gyms / auditorium): WORLD points on the wall
+  { atW: [101.8, -8.4], kind: 'box' },                    // the east block's north wall: blank brick with the crest (Street View d_main, n6)
+  { atW: [115.4, -10.7], kind: 'box' }, { atW: [123.5, -7.9], kind: 'box' }, { atW: [134.2, -2.4], kind: 'box' },   // the east block's bus-loop side (e1, e2, d_east): brick and precast boxes round a recessed entrance
+  { atW: [72.7, 56.8], kind: 'box', slots: [{ u: 3.2, w: 1.6, dark: true }] },   // the gym wall on the south-west yard (w1): blank brick, one steel door, a dark glazed slot at the inside corner
 ];
 // Every door (rule F47), WORLD [x, z, opts], on the wall it is nearest to: the main entrance (wide, under a precast canopy), the
 // grades 7-8 entrance on the low block, and one exit per wing where the tiles / Street View show a door or a worn path to one.
 export const DOORS = [
-  [80.0, -14.7, { w: 3.8, canopy: { w: 9, d: 3.2 }, id: 'main' }], [159.2, 33.0, { w: 3.8, canopy: { w: 7, d: 2.6 }, id: 'grades 7-8' }],
-  [53.2, -49.6, { id: 'north-east' }], [11.5, -49.0, { id: 'north' }], [7.0, -12.9, { id: 'west' }], [35.1, 30.0, { id: 'south-west' }],
-  [72.7, 56.8, { id: 'gym', solid: true, w: 1.9 }], [79.8, 74.3, { id: 'yard' }], [113.5, 86.3, { id: 'south yard' }], [151.0, 64.1, { id: 'south-east' }], [134.2, -2.4, { id: 'east', solid: true }],
+  [80.0, -14.7, { w: 3.8, id: 'main' }],                                        // Street View d_main / d_78: dark doors in the glazed ground storey behind the salmon pavers
+  [159.2, 33.0, { w: 3.8, canopy: { w: 7, d: 2.6 }, id: 'grades 7-8' }],        // Street View e4 / d_78b: the low block's entrance at the end of the path from the east drive
+  [72.7, 56.8, { id: 'gym', solid: true, w: 1.9 }],                             // Street View w1: a single steel door in the gym wall on the south-west yard
+  [134.2, -2.4, { id: 'east' }],                                                // Street View d_east: the recessed glazed entrance of the east block
 ];
+// (round 2: seven more doors had been placed "one per wing"; no Street View frame or tiles view shows them (d_ne / d_main2 show the north-east
+// face without one), so they are gone: rule F47, every door is real or removed.)
 // roof ladders, WORLD [x, z]: on clear outside wall (snapped to the nearest wall) and between roofs (snapped to the nearest step)
 export const SOLAR = [[-34.5, -98, -17.5, -74], [-37, -40, -29.5, -10], [-34, -4, -6, 9], [6, 47.5, 30, 78], [-36, 43.5, -8, 46.8], [-8, 56, -2, 69]];
 export const LADDERS = [[79.6, 64.6], [39.0, -64.6], [121.5, 78.8]];
@@ -88,7 +94,7 @@ export function buildSchool(ctx) {
       else boxWall(ctx, F, y0, top, { uOff: u0, step: true, skin: b.kind === 'old' ? 'brick' : 'precast', fascia: b.kind === 'old' ? Math.min(0.6, top - y0) : 0.9 }); },
     wall: (F, y0, top, { block: b, uOff: u0 }) => {
       const doors = doorsW.map((d) => { const du = (d.p[0] - F.ax) * F.tx + (d.p[1] - F.az) * F.tz, dn = (d.p[0] - F.ax) * F.nx + (d.p[1] - F.az) * F.nz; return Math.abs(dn) < 1.6 && du > 0.9 && du < F.L - 0.9 ? { u: du, ...d.o } : null; }).filter(Boolean);
-      const spec = WALL_SPEC.find((s) => { const p = SW(s.at[0], s.at[1]); const du = (p[0] - F.ax) * F.tx + (p[1] - F.az) * F.tz, dn = (p[0] - F.ax) * F.nx + (p[1] - F.az) * F.nz; return Math.abs(dn) < (s.r || 1.6) && du > -0.5 && du < F.L + 0.5; });
+      const spec = WALL_SPEC.find((s) => { const p = s.atW || SW(s.at[0], s.at[1]); const du = (p[0] - F.ax) * F.tx + (p[1] - F.az) * F.tz, dn = (p[0] - F.ax) * F.nx + (p[1] - F.az) * F.nz; return Math.abs(dn) < (s.r || 1.6) && du > -0.5 && du < F.L + 0.5; });
       const kind = (spec && spec.kind) || (isNew(b) ? 'new' : b.kind === 'old' ? 'bay' : 'box'); const o = { uOff: u0, doors, ...(spec || {}) };
       if (kind === 'new') newWall(ctx, F, y0, top, o); else if (kind === 'bay' && F.L > 4.2) bayWall(ctx, F, y0, top, o); else { boxWall(ctx, F, y0, top, { ...o, skin: b.kind === 'pent' ? 'precast' : o.skin }); return doors.length > 0; }
       return true; } });
@@ -101,6 +107,13 @@ export function buildSchool(ctx) {
     for (let u = u0 + 4; u < u1; u += 8) for (let v = v0 + 4; v < v1; v += 8) { const q = SW(u, v); (ctx.roofClear = ctx.roofClear || []).push([q[0], q[1], 8]); } }
   roofPlant(ctx, blocks, rnd, SCHOOL_ROT, (b) => b.kind !== 'pent');
   ctx.schoolEdges = edgesOut;
+  // the school crest: a round medallion on the brick beside the main entrance (Street View d_main, n6: on the east block's north wall). An original
+  // drawing in the school's green and gold (a lion's mane as a rayed disc); the real wall carries no lettering, so none is drawn.
+  { const e = edgesOut.find((q) => Math.abs(q.F.ax + q.F.tx * q.F.L / 2 - 101.8) < 3 && Math.abs(q.F.az + q.F.tz * q.F.L / 2 + 8.4) < 3);
+    if (e) { const c = makeCanvas(256, 256), g = c.getContext('2d'); g.clearRect(0, 0, 256, 256); g.fillStyle = '#c9a23a'; g.beginPath(); g.arc(128, 128, 124, 0, 7); g.fill(); g.fillStyle = '#0d3b24'; g.beginPath(); g.arc(128, 128, 104, 0, 7); g.fill();
+      g.fillStyle = '#d9b246'; g.beginPath(); for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2, r = k % 2 ? 58 : 84; g.lineTo(128 + Math.cos(a) * r, 128 + Math.sin(a) * r); } g.closePath(); g.fill(); g.fillStyle = '#0d3b24'; g.beginPath(); g.arc(128, 132, 40, 0, 7); g.fill();
+      g.fillStyle = '#d9b246'; g.fillRect(108, 118, 14, 8); g.fillRect(134, 118, 14, 8); g.beginPath(); g.moveTo(118, 138); g.lineTo(138, 138); g.lineTo(128, 152); g.closePath(); g.fill();
+      const tex = canvasTexture(c, { repeat: false, aniso: ctx.T.aniso }); wallDecal(ctx, tex, e.F, e.F.L * 0.45, FLOOR + 5.1, 1.8, 1.8, 0.03, { opaque: false }); } }
   for (const p of LADDERS) ladderAt(ctx, edgesOut, p);
   for (const p of ROOF_LADDERS) ladderAt(ctx, edgesOut.steps, p, 0.06);
 }
@@ -120,15 +133,15 @@ export function buildPortables(ctx) {
       const mx = F.ax + F.tx * F.L / 2 + F.nx * 2.2, mz = F.az + F.tz * F.L / 2 + F.nz * 2.2; const paved = ctx.surfaceAt(mx, mz) !== 'grass';
       let hasDoor = false;
       if (long && !others) { const u1 = F.L * 0.28, u2 = F.L * 0.72; holes.push([u1 - 0.75, u1 + 0.75, base + 1.25, base + 2.45], [u2 - 0.75, u2 + 0.75, base + 1.25, base + 2.45]);
-        if (paved && !ring.door) { hasDoor = true; ring.door = true; holes.push([F.L / 2 - 0.5, F.L / 2 + 0.5, base + 0.18, base + 2.3]); } }
+        if (paved && !ring.door) { hasDoor = true; ring.door = true; holes.push([F.L / 2 - 0.5, F.L / 2 + 0.5, base + 0.04, base + 2.2]); } }
       sd.setColor(...(hasPack(ctx, MAT.siding.key) ? MAT.siding.pack : MAT.siding.flat));
       { const rects = []; const ys = [base - 0.5, eave]; void ys; const emit = (a, c, y0, y1) => wallRect(sd, F, a, c, y0, y1, 0, [a, y0, c, y1]);
         // (cutRects inline: few holes)
         const hs = holes; const yb = [base - 0.5, eave, ...hs.flatMap((h) => [h[2], h[3]])].sort((p, q) => p - q);
         for (let j = 0; j < yb.length - 1; j++) { const a = yb[j], c = yb[j + 1]; if (c - a < 0.004) continue; const ym = (a + c) / 2; const row = hs.filter((h) => h[2] < ym && h[3] > ym).sort((p, q) => p[0] - q[0]); let u = 0; for (const h of row) { if (h[0] > u) emit(u, h[0], a, c); u = h[1]; } if (F.L - u > 0.004) emit(u, F.L, a, c); } void rects; }
       for (const h of holes) { if (h[3] - h[2] > 1.8) { const fr = B.v('frame'); wallRect(fr, F, h[0], h[1], h[2], h[3], -0.06); fbox(B.v('frameAlu'), F, h[1] - 0.2, h[1] - 0.1, h[2] + 0.95, h[2] + 1.03, -0.06, 0, 1, 0, 'fstb');
-          const p = F.P(F.L / 2, 0, 0.75); B.v('concrete').box(p[0], base + 0.09 - 0.2, p[2], 1.7, 0.18 + 0.4, 1.5, F.rotY, 1 / 3); B.c('concrete').box(p[0], base + 0.09 - 0.2, p[2], 1.7, 0.18 + 0.4, 1.5, F.rotY);
-          const q = F.P(F.L / 2, 0, 0); (ctx.doors = ctx.doors || []).push({ id: 'portable:' + b.id, x: q[0], z: q[2], nx: F.nx, nz: F.nz, y: base + 0.18, w: 1.0 }); }
+          const p = F.P(F.L / 2, 0, 0.75); B.v('concrete').box(p[0], base + 0.04 - 0.22, p[2], 1.7, 0.44, 1.5, F.rotY, 1 / 3); /* (visual only: where the ground dips a few centimetres at the pad's outer edge a solid slab was a snag; the ground carries the player) */   /* (round 2: a flush pad; the 0.18 m slab stopped the walk test at its edge: the terrain controller's step-up wants a walkable landing normal) */
+          const q = F.P(F.L / 2, 0, 0); (ctx.doors = ctx.doors || []).push({ id: 'portable:' + b.id, x: q[0], z: q[2], nx: F.nx, nz: F.nz, y: base + 0.04, w: 1.0 }); }
         else { const fr = B.v('frameAlu'); wallRect(fr, F, h[0], h[1], h[2], h[3], -0.05); glass(ctx, F, h[0] + 0.05, h[1] - 0.05, h[2] + 0.05, h[3] - 0.05, -0.03, 1); fbox(fr, F, (h[0] + h[1]) / 2 - 0.025, (h[0] + h[1]) / 2 + 0.025, h[2], h[3], -0.05, 0.01, 1, 0, 'fs'); fbox(fr, F, h[0] - 0.05, h[1] + 0.05, h[2] - 0.06, h[2], 0, 0.04, 1, 0, 'fstb'); } }
       (ctx.walls = ctx.walls || []).push({ id: 'portable:' + b.id, a: [F.ax, F.az], b: [F.ax + F.tx * F.L, F.az + F.tz * F.L], floor: base, top: eave, open: long && !others });
     }

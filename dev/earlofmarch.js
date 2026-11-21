@@ -176,3 +176,18 @@ window.__fit = (w = innerWidth || 1280, h = innerHeight || 800) => { renderer.se
 window.__s = async (name, cam, fov) => { if (!renderer.domElement.width) window.__fit(); if (fov) { camera.fov = fov; camera.updateProjectionMatrix(); } return window.__shot(name, cam, 6); };
 // post any JSON to the receiver (height grids, walk logs)
 window.__post = async (name, obj) => { await fetch('http://127.0.0.1:' + (qs.get('shotPort') || '5187') + '/' + name, { method: 'POST', body: typeof obj === 'string' ? obj : JSON.stringify(obj) }); return name; };
+// Builder's walk-through (definition of done): the real controller, forward only, both ways, along (a) every registered outside wall of the
+// buildings whose id starts with one of `ids`, 1.3 m out; (b) every door's walk; (c) every OSM footway / path / service way inside the fence.
+// Returns { walked, failed: [{ kind, id, from, to, end, short }] } (short = metres left to the target when the walker stopped).
+window.__walkAll = async (ids = ['school', 'civic', 'portable']) => {
+  const E = world.playEdge; const inE = (x, z) => { let c = false; for (let i = 0, j = E.length - 1; i < E.length; j = i++) { const a = E[i], b = E[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const out = { walked: 0, failed: [] }; const r1 = (v) => +v.toFixed(1);
+  const go = async (kind, id, p, q) => { for (const [a, b] of [[p, q], [q, p]]) { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 2 || !inE(a[0], a[1]) || !inE(b[0], b[1])) continue; if (window.__solidDist(a[0], world.groundY(a[0], a[1]) + 1, a[1]) < 0.45 || window.__solidDist(b[0], world.groundY(b[0], b[1]) + 1, b[1]) < 0.45) continue;
+    const r = await window.__walk(a[0], a[1], b[0], b[1], { seconds: Math.max(6, L / 3.2 + 4) }); out.walked++; if (!r.reached) out.failed.push({ kind, id, from: a.map(r1), to: b.map(r1), end: r.end.map(r1), short: r1(Math.hypot(r.end[0] - b[0], r.end[2] - b[1])) }); } };
+  for (const w of world.registry.walls) { if (!ids.some((k) => String(w.id).startsWith(k))) continue; const L = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]); if (L < 4) continue; const tx = (w.b[0] - w.a[0]) / L, tz = (w.b[1] - w.a[1]) / L, nx = tz, nz = -tx;
+    await go('wall', w.id, [w.a[0] + tx * 0.8 + nx * 1.3, w.a[1] + tz * 0.8 + nz * 1.3], [w.b[0] - tx * 0.8 + nx * 1.3, w.b[1] - tz * 0.8 + nz * 1.3]); }
+  for (const d of (world.registry.notes && world.registry.notes.doors) || []) await go('door', d.id, [d.x + d.nx * 0.75, d.z + d.nz * 0.75], [d.x + d.nx * 5.5, d.z + d.nz * 5.5]);
+  const data = await (await fetch('./' + world.campus.files.campus)).json();
+  for (const r of data.roads) { const hw = r.tags.highway; if (!['footway', 'path', 'service', 'tertiary'].includes(hw)) continue; for (let i = 0; i < r.line.length - 1; i++) await go(hw, r.id, r.line[i], r.line[i + 1]); }
+  return out;
+};
