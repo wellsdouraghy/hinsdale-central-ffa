@@ -12,6 +12,7 @@ import { BotMobility } from './botMobility.js';
 import { HELI } from '../heli.js';
 import { STREAK } from '../streaks.js';
 import { ctfBases } from '../ctf.js';
+import { BODY } from './nav.js';
 
 const DEG = Math.PI / 180;
 
@@ -25,7 +26,8 @@ const PREF_RANGE = { ar: 35, smg: 16, shotgun: 8, sniper: 80, pistol: 16 };
 // Beyond this the bot closes distance (sprinting) instead of spraying.
 const ENGAGE_RANGE = { ar: 75, smg: 45, shotgun: 22, sniper: 220, pistol: 40 };
 const rand = (a, b) => a + Math.random() * (b - a);
-const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _eye = new THREE.Vector3(), _tgt = new THREE.Vector3();
+const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _eye = new THREE.Vector3(), _tgt = new THREE.Vector3(), _g = new THREE.Vector3();
+const _o = new THREE.Vector3(), _f = new THREE.Vector3(), _wish = new THREE.Vector3();
 
 export class BotBrain {
   constructor(mgr, p, difficulty, role) {
@@ -50,7 +52,8 @@ export class BotBrain {
     this.err = { yaw: 0, pitch: 0 };        // current aim offset (radians)
     this.burstLeft = 0; this.pauseUntil = 0;
     this.strafe = 1; this.strafeT = 0; this.crouchT = 0;
-    this.stuckT = 0; this.lastPos = new THREE.Vector3(); this.jump = false;
+    this.jump = false;
+    this.win = { t: 0, want: 0, max: 0, x: 0, y: 0, z: 0 }; this.winL = { t: 0, want: 0, max: 0, x: 0, y: 0, z: 0 };   // stuck windows
     this.unstuckT = 0; this.unstuckDir = new THREE.Vector3(); this.stuckCount = 0;
     this.cid = 1;
     this.pilot = null;                      // BotPilot while flying the helicopter
@@ -73,8 +76,8 @@ export class BotBrain {
     this.pilot = null; this.heliGoal = false;
     this.viaDone = false; this.via = null; this.chase = null; this.post = null; this.crate = null;
     this.err.yaw = rand(-1, 1) * this.d.aimErr * DEG; this.err.pitch = rand(-1, 1) * this.d.aimErr * DEG;
-    this.lastPos.copy(pos);
-    this.stuckCount = 0;
+    this.stuckCount = 0; this.unstuckT = 0; this.stuckRef = null; this.hopUntil = 0; this.roam = null;
+    this._winReset(this.win); this._winReset(this.winL);
     this.mob.onSpawn(this.auth.time());
   }
 
@@ -316,26 +319,33 @@ export class BotBrain {
         for (const o of auth.players.values()) {
           if (!this._enemy(o) || !o.pos) continue;
           const d = Math.hypot(o.pos[0] - this.pos.x, o.pos[2] - this.pos.z);
-          const score = d * (o.ai ? 1.6 : 1) * rand(0.8, 1.2);
+          // (sticky: keep heading for the same player unless another is clearly nearer, or bots run back and forth
+          // between two players at similar distances every few seconds)
+          const score = d * (o.ai ? 1.6 : 1) * rand(0.9, 1.1) * (o.id === this.roamId ? 0.65 : 1);
           if (score < bestScore) { bestScore = score; pick = o; }
         }
-        if (pick && (allAttack || Math.random() < this.d.push)) {
-          const h = this.d.hint * (allAttack ? 0.5 : 1);
-          goal = new THREE.Vector3(pick.pos[0] + rand(-h, h), 0, pick.pos[2] + rand(-h, h));
-          if (auth.world.terrain) goal.y = auth.world.groundY(goal.x, goal.z);   // (goal distances are 3D: keep goals on the hills)
-        } else {
+        this.roamId = pick ? pick.id : null;
+        // The roam plan (push toward a player's area, or wander to a central point, and the hint offset) is kept
+        // until it is reached or ~10 s old: re-rolling it every few seconds sent bots back and forth across the map.
+        const reached = (this.goal && this.pos.distanceTo(this.goal) < 5) || (this.path && this.pathI >= this.path.length);
+        const h = this.d.hint * (allAttack ? 0.5 : 1);
+        if (!this.roam || reached || t > this.roam.until) {
           const b = auth.world.playBounds;
-          const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
-          goal = new THREE.Vector3(cx + rand(-90, 90), 0, cz + rand(-70, 70));
-          if (auth.world.terrain) goal.y = auth.world.groundY(goal.x, goal.z);
+          this.roam = {
+            push: !!pick && (allAttack || Math.random() < this.d.push), until: t + rand(8, 12), ox: rand(-h, h), oz: rand(-h, h),
+            wx: (b.minX + b.maxX) / 2 + rand(-90, 90), wz: (b.minZ + b.maxZ) / 2 + rand(-70, 70),
+          };
         }
+        const R = this.roam;
+        goal = R.push && pick ? new THREE.Vector3(pick.pos[0] + R.ox, 0, pick.pos[2] + R.oz) : new THREE.Vector3(R.wx, 0, R.wz);
+        if (auth.world.terrain) goal.y = auth.world.groundY(goal.x, goal.z);   // (goal distances are 3D: keep goals on the hills)
         this.goalT = t + rand(3, 5);
       } else goal = this.goal;
     }
     if (goal && (!this.goal || goal.distanceTo(this.goal) > 4 || t > this.repathT || !this.path)) {
       this.goal = goal.clone();
-      this.path = this.mgr.nav.findPath(this.pos, this.goal);
-      this.pathI = 0;
+      this.path = this.mgr.nav.findPath(this.pos, this.goal, undefined, t);
+      this.pathI = 0; this.steerI = 0; this.lookT = 0; this.blindT = 0;
       this.repathT = t + 3 + Math.random() * 2;
     }
   }
@@ -527,10 +537,7 @@ export class BotBrain {
     const holding = this._crateHold(t);   // capturing a care package: stand still
     if (holding) this.wantCrouch = false;
     else if (this.path && this.pathI < this.path.length) {
-      const wp = this.path[this.pathI];
-      _v.set(wp.x - this.pos.x, 0, wp.z - this.pos.z);
-      if (_v.length() < 1.2) this.pathI++;
-      else dir.copy(_v.normalize());
+      this._followPath(t, dir);
       sprint = !this.visible && this.pathI < this.path.length - 1;
     }
     if (this.visible && this.target && !this.target.heli) {
@@ -555,27 +562,76 @@ export class BotBrain {
     const mv = this.mob.steer(dt, t, dir);
     if (mv.sprint !== undefined) sprint = mv.sprint;
     const kitBusy = this.mob.state !== 'idle' && this.mob.state !== 'descend';
+    const onFoot = !kitBusy && !this.ctrl.grapple && !this.ctrl.mantle && !this.ctrl.ladder;
 
-    // Stuck handling: hop, sidestep, skip the waypoint, and eventually pick a new goal.
-    this.stuckT += dt;
+    // Local avoidance: keep off other players and off walls / poles (slide along them instead of pushing into them).
+    _wish.copy(dir);                        // where the path / fight wants to go (for the stuck handling below)
+    if (onFoot && !holding) this._avoid(dir);
+
+    // Stuck handling (no progress while trying to move): hop low obstacles, back off toward open space, penalise the
+    // spot for everyone and repath, and eventually pick a new goal. Never a teleport.
     if (this.unstuckT > 0) {
       this.unstuckT -= dt;
-      dir.copy(this.unstuckDir);
+      if (onFoot) dir.copy(this.unstuckDir);
     }
-    if (this.stuckT > 0.9) {
-      const moved = this.lastPos.distanceTo(this.pos);
-      const wantsMove = dir.lengthSq() > 0.1 && !this.visible && !kitBusy && !this.ctrl.grapple;
-      if (wantsMove && moved < 0.7) {
-        this.stuckCount = (this.stuckCount || 0) + 1;
-        this.jump = true;
-        const a = Math.random() * Math.PI * 2;
-        this.unstuckDir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
-        this.unstuckT = 0.7;
-        if (this.stuckCount >= 2 && this.path) this.pathI = Math.min(this.path.length, this.pathI + 1);
-        if (this.stuckCount >= 4) { this.goal = null; this.path = null; this.goalT = 0; this.stuckCount = 0; }
-      } else this.stuckCount = 0;
-      this.lastPos.copy(this.pos);
-      this.stuckT = 0;
+    const fighting = this.visible && !this.outOfRange;
+    const wantsMove = dir.lengthSq() > 0.1 && onFoot && !fighting && !holding;
+    // Progress = how far we got from where each window started (net, horizontal; climbing counts): jitter against a
+    // wall, bobbing on a step or turning back and forth add up to a long walk but no progress. Two windows: 0.6 s
+    // (pushing against something) and 3 s (wandering about one spot: avoidance / waypoint ping-pong).
+    const W = this.win, WL = this.winL, pos = this.pos;
+    for (const w of [W, WL]) {
+      w.t += dt; if (wantsMove) w.want += dt;
+      const ex = Math.hypot(pos.x - w.x, pos.z - w.z) + Math.max(0, Math.abs(pos.y - w.y) - 0.3);
+      if (ex > w.max) w.max = ex;
+    }
+    const P = this.path, end = P && P.length ? P[P.length - 1] : null;
+    const atEnd = end && this.pathI >= P.length - 1 && Math.hypot(end.x - pos.x, end.z - pos.z) < 3.5;
+    if (W.t > 0.6) {
+      const want = W.want > 0.45 && wantsMove, moved = W.max;
+      if (want && moved < 0.35 && atEnd && this.unstuckT <= 0) {
+        this.pathI = P.length;              // nearly at a post / spot that others crowd: close enough, stand here
+        this.stuckCount = 0;
+      } else if (want && moved < 0.35 && this.unstuckT <= 0) {
+        if (!this.stuckCount) this.stuckRef = { x: pos.x, z: pos.z, t };
+        this.stuckCount++;
+        this._unstick(t, _wish.lengthSq() > 0.01 ? _wish : dir);
+      } else if (!want || !this.stuckRef || Math.hypot(pos.x - this.stuckRef.x, pos.z - this.stuckRef.z) > 4 || t - this.stuckRef.t > 12) this.stuckCount = 0;
+      // (moving about during the back-off is not progress: only getting well away from the spot clears the count, so a spot
+      // that keeps blocking us escalates to a nav penalty + repath instead of looping)
+      this._winReset(W);
+    }
+    if (WL.t > 3) {
+      if (WL.want > 2.4 && wantsMove && WL.max < 1.5 && this.unstuckT <= 0) {
+        if (atEnd) this.pathI = P.length;
+        else {
+          // milling about one spot for 3 s: straight to the nav penalty + repath step
+          if (!this.stuckCount) this.stuckRef = { x: pos.x, z: pos.z, t };
+          this.stuckCount = Math.max(2, this.stuckCount + 1);
+          this._unstick(t, _wish.lengthSq() > 0.01 ? _wish : dir);
+        }
+      }
+      this._winReset(WL);
+    }
+    // Walking into something knee-high (a rail, a planter, a low wall, a bench) with nothing at chest height: hop it
+    // straight away (the controller's mantle takes us over), instead of pushing against it until the stuck check.
+    if (wantsMove && this.unstuckT <= 0 && this.ctrl.grounded && t > (this.hopT || 0) && Math.hypot(this.ctrl.velocity.x, this.ctrl.velocity.z) < 2) {
+      this.hopT = t + 0.25;
+      const L = Math.hypot(dir.x, dir.z);
+      _f.set(dir.x / L, 0, dir.z / L);
+      const hs = this.mgr.hitscan;
+      _o.set(pos.x, pos.y + 0.6, pos.z);
+      if (hs.castWorld(_o, _f, 0.7)) {
+        _o.y = pos.y + 1.5;
+        if (!hs.castWorld(_o, _f, 1.2)) { this.jump = true; this.hopUntil = t + 0.8; this.hopT = t + 0.8; }
+      }
+    }
+    // Hopping a rail / low wall: thruster-jump near the top of the hop if the feet would still not clear it.
+    if (t < (this.hopUntil || 0) && !this.ctrl.grounded && this.ctrl.velocity.y < 1.2 && this.ctrl.airJumps > 0 && (dir.x || dir.z)) {
+      const L = Math.hypot(dir.x, dir.z);
+      _f.set(dir.x / L, 0, dir.z / L);
+      _o.set(this.pos.x, this.pos.y + 0.1, this.pos.z);
+      if (this.mgr.hitscan.castWorld(_o, _f, 0.8)) { this.jump = true; this.hopUntil = 0; }
     }
 
     // Get out from under a low-flying helicopter (rotor wash = death).
@@ -639,6 +695,145 @@ export class BotBrain {
     this._fire(t);
     p.pos = [this.pos.x, this.pos.y, this.pos.z];
     p.crouch = this.ctrl.crouching;
+  }
+
+  _winReset(w) { w.t = 0; w.want = 0; w.max = 0; w.x = this.pos.x; w.y = this.pos.y; w.z = this.pos.z; }
+
+  /** Near the ground (where the nav grid and the clearance field apply), not on a roof / platform. */
+  _nearGround() {
+    const p = this.pos, w = this.auth.world;
+    return p.y - (w.groundY ? w.groundY(p.x, p.z) : 0) < 0.8;
+  }
+
+  /**
+   * Path following: arrive at waypoints with a small radius (no early turn into a corner), skip a waypoint once the
+   * next one is in clear view (with room for the body), steer at the farthest of the next few waypoints in clear view
+   * (smooth lines, still never through a corner), and repath when the current waypoint is out of view (pushed off the
+   * path in a fight, slid along a wall).
+   */
+  _followPath(t, dir) {
+    const nav = this.mgr.nav, P = this.path, pos = this.pos;
+    const ground = this._nearGround();
+    while (this.pathI < P.length) {
+      const wp = P[this.pathI];
+      const d = Math.hypot(wp.x - pos.x, wp.z - pos.z);
+      const last = this.pathI === P.length - 1;
+      if (d < (last ? 1.0 : 0.7)) { this.pathI++; continue; }
+      if (!last && ground && d < 3 && nav.clearLine(pos, P[this.pathI + 1], BODY, 0.6)) { this.pathI++; this.lookT = 0; continue; }
+      break;
+    }
+    if (this.pathI >= P.length) return;
+    if (t >= (this.lookT || 0)) {
+      this.lookT = t + 0.2;
+      this.steerI = this.pathI;
+      if (ground) {
+        for (let j = Math.min(P.length - 1, this.pathI + 3); j > this.pathI; j--) if (nav.clearLine(pos, P[j], BODY, 0.6)) { this.steerI = j; break; }
+        const wp = P[this.pathI];
+        if (this.steerI === this.pathI && Math.hypot(wp.x - pos.x, wp.z - pos.z) > 1.5 && !nav.clearLine(pos, wp, 0.3, 0.6)) {
+          this.blindT = (this.blindT || 0) + 0.2;
+          if (this.blindT > 0.6 && t > (this.repathMinT || 0)) { this.repathT = 0; this.repathMinT = t + 1.5; this.blindT = 0; }
+        } else this.blindT = 0;
+      }
+    }
+    const sp = P[Math.min(P.length - 1, Math.max(this.steerI || 0, this.pathI))];
+    _v.set(sp.x - pos.x, 0, sp.z - pos.z);
+    const L = _v.length();
+    if (L > 0.05) dir.copy(_v.divideScalar(L));
+  }
+
+  /**
+   * Local avoidance on `dir` (magnitude kept): separation from other players (and a sidestep for one coming the other
+   * way), and sliding along walls / poles / trunks instead of pushing into them (clearance field gradient).
+   */
+  _avoid(dir) {
+    const pos = this.pos;
+    const mag = Math.hypot(dir.x, dir.z);
+    // Walls / poles / trunks first (clearance field gradient): drop the part of the heading that goes into them, so
+    // the bot slides along. Never turned back: heading (nearly) straight at it is left alone (the path goes there,
+    // the controller slides, and the stuck handling takes over if it really is blocked), so this cannot ping-pong.
+    if (mag > 0.1 && this._nearGround()) {
+      const nav = this.mgr.nav;
+      const c = nav.clearAt(pos.x, pos.z);
+      if (c < 0.7 && nav.clr.gradient(pos.x, pos.z, _g)) {
+        const k = Math.min(1, (0.7 - c) / 0.3);
+        const into = (dir.x * _g.x + dir.z * _g.z) / mag;          // < 0: heading toward the obstacle
+        if (into < 0 && into > -0.9) {
+          const tx = dir.x - _g.x * into * mag, tz = dir.z - _g.z * into * mag;
+          dir.x += (tx - dir.x) * k; dir.z += (tz - dir.z) * k;
+          const m = Math.hypot(dir.x, dir.z);
+          if (m > 1e-4) { dir.x *= mag / m; dir.z *= mag / m; }
+        }
+      }
+    }
+    let ax = 0, az = 0;
+    for (const o of this.auth.players.values()) {
+      if (o === this.p || !o.alive || !o.pos || o.inHeli) continue;
+      const dx = pos.x - o.pos[0], dz = pos.z - o.pos[2];
+      if (Math.abs(dx) > 3 || Math.abs(dz) > 3 || Math.abs(pos.y - o.pos[1]) > 1.8) continue;
+      const d = Math.hypot(dx, dz) || 0.01;
+      if (d < 1.3) { const w = (1.3 - d) / 1.3 * (mag > 0.1 ? 1.4 : 0.8); ax += dx / d * w; az += dz / d * w; }
+      if (mag > 0.1) {
+        // someone ahead within ~2.6 m of our line: step aside, away from their side (head-on: both keep right)
+        const ahead = -(dx * dir.x + dz * dir.z) / mag;
+        const lat = (dx * dir.z - dz * dir.x) / mag;
+        if (ahead > 0 && ahead < 2.6 && Math.abs(lat) < 1.1) {
+          const side = Math.abs(lat) < 0.15 ? 1 : -Math.sign(lat);
+          const w = 0.7 * (1 - ahead / 2.6);
+          ax += -dir.z / mag * side * w; az += dir.x / mag * side * w;
+        }
+      }
+    }
+    if (mag < 0.1 && Math.hypot(ax, az) < 0.15) return;
+    if (!ax && !az) return;
+    dir.x += ax; dir.z += az;
+    const m2 = Math.hypot(dir.x, dir.z);
+    const want = Math.max(mag, Math.min(0.6, Math.hypot(ax, az)));
+    if (m2 > 1e-4) { dir.x *= want / m2; dir.z *= want / m2; }
+  }
+
+  /**
+   * No progress while trying to move (`wish` = where we wanted to go). 1st/2nd time: hop a low obstacle (bench, kerb,
+   * low wall: the controller mantles it) or back off toward the most open nearby direction. From the 2nd: the spot is
+   * penalised on the nav grid for every bot (A* routes round it) and we repath. 5th: give up on this goal.
+   */
+  _unstick(t, wish) {
+    const nav = this.mgr.nav, pos = this.pos, c = this.ctrl, n = this.stuckCount;
+    const wl = Math.hypot(wish.x, wish.z) || 1;
+    _f.set(wish.x / wl, 0, wish.z / wl);
+    const hs = this.mgr.hitscan;
+    const ray = (y, d, far) => { _o.set(pos.x, pos.y + y, pos.z); return hs.castWorld(_o, d, far); };
+    const desc = this.mob.state === 'descend' && this.mob.descend;
+    if (desc && !(ray(0.6, _f, 0.9) && !ray(1.5, _f, 1.2))) {
+      // Coming down off a roof and this edge is walled off: try the next way down (the mobility kit's edge search).
+      desc.bad.add(desc.k); desc.fails = 0;
+      this.mob._pickDescend();
+      if (n >= 3) this.stuckCount = 1;
+      return;
+    }
+    if (n <= 2 && ray(0.6, _f, 0.9) && !ray(1.5, _f, 1.2)) {
+      // low obstacle ahead with a clear chest line: jump (the controller's mantle takes us over it)
+      this.jump = true; this.unstuckDir.copy(_f); this.unstuckT = 0.6; this.hopUntil = t + 0.8;
+    } else {
+      // most open direction ~1 m out: clearance there, nothing in the way at knee / chest height, not straight back
+      let best = -Infinity;
+      const ground = this._nearGround();
+      for (let k = 0; k < 12; k++) {
+        const a = k * Math.PI / 6;
+        _v.set(Math.cos(a), 0, Math.sin(a));
+        const x = pos.x + _v.x, z = pos.z + _v.z;
+        let s = (_v.x * _f.x + _v.z * _f.z) * 0.5 + Math.random() * 0.2;
+        if (ground) s += Math.min(1.2, nav.clearAt(x, z)) * 1.5 + (nav.walkableAt(x, z) ? 0.4 : 0);
+        if (ray(0.6, _v, 1.0) || ray(1.3, _v, 1.0)) s -= 3;
+        if (s > best) { best = s; this.unstuckDir.copy(_v); }
+      }
+      this.unstuckT = 0.45 + 0.15 * Math.min(n, 3);
+      if (n === 3 && c.grounded) this.jump = true;
+    }
+    if (n >= 2) {
+      if (this._nearGround()) nav.markBad(pos.x + _f.x * 0.8, pos.z + _f.z * 0.8, 25, t);
+      this.path = null; this.repathT = 0;
+    }
+    if (n >= 5) { this.goal = null; this.path = null; this.goalT = 0; this.stuckCount = 0; this.post = null; this.via = null; this.viaDone = true; }
   }
 
   /** Point-blank: knife them (always a one-hit kill, plays a finisher). */
