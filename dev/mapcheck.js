@@ -36,6 +36,8 @@ export const TH = {
   voidTests: { wall: num('voidWall', 800), sloped: num('voidSloped', 150), grapple: num('voidGrapple', 250) },
   // 2 ladders
   ladderTime: 14,
+  ladderAngles: [0, -15, 15, -30, 30, -45, 45],   // approach angles off square (deg); the old square-only test missed a regrab loop from 9 deg up
+  ladderHold: 1.0,                   // s forward stays held after the top exit
   // 3 spawns
   spawnWallFail: 0.4, spawnWallWarn: 1.2,   // horizontal clearance from any solid at 0.5 / 1.3 m (m): capsule 0.35 + 5 cm
   spawnPropGap: 0.6,                         // capsule radius + margin from a registered prop footprint (m)
@@ -421,32 +423,53 @@ async function checkRoofVoids() {
 }
 
 // ============================================================================================== 2 ladders
+// One scripted climb: start 0.85 m out from the spot a climber holds on the ladder (player.js LADDER_OFF = 0.45 m out
+// from the ladder line), `ang` degrees round from square about that spot, facing it, so the climber grabs `ang` degrees
+// off square; forward held until TH.ladderHold s after the top exit. Pass = one grab, a top exit within TH.ladderTime,
+// and still grounded up on the deck 2.5 s after the exit (no drop back down, no regrab loop).
+function ladderClimb(L, ang) {
+  const ctrl = noUnstuck(new PlayerController(world));
+  const a = ang * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const dx = L.nx * c - L.nz * s, dz = L.nx * s + L.nz * c;           // the outward normal turned by ang
+  const sx = L.x + L.nx * 0.45 + dx * 0.85, sz = L.z + L.nz * 0.45 + dz * 0.85;
+  const fl = S.first(V(sx, L.y0 + 1.5, sz), DOWN, L.y0 + 2 - GY(sx, sz)); const fy = fl ? fl.point.y : GY(sx, sz);
+  const start = V(sx, fy + 0.02, sz);
+  ctrl._refreshColliders();
+  if (ctrl._resolve(start, STAND.height, V()).length() > 0.03) return { ang, skipped: 'start blocked' };   // a wall / prop beside the ladder
+  ctrl.teleport(start, Math.atan2(dx, dz));
+  let grabs = 0, exitT = null, t = 0, onLadder = false;
+  for (; t < TH.ladderTime; t += DT) {
+    const fwd = exitT === null || t < exitT + TH.ladderHold ? 1 : 0;
+    ctrl.update(DT, { forward: fwd, strafe: 0, jump: false, crouchToggle: false, sprint: false });
+    for (const e of ctrl.events) if (e === 'ladder') grabs++;
+    ctrl.events.length = 0;
+    if (onLadder && !ctrl.ladder && ctrl.position.y > L.y1 - 0.5 && exitT === null) exitT = t;
+    onLadder = !!ctrl.ladder;
+    if (exitT !== null && t > exitT + 2.5) break;
+  }
+  const p = ctrl.position;
+  const deckMin = L.y1 - Math.min(1.6, 0.5 * (L.y1 - L.y0));          // the deck may sit below a parapet-top exit
+  const ok = grabs === 1 && exitT !== null && ctrl.grounded && !ctrl.ladder && !ctrl.mantle && p.y >= deckMin;
+  const reason = ok ? null : grabs === 0 ? 'never grabbed (approach blocked?)' : grabs > 1 ? `regrabbed ${grabs}x: falls back off the top` : exitT === null ? 'never reached the top' : 'did not stay on the deck';
+  return { ang, grabs, climbS: exitT === null ? null : r1(exitT), end: P3(p), grounded: ctrl.grounded, ok, reason };
+}
 async function checkLadders() {
   const out = []; let fails = 0;
   for (const [i, L] of world.ladders.entries()) {
-    const ctrl = noUnstuck(new PlayerController(world));
-    const sx = L.x + L.nx * 1.3, sz = L.z + L.nz * 1.3;
-    const fl = S.first(V(sx, L.y0 + 1.5, sz), DOWN, L.y0 + 1.5 - GY(sx, sz)); const fy = fl ? fl.point.y : GY(sx, sz);
-    ctrl.teleport(V(sx, fy + 0.02, sz), Math.atan2(L.nx, L.nz));
-    let grabs = 0, exitT = null, t = 0, onLadder = false, topY = -1;
-    for (; t < TH.ladderTime; t += DT) {
-      const fwd = exitT === null || t < exitT + 1.0 ? 1 : 0;
-      ctrl.update(DT, { forward: fwd, strafe: 0, jump: false, crouchToggle: false, sprint: false });
-      for (const e of ctrl.events) if (e === 'ladder') grabs++;
-      ctrl.events.length = 0;
-      if (onLadder && !ctrl.ladder && ctrl.position.y > L.y1 - 0.5 && exitT === null) exitT = t;
-      onLadder = !!ctrl.ladder; topY = Math.max(topY, ctrl.position.y);
-      if (exitT !== null && t > exitT + 2.5) break;
-    }
-    const p = ctrl.position;
-    const ok = grabs === 1 && exitT !== null && ctrl.grounded && p.y >= L.y1 - 0.6;
+    const runs = TH.ladderAngles.map((ang) => ladderClimb(L, ang));
+    const sq = runs.find((r) => r.ang === 0);
+    const bad = runs.filter((r) => !r.skipped && !r.ok);
+    const ok = !!sq && !sq.skipped && bad.length === 0;
     if (!ok) fails++;
-    const reason = ok ? null : grabs === 0 ? 'never grabbed (approach blocked?)' : grabs > 1 ? `regrabbed ${grabs}x: falls off the top (parapet / lip above exitY?)` : exitT === null ? 'never reached the top' : 'did not stay on the deck';
-    out.push({ i, at: [r1(L.x), r1(L.z)], y1: r2(L.y1), exitY: r2(L.exitY ?? L.y1), grabs, climbS: exitT === null ? null : r1(exitT), end: P3(p), grounded: ctrl.grounded, ok, reason });
+    const reason = ok ? null : !sq || sq.skipped ? 'square approach blocked' : bad.map((r) => `${r.ang} deg: ${r.reason}`).join('; ');
+    out.push({ i, at: [r1(L.x), r1(L.z)], y1: r2(L.y1), exitY: r2(L.exitY ?? L.y1), grabs: sq?.grabs, climbS: sq?.climbS, end: sq?.end, grounded: sq?.grounded,
+      angles: runs.map((r) => `${r.ang}:${r.skipped ? 'skip' : r.ok ? 'ok' : 'FAIL'}`).join(' '), ok, reason, problems: runs.filter((r) => r.skipped || !r.ok) });
     marks.push({ kind: ok ? 'ladderOk' : 'ladderBad', x: L.x, z: L.z });
+    await tick();
   }
-  const res = { status: status(fails, 0), what: 'Scripted climb of every ladder (real controller, forward held from 1.3 m out, released 1 s after the exit): one grab and ending grounded on the deck = pass.', counts: { ladders: out.length, failing: fails }, failures: out.filter((l) => !l.ok), ladders: out };
-  log(`ladders: ${res.status} ${out.length - fails}/${out.length} ok`);
+  const climbs = out.reduce((n, l) => n + l.angles.split(' ').filter((a) => !a.endsWith('skip')).length, 0);
+  const res = { status: status(fails, 0), what: `Scripted climbs of every ladder with the real controller, approaching ${TH.ladderAngles.join(' / ')} deg off square (from 0.85 m out, facing the ladder; an angle whose start is inside a wall is skipped, square never is), forward held until ${TH.ladderHold} s after the exit: one grab, a top exit within ${TH.ladderTime} s and still grounded on the deck 2.5 s after it, at every angle = pass.`, counts: { ladders: out.length, failing: fails, climbs }, failures: out.filter((l) => !l.ok), ladders: out };
+  log(`ladders: ${res.status} ${out.length - fails}/${out.length} ok (${climbs} climbs at ${TH.ladderAngles.join('/')} deg)`);
   finishCheck('ladders', res);
 }
 

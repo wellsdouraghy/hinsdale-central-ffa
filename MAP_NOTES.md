@@ -354,8 +354,11 @@ What each check does (and what to fix when it fails):
    grapples onto pitched roofs and eaves. Fail = a run ends under a roof skin (roof > 0.9 m above the player) or
    stuck on a roof, and walk + jump + double jump cannot get back out. Counts: `&voidWall=`, `&voidSloped=`,
    `&voidGrapple=`.
-2. **ladders.** Scripted climb with the real controller, forward held from 1.3 m out, released 1 s after the exit:
-   one grab and grounded on the deck = pass. `regrabbed` = a parapet / lip above exitY throws the player back.
+2. **ladders.** Scripted climbs with the real controller from 0.85 m out of the climbing spot, approaching 0 / ±15 /
+   ±30 / ±45 deg off square (facing the ladder; an angled start inside a wall is skipped, square never is), forward
+   held until 1 s after the exit: one grab, a top exit within 14 s and grounded on the deck 2.5 s later, at every
+   angle = pass. `regrabbed` = the climber fell back off the top; `did not stay on the deck` = no landing found (see
+   "Ladder exits" below). Square alone is not enough: the old exit only worked square-on (see below).
 3. **spawns.** Every FFA and CTF team spawn: inside playBounds (FFA also spawnBounds), at ground level, open sky above,
    capsule fits, >= 0.4 m from any solid (warn < 1.2 m), not on a registered prop, on (or within 3 m of) a nav walk
    cell. Also: >= 24 FFA / >= 8 per team, navGrid.unreachable = 0, both CTF bases on walk cells and connected (nav
@@ -428,8 +431,14 @@ What each check does (and what to fix when it fails):
 ## Recurring defects (check these every time)
 
 **Gameplay**
-- **Ladders that can't be exited:** a parapet/roof lip above the ladder's exitY makes the player fall and regrab
-  forever. Walk every ladder as a player; exitY must clear the lip, or notch the parapet collision at the ladder.
+- **Ladders that can't be exited:** the top exit used to leave the climber hanging 0.45 m out from the ladder at
+  exitY and rely on them walking (and mantling) onto the roof: square-on it worked, from 9 deg off square they fell
+  and regrabbed forever. Fixed in the controller (`_ladderLanding` in src/game/player.js): the exit is a scripted
+  climb along the ladder's inward normal (never the player's facing) to the first spot on the deck with standing
+  room, over whatever stands between (parapet, coping, even a fence up to 2.95 m above exitY = what a mantle from the
+  top rung reaches), with a clear sight line; else a deck on the ladder's own side (water tower catwalk). Map rules
+  still: a deck 0.6-3.3 m in from the ladder line, flat, with nothing low over it; and put the ladder where the way
+  over is meant to be (a fence gap, a parapet notch), not just anywhere along a fenced edge.
 - **Players ending up INSIDE a roof ("stuck in a roof"):** a pitched roof is a thin shell over the wall prism's cap, so
   every hip roof / roof-well perimeter hides a void with a floor (attics at 2.9 / 5.8 / 8.8 m, the space under the
   tiled rim of a roof well). Nothing leads out of it. The way in was the mantle: jumping or grappling at a wall under
@@ -520,7 +529,8 @@ What each check does (and what to fix when it fails):
   stand proud of it, and not hide half a pilaster (reads as a stray seam).
 - **Car model:** closed end caps + floor pan; wheel-arch discs clipped at the sill (shards otherwise).
 - **Ladder exits:** if neighbouring parapets leave less than a player's width, move the ladder; raising exitY won't
-  help. Test with a scripted climb (real player.update, forward held): one grab and ending on the deck = pass.
+  help. Test with scripted climbs (real player.update, forward held) at several approach angles: one grab and
+  ending on the deck at every angle = pass (map check `ladders`).
 - **Ground photo blotches** can live in ground_macro.jpg itself, not the mask: pull blotches inside car parks to
   the mean asphalt tone (tools/macro_fix.js on Marin).
 - **Backdrop crowns:** 3-7.6 m radius, jittered 5-sided, leaf texture, ~5k instances; dense planting in the first
