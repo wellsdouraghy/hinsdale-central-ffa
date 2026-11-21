@@ -76,6 +76,7 @@ export class BotManager {
    */
   configure({ count = 0, difficulty = 'normal', red = null, blue = null } = {}) {
     this.difficulty = difficulty;
+    void this.nav;   // nav grid + clearance field (~0.1-0.5 s) now, while the match is being set up, not mid-game
     if (this.auth.teamMode && (red !== null || blue !== null)) {
       for (let i = 0; i < (red || 0); i++) this.add('red');
       for (let i = 0; i < (blue || 0); i++) this.add('blue');

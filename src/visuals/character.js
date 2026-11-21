@@ -19,6 +19,10 @@ const damp = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-ra
 const clamp = THREE.MathUtils.clamp, TAU = Math.PI * 2;
 const wrapPi = (a) => { a %= TAU; return a > Math.PI ? a - TAU : a < -Math.PI ? a + TAU : a; };
 
+// Terrain campuses: ground height sampler (x, z) -> y used to plant each foot on the slope; null on flat campuses.
+let groundSampler = null;
+export function setCharacterGround(fn) { groundSampler = typeof fn === 'function' ? fn : null; }
+
 // ---- shared template ------------------------------------------------------------------------------------------------
 let template = null;
 async function load() {
@@ -260,9 +264,12 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
   const st = { speed: 0, vx: null, vy: 0, vz: 0, crouching: false, aimPitch: 0, weaponId: 'ar', grounded: true, sprinting: false, ads: 0, mode: 0, grapple: null };
   const guns = {};
   let gun = null, gunId = null;
+  // Death: the weapon leaves the hands and drops to the ground on its own (root space: y = 0 is the ground at the feet)
+  const drop = { on: false, g: new THREE.Group(), v: new THREE.Vector3(), w: new THREE.Vector3(), rest: false, home: null, c: new THREE.Vector3() };
+  root.add(drop.g);
   function setGun(id) {
     if (!HOLD[id]) id = 'ar';
-    if (id === gunId) return;
+    if (id === gunId || drop.on) return;
     if (gun) gun.root.visible = false;
     if (!guns[id]) {
       guns[id] = buildGun(id);
@@ -281,6 +288,9 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
   let rig = null, mixer = null, actions = null;
   let controlled = false;                                           // true while finishers.js puppets this character
   let crouchT = 0, lowT = 0, pitch = 0, dead = false, deathT = 0, deathRoll = 0, airT = 0;
+  // death fall: direction in root space (unit, horizontal), how far over the body can go (walls), forwardness 0..1
+  const fallDir = new THREE.Vector3(0, 0, 1), fallAxis = new THREE.Vector3(1, 0, 0);
+  let fallMax = Math.PI / 2, fallFwd = 0, fallSide = 1;
   let wWalk = 0, wRun = 0, phase = Math.random(), clock = Math.random() * 10;
   // motion state (see update): local velocity and its smoothed copy (lean), leg heading, mode blends, one-shot bursts
   let lf = 0, lr = 0, hs = 0, vyS = 0, svf = 0, svr = 0, prevYaw = null, yawRate = 0, leanF = 0, leanR = 0, flightF = 0, flightR = 0;
@@ -357,6 +367,14 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
     _m.makeBasis(fingers, _v1, _v2.crossVectors(fingers, _v1));
     return out.setFromRotationMatrix(_m).multiply(template.hand[side].frameInv);
   }
+  // terrain slope rotation (up -> ground normal at p, height h there) scaled by w; normal from forward differences
+  const _sn = new THREE.Vector3(), _sq = new THREE.Quaternion(), _sid = new THREE.Quaternion(), _sup = new THREE.Vector3(0, 1, 0);
+  function slopeQ(p, h, w) {
+    const d = 0.2, gx = groundSampler(p.x + d, p.z) - h, gz = groundSampler(p.x, p.z + d) - h;
+    _sn.set(-gx / d, 1, -gz / d).normalize();
+    if (_sn.y < 0.6) _sn.set(0, 1, 0);                              // a step or wall edge, not a slope
+    return _sq.setFromUnitVectors(_sup, _sn).slerp(_sid, 1 - w);
+  }
   // point given in body space (x right, y up, z forward, metres from the feet) -> world
   const body = (out, x, y, z, k) => out.copy(pivotW).addScaledVector(rightW, x * k).addScaledVector(upW, y * k).addScaledVector(fwdW, z * k);
 
@@ -369,22 +387,46 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
 
     // --- lower body: turn the hips toward the travel direction, drop them (crouch / slide / landing / death buckle)
     // and place the feet: planted where the clip put them, or blended to an airborne / slide / ladder / grapple pose.
-    const dk = dead ? seg(deathT, 0, 0.35) * 0.42 - seg(deathT, 0.45, 1) * 0.2 : 0;
-    const drop = (Math.max(crouchT * 0.5 * (1 - slideT), slideT * 0.6) + dk + landS * 0.3) * scale;
+    // death: knees buckle first, then the legs stretch out as the body lies down (or stay folded, slumped against a wall)
+    const lieK = dead ? seg(deathT, 0.35, 0.85) : 0, slump = dead ? sat((1.25 - fallMax) / 0.9) : 0;
+    const dk = dead ? seg(deathT, 0, 0.3) * (0.4 + 0.2 * slump) - lieK * 0.38 * (1 - slump) : 0;
+    let drop = (Math.max(crouchT * 0.5 * (1 - slideT), slideT * 0.6) + dk + landS * 0.3) * scale;
     const air = dead ? 0 : airT * (1 - grapT) * (1 - ladderT) * (1 - mantleT) * (1 - slideT);
     const poseW = dead ? 0 : sat(air + slideT + ladderT + grapT + mantleT);
     const yawOn = Math.abs(legOff) > 2e-3;
+    // terrain: plant each foot on the slope under it (the hips sink so the downhill leg reaches)
+    // (only when the feet are on the terrain itself: not on a roof, bridge, stairs or floor built over it)
+    let ikW = 0, rootY = 0;
+    if (groundSampler && !dead && poseW < 0.999) {
+      _v1.setFromMatrixPosition(root.matrixWorld); rootY = _v1.y;
+      ikW = (1 - poseW) * (1 - seg(Math.abs(groundSampler(_v1.x, _v1.z) - rootY), 0.1, 0.2));
+    }
     hipW.setFromMatrixPosition(hips.matrixWorld);
-    if (drop > 1e-4 || poseW > 1e-3 || yawOn) {
+    if (drop > 1e-4 || poseW > 1e-3 || yawOn || ikW > 1e-3 || lieK > 1e-3) {
       qYaw.setFromAxisAngle(upW, legOff);
       footL.setFromMatrixPosition(Lf.foot.matrixWorld).sub(hipW).applyQuaternion(qYaw).add(hipW);
       footR.setFromMatrixPosition(Rt.foot.matrixWorld).sub(hipW).applyQuaternion(qYaw).add(hipW);
       worldQuat(Lf.foot, footLQ).premultiply(qYaw); worldQuat(Rt.foot, footRQ).premultiply(qYaw);
+      if (ikW > 1e-3) {
+        const hL = groundSampler(footL.x, footL.z), hR = groundSampler(footR.x, footR.z);
+        const oL = clamp(hL - rootY, -0.25, 0.25) * ikW, oR = clamp(hR - rootY, -0.25, 0.25) * ikW;
+        // the soles tilt with the slope under each foot (normal from the height field)
+        footLQ.premultiply(slopeQ(footL, hL, ikW)); footRQ.premultiply(slopeQ(footR, hR, ikW));
+        footL.y += oL; footR.y += oR; drop += Math.max(0, -Math.min(oL, oR));
+      }
       if (yawOn) rotateWorld(hips, qYaw, false);
       hipW.addScaledVector(upW, -drop).addScaledVector(fwdW, -(crouchT * 0.06 * (1 - slideT) + slideT * 0.14 - ladderT * 0.06) * scale);
       hips.position.copy(hips.parent.worldToLocal(_v1.copy(hipW)));
       hips.updateWorldMatrix(false, true);
-      if (drop > 1e-4 || poseW > 1e-3) {
+      if (lieK > 1e-3) {
+        // lying: legs stretch out along the body, one knee a little bent (foot lifted behind when face down)
+        const w = lieK * (1 - slump), hy = _v1.subVectors(hipW, pivotW).dot(upW) / scale;
+        // (z toward the ground: the pivot is lifted by the torso's thickness, the heels rest lower)
+        const spread = 1 - 0.6 * Math.abs(fallDir.x);               // on the side the legs lie stacked, not splayed up
+        footL.lerp(body(tgL, -0.15 * fallSide * spread, Math.max(0.02, hy - 0.88), -0.08 + 0.16 * fallFwd, scale), w);
+        footR.lerp(body(tgR, 0.19 * fallSide * spread, Math.max(0.16, hy - 0.7), -0.05 - 0.1 * fallFwd, scale), w);
+      }
+      if (drop > 1e-4 || poseW > 1e-3 || ikW > 1e-3 || lieK > 1e-3) {
         if (poseW > 1e-3) {
           const hy = _v1.subVectors(hipW, pivotW).dot(upW) / scale, inv = 1 / Math.max(1e-3, air + slideT + ladderT + grapT + mantleT);
           const rise = seg(vyS, -5, 5), tuck = Math.max(boostT, tuckT, (1 - sat(Math.abs(vyS) / 6)) * 0.45), kick2 = boostT * (1 - boostT) * 4;
@@ -396,8 +438,9 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
           lx += -0.12 * w; ly += 0.1 * w; lz += 0.62 * w; rx += 0.2 * w; ry += 0.07 * w; rz += 0.1 * w;
           w = ladderT * inv;                                         // ladder: alternate rungs with the climb height
           lx += -0.15 * w; ly += (0.22 + 0.14 * sl) * w; lz += 0.3 * w; rx += 0.15 * w; ry += (0.22 - 0.14 * sl) * w; rz += 0.3 * w;
-          w = grapT * inv;                                           // grapple: legs trail behind the pull
-          lx += -0.11 * w; ly += (hy - 0.84) * w; lz += -0.2 * w; rx += 0.12 * w; ry += (hy - 0.64) * w; rz += 0.12 * w;
+          w = grapT * inv;                                           // grapple: legs hang and trail behind the pull, swinging a little
+          const gs = Math.sin(clock * 4.3) * 0.07;
+          lx += -0.1 * w; ly += (hy - 0.83) * w; lz += (-0.3 + gs) * w; rx += 0.13 * w; ry += (hy - 0.64) * w; rz += (-0.16 - gs) * w;
           w = mantleT * inv;                                         // mantle: one knee swings up onto the ledge
           lx += -0.12 * w; ly += (hy - 0.82) * w; lz += -0.1 * w; rx += 0.14 * w; ry += (hy - 0.82 + 0.5 * mp) * w; rz += (0.1 + 0.25 * mp) * w;
           footL.lerp(body(tgL, lx, ly, lz, scale), poseW); footR.lerp(body(tgR, rx, ry, rz, scale), poseW);
@@ -415,11 +458,25 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
     }
 
     if (dead) {
-      const k = seg(deathT, 0.05, 0.6);
-      _q.setFromAxisAngle(rightW, -0.12 * k).premultiply(_q2.setFromAxisAngle(upW, -legOff / 3)); for (const sp of spine) rotateWorld(sp, _q);
-      rotateWorld(rig.head, _q.setFromAxisAngle(rightW, -0.25 * k).multiply(_q2.setFromAxisAngle(fwdW, deathRoll * 0.5 * k)));
-      rotateWorld(Lf.arm, _q.setFromAxisAngle(fwdW, 0.75 * k));
-      rotateWorld(Rt.arm, _q.setFromAxisAngle(fwdW, -0.75 * k));
+      // limp: the chest arches back (or curls when falling forward), the head lolls (turned aside when face down),
+      // the arms trail the fall and then splay out on the ground
+      const k = seg(deathT, 0.05, 0.6), lie = seg(deathT, 0.55, 0.95), fl = seg(deathT, 0.08, 0.4) * (1 - seg(deathT, 0.55, 0.9));
+      _q.setFromAxisAngle(rightW, (-0.12 + 0.3 * fallFwd) * k).premultiply(_q2.setFromAxisAngle(upW, -legOff / 3)); for (const sp of spine) rotateWorld(sp, _q);
+      _q.setFromAxisAngle(rightW, (-0.25 + 0.4 * fallFwd) * k).multiply(_q2.setFromAxisAngle(fwdW, deathRoll * 0.5 * k));
+      rotateWorld(rig.head, _q.premultiply(_q2.setFromAxisAngle(upW, fallFwd * fallSide * 1.0 * lie)));
+      const sw = fl * (0.7 - 1.4 * fallFwd);
+      rotateWorld(Lf.arm, _q.setFromAxisAngle(fwdW, (0.8 + 0.3 * fl) * k).premultiply(_q2.setFromAxisAngle(rightW, sw)));
+      rotateWorld(Rt.arm, _q.setFromAxisAngle(fwdW, -(0.8 + 0.3 * fl) * k).premultiply(_q2.setFromAxisAngle(rightW, sw * 0.8)));
+      if (lie > 1e-3) {
+        // on the ground the arms flop down onto it (no arm left pointing at the sky after a fall onto the side)
+        for (const S of [Lf, Rt]) for (const [bn, en] of [[S.arm, S.fore], [S.fore, S.hand]]) {
+          _a.setFromMatrixPosition(bn.matrixWorld); _v1.setFromMatrixPosition(en.matrixWorld).sub(_a).normalize();
+          _v2.set(_v1.x, 0, _v1.z);
+          if (_v2.lengthSq() < 0.1) _v2.set(upW.x, 0, upW.z);
+          _v2.normalize(); _v2.y = -0.3; _v2.normalize();
+          rotateWorld(bn, _q.setFromUnitVectors(_v1, _v2.lerp(_v1, 1 - lie).normalize()));
+        }
+      }
       return;
     }
 
@@ -537,6 +594,53 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       if (!controlled) { pivot.position.set(0, 0, 0); pivot.rotation.set(0, 0, 0); gunSlot.visible = true; tag.visible = !dead; act = null; resetMotion(); }
     },
   };
+  // ---- dropped weapon (death): tossed out of the hands, tumbles, lands flat on its side ----
+  function dropGun() {
+    root.updateMatrixWorld(true);
+    const g = gun.root;
+    drop.home = { p: g.position.clone(), q: g.quaternion.clone(), s: g.scale.clone() };
+    _m.copy(root.matrixWorld).invert().multiply(g.matrixWorld);
+    drop.g.add(g);
+    _m.decompose(g.position, g.quaternion, g.scale);
+    const r = () => Math.random() - 0.5;
+    drop.v.set(fallDir.x * 0.8 + r() * 0.8, 0.9 + Math.random() * 0.7, fallDir.z * 0.8 + r() * 0.8);
+    drop.w.set(r() * 6, r() * 4, r() * 7);
+    drop.c.addVectors(gun.anchors.butt, gun.anchors.muzzle).multiplyScalar(0.5);   // gun-local centre
+    drop.on = true; drop.rest = false;
+  }
+  const _dq = new THREE.Quaternion(), _de = new THREE.Euler(), _dc = new THREE.Vector3(), _dx = new THREE.Vector3(), _dz = new THREE.Vector3(), _dy = new THREE.Vector3();
+  const flatQ = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0);
+  function updateDrop(dt) {
+    const g = gun.root;
+    if (!drop.rest) {
+      drop.v.y -= 16 * dt;
+      g.position.addScaledVector(drop.v, dt);
+      g.quaternion.multiply(_dq.setFromEuler(_de.set(drop.w.x * dt, drop.w.y * dt, drop.w.z * dt)));
+      _dc.copy(drop.c).applyQuaternion(g.quaternion).add(g.position);
+      if (_dc.y < 0.06 && drop.v.y < 0) {
+        // landed: settle flat on whichever side is nearer, keeping the heading
+        drop.rest = true; drop.v.y = 0;
+        _dz.set(0, 0, 1).applyQuaternion(g.quaternion); _dz.y = 0;
+        if (_dz.lengthSq() < 1e-4) _dz.set(0, 0, 1); _dz.normalize();
+        _dx.set(0, _dx.set(1, 0, 0).applyQuaternion(g.quaternion).y >= 0 ? 1 : -1, 0);
+        _dy.crossVectors(_dz, _dx);
+        flatQ.setFromRotationMatrix(_m.makeBasis(_dx, _dy, _dz));
+      }
+    } else {
+      const k = Math.exp(-9 * dt);
+      drop.v.x *= k; drop.v.z *= k;
+      g.position.x += drop.v.x * dt; g.position.z += drop.v.z * dt;
+      g.quaternion.slerp(flatQ, 1 - Math.exp(-14 * dt));
+      _dc.copy(drop.c).applyQuaternion(g.quaternion);
+      g.position.y = damp(g.position.y, 0.035 - _dc.y, 18, dt);
+    }
+  }
+  function restoreGun() {
+    if (!drop.on) return;
+    const g = gun.root;
+    gunSlot.add(g); g.position.copy(drop.home.p); g.quaternion.copy(drop.home.q); g.scale.copy(drop.home.s);
+    drop.on = false;
+  }
   function resetMotion() {
     svf = lf; svr = lr; prevYaw = null; yawRate = leanF = leanR = flightF = flightR = 0; legOff = 0; rev = turning = false; turnK = 0;
     slideT = ladderT = mantleT = mantlePh = grapT = dashK = fireHold = kick = 0; airT = 0;
@@ -582,12 +686,24 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       flash.rotation.z = Math.random() * 6.28;
       flash.scale.setScalar((gunId === 'pistol' ? 0.22 : gunId === 'sniper' || gunId === 'shotgun' ? 0.5 : 0.34) * (0.8 + Math.random() * 0.5));
     },
-    die() {
+    /**
+     * Death fall. opts.dir: world-space push (away from the killer plus the body's momentum), else backward with a random
+     * sideways part. opts.maxAngle: how far over the body can go before it meets a wall (pi/2 = lies flat; less slumps).
+     */
+    die(opts = {}) {
       if (dead) return;
       dead = true; deathT = 0; deathRoll = (Math.random() - 0.5) * 0.7; tag.visible = false; flash.visible = false;
+      const d = opts?.isVector3 ? opts : opts?.dir;
+      if (d && d.x * d.x + d.z * d.z > 1e-6) fallDir.set(d.x, 0, d.z).normalize().applyAxisAngle(_up, -root.rotation.y);
+      else fallDir.set((Math.random() - 0.5) * 0.8, 0, 1).normalize();
+      fallAxis.set(fallDir.z, 0, -fallDir.x);
+      fallFwd = sat(-fallDir.z * 1.4); fallSide = fallDir.x >= 0 ? 1 : -1;
+      fallMax = clamp(opts?.maxAngle ?? Math.PI / 2, 0.3, Math.PI / 2);
+      if (!controlled && rig && gun) dropGun();
     },
     reset() {
       if (puppet.cleanup) { puppet.cleanup(); puppet.cleanup = null; }
+      restoreGun();
       controlled = false; gunSlot.visible = true; gunSlot.position.set(0, 0, 0);
       dead = false; deathT = 0; tag.visible = true;
       pivot.rotation.set(0, 0, 0); pivot.position.set(0, 0, 0);
@@ -598,6 +714,7 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       dt = Math.min(dt, 0.1);
       if (flashT > 0) { flashT -= dt; flashMat.opacity = sat(flashT / 0.06); if (flashT <= 0) flash.visible = false; }
       if (act) { actT += dt; if (actT >= actDur || dead) { act = null; if (nade) nade.group.visible = false; } }
+      if (drop.on && dt > 0) updateDrop(dt);
       clock += dt;
 
       // --- motion state from the networked sample: velocity in body space, mode blends, one-shot bursts
@@ -644,13 +761,16 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       // --- lean: into acceleration and turns on the ground (about the feet); along the cable / dash in the air
       svf = damp(svf, lf, 6, dt); svr = damp(svr, lr, 6, dt);
       const gnd = alive && !airborne ? 1 - Math.max(slideT, ladderT, mantleT) : 0;
-      leanF = damp(leanF, gnd * clamp((lf - svf) * 0.05, -0.2, 0.24) + gnd * lowT * 0.05, 9, dt);
+      // (+ a slight lean into a climb / back on the way down a slope or stairs)
+      const climb = hs > 1 ? clamp(vyS / hs, -0.6, 0.6) * 0.14 : 0;
+      leanF = damp(leanF, gnd * clamp((lf - svf) * 0.05, -0.2, 0.24) + gnd * (lowT * 0.05 + climb), 9, dt);
       leanR = damp(leanR, gnd * clamp((lr - svr) * 0.05 - yawRate * Math.min(hs, 8) * 0.008, -0.22, 0.22), 9, dt);
       let ff = 0, fr = 0;
       if (grap) {
         grapDir.copy(grap).sub(_v1.setFromMatrixPosition(root.matrixWorld)); grapDir.y -= 1.45; grapDir.normalize();
         const gf = -grapDir.x * sy - grapDir.z * cy, gr = grapDir.x * cy - grapDir.z * sy, gu = Math.max(0.25, grapDir.y);
-        ff = clamp(Math.atan2(gf, gu) * 0.6, -0.3, 0.7); fr = clamp(Math.atan2(gr, gu) * 0.45, -0.4, 0.4);
+        // hang from the cable: the body tips toward the anchor (hand up the rope, legs trailing below / behind)
+        ff = clamp(Math.atan2(gf, gu) * 0.8, -0.35, 0.85); fr = clamp(Math.atan2(gr, gu) * 0.55, -0.5, 0.5);
       } else if (alive && hs > 0.5) {
         const k = (airT * 0.012 + dashK * 0.022) / Math.max(1, hs / 13) + tuckT * 0.02;
         ff = clamp(lf * k, -0.3, 0.42); fr = clamp(lr * k, -0.34, 0.34);
@@ -695,14 +815,13 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       rig.hipsPos.copy(rig.hips.position);
 
       if (dead) {
-        deathT = Math.min(1, deathT + dt / 0.95);
-        const fall = seg(deathT, 0.12, 0.8), e = fall * fall;
-        pivot.rotation.set(e * Math.PI * 0.5, 0, deathRoll * e, 'YXZ');
-        pivot.position.set(0, e * 0.16 + Math.sin(sat((deathT - 0.8) / 0.2) * Math.PI) * 0.02, 0);
-        // weapon slips out of the hands
-        const g = seg(deathT, 0.1, 0.75);
-        gunSlot.rotation.set(0, -1.35 * g - deathRoll, 0);
-        gunSlot.position.lerp(_v1.set(0.32, -0.3, 0.125), 1 - Math.exp(-7 * dt * g));
+        // topple about the feet under gravity (accelerating, so it lands with weight), a small bounce at impact
+        deathT = Math.min(4, deathT + dt);
+        const u = sat((deathT - 0.08) / 0.6), b = sat((deathT - 0.68) / 0.32);
+        const a = fallMax * (u * u - 0.06 * Math.sin(Math.PI * b) * (1 - b));
+        pivot.quaternion.setFromAxisAngle(fallAxis, a).multiply(_q.setFromAxisAngle(_up, deathRoll * u));
+        const lk = a / (Math.PI / 2);
+        pivot.position.set(0, lk * lk * 0.15, 0);                     // the back / chest rests on the ground, not in it
         weaponPivot.rotation.x = damp(weaponPivot.rotation.x, 0, 6, dt);
         weaponPivot.rotation.y = damp(weaponPivot.rotation.y, 0, 6, dt); weaponPivot.rotation.z = damp(weaponPivot.rotation.z, 0, 6, dt);
       } else {

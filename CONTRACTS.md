@@ -72,7 +72,7 @@ Character = {
                                    // forward), ads 0..1, mode (0 normal, 1 slide, 2 ladder, 3 mantle, 4 dash),
                                    // grapple (world-space anchor Vector3 while reeling, else null)
   fire(): void,                    // third-person muzzle flash
-  die(): void,                     // death animation/ragdoll-ish fall; object stays until reset()
+  die(opts?): void,               // death fall; opts { dir: world push (away from killer + momentum), maxAngle: pi/2 or less near a wall }; the weapon drops to the ground; object stays until reset()
   reset(): void,
   update(dt): void,
   dispose(): void,

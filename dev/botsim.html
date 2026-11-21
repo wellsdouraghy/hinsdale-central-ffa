@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <base href="../" />
+  <title>Bot movement sim</title>
+  <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; background: #111316; color: #e6e6e6; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+    header { padding: 10px 14px; border-bottom: 1px solid #2a2d33; display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
+    header h1 { font-size: 15px; margin: 0; }
+    main { display: grid; grid-template-columns: minmax(420px, 1fr) minmax(320px, 1fr); gap: 12px; padding: 12px 14px; }
+    #summary { white-space: pre-wrap; background: #181b20; border: 1px solid #2a2d33; border-radius: 6px; padding: 10px; margin: 0; overflow: auto; max-height: 85vh; }
+    canvas#map { width: 100%; height: auto; border: 1px solid #2a2d33; border-radius: 6px; background: #000; }
+    #legend { font-size: 11px; color: #aab; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <header><h1>Bot movement sim</h1><span id="campus"></span><span id="status">loading…</span></header>
+  <main>
+    <section><pre id="summary"></pre></section>
+    <section>
+      <canvas id="map"></canvas>
+      <div id="legend">grey = nav walkable · red = stall &gt; 2 s (bigger = longer) · orange = bump (blocked against geometry) ·
+        cyan = bot/bot contact · magenta = oscillation · yellow = controller unstuck pop · white ring = stall on a roof</div>
+    </section>
+  </main>
+  <script type="module" src="dev/botsim.js"></script>
+</body>
+</html>
