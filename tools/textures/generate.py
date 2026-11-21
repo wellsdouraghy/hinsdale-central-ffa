@@ -227,11 +227,16 @@ def siding(sp, rng, kind):
         uid, ex, ey, ux, uy, uw, n = layout(W, H, pw, ph, e, lambda r: ([W / max(1, round(W / sp.get('board_len', 3.6)))], rng.uniform(0, W)))
         h = sp.get('lap', 0.012) * uy + 0.0003 * noise((ph, pw), 0, rng, aniso=(0.7, 30))
         shadow = np.clip(1 - (1 - uy) * e / 0.012, 0, 1)                    # under the board above
-        butt = np.clip(1 - ex / max(0.0015, px[0]), 0, 1) * 0.5
+        butt = np.clip(1 - ex / max(0.0015, px[0]), 0, 1) * sp.get('butt', 0.5)
         tone = 1 + sp.get('unit_var', 0.03) * rng.standard_normal(n).astype(np.float32)[uid]
         col = base * (tone * (1 - 0.5 * shadow) * (1 - butt))[..., None] * (1 + 0.03 * noise((ph, pw), 0, rng, aniso=(0.8, 40))[..., None])
         col = col * (1 + sp.get('chalk', 0.03) * fbm((ph, pw), 0.08 / px[0], rng, 3)[..., None] - 0.05 * (uy ** 3)[..., None])   # chalking, dirt on the drip edge
         alt = (W * 0.5, e * max(1, round(H / e / 2)))
+        if sp.get('vjoint'):   # lap siding laid in bays: a flat trim board [spacing, width] across the laps (painted like the wall), its shadow beside it
+            vs, vw = sp['vjoint']; nj = max(1, int(round(W / vs))); per = W / nj; t = (np.arange(pw) + 0.5) * px[0]; dd = np.abs(np.mod(t + per / 2, per) - per / 2)
+            m = np.clip(1 - (dd - vw / 2) / max(0.003, px[0]), 0, 1)[None, :].repeat(ph, 0); sh = np.clip(np.roll(m, 3, 1) - m, 0, 1) + 0.5 * np.clip(np.roll(m, -3, 1) - m, 0, 1)
+            col = col * (1 - m[..., None]) + base[None, None, :] * 1.02 * m[..., None]; col = col * (1 - sp.get('vjoint_shade', 0.5) * sh[..., None])
+            h = h * (1 - m) + (sp.get('lap', 0.012) + 0.008) * m; alt = (per * (nj // 2), alt[1])
     elif kind == 'shingle_siding':   # sawn cedar shingles, random widths, staggered butts, weathered
         lo, hi = sp.get('widths', [0.09, 0.22])
         def row(r):

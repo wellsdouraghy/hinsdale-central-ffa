@@ -122,30 +122,31 @@
    ]
   },
   {
-   "name": "brBoardBatten",
-   "kind": "board_batten",
-   "map": "brBoardBatten_c.jpg",
-   "normal": "brBoardBatten_n.jpg",
+   "name": "brLap",
+   "kind": "siding",
+   "map": "brLap_c.jpg",
+   "normal": "brLap_n.jpg",
    "sizeM": [
-    2.4,
-    2.4
+    4.8,
+    2.415
    ],
    "px": [
-    512,
+    1024,
     512
    ],
    "meanLinear": [
-    0.5894,
-    0.5305,
-    0.3242
+    0.5768,
+    0.5191,
+    0.3173
    ],
+   "courseM": 0.105,
    "altM": [
-    1.2,
-    0.984
+    2.4,
+    1.26
    ],
-   "key": "brBoardBatten",
+   "key": "brLap",
    "uvM": 2.2,
-   "roughness": 0.8,
+   "roughness": 0.78,
    "normalScale": 1.0,
    "weather": [
     0.1,
@@ -177,11 +178,12 @@
    ],
    "key": "brSeam",
    "uvM": 3.0,
-   "roughness": 0.5,
-   "metalness": 0.7,
+   "roughness": 0.55,
+   "metalness": 0.3,
    "normalScale": 1.0,
    "doubleSide": true,
-   "weather": false
+   "weather": false,
+   "notes": "v3: metalness 0.7 -> 0.3 (the roof mirrored the sky and read navy-grey 107/112/131 against the photo's 177/178/186)"
   },
   {
    "name": "brFormConcrete",

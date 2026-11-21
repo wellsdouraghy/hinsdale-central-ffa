@@ -151,7 +151,7 @@ function sitework(ctx) {
 }
 
 export function build(ctx, progress = () => {}) {
-  addMaterials(ctx); addStyles();
+  addMaterials(ctx); addStyles(ctx);
   terrainSampler(ctx.gen);   // installs the backdrop grid (descriptor terrain.outside reads it beyond the satellite rectangle)
   sitework(ctx);
   const c = ctx.campus || {};

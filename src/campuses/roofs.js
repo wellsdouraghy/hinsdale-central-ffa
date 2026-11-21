@@ -63,20 +63,21 @@ export function roofRects(ring, o, { minSide = 1.8, tol = 0.35, max = 6 } = {}) 
 /**
  * hipRoof(ctx, box, eaveY, rise, opts) is the kit's own builder; it must honour opts.caps === false and opts.planeUV
  * (uv from the face plane / world, so coplanar faces and soffits of two pieces carry the same texture and do not shimmer).
- * opts: tint, overhang, noCollision, fill (solid attic, where the kit's hipRoof has it).
+ * opts: tint, overhang, noCollision, fill (solid attic, where the kit's hipRoof has it), bucket (roofing material key instead of 'shingles':
+ * a campus pack's keyed tile; handed on to hipRoof as opts.bucket).
  */
 export function polyRoofOf(hipRoof, minAreaOBB, ctx, ringIn, eaveY, rise, opts = {}) {
   const { B } = ctx; const ring = ensureCCW(ringIn); const o = minAreaOBB(ring); if (!o) return;
   const ov = opts.overhang === undefined ? 0.5 : opts.overhang; const t = opts.tint; const uvS = 1 / 3;
   const rects = roofRects(ring, o);
-  if (!rects.length) { hipRoof(ctx, o, eaveY, rise, { tint: t, overhang: ov, noCollision: opts.noCollision }); return; }   // nothing rectangular in it: one closed hip over the lot
-  const bucket = B.v('shingles', true); bucket.setColor(t[0], t[1], t[2]);
+  if (!rects.length) { hipRoof(ctx, o, eaveY, rise, { tint: t, overhang: ov, noCollision: opts.noCollision, bucket: opts.bucket }); return; }   // nothing rectangular in it: one closed hip over the lot
+  const bucket = B.v(opts.bucket || 'shingles', true); bucket.setColor(t[0], t[1], t[2]);
   // deck at the eave over the footprint: seen only where no rectangle reaches (it lies on the collision cap of the wall
   // prism, so it is solid wherever it shows). The overhangs are closed by each piece's own soffit.
   bucket.poly(ring, null, eaveY + 0.01, (x, z) => [x * uvS, z * uvS]);
   // equal pitch: the widest piece gets `rise`, narrower wings end lower
   const hwOf = (r) => Math.min(r.u1 - r.u0, r.v1 - r.v0) / 2 + ov; const pitch = rise / Math.max(...rects.map(hwOf));
-  for (const r of rects) hipRoof(ctx, { tx: o.tx, tz: o.tz, u0: r.u0, u1: r.u1, v0: r.v0, v1: r.v1 }, eaveY, pitch * hwOf(r), { tint: t, overhang: ov, noCollision: opts.noCollision, fill: opts.fill, caps: false, planeUV: true });
+  for (const r of rects) hipRoof(ctx, { tx: o.tx, tz: o.tz, u0: r.u0, u1: r.u1, v0: r.v0, v1: r.v1 }, eaveY, pitch * hwOf(r), { tint: t, overhang: ov, noCollision: opts.noCollision, fill: opts.fill, caps: false, planeUV: true, bucket: opts.bucket });
   // ridge / hip caps, only where the line is a real crease of the combined roof (not where it runs across or inside
   // another piece)
   const hAt = (r, u, v) => { const d = Math.min(u - r.u0 + ov, r.u1 + ov - u, v - r.v0 + ov, r.v1 + ov - v); return d < 0 ? -1e9 : pitch * d; };
