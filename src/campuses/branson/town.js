@@ -17,13 +17,13 @@ const tame = (rgb) => { if (!rgb) return rgb; const l = (rgb[0] + rgb[1] + rgb[2
 const MAIN_STREETS = [];
 // single buildings Street View shows differently from the generic house: First Presbyterian's hall on E St is a brown
 // wood-sided hall under one steep gable
-const HOUSE_FIX = {};
+const HOUSE_FIX = { 976135755: { top: 12.65, rise: 2.4 } };   // (the house west of the Commons: eave height from the 3D tiles, absolute)
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([]);
 // Houses whose footprint falls two storeys or more toward a road below them: they show that many walk-out lower floors
 // on the downhill side instead of standing on a terrace of fill (the house above Bryn Mawr Drive sat on 6 m of it: a cone
 // of grass, then a concrete ziggurat, at the road). The lot keeps the natural bank.
-const HOUSE_LOWER = {};
+const HOUSE_LOWER = { 976135755: 1 };   // the house west of the Commons: one storey toward the hill, a walk-out floor toward the glen (tiles: eave 3.1 m over the uphill ground, 6 m over the downhill ground)
 
 function simplify(ring, tol = 0.6) {
   // drop tiny jogs so walls do not shatter into slivers (keeps corners sharper than `tol`)
@@ -78,8 +78,10 @@ function housePlan(ctx, ring, info, fa, id) {
   const g = ringGround(ctx, ring); const fr = frontEdge(ctx, ring); const gF = fr ? edgeGround(ctx, fr.a, fr.b).mean : g.max; const fix = HOUSE_FIX[id];
   const lv = fa.lv || Math.max(1, Math.min(2, info.lv || 1)); const walls = lv >= 3 && fa.roof !== 'flat' ? 2 : Math.min(lv, 3);   // a third 'storey' under a pitched roof is the attic in the gable
   let top = fa.lv ? gF + walls * 2.9 + (lv >= 3 ? 0.8 : 0.3) : Math.min(Math.max(info.top ?? g.max + info.h, gF + 2.7), gF + 6.4);
-  if (fix) top = gF + fix.eave;
-  const lower = HOUSE_LOWER[id] || 0; const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
+  if (fix) top = fix.top ?? gF + fix.eave;
+  // walk-out floors: as many as the natural fall along the walls needs (never fill under a house, rule B11), at most 2
+  const lower = HOUSE_LOWER[id] ?? Math.max(0, Math.min(2, Math.floor((top - g.min - walls * 2.9 - 0.9) / 2.9 + 0.35))); const rows = walls + (fa.garage ? 1 : 0) + lower;              // + the garage level under the house where Street View shows one, + walk-out floors
+  if (!fix) top = Math.min(top, g.min + (walls + lower) * 3 + 1.3);   // on a very steep lot the house steps down with the hill (a deeper cut uphill), it never towers on its low side
   return { top, rows, walls: walls + lower, garage: !!fa.garage, pad: top - (rows * 2.9 + 0.9), cut: top - 2.8, g };
 }
 // where the front door (and the garage door) stand on the street-side wall: fixed per house, so the plan can level an
@@ -93,7 +95,7 @@ function housePad(ctx, ring, pl) {
   const T = ctx.terrain; if (!T) return; const fill = pl.pad - pl.g.min, cut = pl.g.max - pl.cut; if (fill < 0.3 && cut < 0.3) return;
   let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length;
   const out = ring.map(([x, z]) => { const d = Math.hypot(x - cx, z - cz) || 1; return [x + (x - cx) / d * 2.4, z + (z - cz) / d * 2.4]; });
-  ctx.flatten({ outline: out }, { y: (x, z) => Math.min(Math.max(T.heightAt(x, z), pl.pad), Math.max(pl.cut, pl.pad)), blend: Math.max(3, Math.min(4.5, Math.max(fill, cut) * 1.2)) });
+  ctx.flatten({ outline: out }, { y: (x, z) => Math.min(T.heightAt(x, z), Math.max(pl.cut, pl.pad) - 0.45), blend: Math.max(3, Math.min(4.5, Math.max(fill, cut) * 1.2)) });
   pl.padded = true;
 }
 
@@ -105,7 +107,7 @@ function house(ctx, ring, info, rnd, fa, id) {
   const top = Math.max(plan.top, ringGround(ctx, ring).max + 1.0); let rowsDrawn = 0;
   const kind = WALL_KINDS.includes(fa.wall) ? fa.wall : 'stucco'; const col = tame(fa.col || [214, 206, 188]); const tint = wallTint(col).map((v) => v * 1.12), dark = wallTint(col.map((v) => v * 0.84));
   const trim = fa.trim ? lin(fa.trim) : [0.85, 0.84, 0.8];
-  const roofTint = fa.roofMat === 'clay_tile' ? CLAY : tileTint(fa.roofCol && fa.roofMat !== 'membrane' ? fa.roofCol.map((v) => Math.max(v, 70)) : info.col);
+  const roofTint = (fa.roofMat === 'clay_tile' ? CLAY : tileTint(fa.roofCol && fa.roofMat !== 'membrane' ? fa.roofCol.map((v) => Math.max(v, 70)) : info.col)).map((v) => v * 2.1);
   sited(ctx, ring, (base) => {
     const eave = top - base; const w = B.v('maW_' + kind, true), pl = B.v('maP_' + kind, true); const tb = B.v('paint', true); let lowerBays = null;
     for (let i = 0; i < ring.length; i++) {

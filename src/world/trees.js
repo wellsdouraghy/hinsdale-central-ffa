@@ -194,7 +194,8 @@ export function createTrees(ctx) {
   };
   const uSunDirV = { value: new THREE.Vector3() }, uTime = { value: 0 };
   const barkMat = new THREE.MeshStandardMaterial({ map: T.barkColor, normalMap: quality === 'low' ? null : T.barkNormal, roughness: 0.95, color: 0x6e5d50, vertexColors: true });
-  const leafMats = [mkLeaf(leafTexA, 0xffffff), mkLeaf(leafTexB, 0xf2ffd8), mkLeaf(conTex, 0xffffff)];
+  const leafMats = [mkLeaf(leafTexA, 0xffffff), mkLeaf(leafTexB, 0xf2ffd8), mkLeaf(conTex, 0xffffff), mkLeaf(conTex, 0xa9c6d6)];   // (last: blue-grey needles, the broad cedar)
+  leafMats[3].color.setRGB(1.35, 1.65, 1.9);   // (the needle texture is a dark green: lift it to a silvery blue-grey)
   const cards = quality === 'low' ? 110 : quality === 'medium' ? 190 : 400;
   const cs = quality === 'low' ? 1.35 : quality === 'medium' ? 1.1 : 0.86;
   const variants = [
@@ -203,6 +204,7 @@ export function createTrees(ctx) {
     { ...makeDeciduous(37, { H: 18.0, R: 7.0, cards: Math.round(cards * 1.15), cardSize: cs * 1.1, trunk: 0.52 }), leafMat: leafMats[0] },
     { ...makeConifer(51, { H: 14.5, R: 3.4 }), leafMat: leafMats[2] },
     { ...makeDeciduous(71, { H: 7.5, R: 3.0, cards: Math.round(cards * 0.5), cardSize: cs * 0.75, trunk: 0.2 }), leafMat: leafMats[1] },   // young/ornamental
+    { ...makeConifer(67, { H: 15.5, R: 16 }), leafMat: leafMats[3] },   // broad blue-grey cedar (gen.trees kind 2: landmark specimens, e.g. a Blue Atlas Cedar)
   ];
 
   // ---- impostor atlas (one column per variant), lit like the scene
@@ -251,7 +253,7 @@ export function createTrees(ctx) {
     // under the trunk, so the root flare never floats on a slope)
     const [x, z, kind, s] = t; const ty = t.length > 4 ? t[4] : terrain ? terrain.minIn(x, z, 0.5) : 0;
     let vi;
-    if (kind === 1) vi = 3; else { const r = rnd(); vi = s < 0.82 && r < 0.5 ? 4 : r < 0.42 ? 0 : r < 0.78 ? 1 : 2; }
+    if (kind === 2) vi = 5; else if (kind === 1) vi = 3; else { const r = rnd(); vi = s < 0.82 && r < 0.5 ? 4 : r < 0.42 ? 0 : r < 0.78 ? 1 : 2; }
     const key = Math.floor(x / CHUNK) + ':' + Math.floor(z / CHUNK);
     let ch = chunks.get(key); if (!ch) { ch = { lists: variants.map(() => []), cx: 0, cz: 0, n: 0 }; chunks.set(key, ch); }
     const sc = (vi === 4 ? 1.0 : s) * (0.9 + rnd() * 0.25);

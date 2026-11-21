@@ -6,11 +6,18 @@
 // Ave), white modern boxes (Science + Innovation Center, Visual Arts), the barrel-vaulted Old Gym with its solar array
 // and the Athletic Center with its curved roof and translucent sea-green walls.
 import * as THREE from 'three';
-import { sited, atGround, onSlope, edgeGround, guardRail, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence , hedgeMass } from './kit.js';
+import { sited, atGround, onSlope, edgeGround, guardRail, terraceBlocks, ANG, UX, UZ, rect, gp, CLAY, CLAY_DARK, kitWalls, flatBuilding, hipBuilding, hipRoof, wellRoof, boxFromRect, ringLadder, wallDecal, edgeFrame, quadFacing, wallRect, fbox, ensureCCW, makeCanvas, canvasTexture, mulberry32 , hillFence , hedgeMass } from './kit.js';
 import { doorFromKit, roofUnit } from '../../world/facade.js';
 import { propKit } from '../../world/props.js';
 import { paintedQuad } from '../../world/fields.js';
 import { bleachers } from '../../world/landmarks.js';
+
+// Roof / eave heights of the school's hand-modelled buildings, metres above the Championship Field (y = 0): the 3D-tiles
+// roof samples inside each footprint with the ONE constant offset to the DEM (tools/terrain.py; parapet or eave, so a
+// little above the sampled deck). Re-measured after the DEM registration fix: the old values came from an offset fitted
+// locally to a DEM that was stretched north-south, and were up to 1.4 m (the service building 3 m) off.
+const TOP = { fosterWing: 12.0, thacher: 8.9, thacherWing: 8.3, science: 13.45, oldGym: 16.9, athletic: 16.4, athleticEast: 19.6, visArts: 4.6, campus76: 13.0, service: 15.6,
+  leadership: 6.2 /* (floor = the Mission Ave walk, 1.6 m: at 5.8 the north wall stood in a 0.4 m cut behind a concrete block) */, leadershipEast: 5.8, library: 6.1, libraryWest: 5.7 /* (hip roofs: the eave is the LOW end of the samples, their 10th percentile) */, pac: 8.3, pacLow: 5.8, founders: 7.5 };
 
 export const SCHOOL_IDS = new Set([652917773, 652917775, 652917776, 652917777, 652917778, 652917779, 652917780, 652917781, 652917782, 652917783, 652917784, 652917785, 1460794276]);
 const FOSTER_ROOF = [1.75, 1.42, 1.18];   // weathered grey-brown shingle (Street View), as a tint of the tile texture
@@ -42,7 +49,7 @@ function solarRows(ctx, cx, cz, w, d, y, rows) {
 function fosterHall(ctx) {
   // stands on its porch terrace (flattened in sitework): ridge 21.9 m, wing eave 12.4 m above the field
   const main = rect(-18.0, -45.3, 22.4, 19.4); const pc = gp(-18.0, -45.3, 0, 9.7 + 1.7);   // (roof: grey-brown composition shingle in Street View, not red clay)
-  sited(ctx, main, (base) => fosterHallAt(ctx, main, 12.4 - base), { base: ctx.groundY(pc[0], pc[1]) });
+  sited(ctx, main, (base) => fosterHallAt(ctx, main, TOP.fosterWing - base), { base: ctx.groundY(pc[0], pc[1]) });
 }
 function fosterHallAt(ctx, main, wingEave) {
   const { B } = ctx; const eave = 8.8;
@@ -112,7 +119,7 @@ function thacherHall(ctx) {
   // built into the slope between the circle (+4.5 m) and the field terrace (+1.1 m): two storeys toward the field, one
   // toward the circle. Eave 8.9 m above the field (main), 8.3 m (west wing).
   const main = rect(10.6, -1.3, 11.2, 33.4); const e = gp(10.6, -1.3, 7.6, 0);
-  sited(ctx, main, (base) => thacherHallAt(ctx, main, 8.9 - base, 8.3 - base), { base: ctx.groundY(e[0], e[1]) });
+  sited(ctx, main, (base) => thacherHallAt(ctx, main, TOP.thacher - base, TOP.thacherWing - base), { base: ctx.groundY(e[0], e[1]) });
 }
 function thacherHallAt(ctx, main, eave, eaveW) {
   const { B } = ctx; const west = rect(1.6, 9.2, 7.0, 10.6);
@@ -128,12 +135,13 @@ function thacherHallAt(ctx, main, eave, eaveW) {
 }
 
 // ============================================================================================ Science + Innovation Center
-function scienceCenter(ctx, ring) { sited(ctx, ring, (base) => scienceCenterAt(ctx, ring, 13.8 - base)); }   // parapet 13.8 m above the field: three storeys toward the field, one at the gym plaza
+function scienceCenter(ctx, ring) { sited(ctx, ring, (base) => scienceCenterAt(ctx, ring, TOP.science - base)); }   // parapet 13.45 m above the field: three storeys toward the field, one at the gym plaza
 function scienceCenterAt(ctx, ring, h) {
   const { B } = ctx;
   const { roofY } = flatBuilding(ctx, ring, h, 'maModern', { units: 3 });
   // stair / mechanical penthouse and a screened plant enclosure, as on the real roof
   const p = gp(21, -50, 0.5, -2); gridBox(B, 'whitePanel', 'metal', p[0], roofY + 1.2, p[1], 9.0, 2.4, 20.0);
+  (ctx.roofPads = ctx.roofPads || []).push([22, TOP.science - h + roofY + 2.5, -52]);   // hidden-helicopter pad on the penthouse roof: the deck height as built (it was a typed 15.5)
   B.v('frameAlu').box(p[0], roofY + 2.45, p[1], 9.3, 0.1, 20.3, ROT);
   const q = gp(21, -50, 0, 14); gridBox(B, 'louver', 'metal', q[0], roofY + 0.9, q[1], 8.0, 1.8, 5.0, 2.2);
   // east entry canopy facing the field + building name
@@ -151,7 +159,7 @@ function scienceCenterAt(ctx, ring, h) {
 }
 
 // ============================================================================================ Old Gym (barrel vault + solar)
-function oldGym(ctx, ring) { sited(ctx, ring, (base) => oldGymAt(ctx, ring, 17.6 - base)); }   // eaves 17.6 m, crown of the vault 19.9 m above the field (about 7 m / 9 m over the plaza: it was 9 m / 12.4 m)
+function oldGym(ctx, ring) { sited(ctx, ring, (base) => oldGymAt(ctx, ring, TOP.oldGym - base)); }   // eaves 16.9 m, crown of the vault 19.2 m above the field (about 7 m / 9 m over the plaza: it was 9 m / 12.4 m)
 function oldGymAt(ctx, ring, eave) {
   const { B } = ctx; const rise = 2.3;
   kitWalls(ctx, ring, eave, 'maGym');
@@ -177,11 +185,11 @@ function oldGymAt(ctx, ring, eave) {
   // arched window in each lunette + eave fascia
   for (const sgn of [-1, 1]) { const c = gp(cx, cz, 0, sgn * (d / 2 + 0.03)); B.v('glassInt').box(c[0], eave + 1.2, c[1], 7.0, 1.6, 0.05, ROT); B.v('frame').box(c[0], eave + 0.36, c[1], 7.3, 0.1, 0.1, ROT).box(c[0], eave + 2.04, c[1], 7.3, 0.1, 0.1, ROT); for (const k of [-3.6, -1.2, 1.2, 3.6]) { const m = gp(cx, cz, k, sgn * (d / 2 + 0.05)); B.v('frame').box(m[0], eave + 1.2, m[1], 0.09, 1.7, 0.09, ROT); } }
   const tex = ctx.M.textDecal(['MARIN ACADEMY', 'WILDCATS'], { w: 1280, h: 384, font: 118, color: '#b3261e', align: 'center', weight: 800, spacing: '10px' });
-  const Fs = edgeFrame(...gp(cx, cz, w / 2, d / 2), ...gp(cx, cz, -w / 2, d / 2)); { const m = gp(cx, cz, 0, d / 2 + 0.6); const hw = eave + (ctx.B.off ? ctx.B.off.y : 0) - ctx.groundY(m[0], m[1]); wallDecal(ctx, tex, Fs, Fs.L / 2, eave - hw * 0.27, 7.6, 2.7, 0.18); }   // on the plain band between the doors and the clerestory of the south wall
+  const Fs = edgeFrame(...gp(cx, cz, w / 2, d / 2), ...gp(cx, cz, -w / 2, d / 2)); { const m = gp(cx, cz, 0, d / 2 + 0.6); const hw = eave + (ctx.B.off ? ctx.B.off.y : 0) - ctx.groundY(m[0], m[1]); wallDecal(ctx, tex, Fs, Fs.L / 2, eave - Math.max(hw * 0.27, 4.6), 7.6, 2.7, 0.18); }   /* (the south wall is 11 m tall on the real ground: under the clerestory, not a fixed share of the height) */   // on the plain band between the doors and the clerestory of the south wall
 }
 
 // ============================================================================================ Athletic Center (new gym)
-function athleticCenter(ctx, ring) { sited(ctx, ring, (base) => athleticCenterAt(ctx, ring, 17.8 - base, 21.0 - base, base)); }   // roof 17.8 m (west) rising to 21.0 m (east) above the field
+function athleticCenter(ctx, ring) { sited(ctx, ring, (base) => athleticCenterAt(ctx, ring, TOP.athletic - base, TOP.athleticEast - base, base)); }   // roof 16.4 m (west) rising to 19.6 m (east) above the field
 function athleticCenterAt(ctx, ring, lo, hi, base) {
   const { B } = ctx;
   kitWalls(ctx, ring, lo, 'maGymPlain');
@@ -215,7 +223,7 @@ function athleticCenterAt(ctx, ring, lo, hi, base) {
 // ============================================================================================ Visual Arts Center
 function visualArts(ctx, ring) {
   sited(ctx, ring, (base) => {
-    const { roofY } = flatBuilding(ctx, ring, 4.7 - base, 'maVisArts', {});
+    const { roofY } = flatBuilding(ctx, ring, TOP.visArts - base, 'maVisArts', {});
     solarRows(ctx, -92.6, -22.2, 20, 7.6, roofY, 4); solarRows(ctx, -92.2, -4.2, 22, 9.6, roofY, 5);
     ringLadder(ctx, ring, 1, 0.5, roofY);
   });
@@ -227,30 +235,69 @@ function leadershipCenter(ctx) {
   // South campus falls ~4 m from Mission Ave to 5th Ave. Bodie Brizendine Leadership Center: long north-south bar (eave
   // 5.6 m above the field: 1.5 storeys on Mission Ave, 3 at its south end) + east wing toward the courtyard
   sited(ctx, rect(-12.4, 61.0, 10.6, 51.6), (base) => {
-    const eave = 5.6 - base;
+    const eave = TOP.leadership - base;
     hipBuilding(ctx, rect(-12.4, 61.0, 10.6, 51.6), eave, 'maMission', { roofs: [] });
     { const wr = wellRoof(ctx, boxFromRect(-12.4, 61.0, 10.6, 51.6), eave, 2.2, 2.9, { overhang: 0.8 }); const r2 = mulberry32(12); for (const b of [-17, -6, 5, 16]) { const p = gp(-12.4, 61.0, 0, b); roofUnit(ctx, p[0], wr.deck, p[1], ROT + Math.PI / 2, r2); } }
   });
-  sited(ctx, rect(-2.3, 54.6, 10.4, 30.4), (base) => hipBuilding(ctx, rect(-2.3, 54.6, 10.4, 30.4), 5.4 - base, 'maMission', { rise: 1.9, overhang: 0.7, roofs: [boxFromRect(-2.3, 54.6, 10.4, 30.4)] }));
+  sited(ctx, rect(-2.3, 54.6, 10.4, 30.4), (base) => hipBuilding(ctx, rect(-2.3, 54.6, 10.4, 30.4), TOP.leadershipEast - base, 'maMission', { rise: 1.9, overhang: 0.7, roofs: [boxFromRect(-2.3, 54.6, 10.4, 30.4)] }));
   { const m = gp(-12.4, 61.0, 0, -26.4); atGround(ctx, m[0], m[1], (g) => { const F = edgeFrame(...gp(-12.4, 61.0, 5.3, -25.82), ...gp(-12.4, 61.0, -5.3, -25.82));
     wallDecal(ctx, signTexture([['MARIN ACADEMY', 120, '#3a2a1c']], { w: 1280, h: 200 }), F, F.L / 2, Math.max(3.2, 5.6 - g - 1.5), 7.2, 1.1, 0.09); }, 2); }
   // Library: bar along the pool side (eave 5.9 m above the field, three storeys over the pool deck) + west wing
   sited(ctx, rect(29.9, 60.4, 12.9, 42.4), (base) => {
-    hipBuilding(ctx, rect(29.9, 60.4, 12.9, 42.4), 5.9 - base, 'maMission', { roofs: [] });
-    const wr = wellRoof(ctx, boxFromRect(29.9, 60.4, 12.9, 42.4), 5.9 - base, 2.0, 3.3, { overhang: 0.8 }); const a = gp(29.9, 60.4, 0, -6.5); solarRows(ctx, a[0], a[1], 4.8, 20, wr.deck, 8); const r2 = mulberry32(13); for (const b of [9, 14.5]) { const p = gp(29.9, 60.4, 0, b); roofUnit(ctx, p[0], wr.deck, p[1], ROT + Math.PI / 2, r2); }
+    hipBuilding(ctx, rect(29.9, 60.4, 12.9, 42.4), TOP.library - base, 'maMission', { roofs: [] });
+    const wr = wellRoof(ctx, boxFromRect(29.9, 60.4, 12.9, 42.4), TOP.library - base, 2.0, 3.3, { overhang: 0.8 }); const a = gp(29.9, 60.4, 0, -6.5); solarRows(ctx, a[0], a[1], 4.8, 20, wr.deck, 8); const r2 = mulberry32(13); for (const b of [9, 14.5]) { const p = gp(29.9, 60.4, 0, b); roofUnit(ctx, p[0], wr.deck, p[1], ROT + Math.PI / 2, r2); }
   });
-  sited(ctx, rect(18.9, 58.6, 9.6, 34.6), (base) => hipBuilding(ctx, rect(18.9, 58.6, 9.6, 34.6), 5.3 - base, 'maMission', { rise: 2.0, overhang: 0.7, roofs: [boxFromRect(18.9, 58.6, 9.6, 34.6)] }));
+  sited(ctx, rect(18.9, 58.6, 9.6, 34.6), (base) => hipBuilding(ctx, rect(18.9, 58.6, 9.6, 34.6), TOP.libraryWest - base, 'maMission', { rise: 2.0, overhang: 0.7, roofs: [boxFromRect(18.9, 58.6, 9.6, 34.6)] }));
   // courtyard between the two (a level terrace, flattened in sitework): paved patio, pergola on the Mission Ave side, cafe tables
   const cy = gp(7.7, 60.5, 0, 0); onSlope(ctx, cy[0], cy[1], 4, () => courtyard(ctx));
+  courtSteps(ctx);
+}
+// The flight from the Mission Ave walk down to the forecourt, and the retaining blocks that hold the frontage strip either
+// side of it (one wall each, coping, guard rail on the forecourt edge and along the flight).
+function courtSteps(ctx) {
+  const st0 = COURT_STAIR, ps = ctx.courtStair; if (!ps || !ctx.terrain) return; const st = { ...st0, bTop: ps.bTop, apron: ps.bTop - st0.bWalk }; const G = (a, b) => gp(0, 0, a, b);
+  stairFlight(ctx, st, ps);
+  // Either side of the flight the frontage strip is a PLANTED bank held by low walls (Street View: lawn and clipped hedges
+  // between the sidewalk and the buildings, low concrete walls along the ramp), not a concrete block: a raised bed whose top
+  // runs with the sidewalk (Mission Ave falls 7 % here: a level top was a wedge), ivy and a clipped hedge on it, a wall with
+  // a coping on the forecourt side and along the flight, a guard rail over the drop. It carries on 2.1 m past each wing's
+  // corner, where the lattice cell that straddles the edge of the forecourt dips in front of the north wall.
+  const { B } = ctx; const conc = B.v('concrete'), col = B.c('concrete'), cope = B.v('limestone'), ivy = B.v('maHedge', true); const y0 = ps.botY - 0.5, bN = st.bWalk + 0.02;
+  for (const [a0, a1, bS, wallA] of [[st.gapA[0] - 2.1, st.a0, st.westB, st.gapA[0]], [st.a1, st.gapA[1] + 2.1, st.eastB, st.gapA[1]]]) {
+    const n = Math.max(2, Math.round((a1 - a0) / 1.4)); const top = (a) => { let m = -Infinity; for (let b = bN - 0.2; b <= bS + 0.001; b += 0.4) { const q = G(a, b); m = Math.max(m, ctx.groundY(q[0], q[1])); } return m + 0.06; };
+    const hs = []; for (let i = 0; i <= n; i++) hs.push(top(a0 + (a1 - a0) * i / n)); for (let i = 1; i <= n; i++) hs[i] = Math.max(hs[i], hs[i - 1] - 0.18); for (let i = n - 1; i >= 0; i--) hs[i] = Math.max(hs[i], hs[i + 1] - 0.18);
+    const P3 = (a, b, y) => { const q = G(a, b); return [q[0], y, q[1]]; }; let hMax = -Infinity;
+    for (let i = 0; i < n; i++) { const u0 = a0 + (a1 - a0) * i / n, u1 = a0 + (a1 - a0) * (i + 1) / n, h0 = hs[i], h1 = hs[i + 1]; hMax = Math.max(hMax, h0, h1); const w = u1 - u0;
+      ivy.setColor(0.5, 0.56, 0.46); quadFacing(ivy, P3(u0, bN, h0), P3(u1, bN, h1), P3(u1, bS, h1), P3(u0, bS, h0), [0, 1, 0], [[u0 / 2, 0], [u1 / 2, 0], [u1 / 2, (bS - bN) / 2], [u0 / 2, (bS - bN) / 2]]);
+      quadFacing(col, P3(u0, bN, h0), P3(u1, bN, h1), P3(u1, bS, h1), P3(u0, bS, h0), [0, 1, 0]);
+      for (const bk of [conc, col]) { const uv = bk === col ? undefined : [[0, 0], [w / 3, 0], [w / 3, 0.8], [0, 0.8]];
+        quadFacing(bk, P3(u0, bS, y0), P3(u1, bS, y0), P3(u1, bS, h1), P3(u0, bS, h0), [-UZ, 0, UX], uv); quadFacing(bk, P3(u0, bN, y0), P3(u1, bN, y0), P3(u1, bN, h1), P3(u0, bN, h0), [UZ, 0, -UX], uv); }
+      const south = u0 >= Math.min(wallA, st.a0) - 0.01 && u1 <= Math.max(wallA, st.a1) + 0.01;   // the stretch that faces the forecourt (the rest stands against a wing's north wall)
+      if (south) quadFacing(cope, P3(u0, bS - 0.32, h0 + 0.04), P3(u1, bS - 0.32, h1 + 0.04), P3(u1, bS + 0.03, h1 + 0.04), P3(u0, bS + 0.03, h0 + 0.04), [0, 1, 0], [[0, 0], [w / 3, 0], [w / 3, 0.12], [0, 0.12]]);
+      // a clipped hedge along the back of the bed (low: it must not hide the windows behind)
+      { const m = G((u0 + u1) / 2, bS - 1.0); hedgeMass(ctx, m[0], m[1], Math.min(h0, h1), w + 0.03, 0.7, 0.75 + Math.abs(h1 - h0), ROT, i); } }
+    ivy.setColor(1, 1, 1);
+    // the two ends: the wall along the flight (with its coping) and the outer end
+    for (const [u, h, nrm, inner] of [[a0, hs[0], [-UX, 0, -UZ], a0 === st.a1], [a1, hs[n], [UX, 0, UZ], a1 === st.a0]]) { for (const bk of [conc, col]) quadFacing(bk, P3(u, bN, y0), P3(u, bS, y0), P3(u, bS, h), P3(u, bN, h), nrm, bk === col ? undefined : [[0, 0], [(bS - bN) / 3, 0], [(bS - bN) / 3, 0.8], [0, 0.8]]);
+      if (inner) { const o = nrm[0] > 0 ? -1 : 1; quadFacing(cope, P3(u, bN, h + 0.04), P3(u, bS, h + 0.04), P3(u + o * 0.34, bS, h + 0.04), P3(u + o * 0.34, bN, h + 0.04), [0, 1, 0], [[0, 0], [1, 0], [1, 0.12], [0, 0.12]]);
+        const p0 = G(u + o * 0.12, ps.bTop + 0.3), p1 = G(u + o * 0.12, bS - 0.15); if (h - ps.botY > 1.2) guardRail(ctx, p0[0], p0[1], p1[0], p1[1], h + 0.06); } }
+    // guard rail on the forecourt edge
+    { const e0 = Math.max(a0, Math.min(wallA, st.a0)), e1 = Math.min(a1, Math.max(wallA, st.a1)); const p0 = G(e0 + 0.1, bS - 0.14), p1 = G(e1 - 0.1, bS - 0.14); if (hMax - ps.botY > 1.2) guardRail(ctx, p0[0], p0[1], p1[0], p1[1], Math.max(top(e0), top(e1)) + 0.02); }
+  }
+  // the lawn strip in front of the two wings carries its clipped hedge against the wall too (Street View: about 1.2 m)
+  for (const [u0, u1, bW] of [[-9.6, st.gapA[0] - 2.3, 38.9], [st.gapA[1] + 2.3, 30.6, 38.1]]) for (let u = u0; u < u1 - 0.5; u += 2.6) { const w = Math.min(2.6, u1 - u), m = G(u + w / 2, bW - 0.5); let lo = Infinity, hi = -Infinity; for (const da of [-w / 2, 0, w / 2]) { const q = G(u + w / 2 + da, bW - 0.5); const g = ctx.groundY(q[0], q[1]); lo = Math.min(lo, g); hi = Math.max(hi, g); } hedgeMass(ctx, m[0], m[1], lo, w + 0.03, 0.7, 1.15 + (hi - lo), ROT, Math.round(u)); }
+  // paving of the forecourt between the foot of the flight and the courtyard terrace
+  { const pv = ctx.B.v('maPaver'); const y = (a, b) => { const q = G(a, b); return [q[0], ctx.groundY(q[0], q[1]) + 0.03, q[1]]; }; const b1 = 41.2; const cuts = [st.gapA[0], st.a0, st.a1, st.gapA[1]];
+    for (let i = 0; i < 3; i++) for (let a = cuts[i]; a < cuts[i + 1] - 0.01; a += 1.9) { const a1 = Math.min(a + 1.9, cuts[i + 1]); const b0 = i === 0 ? st.westB : i === 2 ? st.eastB : st.bBot; quadFacing(pv, y(a, b0), y(a1, b0), y(a1, b1), y(a, b1), [0, 1, 0], [[a / 2.4, b0 / 2.4], [a1 / 2.4, b0 / 2.4], [a1 / 2.4, b1 / 2.4], [a / 2.4, b1 / 2.4]]); } }
 }
 function courtyard(ctx) {
   const { B } = ctx;
   const pv = B.v('maPaver'); const c = rect(7.7, 60.5, 10.4, 36), y = 0.03;   // wall to wall between the two buildings
   pv.quad([c[3][0], y, c[3][1]], [c[2][0], y, c[2][1]], [c[1][0], y, c[1][1]], [c[0][0], y, c[0][1]], [0, 0], [4.333, 0], [4.333, 15], [0, 15]);
-  for (let i = 0; i < 4; i++) for (const b of [-21.5, -18.2]) { const p = gp(8.1, 60.5, -4.4 + i * 2.93, b); B.v('wood').box(p[0], 1.55, p[1], 0.22, 3.1, 0.22, ROT, 0.5); B.c('wood').box(p[0], 1.55, p[1], 0.3, 3.1, 0.3, ROT); }
-  for (const b of [-21.5, -18.2]) { const p = gp(8.1, 60.5, 0, b); B.v('wood').box(p[0], 3.2, p[1], 10.2, 0.22, 0.16, ROT, 0.5); }
-  for (let a = -4.8; a <= 4.81; a += 0.8) { const p = gp(8.1, 60.5, a, -19.85); B.v('wood').box(p[0], 3.38, p[1], 0.08, 0.16, 4.4, ROT, 0.5); }
-  { const p = gp(8.1, 60.5, 0, -19.85); B.c('wood').box(p[0], 3.3, p[1], 10.2, 0.3, 4.4, ROT); }
+  for (let i = 0; i < 4; i++) for (const b of [-20.3, -17.0]) { const p = gp(8.1, 60.5, -4.4 + i * 2.93, b); B.v('wood').box(p[0], 1.55, p[1], 0.22, 3.1, 0.22, ROT, 0.5); B.c('wood').box(p[0], 1.55, p[1], 0.3, 3.1, 0.3, ROT); }
+  for (const b of [-20.3, -17.0]) { const p = gp(8.1, 60.5, 0, b); B.v('wood').box(p[0], 3.2, p[1], 10.2, 0.22, 0.16, ROT, 0.5); }
+  for (let a = -4.8; a <= 4.81; a += 0.8) { const p = gp(8.1, 60.5, a, -18.65); B.v('wood').box(p[0], 3.38, p[1], 0.08, 0.16, 4.4, ROT, 0.5); }
+  { const p = gp(8.1, 60.5, 0, -18.65); B.c('wood').box(p[0], 3.3, p[1], 10.2, 0.3, 4.4, ROT); }
   // round paver patio, planters against both buildings, benches, cafe chairs (the two courtyard trees come from gen.py)
   { const c0 = gp(8.1, 60.5, 0, 1.5); B.v('brickRed').cyl(c0[0], 0.0, c0[1], 3.6, 3.6, 0.045, 28, 0.5, true); B.v('limestone').cyl(c0[0], 0.0, c0[1], 3.9, 3.9, 0.035, 28, 1 / 3, true); }
   for (const [a, b, len] of [[-4.1, -12, 5], [-4.1, -1, 4], [-4.1, 12, 5], [4.1, -11, 4], [4.1, 3, 5], [4.1, 13.5, 4]]) { const p = gp(8.1, 60.5, a, b); B.solidBox('limestone', 'concrete', p[0], 0.36, p[1], 0.9, 0.72, len, ROT, 1 / 3); ctx.shrubs.push([p[0], 0.72, p[1], len - 0.6, 0.6, ROT + Math.PI / 2]); }
@@ -266,11 +313,11 @@ function courtyard(ctx) {
 function performingArts(ctx, rings) {
   const { B } = ctx;
   // Performing Arts Center: tall cream box (the theatre, parapet 7.7 m above the field) with a glazed lobby toward Cottage Ave
-  sited(ctx, rings.pac, (base) => pacAt(ctx, rings, 7.7 - base, base));
-  sited(ctx, rings.low, (base) => flatBuilding(ctx, rings.low, 5.6 - base, 'maLowCream', { units: 1 }));
+  sited(ctx, rings.pac, (base) => pacAt(ctx, rings, TOP.pac - base, base));
+  sited(ctx, rings.low, (base) => flatBuilding(ctx, rings.low, TOP.pacLow - base, 'maLowCream', { units: 1 }));
   // Founders Hall: long two-storey white bar with a clay-tile mansard edge (parapet 7.4 m above the field)
   sited(ctx, rings.founders, (base) => {
-    const H = 7.4 - base; const f = flatBuilding(ctx, rings.founders, H, 'maCream', { units: 2 });
+    const H = TOP.founders - base; const f = flatBuilding(ctx, rings.founders, H, 'maCream', { units: 2 });
     const fr = f.ring; const sh = B.v('shingles', true); sh.setColor(...CLAY);
     for (let i = 0; i < fr.length; i++) { const a = fr[i], b = fr[(i + 1) % fr.length]; const F = edgeFrame(a[0], a[1], b[0], b[1]); if (F.L < 1) continue; quadFacing(sh, F.P(-0.5, H - 1.1, 0.62), F.P(F.L + 0.5, H - 1.1, 0.62), F.P(F.L, H + 0.1, 0.1), F.P(0, H + 0.1, 0.1), [F.nx, 1, F.nz], [[0, 0], [F.L / 3, 0], [F.L / 3, 0.45], [0, 0.45]]); quadFacing(B.v('whitePanel'), F.P(-0.5, H - 1.1, 0.0), F.P(F.L + 0.5, H - 1.1, 0.0), F.P(F.L + 0.5, H - 1.1, 0.62), F.P(-0.5, H - 1.1, 0.62), [0, -1, 0]); const mc = F.P(F.L / 2, H - 0.5, 0.31); B.c('concrete').box(mc[0], mc[1], mc[2], F.L + 1.0, 1.2, 0.62, F.rotY); }
     sh.setColor(1, 1, 1);
@@ -298,8 +345,13 @@ function pacAt(ctx, rings, h, base) {
 // ============================================================================================ aquatic centre
 // the stairs in the alley between the Library and the pool house (grid coordinates: a east, b south, metres from the
 // origin): wall to wall, from the Mission Ave apron down to the pool deck. Earthworks in world.js sitework, built below.
-export const POOL_STAIR = { a0: 43.76, a1: 47.03, bTop: 38.0, tread: 0.30 };
-const POOL_HOUSE = rect(58.6, 45.6, 33.5, 9.4), POOL_HOUSE_TOP = 0.9;   // roof ~3.3 m over the Mission Ave sidewalk, ~5.1 m over the deck
+export const POOL_STAIR = { a0: 43.76, a1: 47.03, bWalk: 35.3, apron: 0.6, tread: 0.30, landing: 0, warp: true };
+// The steps from the Mission Ave sidewalk down into the Library / Leadership Center courtyard. On the correctly registered
+// DEM the courtyard lies 1.6 m below the street and the step is at the building line (the 3D tiles show the sunken court
+// behind a gateway on the street): a flight in the frontage strip between the back of the walk (b = bWalk) and the
+// forecourt (level from b = bBot on), retaining blocks either side. Earthworks in world.js sitework (ctx.courtStair).
+export const COURT_STAIR = { a0: 13.9, a1: 17.1, bWalk: 35.3, bBot: 38.6, tread: 0.28, landing: 0, apron: 0.3 /* at the least: the apron runs from the back of the walk to the top riser */, warp: true, gapA: [9.76, 21.29], westB: 39.26, eastB: 38.45 };
+const POOL_HOUSE = rect(58.46, 46.69, 33.5, 7.2) /* (its north wall stood 2 m into the Mission Ave sidewalk: 7.2 m deep from the same deck front) */, POOL_HOUSE_TOP = 1.3;   // roof ~3.1 m over the Mission Ave sidewalk, ~5.2 m over the deck (tile roof samples: 1.2-1.3)
 function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0], c[1], () => aquaticCenterAt(ctx), 6, 'mean');
   sited(ctx, POOL_HOUSE, (base) => flatBuilding(ctx, POOL_HOUSE, POOL_HOUSE_TOP - base, 'maLow', { roof: 'white' }));
   // pool fence along the west (Library) and east (car park) deck edges, a gate gap in each
@@ -318,13 +370,17 @@ function aquaticCenter(ctx) { const c = gp(53.1, 75.6, 0, 0); atGround(ctx, c[0]
 }   // on the pool deck (one level pad, flattened in sitework)
 // Stairs from the Mission Ave apron down to the pool deck, between the Library and the pool house: thirteen 16 cm risers
 // on 30 cm treads, a landing at the top, steel handrails on both walls. Geometry from sitework (ctx.poolStair: levels and the number of risers).
-function poolStairs(ctx) {
-  const { B } = ctx; const st = POOL_STAIR, ps = ctx.poolStair; if (!ps) return; const G = (a, b) => gp(0, 0, a, b); const am = (st.a0 + st.a1) / 2, w = st.a1 - st.a0;
+function poolStairs(ctx) { const ps = ctx.poolStair; if (ps) stairFlight(ctx, { ...POOL_STAIR, bTop: ps.bTop, apron: ps.bTop - POOL_STAIR.bWalk }, ps); }
+// One flight (grid coordinates, falling toward +b from st.bTop): drawn risers, collision on the plane through the nosings.
+// st: { a0, a1, bTop, tread, landing (level top landing, m; default 0.5), apron (ramp from the ground to the landing; 2.2), warp (apron follows the ground at each corner: a sloping sidewalk) }
+function stairFlight(ctx, st, ps) {
+  const { B } = ctx; if (!ps) return; const G = (a, b) => gp(0, 0, a, b); const am = (st.a0 + st.a1) / 2, w = st.a1 - st.a0; const land = st.landing ?? 0.5, apron = st.apron ?? 2.2;
   const conc = B.v('concrete'), col = B.c('concrete'), y0 = ps.botY - 0.5;
   { // top landing: level for half a metre, then a concrete apron falling to the asphalt of the alley (the lattice ground dips toward the pool house there)
-    const yT = ps.topY + 0.02, c = G(am, st.bTop - 0.25); conc.box(c[0], (y0 + yT) / 2, c[1], w, yT - y0, 0.5, ROT, 1 / 3); col.box(c[0], (y0 + yT) / 2, c[1], w, yT - y0, 0.5, ROT);
-    const bN = st.bTop - 2.2; let yN = yT; for (const a of [st.a0 + 0.5, am, st.a1 - 0.5]) { const q = G(a, bN); yN = Math.min(yN, ctx.groundY(q[0], q[1]) + 0.02); }
-    const P3 = (a, b, y) => { const q = G(a, b); return [q[0], y, q[1]]; }; const q4 = [P3(st.a0, bN, yN), P3(st.a1, bN, yN), P3(st.a1, st.bTop - 0.5, yT), P3(st.a0, st.bTop - 0.5, yT)];
+    const yT = ps.topY + 0.02, c = G(am, st.bTop - land / 2); if (land > 0) { conc.box(c[0], (y0 + yT) / 2, c[1], w, yT - y0, land, ROT, 1 / 3); col.box(c[0], (y0 + yT) / 2, c[1], w, yT - y0, land, ROT); }
+    const bN = st.bTop - land - apron; let yN = yT; for (const a of [st.a0 + 0.5, am, st.a1 - 0.5]) { const q = G(a, bN); yN = Math.min(yN, ctx.groundY(q[0], q[1]) + 0.02); }
+    const gN = (a) => { if (!st.warp) return yN; const q = G(a, bN - 0.15); const d = ctx.streets && ctx.streets.design(q[0], q[1]); return (d && d.zone === 'walk' ? d.y : ctx.groundY(q[0], q[1])) + 0.02; };   /* (warp: the apron starts on the sloping sidewalk, at its level at each corner) */
+    const P3 = (a, b, y) => { const q = G(a, b); return [q[0], y, q[1]]; }; const q4 = [P3(st.a0, bN, gN(st.a0)), P3(st.a1, bN, gN(st.a1)), P3(st.a1, st.bTop - land, yT), P3(st.a0, st.bTop - land, yT)];
     quadFacing(conc, ...q4, [0, 1, 0], [[0, 0], [w / 3, 0], [w / 3, 0.57], [0, 0.57]]); quadFacing(col, ...q4, [0, 1, 0]); }
   for (let k = 0; k < ps.n - 1; k++) { const y = ps.topY - (k + 1) * ps.riser, c = G(am, st.bTop + (k + 0.5) * st.tread);
     conc.box(c[0], (y0 + y) / 2, c[1], w, y - y0, st.tread, ROT, 1 / 3);
@@ -398,13 +454,13 @@ function aquaticCenterAt(ctx) {
 export function schoolWalls(ctx) {
   const ring = (id) => ctx.data.buildings.find((b) => b.id === id).outer[0];
   return [
-    ['Foster Hall', rect(-18.0, -45.3, 22.4, 19.4), null, 'maFoster', 'porch'], ['Foster Hall north wing', rect(-14.9, -66.6, 13.2, 23.4), 12.4, 'maFoster'],
-    ['Thacher Hall', rect(10.6, -1.3, 11.2, 33.4), 8.9, 'maMission'], ['Thacher Hall west wing', rect(1.6, 9.2, 7.0, 10.6), 8.3, 'maMission'],
-    ['Science + Innovation Center', ring(652917782), 13.8, 'maModern'], ['Old Gym', ring(652917783), 17.6, 'maGym'], ['Athletic Center', ring(652917773), 17.8, 'maGymPlain'],
-    ['Visual Arts Center', ring(652917785), 4.7, 'maVisArts'], ['Campus building 1460794276', ring(1460794276), 13.9, 'maLow'], ['Service building', ring(652917784), 18.7, 'maService'],
-    ['Leadership Center', rect(-12.4, 61.0, 10.6, 51.6), 5.6, 'maMission'], ['Leadership Center east wing', rect(-2.3, 54.6, 10.4, 30.4), 5.4, 'maMission'],
-    ['Library', rect(29.9, 60.4, 12.9, 42.4), 5.9, 'maMission'], ['Library west wing', rect(18.9, 58.6, 9.6, 34.6), 5.3, 'maMission'],
-    ['Performing Arts Center', ring(652917778), 7.7, 'maPac'], ['Performing Arts low block', ring(652917777), 5.6, 'maLowCream'], ['Founders Hall', ring(652917779), 7.4, 'maCream'], ['Pool house', POOL_HOUSE, POOL_HOUSE_TOP, 'maLow'],
+    ['Foster Hall', rect(-18.0, -45.3, 22.4, 19.4), null, 'maFoster', 'porch'], ['Foster Hall north wing', rect(-14.9, -66.6, 13.2, 23.4), TOP.fosterWing, 'maFoster'],
+    ['Thacher Hall', rect(10.6, -1.3, 11.2, 33.4), TOP.thacher, 'maMission'], ['Thacher Hall west wing', rect(1.6, 9.2, 7.0, 10.6), TOP.thacherWing, 'maMission'],
+    ['Science + Innovation Center', ring(652917782), TOP.science, 'maModern'], ['Old Gym', ring(652917783), TOP.oldGym, 'maGym'], ['Athletic Center', ring(652917773), TOP.athletic, 'maGymPlain'],
+    ['Visual Arts Center', ring(652917785), TOP.visArts, 'maVisArts'], ['Campus building 1460794276', ring(1460794276), TOP.campus76, 'maLow'], ['Service building', ring(652917784), TOP.service, 'maService'],
+    ['Leadership Center', rect(-12.4, 61.0, 10.6, 51.6), TOP.leadership, 'maMission'], ['Leadership Center east wing', rect(-2.3, 54.6, 10.4, 30.4), TOP.leadershipEast, 'maMission'],
+    ['Library', rect(29.9, 60.4, 12.9, 42.4), TOP.library, 'maMission'], ['Library west wing', rect(18.9, 58.6, 9.6, 34.6), TOP.libraryWest, 'maMission'],
+    ['Performing Arts Center', ring(652917778), TOP.pac, 'maPac'], ['Performing Arts low block', ring(652917777), TOP.pacLow, 'maLowCream'], ['Founders Hall', ring(652917779), TOP.founders, 'maCream'], ['Pool house', POOL_HOUSE, POOL_HOUSE_TOP, 'maLow'],
   ];
 }
 
@@ -418,8 +474,8 @@ export function buildSchool(ctx) {
   oldGym(ctx, ring(652917783));
   athleticCenter(ctx, ring(652917773));
   visualArts(ctx, ring(652917785));
-  sited(ctx, ring(1460794276), (base) => { const r = flatBuilding(ctx, ring(1460794276), 13.9 - base, 'maLow', { roof: 'white' }); ringLadder(ctx, ring(1460794276), 0, 0.5, r.roofY); });
-  sited(ctx, ring(652917784), (base) => { const r = flatBuilding(ctx, ring(652917784), Math.max(3.6, 18.7 - base), 'maService', {}); ringLadder(ctx, ring(652917784), 2, 0.5, r.roofY); });   // service building cut into the hill above the gyms (pad in sitework)
+  sited(ctx, ring(1460794276), (base) => { const r = flatBuilding(ctx, ring(1460794276), TOP.campus76 - base, 'maLow', { roof: 'white' }); ringLadder(ctx, ring(1460794276), 0, 0.5, r.roofY); });
+  sited(ctx, ring(652917784), (base) => { const r = flatBuilding(ctx, ring(652917784), Math.max(3.6, TOP.service - base), 'maService', {}); ringLadder(ctx, ring(652917784), 2, 0.5, r.roofY); });   // service building cut into the hill above the gyms (pad in sitework)
   leadershipCenter(ctx);
   performingArts(ctx, { pac: ring(652917778), low: ring(652917777), founders: ring(652917779) });
   aquaticCenter(ctx);
