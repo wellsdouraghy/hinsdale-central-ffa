@@ -1,10 +1,10 @@
 # Branson campus: builder hand-off (keep current; commit with every milestone)
 
-Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 4 (after QA round 4, NOT SHIP)
-is done and verified item by item; next = independent QA round 5, release test, deploy. Matched game | tiles sheets of this round (same pose,
-both shot after the last code change): dev/shots/branson-v5/ (v5_cmp_NN_*.jpg per item; g_* / t_* are the single frames; q5_*_eye.jpg are
-eye-level game sheets; kbh_roof_grid.txt = game minus tiles roof heights, 4 m and 1 m grids, made by kbh1.py; pair.py builds the sheets).
-Tiles shots are Google imagery: never commit that folder.
+Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 5 (after QA round 5, "close")
+is done and verified item by item; next = independent QA round 6, release test, deploy. Matched game | tiles sheets of this round (same pose,
+game side shot after the last code change): dev/shots/branson-v6/ (v6_cmp_NN_*.jpg per item group; g_* / t_* are the single frames; sh_*.jpg are
+eye-level game sheets; kbh_roof_grid.txt = game minus tiles roof heights on a 4 m grid, made by kbhcmp.py from kbh_game6.json / kbh_tiles6.json;
+nh_tiles6.json = New House heights; x/ holds the page helpers and pose lists). Tiles shots are Google imagery: never commit that folder.
 
 ## Frame and key coordinates (x east, z south, metres)
 - origin lat 37.96545, lon -122.56545; y = 0 is Tom Ryan Field (NAVD88 16.54 m; 3D-tiles surface = game height - 16.28, one constant)
@@ -49,18 +49,23 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
 - [x] map check 0 fails (one warning, explained below); Hinsdale / Marin / Hamilton unaffected; build passes
 - [x] QA rounds 2-4: every item fixed with a matched game | tiles shot (round 4: items 1-17, see MAP_NOTES.md "Fix round after the fourth QA")
 - [x] map check 0 fails incl. the new `facadePeaks` test (one warning: seating, below); Hinsdale / Hamilton pass, Marin 0 fails (its own old warnings); build passes; practice + a started CTF host match with 6 bots run without console errors
-- [ ] independent QA round 5, release test, deploy
+- [x] QA round 5: items 1-15 fixed, each with a game | tiles pair (see MAP_NOTES.md "Fix round after the fifth QA")
+- [x] map check on the merged base (mounds / walkDesign included): 0 fails; warning: seating (below); `retaining` reports "skip" (no block registered: the pitch's south side falls to the creek, a ball-stop fence stands there); Hinsdale / Hamilton pass, Marin 0 fails; build passes
+- [ ] independent QA round 6, release test, deploy
 
 ## Known weak spots (for QA / a successor)
 - base cover is 0.50 / 0.50 but the measure is noisy (2-10 rays of 16 within 10 m of the red base); real solid cover round red is the Fernhill hedge, trunks and parked cars, shrubs and low conifer sprays are not solid
-- Katharine Branson Hall's roof against the tiles (dev/shots/branson-v5/kbh_roof_grid.txt): 4 m grid mean |diff| 0.53 m, the 4 cells over 1.6 m are tree crowns / eave lines. Left: the inside corner of the entrance court
-  ((-34..-28, -29..-23): the tiles' eave is chamfered 45 deg, the game's footprint fills a ~12 m2 wedge), a 1-2 m high valley at (-36..-33, -31..-29), the link's lean-to at (-49..-43, -39..-35) drawn 1-2 m south of the tiles' rim line;
-  the flat deck is a plain attic block with a tile-coloured top, the real roof there is a set of small hips
-- the loop's outline is chamfered where the tiles' drive is a round sweep; the lawns and wing roofs are green / tan where the (summer) tiles are dry gold; only the wood floor round the red base is painted as litter, the rest of that wood keeps a lawn floor
-- the white west wing of Katharine Branson Hall is smaller than the white flat-roofed block in the nadir tiles (not on any QA list yet)
-- the tennis shed's roof is a light lilac-grey shingle, the tiles are a touch pinker
+- Katharine Branson Hall's roof against the tiles (dev/shots/branson-v6/kbh_roof_grid.txt): 4 m grid mean |diff| 0.47 m, 2 cells over 1.6 m (an eave line on the north block,
+  the long wing's north-east eave at (-28, -14)). Left: the long wing's south-east half reads 0.8-1.0 m higher in the tiles on both slopes (its eave is ~15.3 there, the game keeps 14.4);
+  the hall's main floor is ~1.2 m above the south lawn in the tiles, the game's floor is at grade and only the entrance door is raised over its steps
+- the white block's facade (arch count, cornice) is read from two blurry obliques; its raised centre is blank as in the tiles; the walk from the terrace at the hall's south-east
+  end to the visitor lot is read as steps + a walk from one nadir shot
+- New House is built from the height grid (main gable, two south gables, flat white block, cross gable, two dormers); its two small west gablets and the low east lean-to are not built
+- lawn tones: only four outlines are painted dry (the hall's south lawn, the bank north of the Commons, two beds at the loop); the rest keeps the baked green
+- the organic garden and the sundial stand ~2.5 m south of where the tiles show them (found this round, not moved)
+- the cars on the loop's rim and in the gym drive's bays stand on the drive's grade (up to 1 in 7); the patio at the end of the terrace walk has two tables on one spot
 - the Alumni Steps are one flight; the tiles oblique suggests a second parallel brick flight or wall east of it (under the canopy, not resolved)
-- the lean-to on the hall's link (13.0-13.6) and the yard shed's doors are read from blurry tiles; New House's flat section is two plain blocks (white / grey)
+- the yard shed's doors are read from blurry tiles
 - the arts court's sculpture is a neutral open form (three dark bars and a ring): no photo of the real piece was found
 - map check `seating` warns "lowOnly" for hillside houses 974153830, 975106084, 975108094, 975107317: natural ground 0.15-0.3 m
   above a wall's floor, the price of cut-only pads (no fill)

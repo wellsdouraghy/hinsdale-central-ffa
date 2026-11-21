@@ -105,16 +105,16 @@ function vehicles(ctx) {
   const { playBounds: pb } = ctx; const rnd = mulberry32(1920);
   const tpls = [propKit.buildCarTemplate(propKit.CAR_TYPES.suv), propKit.buildCarTemplate(propKit.CAR_TYPES.sedan), propKit.buildCarTemplate(propKit.CAR_TYPES.hatch)];
   const keep = ctx.keepClear || []; const trunks = ctx.gen.trees || []; const placed = []; let n = 0; const S = ctx.streets;
-  let loose = false; const SK = (r, x, z) => { if (typeof location !== 'undefined' && location.search.includes('cardbg')) console.log('[car skip] ' + r + ' ' + x.toFixed(1) + ',' + z.toFixed(1)); }; const car = (x, z, heading, fill = 0.7) => {
-    const r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd(); if (r4 > fill) { SK(1, x, z); return; }
-    if (x < pb.minX + 3 || x > pb.maxX - 3 || z < pb.minZ + 3 || z > pb.maxZ - 3) { SK(2, x, z); return; }
-    if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) { SK(3, x, z); return; }
-    if (ctx.surfaceAt(x, z) !== 'asphalt' || (S && !loose && S.inRoad(x, z, 1.2))) { SK(4, x, z); return; }
-    if (ctx.terrain && (ctx.terrain.slopeAt(x, z) > (loose ? 0.16 : 0.1) || ctx.terrain.maxIn(x, z, 2.4) - ctx.terrain.minIn(x, z, 2.4) > (loose ? 0.7 : 0.45))) { SK(5, x, z); return; }   // (the loop's rim and the gym drive's bays fall with the drive: a car stands on a 1 in 7 grade)
+  let loose = false; const car = (x, z, heading, fill = 0.7) => {
+    const r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd(); if (r4 > fill) return;
+    if (x < pb.minX + 3 || x > pb.maxX - 3 || z < pb.minZ + 3 || z > pb.maxZ - 3) return;
+    if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
+    if (ctx.surfaceAt(x, z) !== 'asphalt' || (S && !loose && S.inRoad(x, z, 1.2))) return;
+    if (ctx.terrain && (ctx.terrain.slopeAt(x, z) > (loose ? 0.16 : 0.1) || ctx.terrain.maxIn(x, z, 2.4) - ctx.terrain.minIn(x, z, 2.4) > (loose ? 0.7 : 0.45))) return;   // (the loop's rim and the gym drive's bays fall with the drive: a car stands on a 1 in 7 grade)
     const c = Math.cos(heading), s = Math.sin(heading); const corners = [[2.3, 1.0], [2.3, -1.0], [-2.3, 1.0], [-2.3, -1.0]].map(([l, w]) => [x + l * c + w * s, z - l * s + w * c]);
-    if (ctx.terrain && ctx.terrain.meshHeightAt) { const g = ctx.groundY, y0 = g(x, z), gx = (g(x + 2, z) - g(x - 2, z)) / 4, gz = (g(x, z + 2) - g(x, z - 2)) / 4; if (corners.some(([px, pz]) => Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.3)) { SK(6, x, z); return; } }
-    if (corners.some(([px, pz]) => (ctx.buildingRings || []).some((r) => pointInRing(px, pz, r)) || (S && !loose && S.inRoad(px, pz, 0.3)))) { SK(7, x, z); return; }
-    if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.55) || trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 3.4)) { SK(8, x, z); return; }
+    if (ctx.terrain && ctx.terrain.meshHeightAt) { const g = ctx.groundY, y0 = g(x, z), gx = (g(x + 2, z) - g(x - 2, z)) / 4, gz = (g(x, z + 2) - g(x, z - 2)) / 4; if (corners.some(([px, pz]) => Math.abs(ctx.terrain.meshHeightAt(px, pz) - (y0 + gx * (px - x) + gz * (pz - z))) > 0.3)) return; }
+    if (corners.some(([px, pz]) => (ctx.buildingRings || []).some((r) => pointInRing(px, pz, r)) || (S && !loose && S.inRoad(px, pz, 0.3)))) return;
+    if (placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 2.55) || trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < 3.4)) return;
     const tpl = r1 < 0.45 ? tpls[0] : r1 < 0.8 ? tpls[1] : tpls[2]; const col = propKit.CAR_COLORS[Math.floor(r2 * propKit.CAR_COLORS.length)];
     onSlope(ctx, x, z, 2.0, () => propKit.placeCar(ctx, tpl, x, z, heading + (r3 - 0.5) * 0.05, col)); placed.push([x, z]); n++;
   };

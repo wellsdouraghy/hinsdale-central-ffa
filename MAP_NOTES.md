@@ -1213,3 +1213,26 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     building; read the trace before calling it a defect, and end walks at the door, not behind it.
   - *Pair poses:* a tiles camera inside a crown gives a useless pair. Nadir pairs (fov 30) and obliques from 30 m up are safe; eye-level
     game sheets go beside them (`__sheet`).
+- **Fix round after the fifth QA ("close": a blank wall above the main hall's roofline, doors onto grass, empty stalls):**
+  - *A height patch is not a building.* The 18.8 m cells where the hall's wings meet had been built as a stucco "deck" with a tile-coloured top: from the
+    car park it was a blank wall above the roofline. A 1 m height dump (not 4 m) plus two obliques showed what it is: the raised centre of a white
+    flat-roofed block, and a cross ridge beside it. When a grid cell will not fit a hip, dump 1 m heights and look at an oblique before adding a block.
+  - *Read the county outline again before "simplifying" it.* The white block's real outline (bowed end, leg, entrance strip) and the 2.6 m slot at the
+    entrance court were both in the county footprint; earlier rounds had cut the first down and filled the second. A slot a player can walk out of is
+    not a trap: test it with `__walk` and the escape check before deleting geometry.
+  - *A roof piece laid over other roofs needs its rim inside them.* A cross roof whose eave stood 0.5 m above the roof under it left a slit into the
+    space between the two skins (map check `roofSkin`: "open"); so did a cornice box whose back face lay 2 cm inside the wall plane. Bury rims; keep
+    trim boxes wholly outside the wall and under the roof level.
+  - *Doors are data.* `stuccoWalls` now notes every door it draws (`ctx.doors`, in `registry.notes.doors`); walks to them are traced once
+    (kit.js `WALKS`, mirrored in tools/data/extra.py), painted as paving by ground_fix.py and kerbed. A walk drawn only as geometry lets grass blades
+    through; a walk painted only in the mask has no edge. Keep stall rows off a door's walk (`__walk` found a car on one).
+  - *Stalls that open off a graded drive are always empty:* the car placement's road test rejects them (corner within 0.3 m of the shoulder) and the
+    slope test rejects a bay that falls with the drive. Give such rows the loose flag (no road test, 1 in 7 allowed) and count the cars in the shot.
+  - *Lawn tone is the baked photo:* the ground shader multiplies the macro image, about 1.3 x brighter in a sunlit shot. A "dry" lawn painted with the
+    tiles' own RGB came out as straw; divide by 1.3 and keep it olive (110, 116, 70), gold only for beds (138, 126, 90).
+  - *Conifers are not cover at a base, they are a curtain:* the tree kit's conifer carries sprays down to eye level. Within 22 m of a flag the wood is
+    oaks with high crowns; the trunks (the real cover) stay where they were and the cover figure did not move (0.56 / 0.50).
+  - *Rocks:* a dome with jittered radii still reads as a hemisphere, and "one every 2 m along the line" reads as a dotted line. Unequal axes, a leaning
+    flat top, groups of one large and a few small stones at irregular intervals across the whole bed.
+  - *Shared dev tabs and servers:* another agent can navigate your browser tab or merge into the checkout while you work (vite reloads, 504 on new
+    optimised deps: restart your server). Open your own tab per page, re-import helpers after every reload, and never commit during someone else's merge.
