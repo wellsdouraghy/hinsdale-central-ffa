@@ -43,6 +43,7 @@ export default {
     groundMask: 'campuses/marin/ground_mask.png',
     roofs: 'campuses/marin/roofs.jpg',
     surfaceClasses: 'campuses/marin/surface_classes.png',
+    textures: 'campuses/marin/tex/tex.json',        // optional: building textures generated from references (tools/textures/README.md)
   },
   sat: { minX, maxX, minZ, maxZ },   // world extent of satellite/ground images (m)
   playBounds: { minX, maxX, minZ, maxZ },

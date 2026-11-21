@@ -42,3 +42,8 @@
 - Round 6: attack helicopter, rocket and their smoke/fire/trail effects are original procedural work (`src/visuals/helicopter.js`); no third-party assets.
 - Round 9: targeting laptop, strike jet and bomb are original procedural work (`src/visuals/airstrike.js`); no third-party assets.
 - Round 10: melee finisher choreography is original, procedurally keyframed on the existing soldier rig (`src/visuals/finishers.js`); no new assets.
+- **Campus building textures** (`public/campuses/<id>/tex/*`): original, generated procedurally by `tools/textures/generate.py`
+  from measurements (unit sizes, course heights, linear-RGB swatches) taken on reference photos. No photo pixels are used and
+  no reference photo is in the repo; sources and licences are listed per campus in `tools/textures/campuses/<id>/refs.json`
+  (school and district sites, Wikimedia Commons CC0 / CC BY-SA / GFDL, architect and contractor project pages, LAUSD archive
+  photos, Google Street View cache). Used as visual reference only.

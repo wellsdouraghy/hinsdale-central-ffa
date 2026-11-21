@@ -47,11 +47,11 @@ const sign = (ctx, lines, o) => ctx.M.textDecal(lines, { align: 'center', weight
 // ============================================================================================ Brown Hall
 function brownHall(ctx, raw) {
   const { B } = ctx; const ring = simplify(raw, 0.8); const eave = 12.2; const fr = frame(136.0, 7.2, 100.3);   // u south, v west (front = -v, Robertson Blvd)
-  storeyWalls(ctx, ring, eave, { key: 'brick', storeys: 3, bay: 3.7, winW: 2.1, winH: 2.25, sill: 1.05, doors: false, piers: true, arcadeTop: true });   // round-arched top storey, as in the photos
+  storeyWalls(ctx, ring, eave, { key: 'brick', tex: 'hamBrick', storeys: 3, bay: 3.7, winW: 2.1, winH: 2.25, sill: 1.05, doors: false, piers: true, arcadeTop: true });   // round-arched top storey, as in the photos
   B.c('brick').prism(ring, 0, eave, 1, true); B.v('concrete').poly(ring, null, eave - 0.03, (x, z) => [x / 3, z / 3]);
   (ctx.buildingRings = ctx.buildingRings || []).push(ring);
-  hipRoof(ctx, fr.box(-51.3, 46.8, -10.4, 12.2), eave, 4.9, { tint: CLAY, overhang: 0.75 });
-  hipRoof(ctx, fr.box(-14.0, 9.9, -13.3, 13.3), eave + 0.5, 5.3, { tint: CLAY, overhang: 0.7 });               // the cross roof of the entrance pavilion
+  hipRoof(ctx, fr.box(-51.3, 46.8, -10.4, 12.2), eave, 4.9, { tint: CLAY, tex: 'hamTile', overhang: 0.75 });
+  hipRoof(ctx, fr.box(-14.0, 9.9, -13.3, 13.3), eave + 0.5, 5.3, { tint: CLAY, tex: 'hamTile', overhang: 0.7 });               // the cross roof of the entrance pavilion
   // cast-stone frontispiece: three arched doorways under five tall arched windows, name in the frieze
   { const a = fr.W(-12.4, -13.25), b = fr.W(8.0, -13.25); const F = edgeFrame(a[0], a[1], b[0], b[1]); const L = F.L; const ls = B.v('limestone'), fm = B.v('frame'), gl = B.v('glassInt');
     fbox(ls, F, 0, L, 0, eave + 0.45, 0, 0.16, 1 / 3, 0, 'fst'); { const c = F.P(L / 2, eave / 2, 0.08); B.c('concrete').box(c[0], c[1], c[2], L, eave, 0.2, F.rotY); }
@@ -116,7 +116,7 @@ function classrooms(ctx, ring) {
   { const r = simplify(ring(1017), 0.9); const b = storeyBlock(ctx, r, 10.1, { key: 'stucco', tint: TAN, storeys: 3, bay: 3.9, winW: 2.2, winH: 1.55, sill: 0.95, units: 7, noHeli: true });
     ladderOn(ctx, r, (nx, nz) => nz > 0.8, 0.5, b.roofY, b.top); }
   // shops building south of Brown Hall (brick, two storeys)
-  { const r = simplify(ring(993), 1.0); const b = storeyBlock(ctx, r, 7.4, { key: 'brick', storeys: 2, bay: 4.4, winW: 2.8, winH: 1.8, units: 2, keepCentre: true });
+  { const r = simplify(ring(993), 1.0); const b = storeyBlock(ctx, r, 7.4, { key: 'brick', tex: 'hamBrick', storeys: 2, bay: 4.4, winW: 2.8, winH: 1.8, units: 2, keepCentre: true });
     ladderOn(ctx, r, (nx, nz) => nz > 0.8, 0.82, b.roofY, b.top); const o = frame(94.5, 66.0, 18.8); ctx.roofSpots.push([...o.W(0, 0), b.roofY]); }
   // cafeteria / student store: one tall brick storey, lunch terrace on the south side
   { const r = simplify(ring(1102), 1.0); const b = flatBuilding(ctx, r, 5.8, 'hamLow', { skin: SKIN_BRICK, units: 3, surface: 'brick' }); ctx.flatRoofs.push({ ring: b.ring, roofY: b.roofY, area: Math.abs(signedArea(b.ring)), school: true, noHeli: true });
@@ -247,7 +247,8 @@ function canopies(ctx) {
 export function buildSchool(ctx) {
   const { B, data } = ctx; const ring = (n) => data.buildings.find((b) => b.id === ID(n)).outer[0];
   B.v('stucco', true); B.v('brick', true); B.v('shingles', true); B.v('paint', true); B.v('awning', true);
-  STYLES.hamAud = { kind: 'gym', bay: 6.0, frame: 'frame', top: 'stone', tint: BRICK_TINT };
+  STYLES.hamTownBrick = { kind: 'gym', bay: 6.0, frame: 'frame', top: 'stone', tint: BRICK_TINT };   // brick boxes in town keep the shared brick
+  STYLES.hamAud = { wall: 'hamBrick', kind: 'gym', bay: 6.0, frame: 'frame', top: 'stone', tint: BRICK_TINT };
   ctx.flatRoofs = ctx.flatRoofs || []; ctx.roofSpots = [];
   brownHall(ctx, ring(1082));
   classrooms(ctx, ring);

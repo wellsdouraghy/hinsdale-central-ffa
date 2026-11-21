@@ -1,0 +1,110 @@
+{
+ "page_4dd02605a2.jpg": {
+  "building": "athletic wing (south side)",
+  "facade": "construction site, existing gym wall behind",
+  "shows": "excavation for the natatorium; tan brick gym wall with dark base in the background",
+  "use": "context"
+ },
+ "page_00984964d3.jpg": {
+  "building": "athletic wing (south side)",
+  "facade": "same view, smaller rendition",
+  "shows": "duplicate rendition of the excavation photo",
+  "use": "context"
+ },
+ "page_424a94963c.jpg": {
+  "building": "grounds",
+  "facade": "baseball field",
+  "shows": "infield mix and outfield turf colour",
+  "use": "ground"
+ },
+ "page_0c00c65d71.jpg": {
+  "building": "classroom wings from the stadium",
+  "facade": "south / west elevations at distance",
+  "shows": "new turf field; buff two-storey wings with ribbon windows",
+  "use": "ground"
+ },
+ "page_18b64283ab.jpg": {
+  "building": "natatorium addition",
+  "facade": "south-west corner",
+  "shows": "taupe brick with darker base course, royal blue metal coping, curtain-wall corner",
+  "use": "colour"
+ },
+ "page_adf86cf6bf.jpg": {
+  "building": "natatorium",
+  "facade": "interior under construction",
+  "shows": "pool tank; not used for exterior materials",
+  "use": "context"
+ },
+ "page_a4c6170e85.jpg": {
+  "building": "natatorium addition",
+  "facade": "south-west corner, wider",
+  "shows": "taupe brick volumes with recessed pilaster slots, blue entrance canopy, green-tint curtain wall",
+  "use": "colour"
+ },
+ "page_68d9990df2.jpg": {
+  "building": "interior courtyard",
+  "facade": "north and east courtyard walls",
+  "shows": "golden buff brick, two rows of bronze windows, limestone coping (low sun: hue too warm)",
+  "use": "colour"
+ },
+ "page_42138786bf.jpg": {
+  "building": "site",
+  "facade": "parking / drive",
+  "shows": "asphalt and kerb context",
+  "use": "context"
+ },
+ "page_0fdb030186.jpg": {
+  "building": "whole campus",
+  "facade": "aerial oblique, October 2024",
+  "shows": "roof layout and colours: pale ballasted membranes, stadium, courts",
+  "use": "roof"
+ },
+ "commons_8f06f7af9d.jpg": {
+  "building": "main 1950 wing (55th St)",
+  "facade": "north elevation, oblique",
+  "shows": "variegated grey-buff brick, two storeys of bronze ribbon windows, limestone coping, planters",
+  "use": "colour"
+ },
+ "commons_b09d1b484f.jpg": {
+  "building": "main wing, sign block",
+  "facade": "north elevation",
+  "shows": "brick blend unit-to-unit variation, limestone coping, pin letters and crest",
+  "use": "colour"
+ },
+ "commons_467deb0ffc.jpg": {
+  "building": "main entrance",
+  "facade": "entrance court from the drive",
+  "shows": "white metal canopy on round columns, buff brick returns, concrete steps",
+  "use": "colour"
+ },
+ "commons_724aeb1734.jpg": {
+  "building": "main entrance",
+  "facade": "close-up of doors and east return",
+  "shows": "running bond resolved: course 68 mm from the 2.13 m door; salmon / grey flashed units; red clay pavers; bronze downspout",
+  "use": "coursing"
+ },
+ "page_d464c8d1af.jpg": {
+  "building": "interior courtyard (student services addition)",
+  "facade": "north-west corner of the courtyard",
+  "shows": "professional photo: tan-buff brick on the upper left wing, clearly red-brown brick spandrels on the right wing, bronze curtain wall",
+  "use": "colour"
+ },
+ "page_2b7f70cec7.jpg": {
+  "building": "main entrance (Grant St side)",
+  "facade": "entrance front at dusk",
+  "shows": "professional photo: warm orange-tan brick both sides of the white canopy; brick R:G:B about 1 : 0.58 : 0.35 after white-balancing on the concrete steps",
+  "use": "colour"
+ },
+ "page_fdb6a1173d.jpg": {
+  "building": "stadium",
+  "facade": "aerial, straight down",
+  "shows": "field and track colours; red-brown brick field house at the west edge",
+  "use": "ground"
+ },
+ "page_3f22af9edb.jpg": {
+  "building": "whole campus",
+  "facade": "aerial oblique from the south-east (older)",
+  "shows": "all wings read warm tan-brown, none grey",
+  "use": "colour"
+ }
+}

@@ -1,0 +1,341 @@
+{
+ "campus": "hinsdale",
+ "school": "Hinsdale Central High School",
+ "note": "Reference photos are NOT in the repo (third-party copyright). They live in the gitignored src/campuses/hinsdale/tools/data/refs/ and are re-collected with tools/textures/scrape.py. Used only to measure materials; no texture contains reference pixels.",
+ "counts": {
+  "web": 18,
+  "streetview": 0,
+  "reviewed": 18
+ },
+ "skippedByRobots": [
+  "https://en.wikipedia.org/wiki/Special:CentralAutoLogin/start",
+  "https://www.thebluebook.com/iProView/802320/evergreen-specialties-and-design-inc/subcontractors/construction-projects/hi"
+ ],
+ "images": [
+  {
+   "file": "page_4dd02605a2.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2020/07/7c8f296a-1.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-high-school-construction-update/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1600,
+    1200
+   ],
+   "building": "athletic wing (south side)",
+   "facade": "construction site, existing gym wall behind",
+   "shows": "excavation for the natatorium; tan brick gym wall with dark base in the background",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_00984964d3.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2020/07/7c8f296a-1-1440x1080.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-high-school-construction-update/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1440,
+    1080
+   ],
+   "building": "athletic wing (south side)",
+   "facade": "same view, smaller rendition",
+   "shows": "duplicate rendition of the excavation photo",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_424a94963c.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2020/07/98e18589-3-1369x1080.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-high-school-construction-update/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1369,
+    1080
+   ],
+   "building": "grounds",
+   "facade": "baseball field",
+   "shows": "infield mix and outfield turf colour",
+   "use": "ground",
+   "reviewed": true
+  },
+  {
+   "file": "page_0c00c65d71.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2020/07/9208b6fd-2-1440x1080.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-high-school-construction-update/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1440,
+    1080
+   ],
+   "building": "classroom wings from the stadium",
+   "facade": "south / west elevations at distance",
+   "shows": "new turf field; buff two-storey wings with ribbon windows",
+   "use": "ground",
+   "reviewed": true
+  },
+  {
+   "file": "page_18b64283ab.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2021/07/04c921a7-img_1918.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-hs-progress-2/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1600,
+    1200
+   ],
+   "building": "natatorium addition",
+   "facade": "south-west corner",
+   "shows": "taupe brick with darker base course, royal blue metal coping, curtain-wall corner",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_adf86cf6bf.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2021/07/754d2f27-img_2264-1440x1080.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-hs-progress-2/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1440,
+    1080
+   ],
+   "building": "natatorium",
+   "facade": "interior under construction",
+   "shows": "pool tank; not used for exterior materials",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_a4c6170e85.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2021/07/04c921a7-img_1918-1440x1080.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-hs-progress-2/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1440,
+    1080
+   ],
+   "building": "natatorium addition",
+   "facade": "south-west corner, wider",
+   "shows": "taupe brick volumes with recessed pilaster slots, blue entrance canopy, green-tint curtain wall",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_68d9990df2.jpg",
+   "url": "https://storage.googleapis.com/wordpress_arcon/2021/07/8acddd82-img_1887-1440x1080.jpg",
+   "page": "https://arconassoc.com/news/hinsdale-central-hs-progress-2/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1440,
+    1080
+   ],
+   "building": "interior courtyard",
+   "facade": "north and east courtyard walls",
+   "shows": "golden buff brick, two rows of bronze windows, limestone coping (low sun: hue too warm)",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_42138786bf.jpg",
+   "url": "https://patch.com/img/cdn20/users/23697275/20261117/023700/styles/patch_image/public/walmart-lyman-avenue-darien___17142806127.jpg",
+   "page": "https://patch.com/illinois/darien-il/hinsdale-d86-replaces-firm-designed-140m-projects",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Darien Traffic Rule No Longer Has Purpose, Officials Conclude",
+   "px": [
+    893,
+    670
+   ],
+   "building": "site",
+   "facade": "parking / drive",
+   "shows": "asphalt and kerb context",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_0fdb030186.jpg",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Aerial_view_of_Hinsdale_Central_High_School%2C_October_2024.JPG/960px-Aerial_view_of_Hinsdale_Central_High_School%2C_October_2024.JPG?utm_source=en.wikipedia.org&utm_campaign=parser&utm_content=thumbnail",
+   "page": "https://en.wikipedia.org/wiki/Hinsdale_Central_High_School",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    960,
+    721
+   ],
+   "building": "whole campus",
+   "facade": "aerial oblique, October 2024",
+   "shows": "roof layout and colours: pale ballasted membranes, stadium, courts",
+   "use": "roof",
+   "reviewed": true
+  },
+  {
+   "file": "commons_8f06f7af9d.jpg",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/37/Hinsdale_Central_High_School_in_Illinois_01.jpg/1280px-Hinsdale_Central_High_School_in_Illinois_01.jpg?utm_source=commons.wikimedia.org&amp;utm_campaign=index&amp;utm_content=thumbnail",
+   "page": "https://commons.wikimedia.org/wiki/File:Hinsdale_Central_High_School_in_Illinois_01.jpg",
+   "source": "commons",
+   "licence": "CC0",
+   "author": "",
+   "caption": "File:Hinsdale Central High School in Illinois 01.jpg",
+   "px": [
+    1280,
+    960
+   ],
+   "building": "main 1950 wing (55th St)",
+   "facade": "north elevation, oblique",
+   "shows": "variegated grey-buff brick, two storeys of bronze ribbon windows, limestone coping, planters",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "commons_b09d1b484f.jpg",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/be/Hinsdale_Central_High_School_in_Illinois_02.jpg/1280px-Hinsdale_Central_High_School_in_Illinois_02.jpg?utm_source=commons.wikimedia.org&amp;utm_campaign=index&amp;utm_content=thumbnail",
+   "page": "https://commons.wikimedia.org/wiki/File:Hinsdale_Central_High_School_in_Illinois_02.jpg",
+   "source": "commons",
+   "licence": "CC0",
+   "author": "",
+   "caption": "File:Hinsdale Central High School in Illinois 02.jpg",
+   "px": [
+    1280,
+    757
+   ],
+   "building": "main wing, sign block",
+   "facade": "north elevation",
+   "shows": "brick blend unit-to-unit variation, limestone coping, pin letters and crest",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "commons_467deb0ffc.jpg",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Hinsdale_Central_High_School_in_Illinois_05.jpg/1280px-Hinsdale_Central_High_School_in_Illinois_05.jpg?utm_source=commons.wikimedia.org&amp;utm_campaign=index&amp;utm_content=thumbnail",
+   "page": "https://commons.wikimedia.org/wiki/File:Hinsdale_Central_High_School_in_Illinois_05.jpg",
+   "source": "commons",
+   "licence": "CC0",
+   "author": "",
+   "caption": "File:Hinsdale Central High School in Illinois 05.jpg",
+   "px": [
+    1280,
+    960
+   ],
+   "building": "main entrance",
+   "facade": "entrance court from the drive",
+   "shows": "white metal canopy on round columns, buff brick returns, concrete steps",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "commons_724aeb1734.jpg",
+   "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/55/Hinsdale_Central_High_School_in_Illinois_06.jpg/1280px-Hinsdale_Central_High_School_in_Illinois_06.jpg?utm_source=commons.wikimedia.org&amp;utm_campaign=index&amp;utm_content=thumbnail",
+   "page": "https://commons.wikimedia.org/wiki/File:Hinsdale_Central_High_School_in_Illinois_06.jpg",
+   "source": "commons",
+   "licence": "CC0",
+   "author": "",
+   "caption": "File:Hinsdale Central High School in Illinois 06.jpg",
+   "px": [
+    1280,
+    960
+   ],
+   "building": "main entrance",
+   "facade": "close-up of doors and east return",
+   "shows": "running bond resolved: course 68 mm from the 2.13 m door; salmon / grey flashed units; red clay pavers; bronze downspout",
+   "use": "coursing",
+   "reviewed": true
+  },
+  {
+   "file": "page_d464c8d1af.jpg",
+   "url": "https://www.pepperconstruction.com/sites/default/files/styles/teaser_large/public/images/hinsdale_central_horizontal_1_0.jpg?itok=oFyXxT5r",
+   "page": "https://www.pepperconstruction.com/project/hinsdale-township-high-school-district-86-aquatic-center-renovations",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    960,
+    600
+   ],
+   "building": "interior courtyard (student services addition)",
+   "facade": "north-west corner of the courtyard",
+   "shows": "professional photo: tan-buff brick on the upper left wing, clearly red-brown brick spandrels on the right wing, bronze curtain wall",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_2b7f70cec7.jpg",
+   "url": "https://www.pepperconstruction.com/sites/default/files/styles/max_1300x1300/public/images/hinsdale_central_banner_1_0.jpg?itok=IvG0vkJv",
+   "page": "https://www.pepperconstruction.com/project/hinsdale-township-high-school-district-86-masterplan",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Hinsdale Central ",
+   "px": [
+    1300,
+    813
+   ],
+   "building": "main entrance (Grant St side)",
+   "facade": "entrance front at dusk",
+   "shows": "professional photo: warm orange-tan brick both sides of the white canopy; brick R:G:B about 1 : 0.58 : 0.35 after white-balancing on the concrete steps",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_fdb6a1173d.jpg",
+   "url": "https://www.thehinsdalean.com/IMG/FZCWLEq-BP8REAOLS0LzgmF-IOxQY/XPATH/home/cms_data/dfault/photos/stories/id/5/1/3351/s_topXEXT1433x33091is.jpg",
+   "page": "https://thehinsdalean.com/story/2021/07/08/news/phase-2-construction-on-track-at-central/3351.html",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1067,
+    800
+   ],
+   "building": "stadium",
+   "facade": "aerial, straight down",
+   "shows": "field and track colours; red-brown brick field house at the west edge",
+   "use": "ground",
+   "reviewed": true
+  },
+  {
+   "file": "page_3f22af9edb.jpg",
+   "url": "https://eea-ltd.com/wp-content/uploads/2020/08/P1010068-edit-2-2000x1500.jpg",
+   "page": "https://eea-ltd.com/project/hinsdale-central-high-school/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "background",
+   "px": [
+    2000,
+    1500
+   ],
+   "building": "whole campus",
+   "facade": "aerial oblique from the south-east (older)",
+   "shows": "all wings read warm tan-brown, none grey",
+   "use": "colour",
+   "reviewed": true
+  }
+ ],
+ "streetview": []
+}
