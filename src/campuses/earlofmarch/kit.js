@@ -58,7 +58,8 @@ export function mat(ctx, m, k = 1, tint) {
 export const BRICK_TINT_FLAT = [1.0, 0.86, 0.78];
 export function brick(ctx, k = 1) { const b = ctx.B.v('brick', true); const t = ctx.TX ? [1, 1, 1] : BRICK_TINT_FLAT; b.setColor(t[0] * k, t[1] * k, t[2] * k); return b; }
 // roof ballast tints over the neutral gravel tile (judged beside the tiles nadir, sunlit)
-export const ROOF_BROWN = [0.95, 0.47, 0.35], ROOF_GREY = [1.9, 1.9, 1.82], ROOF_DARK = [0.7, 0.7, 0.7];
+// (fix round 1: the brown was salmon beside the tiles' darker red-brown ballast)
+export const ROOF_BROWN = [0.66, 0.34, 0.28], ROOF_GREY = [1.9, 1.9, 1.82], ROOF_DARK = [0.7, 0.7, 0.7];
 
 export function addMaterials(ctx) {
   addMarinMaterials(ctx);   // stucco, solar, house walls, hedge ...
@@ -122,7 +123,7 @@ export function door(ctx, F, uc, y0, o = {}) {
   fbox(B.v('concrete'), F, u0 - 0.3, u1 + 0.3, y0 - 0.25, y0 + 0.02, -D, 0.35, 1 / 3, 0, 'fst');   // threshold slab
   const p = F.P(uc, y0, 0); (ctx.doors = ctx.doors || []).push({ id: o.id || null, x: p[0], z: p[2], nx: F.nx, nz: F.nz, y: y0, w, canopy: !!o.canopy });
   if (o.sign) {   // a name band over the door (o.sign = { lines, w, out, y }): white panel, dark letters sized from the text
-    const sw = Math.min(F.L - 0.5, o.sign.w || Math.max(w + 1.2, 0.36 * Math.max(...o.sign.lines.map((l) => l.length)))), sh = 0.34 + 0.4 * o.sign.lines.length, so = o.sign.out ?? 0.02, sy = y0 + (o.sign.y ?? ht + 0.12); const ucD = uc; uc = Math.max(sw / 2 + 0.25, Math.min(F.L - sw / 2 - 0.25, uc));   /* (the band stays on its own wall: the Mlacak name ran behind the next wall and read "N G. MLACAK CENTRE") */
+    const sw = o.sign.over ? o.sign.w : Math.min(F.L - 0.5, o.sign.w || Math.max(w + 1.2, 0.36 * Math.max(...o.sign.lines.map((l) => l.length)))), sh = o.sign.h || 0.34 + 0.4 * o.sign.lines.length, so = o.sign.out ?? 0.02, sy = y0 + (o.sign.y ?? ht + 0.12); const ucD = uc; uc = o.sign.over ? (o.sign.atW ? (o.sign.atW[0] - F.ax) * F.tx + (o.sign.atW[1] - F.az) * F.tz : uc) : Math.max(sw / 2 + 0.25, Math.min(F.L - sw / 2 - 0.25, uc));   /* (fix round 1: `over` = a fascia band wider than its wall, centred on the world point atW) */   /* (the band stays on its own wall: the Mlacak name ran behind the next wall and read "N G. MLACAK CENTRE") */
     fbox(B.v('whitePanel'), F, uc - sw / 2, uc + sw / 2, sy, sy + sh, so, so + 0.07, 1, 0, 'fstb'); { const pc = F.P(uc, sy + sh / 2, so - 0.1); B.c('metal').box(pc[0], pc[1], pc[2], sw, sh, 0.34, F.rotY); }   /* (a solid band: the map check wants a sign backed by something) */
     const cw2 = 1024, ch2 = Math.round(1024 * sh / sw); const font = Math.min(Math.round(ch2 / o.sign.lines.length * 0.6), Math.round(cw2 * 1.5 / Math.max(...o.sign.lines.map((l) => l.length))));
     const tex = ctx.M.textDecal(o.sign.lines, { w: cw2, h: ch2, font, color: '#1c2a33', align: 'center', weight: 700, spacing: '2px' }); wallDecal(ctx, tex, F, uc, sy + sh / 2, sw - 0.12, sh - 0.08, so + 0.076, { opaque: false }); uc = ucD; }
@@ -210,5 +211,68 @@ export function newWall(ctx, F, y0, top, o = {}) {
   for (const d of doors) door(ctx, F, d.u, y0, { frame: 'frameAlu', ...d });
   baseCourse(ctx, F, y0, doorSpans);
   fbox(B.v('frameAlu'), F, -0.08, L + 0.08, wt, top, -0.02, 0.1, 1, 0, 'fstb');   // coping
+}
+// ------------------------------------------------------------------------------------------ the 2015 wing's own south front (fix round 1, rules A3 / F27 / F36 / F55)
+// Street View f_78a (September 2019, from the east drive) + tiles obliques to_78s / to_78pav: the long wall on the play yard is a two-storey CURTAIN-WALL BAND
+// in a pale metal frame (tall green glass below, a pale spandrel, dark windows alternating with green panels above) between brick end piers; next to it
+// a GLAZED BOX in a thick silver portal frame stands 2 m proud and taller than the parapet; in the corner beside it the entrance: doors under a canopy
+// and a glazed metal oriel over them; the east part's wall is plain brick with tall green slots and one pale panel band.
+const brickNewField = (ctx, F, y0, y1, holes, uOff) => { const bk = mat(ctx, MAT.brickNew); cutRects(F.L, y0, y1, holes, (a, b, c, d) => wallRect(bk, F, a, b, c, d, 0, [(uOff + a) * BRICK_S, c * BRICK_S, (uOff + b) * BRICK_S, d * BRICK_S])); bk.setColor(1, 1, 1); };
+const coping = (ctx, F, wt, top) => fbox(ctx.B.v('frameAlu'), F, -0.08, F.L + 0.08, wt, top, -0.02, 0.1, 1, 0, 'fstb');
+export function curtainWall(ctx, F, y0, top, o = {}) {
+  const B = ctx.B, L = F.L, uOff = o.uOff || 0, wt = top - 0.22; const a = Math.min(o.e0 ?? 6.5, L * 0.2), b = L - Math.min(o.e1 ?? 5.5, L * 0.2); const ya = y0 + 0.75, yb = Math.min(wt - 1.2, y0 + 7.7);
+  brickNewField(ctx, F, y0 - 0.4, wt, [[a, b, ya, yb]], uOff);
+  const wp = B.v('whitePanel'); const D = 0.16;
+  fbox(wp, F, a - 0.22, a, ya - 0.22, yb + 0.22, 0, 0.1, 1, 0, 'fstb'); fbox(wp, F, b, b + 0.22, ya - 0.22, yb + 0.22, 0, 0.1, 1, 0, 'fstb'); fbox(wp, F, a, b, yb, yb + 0.22, 0, 0.1, 1, 0, 'fstb'); fbox(wp, F, a, b, ya - 0.22, ya, 0, 0.1, 1, 0, 'fstb');
+  const y1 = ya + 2.75, y2 = y1 + 0.95; const n = Math.max(2, Math.round((b - a) / 2.9)), bw = (b - a) / n;
+  ribbon(ctx, F, a, b, ya, y1, { frame: 'frameAlu', pane: 'eomGlassGreen', module: bw / 2, depth: D, transomAt: 2.05 });      // tall green glass at the ground
+  wallRect(wp, F, a, b, y1, y2, -0.02, [0, 0, (b - a) / 1.4, 0.7]);                                                           // the pale spandrel
+  ribbon(ctx, F, a, b, y2, yb, { frame: 'frameAlu', module: bw / 2, depth: D, kind: 1, transom: false });                    // the upper windows ...
+  const gp = B.v('eomGlassGreen'); for (let i = 0; i < n; i++) wallRect(gp, F, a + i * bw + bw / 2 + 0.04, a + (i + 1) * bw - 0.04, y2 + 0.07, yb - 0.07, -D + 0.06, [0, 0, 1, 1]);   // ... every other light a green panel
+  for (let i = 1; i < n; i++) fbox(wp, F, a + i * bw - 0.06, a + i * bw + 0.06, ya, yb, -D, 0.06, 1, 0, 'fs');                   // pale fins between the bays
+  baseCourse(ctx, F, y0, []); coping(ctx, F, wt, top);
+}
+/** The glazed box: full-height green glazing in a thick silver portal (two cheeks and a roof slab standing `out` proud, the slab above the parapet). */
+export function portalWall(ctx, F, y0, top, o = {}) {
+  const B = ctx.B, L = F.L, out = o.out ?? 1.1, th = 0.5, up = o.up ?? 1.3; const al = B.v('frameAlu'); const yT = top + up;
+  const m = B.v('eomSpandrel'); wallRect(m, F, 0, L, y0 - 0.4, y0 + 0.2, 0); 
+  ribbon(ctx, F, th * 0.4, L - th * 0.4, y0 + 0.2, yT - th, { frame: 'frameAlu', pane: 'eomGlassGreen', module: (L - th * 0.8) / 6, depth: 0.12, transom: false });
+  for (const y of [y0 + 2.75, y0 + 5.2, y0 + 7.6]) if (y < yT - th - 0.6) fbox(al, F, th * 0.4, L - th * 0.4, y - 0.04, y + 0.04, -0.12, -0.02, 1, 0, 'ftb');
+  fbox(al, F, -0.25, th * 0.5, y0 - 0.3, yT, -0.3, out, 1, 0, 'fstb'); fbox(al, F, L - th * 0.5, L + 0.25, y0 - 0.3, yT, -0.3, out, 1, 0, 'fstb'); fbox(al, F, -0.25, L + 0.25, yT - th, yT, -0.3, out, 1, 0, 'fstb');
+  // the box's back and lid above the roof (seen from the roofs and the air), and what a player can stand on / bump into
+  const bk = F.P(L / 2, (top + yT) / 2 - 0.2, -1.6); B.v('frameAlu').box(bk[0], bk[1], bk[2], L + 0.5, yT - top + 0.4, 2.6, F.rotY); B.c('metal').box(bk[0], bk[1], bk[2], L + 0.5, yT - top + 0.4, 2.6, F.rotY);
+  for (const u of [-0.25 + (th * 0.5 + 0.25) / 2, L + 0.25 - (th * 0.5 + 0.25) / 2]) { const c = F.P(u, (y0 + yT) / 2, out / 2); B.c('metal').box(c[0], c[1], c[2], th * 0.5 + 0.25, yT - y0, out, F.rotY); }
+  { const c = F.P(L / 2, yT - th / 2, out / 2); B.c('metal').box(c[0], c[1], c[2], L + 0.5, th, out, F.rotY); }
+}
+/** The entrance wall in the corner: glazed doors under a canopy, glass to both sides, a glazed metal oriel over them. o.doors as the other walls. */
+export function entryWall(ctx, F, y0, top, o = {}) {
+  const B = ctx.B, L = F.L, uOff = o.uOff || 0, wt = top - 0.22; const al = B.v('frameAlu'); const holes = [], spans = [];
+  const doors = (o.doors || []).filter((d) => d.u > 0.9 && d.u < L - 0.9); let u = 0.5;
+  for (const d of [...doors].sort((p, q) => p.u - q.u).concat([{ u: L + 2.4, w: 3.8 }])) { const w = d.w || 1.9; if (d.u < L) { holes.push([d.u - w / 2, d.u + w / 2, y0 - 0.5, y0 + 2.75]); spans.push([d.u - w / 2 - 0.3, d.u + w / 2 + 0.3]); }
+    const e = Math.min(L - 0.5, d.u - w / 2 - 0.25); if (e - u > 0.9) holes.push([u, e, y0 + 0.25, y0 + 2.75, 1]); u = d.u + w / 2 + 0.25; }
+  brickNewField(ctx, F, y0 - 0.4, wt, holes.map((h) => h.slice(0, 4)), uOff);
+  for (const h of holes) if (h[4]) ribbon(ctx, F, h[0], h[1], h[2], h[3], { frame: 'frameAlu', pane: 'eomGlassGreen', module: 1.2, depth: 0.14, transom: false });
+  for (const d of doors) door(ctx, F, d.u, y0, { frame: 'frameAlu', ...d });
+  // the oriel: a metal box 1.5 m proud from 3.6 m up to just under the coping, glazed on its face
+  const oa = 0.35, ob = L - 0.35, ya = y0 + 3.6, yb = Math.min(wt - 0.5, y0 + 7.7), od = 1.5;
+  fbox(al, F, oa, ob, ya, yb, 0, od, 1, 0, 'fstb'); { const c = F.P(L / 2, (ya + yb) / 2, od / 2); B.c('metal').box(c[0], c[1], c[2], ob - oa, yb - ya, od, F.rotY); }
+  wallRect(B.v('eomGlassGreen'), F, oa + 0.4, ob - 0.4, ya + 0.45, yb - 0.45, od + 0.012, [0, 0, 4, 2]);
+  const n = Math.max(2, Math.round((ob - oa - 0.8) / 1.3)); for (let i = 0; i <= n; i++) { const uu = oa + 0.4 + (ob - oa - 0.8) * i / n; wallRect(al, F, uu - 0.03, uu + 0.03, ya + 0.45, yb - 0.45, od + 0.02); }
+  wallRect(al, F, oa + 0.4, ob - 0.4, (ya + yb) / 2 - 0.03, (ya + yb) / 2 + 0.03, od + 0.02);
+  baseCourse(ctx, F, y0, spans); coping(ctx, F, wt, top);
+}
+/** Plain brick with tall green slots in pale frames and pale panel bands (o.slots = [{ u, w, y0, y1 }], o.bands = [[u0, u1]]): the 2015 wing's east part and its low block. */
+export function slotWall(ctx, F, y0, top, o = {}) {
+  const B = ctx.B, L = F.L, uOff = o.uOff || 0, wt = top - 0.22; const holes = [], spans = []; const wp = B.v('whitePanel');
+  const doors = (o.doors || []).filter((d) => d.u > 0.9 && d.u < L - 0.9);
+  for (const d of doors) { const w = d.w || 1.9; holes.push([d.u - w / 2, d.u + w / 2, y0 - 0.5, y0 + (d.h || 2.75)]); spans.push([d.u - w / 2 - 0.3, d.u + w / 2 + 0.3]); }
+  const slots = (o.slots || []).filter((q) => q.u - q.w / 2 > 0.4 && q.u + q.w / 2 < L - 0.4 && !spans.some(([a, b]) => q.u + q.w / 2 > a && q.u - q.w / 2 < b)).map((q) => [q.u - q.w / 2, q.u + q.w / 2, y0 + (q.y0 ?? 0.9), Math.min(wt - 0.5, y0 + (q.y1 ?? 99))]);
+  const bands = (o.bands || []).map(([a, b]) => [Math.max(0.2, a), Math.min(L - 0.2, b)]).filter(([a, b]) => b - a > 0.6);
+  brickNewField(ctx, F, y0 - 0.4, wt, [...holes, ...slots], uOff);
+  for (const [a, b, c, d] of slots) { ribbon(ctx, F, a, b, c, d, { frame: 'frameAlu', pane: 'eomGlassGreen', module: Math.min(1.3, b - a), depth: 0.14, transomAt: 2.0 }); fbox(wp, F, a - 0.14, a, c - 0.14, d + 0.14, 0, 0.06, 1, 0, 'fstb'); fbox(wp, F, b, b + 0.14, c - 0.14, d + 0.14, 0, 0.06, 1, 0, 'fstb'); fbox(wp, F, a, b, d, d + 0.14, 0, 0.06, 1, 0, 'ftb'); fbox(wp, F, a, b, c - 0.14, c, 0, 0.06, 1, 0, 'ftb'); }
+  for (const [a, b] of bands) fbox(mat(ctx, MAT.panelWhite), F, a, b, y0 + 0.3, wt, 0, 0.05, 1, 0, 'fstb');
+  ctx.B.v('stucco', true).setColor(1, 1, 1);
+  for (const d of doors) door(ctx, F, d.u, y0, { frame: 'frameAlu', ...d });
+  baseCourse(ctx, F, y0, spans); coping(ctx, F, wt, top);
 }
 export { edgeFrame, quadFacing, wallRect, fbox, BRICK_S, ensureCCW, PO };

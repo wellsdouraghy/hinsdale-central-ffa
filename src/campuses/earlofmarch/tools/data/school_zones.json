@@ -1,4 +1,6 @@
 [
+ {"name": "gym", "kind": "oldW", "uv": [-60, 11, -3, 41.2]},
+ {"name": "midE", "kind": "oldW", "uv": [-3, -6.5, 13.5, 41.2]},
  {"name": "add", "kind": "new", "uv": [-60, 41.2, 60, 90], "q": 30},
  {"name": "low", "kind": "low", "uv": [32.5, 43.5, 60, 90]},
  {"name": "midD", "kind": "old", "uv": [13.5, 9, 39.5, 41.2]},

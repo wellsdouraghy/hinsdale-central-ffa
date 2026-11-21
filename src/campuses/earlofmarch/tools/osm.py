@@ -75,6 +75,7 @@ def main():
             if not outer: continue
             rec = dict(id=e['id'], tags=t, outer=[r[:-1] for r in outer], inner=[r[:-1] for r in inner])
             (buildings if 'building' in t else areas).append(rec)
+    gone = set(getattr(extra, 'PORTABLES_GONE', [])); buildings = [b for b in buildings if b['id'] not in gone]   # (fix round 1, rule F53: one imagery epoch; see data/extra.py and epoch.py)
     for i, t, r in extra.BUILDINGS: buildings.append(dict(id=i, tags=t, outer=[r], inner=[]))
     for i, t, r in extra.AREAS: areas.append(dict(id=i, tags=t, outer=[r], inner=[]))
     out = dict(

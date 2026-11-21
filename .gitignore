@@ -26,3 +26,5 @@ dev/shots/textures/*/v*/ref-compare/
 src/campuses/earlofmarch/tools/data/cache/
 # Earl of March: game | tiles pairs and Street View sheets contain Google imagery (local review only)
 dev/shots/earlofmarch/tiles-compare/
+# Earl of March fix round 1: reference shots and game | tiles pairs (Google imagery: local review only)
+dev/shots/earlofmarch-v2/

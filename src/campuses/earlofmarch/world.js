@@ -42,13 +42,21 @@ function sitework(ctx) {
   const keep = KEEP_OPEN(ctx); const heli = (ctx.campus.heliPark || []).filter((p) => p[1] < 0.5);
   const bl = ctx.data.buildings.map((b) => b.outer[0]);
   const out = [];
-  for (const t of ctx.gen.trees || []) {
+  // (fix round 1) natural woods: the canopy-fill trunks (the last 675 of gen.trees: one per 3.6 m cell of closed canopy the crown tops left uncovered)
+  // stood in orchard rows of one species and size. Each is moved off its cell (up to 2.3 m), takes its own size (0.7-1.25 of the canopy height: under-
+  // storey to emergent), and a quarter of them are the white pines and spruces of the Beaverbrook woods (Street View: conifers through the maple / birch);
+  // the measured crown tops keep their place and height. Deterministic (a hash of the cell), so every client builds the same wood.
+  const all = ctx.gen.trees || []; const FILL0 = Math.max(0, all.length - 675); const hash = (a, b, k) => { const v = Math.sin(a * 127.1 + b * 311.7 + k * 74.7) * 43758.5453; return v - Math.floor(v); };
+  for (let ti = 0; ti < all.length; ti++) {
+    let t = all[ti];
+    if (ti >= FILL0) { const r1 = hash(t[0], t[1], 1), r2 = hash(t[0], t[1], 2), r3 = hash(t[0], t[1], 3), r4 = hash(t[0], t[1], 4); const a = r1 * Math.PI * 2, d = 0.5 + r2 * 1.8;
+      const con = r4 < 0.26; t = [t[0] + Math.cos(a) * d, t[1] + Math.sin(a) * d, con ? 1 : 0, Math.max(0.42, Math.min(2.1, t[3] * (0.7 + 0.55 * r3) * (con ? 1.07 : 1)))]; }
     let p = [t[0], t[1]];
     if (streets) { const v = streets.toVerge(t[0], t[1], 1.2); if (v) { if (streets.inRoad(v[0], v[1], 1.0)) continue; p = v; } }
     if (keep(p[0], p[1], t)) continue;
     if (heli.some((h) => Math.hypot(p[0] - h[0], p[1] - h[2]) < 11.6)) continue;
     if (bl.some((r) => pointInRing(p[0], p[1], r) || pointInRing(p[0] + 1.6, p[1], r) || pointInRing(p[0] - 1.6, p[1], r) || pointInRing(p[0], p[1] + 1.6, r) || pointInRing(p[0], p[1] - 1.6, r))) continue;
-    if (out.some((q) => Math.abs(q[0] - p[0]) < 3 && Math.abs(q[1] - p[1]) < 3 && Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue;
+    { const dm = ti >= FILL0 ? 1.8 + 1.5 * hash(t[0], t[1], 5) : 3; if (out.some((q) => Math.abs(q[0] - p[0]) < dm && Math.abs(q[1] - p[1]) < dm && Math.hypot(q[0] - p[0], q[1] - p[1]) < dm)) continue; }   // (uneven spacing: clumps and gaps)
     out.push([p[0], p[1], ...t.slice(2)]);
   }
   ctx.gen.trees = out;

@@ -75,11 +75,18 @@ asph = asph.buffer(-0.6).buffer(0.6).simplify(0.9); conc = conc.simplify(0.5)
 for r in getattr(extra, 'PAVED_ADD', []): asph = asph.union(Polygon(r))
 for r in getattr(extra, 'PAVED_CUT', []): asph = asph.difference(Polygon(r)); conc = conc.difference(Polygon(r))
 for r in getattr(extra, 'CONCRETE', []): conc = conc.union(Polygon(r)); asph = asph.difference(Polygon(r))
+# fix round 1 (rule F53): the newest imagery's outlines, applied in order over everything above
+for op, r in getattr(extra, 'EPOCH', []):
+    g = Polygon(r).buffer(0)
+    if op == 'lawn': asph = asph.difference(g); conc = conc.difference(g)
+    elif op == 'asphalt': asph = asph.union(g); conc = conc.difference(g)
+    else: conc = conc.union(g); asph = asph.difference(g)
 asph = asph.difference(bld.buffer(0.05)).intersection(AREA); conc = conc.difference(bld.buffer(0.05)).difference(asph).intersection(AREA)
 def polys(g, min_area):
     out = []
     for q in (g.geoms if hasattr(g, 'geoms') else [g]):
         if q.geom_type != 'Polygon' or q.area < min_area: continue
+        if q.area / (q.length / 2) < 2.0: continue   # (fix round 1: a sliver under 2 m wide is a leftover of a cut, e.g. the strip south of the track; its kerb was a stray zigzag on the lawn)
         out.append(dict(outer=[[round(x, 2), round(z, 2)] for x, z in list(q.exterior.coords)[:-1]], holes=[[[round(x, 2), round(z, 2)] for x, z in list(r.coords)[:-1]] for r in q.interiors if Polygon(r).area >= 10], area=round(q.area)))
     return sorted(out, key=lambda p: -p['area'])
 PA, PC = polys(asph, 30), polys(conc, 14)
@@ -100,6 +107,7 @@ foot = Image.new('L', (W, H), 0); fd = ImageDraw.Draw(foot)
 for r in D['roads']:
     if r['tags'].get('highway') in ('footway', 'path', 'cycleway'): fd.line([P(x, z) for x, z in r['line']], fill=255, width=int(round(2.2 * sx)), joint='curve')
 foot = (np.asarray(foot) > 0) & inn & ~mA & ~mC & (mask0[..., 0] > 100)
+if getattr(extra, 'FOOT_CUT', None): foot &= ~raster([Polygon(r).buffer(0) for r in extra.FOOT_CUT])
 streets = np.zeros((H, W), bool)   # the engine repaints the graded streets itself; leave whatever is there
 newA = (mA | foot); newC = mC & ~newA
 A0 = mask0[..., 0] > 127; C0 = mask0[..., 1] > 127; G0 = ~(A0 | C0) & (mask0[..., 3] > 127)
@@ -108,17 +116,24 @@ rng = np.random.default_rng(5); noise = ndi.gaussian_filter(rng.random((H, W)).a
 def tone(sel): return np.median(macro0[sel], axis=0) if sel.sum() > 500 else None
 tA = tone(A0 & inn); tC = tone(C0 & inn); tG = tone(G0 & inn & (macro0[..., 1] > macro0[..., 0]))
 print('tones asphalt', tA, 'concrete', tC, 'grass', tG)
-toG = inn & ~newA & ~newC & (A0 | C0)
-toA = inn & newA & ~A0; toC = inn & newC & ~C0
+gone = raster([Polygon(r).buffer(0) for op, r in getattr(extra, 'EPOCH', []) if op == 'lawn']) if getattr(extra, 'EPOCH', None) else np.zeros((H, W), bool)   # (the photo shows the old layout there: roofs that left, worn paths)
+gone &= ~((macro0[..., 1] > macro0[..., 0] * 1.1) & (macro0[..., 1] > macro0[..., 2] * 1.15))   # (what is green in the photo keeps its own texture)
+toG = inn & ~newA & ~newC & (A0 | C0 | gone)
+ep = raster([Polygon(r).buffer(0) for op, r in getattr(extra, 'EPOCH', [])]) if getattr(extra, 'EPOCH', None) else np.zeros((H, W), bool)   # (inside the re-traced outlines every paved pixel takes the flat tone: no ghost of the old layout)
+toA = inn & newA & (~A0 | ep); toC = inn & newC & (~C0 | ep)
 for sel, t, k in ((toG, tG, 0.05), (toA, tA, 0.03), (toC, tC, 0.03)):
     if t is not None: macro[sel] = t[None, :] * (1 + k * noise[sel])[:, None]
 mask[inn & newA] = [255, 0, 0, 255]; mask[inn & newC] = [0, 255, 0, 255]; mask[toG] = [0, 0, 0, 255]
 # (grass that the classifier had right keeps its own soft dirt weights; only the paved channels are zeroed)
 keepG = inn & ~newA & ~newC & ~toG; mask[keepG, 0] = 0; mask[keepG, 1] = 0
+for ring, rgb in getattr(extra, 'RETONE', []):   # paving that keeps its outline and takes the tiles' tone
+    m = raster([Polygon(ring)]) & inn & newA; macro[m] = np.array(rgb, np.float32)[None, :] * (1 + 0.03 * noise[m])[:, None]
 # designed surfaces with their own tone (the track): painted last, hard-edged
 CL = dict(grass=GRASS, asphalt=ASPH, concrete=CONC, dirt=DIRT); toned = []
 for outer, holes, cname, rgb in getattr(extra, 'TONED', []):
-    m = raster([Polygon(outer, holes)]); toned.append((m, CL[cname])); macro[m] = np.array(rgb, np.float32)[None, :] * (1 + 0.035 * noise[m])[:, None]
+    m = raster([Polygon(outer, holes)])
+    if cname == 'dirt': m &= ~(inn & (newA | newC))   # (bare earth never covers a walk)
+    toned.append((m, CL[cname])); macro[m] = np.array(rgb, np.float32)[None, :] * (1 + 0.035 * noise[m])[:, None]
     mask[m] = [255, 0, 0, 255] if cname == 'asphalt' else [0, 255, 0, 255] if cname == 'concrete' else [0, 0, 0, 255]
 Image.fromarray(mask, 'RGBA').save(os.path.join(OUT, 'ground_mask.png'), optimize=True)
 Image.fromarray(macro.clip(0, 255).astype(np.uint8)).save(os.path.join(OUT, 'ground_macro.jpg'), quality=88)

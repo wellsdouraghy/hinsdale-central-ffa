@@ -4,9 +4,11 @@ import { pointInRing, mulberry32 } from '../../world/util.js';
 import { hillFence, onSlope, atGround } from '../marin/kit.js';
 import { propKit } from '../../world/props.js';
 import { bleachers, landmarkKit } from '../../world/landmarks.js';
-import { kerb, meshY, drapePoly } from './lib.js';
+import { kerb, meshY, drapePoly, earclip } from './lib.js';
 import { PAVED } from './paved.js';
 import { PLAY_EDGE, lineDist, segDist, SW } from './kit.js';
+import { SCHOOL_RING } from './blocks.js';
+const SCHOOL_LOOP = [...SCHOOL_RING, SCHOOL_RING[0]];
 
 // The running track (nadir 3D tiles, 5 m grid; mirrored in tools/data/extra.py, which paints it into the baked ground):
 // a plain grey oval without lane paint, straights 91 m, inside radius 32 m, 7.5 m wide, long axis 2.4 deg west of south.
@@ -43,10 +45,12 @@ function track(ctx) {
   const { B } = ctx;
   for (let i = 0; i < 2; i++) { const [x, z] = GOALS[i]; atGround(ctx, x, z, () => { landmarkKit.soccerGoal(ctx, x, z, -TA + (i ? Math.PI : 0)); B.c('metal:mesh').box(x, 1.22, z, 7.4, 2.44, 0.12, -TA); }, 1.5, 'max'); }
   for (const [x, z] of MASTS) atGround(ctx, x, z, () => { landmarkKit.lightPole(ctx, x, z, 18, Math.atan2(TRACK.cx - x, TRACK.cz - z), 2); ctx.grapplePoles.push({ x, z, y0: 1.5, y1: 18, r: 0.3 }); }, 0.6, 'min');
-  // the aluminium bleachers on the west side (nadir tiles): a long three-row bank beside the track and a ten-row block behind its middle
-  const b0 = [-159.2, 53.5], b1 = [-161.6, 71.5];
-  atGround(ctx, b0[0], b0[1] + 26, () => bleachers(ctx, { x: b0[0], z: b0[1], dir: Math.PI / 2 - TA, len: 52, rows: 3, run: 0.61, rise: 0.22, frontH: 0 }), 3, 'max');
-  atGround(ctx, b1[0], b1[1] + 9, () => bleachers(ctx, { x: b1[0] - 2.0, z: b1[1], dir: Math.PI / 2 - TA, len: 18, rows: 10, run: 0.66, rise: 0.25, frontH: 0.7 }), 3, 'max');
+  // the aluminium bleachers on the west side (fix round 1, nadir tiles ref_trk on a 20 m grid + the view from the infield): a three-row bank 53 m long
+  // beside the track from z 53 to z 106, and a six-row block right behind its middle (z 71..90). Both FACE EAST, onto the track: u runs south along the
+  // straight (dir = TA - 90 deg), the rows step back to the west. (They had been drawn facing west and the long bank ran north from z 53.)
+  const dir = TA - Math.PI / 2, b0 = [-160.0, 53.2], b1 = [b0[0] + AX * 18 - PX * 1.9, b0[1] + AZ * 18 - PZ * 1.9];
+  atGround(ctx, b0[0] + AX * 26.5, b0[1] + AZ * 26.5, () => bleachers(ctx, { x: b0[0], z: b0[1], dir, len: 53, rows: 3, run: 0.61, rise: 0.22, frontH: 0 }), 3, 'max');
+  atGround(ctx, b1[0] + AX * 9.5, b1[1] + AZ * 9.5, () => bleachers(ctx, { x: b1[0], z: b1[1], dir, len: 19, rows: 6, run: 0.72, rise: 0.28, frontH: 0 }), 3, 'max');
 }
 function courts(ctx) {
   const line = liner(ctx); const { B } = ctx;
@@ -63,15 +67,18 @@ function courts(ctx) {
 }
 
 // ------------------------------------------------------------------------------------------ car parks
-// Stall rows on both sides of every OSM parking aisle inside the fence (the aisles match the painted rows of the nadir
-// tiles); the tiles were flown in the summer holidays (a handful of cars), Street View on a school day shows the lots
-// full: the staff lot north of the school and the Mlacak lots are filled to about two thirds (rule F46).
+// Stall rows on both sides of every OSM parking aisle inside the fence (the aisles match the painted rows of the nadir tiles).
+// How many cars (rule F46, fix round 1: a deliberate count, not a fill factor picked for looks). The tiles were flown in the summer holidays (the north
+// lot holds a handful of cars); the map is the school on a SCHOOL DAY, and the September 2019 Street View frames taken on one (n2, n3, p2) show it: the
+// rows within ~45 m of the building are full bumper to bumper, the outer two thirds of the lot hold a few scattered cars. So: stalls within 45 m of
+// the school's walls 85 % full, the rest of the north lot 10 %, about 70 cars there instead of 150. The Mlacak / library lots (public, in use all day in
+// the same frames) stay about half full.
 function vehicles(ctx) {
   const rnd = mulberry32(1971); const line = liner(ctx); const S = ctx.streets;
   const tpls = [propKit.buildCarTemplate(propKit.CAR_TYPES.suv), propKit.buildCarTemplate(propKit.CAR_TYPES.sedan), propKit.buildCarTemplate(propKit.CAR_TYPES.hatch)];
   const keep = ctx.keepClear || []; const trunks = ctx.gen.trees || []; const placed = []; let n = 0, stalls = 0; const asph = (x, z) => ctx.surfaceAt(x, z) === 'asphalt';
   const edge = [...PLAY_EDGE, PLAY_EDGE[0]];
-  const car = (x, z, nx, nz, fill) => { const r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd(); if (r4 > fill) return;
+  const car = (x, z, nx, nz, fill) => { const r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd(); if (r4 > fill(x, z)) return;
     if (!pointInRing(x, z, PLAY_EDGE) || lineDist(x, z, edge) < 3.5) return; if (keep.some(([kx, kz, r]) => Math.hypot(x - kx, z - kz) < r)) return;
     const hd = Math.atan2(-nz, nx); const c = Math.cos(hd), s = Math.sin(hd); const corners = [[2.35, 1.0], [2.35, -1.0], [-2.35, 1.0], [-2.35, -1.0]].map(([l, w]) => [x + l * c + w * s, z - l * s + w * c]);
     if (corners.some(([px, pz]) => !asph(px, pz) || (ctx.buildingRings || []).some((r) => pointInRing(px, pz, r)) || (S && S.inRoad(px, pz, 0.3)))) return;
@@ -86,7 +93,7 @@ function vehicles(ctx) {
       if (ok) { line(p0[0], p0[1], p1[0], p1[1]); run++; } else run = 0;
       if (ok && run > 1) { stalls++; lot.stalls++; const n0 = n; car(x - tx * W / 2, z - tz * W / 2, nx, nz, fill); lot.cars += n - n0; } } };
   for (const r of ctx.data.roads) { if (r.tags.highway !== 'service' || r.tags.service !== 'parking_aisle') continue; const c = r.line[Math.floor(r.line.length / 2)]; if (!pointInRing(c[0], c[1], PLAY_EDGE)) continue;
-    const fill = c[1] < -40 ? 0.7 : 0.62; lot = (ctx.lots = ctx.lots || {})[r.id] = { at: [Math.round(c[0]), Math.round(c[1])], stalls: 0, cars: 0 };
+    const north = c[1] < -40; const fill = north ? (x, z) => (lineDist(x, z, SCHOOL_LOOP) < 45 ? 0.85 : 0.1) : () => 0.5; lot = (ctx.lots = ctx.lots || {})[r.id] = { at: [Math.round(c[0]), Math.round(c[1])], stalls: 0, cars: 0 };
     for (let i = 0; i < r.line.length - 1; i++) { row(r.line[i], r.line[i + 1], 1, fill); row(r.line[i], r.line[i + 1], -1, fill); } }
   ctx.carCount = n; ctx.stallCount = stalls;
   // school buses at the bus loop in front of the main entrance (Street View: the loop is the bus bay)
@@ -178,7 +185,30 @@ function hedges(ctx) {
   hb.setColor(1, 1, 1);
 }
 
+// (fix round 1, rules F34 / F42) Paver plazas as the tiles show them, laid as draped pavers on the concrete class the ground mask already has there
+// (outlines mirrored from tools/data/extra.py: ML_PLAZA without its two planting beds, SE_FORECOURT):
+//   the Mlacak Centre / library forecourt: buff pavers in ~6.6 m squares between darker bands that follow the library's walls (nadir ref_m1);
+//   the grades 7-8 forecourt at the end of the two sweeping walks: plain buff pavers (ref_s1).
+const ML_PAVERS = [[53.6, 124.6], [58, 127.2], [55.5, 132], [54.2, 138], [54.3, 145], [56, 150.5], [59.5, 154.5], [62, 157.5], [56.5, 163.5], [52.5, 167], [51, 174], [47.5, 175], [47.2, 166.5], [48.5, 164], [51, 160],
+  [49.5, 155.5], [45.5, 157], [40, 153.5], [44.6, 143.5], [48.5, 136], [51.5, 137], [54, 131], [53.5, 126]];
+const SE_PAVERS = [[167, 41], [176.5, 37.5], [178.4, 45], [178.6, 56.8], [163.5, 56.6], [160, 50]];
+const clipConvex = (poly, clip) => { let out = poly; const n = clip.length; let ar = 0; for (let i = 0; i < n; i++) { const p = clip[i], q = clip[(i + 1) % n]; ar += p[0] * q[1] - q[0] * p[1]; } const sg = ar >= 0 ? 1 : -1;
+  for (let i = 0; i < n && out.length; i++) { const a = clip[i], b = clip[(i + 1) % n]; const side = (p) => ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) * sg; const nx = [];
+    for (let k = 0; k < out.length; k++) { const p = out[k], q = out[(k + 1) % out.length]; const dp = side(p), dq = side(q); if (dp >= 0) nx.push(p); if ((dp >= 0) !== (dq >= 0)) { const t = dp / (dp - dq); nx.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); } } out = nx; } return out; };
+function plazas(ctx) {
+  const bk = ctx.B.v('stucco', true); const inB = (x, z) => (ctx.buildingRings || []).some((q) => pointInRing(x, z, q));
+  bk.setColor(0.66, 0.58, 0.5); drapePoly(ctx, bk, ML_PAVERS, 0.03, (x, z) => [x / 0.8, z / 0.8]); drapePoly(ctx, bk, SE_PAVERS, 0.03, (x, z) => [x / 0.8, z / 0.8]);
+  // the darker bands: a 6.6 m grid in the library's own frame (27.4 deg), each strip clipped to the plaza
+  const a = 0.47822, ux = Math.cos(a), uz = Math.sin(a); const W = (u, v) => [10 + u * ux - v * uz, 170 + u * uz + v * ux]; bk.setColor(0.42, 0.33, 0.28);
+  for (let k = -12; k <= 12; k++) for (const strip of [[W(-80, k * 6.6 - 0.4), W(80, k * 6.6 - 0.4), W(80, k * 6.6 + 0.4), W(-80, k * 6.6 + 0.4)], [W(k * 6.6 - 0.4, -80), W(k * 6.6 + 0.4, -80), W(k * 6.6 + 0.4, 80), W(k * 6.6 - 0.4, 80)]]) {
+    // (the plaza outline is concave: clip the convex strip against each ear of it)
+    for (const tri of earclip(ML_PAVERS)) { const q = clipConvex(strip, tri); if (q.length >= 3) drapePoly(ctx, bk, q, 0.042, (x, z) => [x / 0.8, z / 0.8]); } }
+  bk.setColor(1, 1, 1);
+  kerb(ctx, SE_PAVERS, { color: [0.5, 0.44, 0.38], h: 0.05, w: 0.14, step: 1.0, all: true, skip: inB });
+  ctx.gen.trees = (ctx.gen.trees || []).filter((t) => !pointInRing(t[0], t[1], ML_PAVERS) && !pointInRing(t[0], t[1], SE_PAVERS));
+}
+
 export function buildGrounds(ctx) {
-  doorWalks(ctx); entrancePavers(ctx); hedges(ctx); track(ctx); courts(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); rocks(ctx); boundary(ctx);
+  doorWalks(ctx); entrancePavers(ctx); plazas(ctx); hedges(ctx); track(ctx); courts(ctx); kerbs(ctx); lights(ctx); vehicles(ctx); rocks(ctx); boundary(ctx);
   void segDist; void SW;
 }

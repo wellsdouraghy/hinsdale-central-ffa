@@ -14,11 +14,13 @@ MAP_NOTES.md ...). Commit ONLY Earl of March paths (`git commit -- <paths>`), ne
 - The school (OSM way 68609482, one polygon, 12 650 m2) is split into 9 roof blocks by tools/blocks.py (zones in
   tools/data/school_zones.json, building frame: origin (84, 16), u = 43.26 deg north of east): old 8.99, add (2015 wing) 9.32,
   midC 9.61, midD 9.52, RA / RB (raised, precast-clad) 13.4, low 5.68, ph 10.2, RApent 13.1
-- Mlacak Centre OSM 69099636 (arena + halls), library 576122574, 31 portables (building=portable_classroom), track (OSM 69094421)
+- Mlacak Centre OSM 69099636 (arena + halls), library 576122574, 31 portables (23 of OSM's + 8 traced on the tiles; 8 OSM units are gone: tools/data/extra.py), track (OSM 69094421)
+- school roof blocks now 11: the 1971 deck is split by roof COVER too (gym 9.20 and midE 8.90 = white membrane, kind oldW)
 
 ## Pipeline (tools/, python venv with numpy pillow scipy shapely tifffile fsspec aiohttp pyproj)
-osm.py -> sat.py -> dem.py (lidar windows, cached in data/dem/) -> gen.py (classes, mask, macro, lidar building heights, lidar trees)
--> terrain.py (terrain.bin, backdrop grid, VALIDATION) -> blocks.py (school roof blocks -> blocks.js)
+osm.py (-> epoch.py patches an existing campus.json to the tiles' epoch) -> sat.py -> dem.py (lidar windows, cached in data/dem/) -> gen.py (classes, mask, macro, lidar building heights, lidar trees)
+-> terrain.py (terrain.bin, backdrop grid, VALIDATION) -> blocks.py (school roof blocks -> blocks.js) -> ground_fix.py (paving: classifier + extra.py EPOCH)
+-> mapimg.py (map.jpg: the overview for menus / loading / minimap, from top-down game renders)
 -> streetview.py (gitignored cache) ; dev/earlofmarch-tiles.html (3D tiles reference, receiver on :5187), dev/earlofmarch.html (viewer:
 __s / __look / __sheet / __walk)
 
@@ -47,3 +49,16 @@ English public high school in Kanata, same board and league); no source names an
       game | tiles and game | Street View pair sheets in dev/shots/earlofmarch/tiles-compare/ (gitignored); medium 2.6-7.4 ms / frame
 - [ ] still weak (see the hand-off report): salmon pavers at the main entrance, the bus-loop islands' exact outlines, hand correction of
       the vectorised paving, signs, the 2025-26 addition under construction (not in the tiles), per-wall facade review beyond the default bays
+
+## Fix round 1 (independent QA: NOT SHIP -> all 14 items fixed; pairs in dev/shots/earlofmarch-v2/, gitignored)
+- Imagery epochs: Esri photo (classifier) and OSM portables are OLDER than the Google 3D tiles; the tiles are the truth (rule F53). Epoch data lives in
+  tools/data/extra.py (PORTABLES_GONE, BUILDINGS, EPOCH, DIRT, FOOT_CUT, RETONE); run `epoch.py` then `ground_fix.py` after any change there.
+- 1 grades 7-8 south front: kit.js curtainWall / portalWall / entryWall / slotWall via WALL_SPEC; the entrance door is in the corner beside the glazed box.
+- 2 roofs: zones gym + midE (white), ROOF_BROWN darker, SOLAR (10 arrays, tilted racks), SKYLIGHTS, PYRAMID in school.js.
+- 3 portable yard: lawn + walks + asphalt path + bare-earth staging; red CTF base unchanged at (-32, -86) (still lawn between two rows in the tiles).
+- 4 bleachers face the track (grounds.js). 5 / 6 plazas: EPOCH outlines + draped pavers (grounds.js plazas). 7 lot west of the annex retoned pale.
+- 8 Mlacak name band 7.4 m; no school name sign exists in Street View at the entrances (searched: f_sign1..6). 9 library curtain wall + ground ribbon.
+- 10 cars: 85 % within 45 m of the school, 10 % beyond (school-day panoramas). 11 woods: fill trunks jittered, sized, a quarter conifers (world.js).
+- 12 files.map = map.jpg. 13 ctfSpawn 45-66 m. 14 flags: flagBrand(campus, team) (shared; all five campuses).
+- still weak: the east drive's outline is the classifier's (wobbly kerb line); the portal / oriel are read from one 2019 panorama and mushy tiles; portable
+  roofs are a brighter red than the tiles' brown-red; the paver bands' spacing (6.6 m) is measured once on the nadir.

@@ -22,6 +22,7 @@ export default {
     campus: 'campuses/earlofmarch/campus.json',
     gen: 'campuses/earlofmarch/gen.json',
     satellite: 'campuses/earlofmarch/satellite.jpg',
+    map: 'campuses/earlofmarch/map.jpg',   // (fix round 1) menus / loading screen / minimap: the photo with the re-laid yard, plaza and forecourt as built (tools/mapimg.py)
     groundMacro: 'campuses/earlofmarch/ground_macro.jpg',
     groundMask: 'campuses/earlofmarch/ground_mask.png',
     roofs: 'campuses/earlofmarch/roofs.jpg',
@@ -41,6 +42,8 @@ export default {
   // 14 m inside the fence, then put on nadir tiles shots (rule F39: red stands on the paved lane between two portable rows, blue on the lot's edge;
   // nothing unmodelled under either). The built site is level: no overlook on either (0 / 0 cells).
   ctf: { red: [-32, -86], blue: [-56, 172] },
+  // (fix round 1) team spawns 45-66 m behind / beside their own flag: with the shared 40-80 m band the farthest-point sampling put all of them at 75-80 m
+  ctfSpawn: { rMin: 45, rMax: 66 },
   practiceHeli: { x: -113, z: 85, yaw: 0 },   // the track infield
   spawnCenter: [20, 10],
   spawnBounds: { minX: -160, maxX: 205, minZ: -180, maxZ: 218 },
