@@ -209,7 +209,15 @@ def stucco(sp, rng, kind):
         per = (W if axis == 1 else H) / n; dd = np.abs(np.mod(t + per / 2, per) - per / 2); m = np.clip(1 - (dd - jw / 2) / max(jw * 0.5, 1.2 * px[0]), 0, 1)
         m = m[None, :] if axis == 1 else m[:, None]
         h = h - sp.get('joint_depth', 0.006) * m; col = col * (1 - 0.45 * m[..., None])
-    return col, h, (W, H), {'altM': [round(W * 0.37, 4), round(H * 0.43, 4)]}
+    if sp.get('panel_var') and sp.get('panel', [0, 0])[0] and sp['panel'][1]:   # each scored panel / slab its own tone, a touch warmer or cooler (pours differ)
+        nx = max(1, int(round(W / sp['panel'][0]))); ny = max(1, int(round(H / sp['panel'][1])))
+        ix = np.minimum((np.arange(pw) * nx) // pw, nx - 1); iy = np.minimum((np.arange(ph) * ny) // ph, ny - 1)
+        tone = np.exp(rng.standard_normal((ny, nx)) * sp['panel_var']).astype(np.float32); warm = (rng.standard_normal((ny, nx)) * sp['panel_var'] * 0.25).astype(np.float32)
+        tn = tone[iy][:, ix]; wm = warm[iy][:, ix]
+        col = col * tn[..., None] * np.stack([1 + wm, np.ones_like(wm), 1 - wm], -1)
+    pn = sp.get('panel', [0, 0])   # the second sample is shifted by whole panels, so scored joints stay registered in the cross-fade
+    alt = [round(pn[0] * max(1, round(W * 0.37 / pn[0])), 4) if pn[0] else round(W * 0.37, 4), round(pn[1] * max(1, round(H * 0.6 / pn[1])), 4) if pn[1] else round(H * 0.43, 4)]
+    return col, h, (W, H), {'altM': alt}
 
 
 def siding(sp, rng, kind):
@@ -256,14 +264,25 @@ def siding(sp, rng, kind):
 
 
 def metal_seam(sp, rng, kind):
+    # ribs / seams run along V (the tile's height): give the texture `rot: 90` when they are horizontal on the building.
+    # `rib_color` + `sharp` draw the rib as its own flat-topped strip (louvre blades in front of dark glass, the pale
+    # highlight line of a ribbed panel); `posts` = [spacing, width] adds members across the ribs (louvre carriers).
     s = sp['seam']; W = fit(sp['size_m'][0], s); H = sp['size_m'][1]; pw, ph = sp.get('px', [512, 512]); px = (W / pw, H / ph)
     t = (np.arange(pw) + 0.5) * px[0]; dd = np.abs(np.mod(t + s / 2, s) - s / 2)
-    rib = np.clip(1 - dd / max(sp.get('rib', 0.012), 1.5 * px[0]), 0, 1)[None, :].repeat(ph, 0)
+    rib = np.clip((1 - dd / max(sp.get('rib', 0.012), 1.5 * px[0])) * sp.get('sharp', 1.0), 0, 1)[None, :].repeat(ph, 0)
     oil = noise((ph, pw), 0.25 / px[0], rng); streak = noise((ph, pw), 0, rng, aniso=(60, 1.2))
     h = sp.get('rib_h', 0.03) * rib + 0.0006 * oil
     shade = np.clip(np.roll(rib, 3, 1) - rib, 0, 1)                    # the rib's shadow on the pan beside it
-    col = np.asarray(sp['color'], np.float32)[None, None, :] * (1 + 0.03 * oil[..., None] + sp.get('streak', 0.03) * streak[..., None]) * (1 + 0.12 * rib[..., None]) * (1 - 0.4 * shade[..., None])
-    return col, h, (W, H), {'altM': [round(s * max(1, round(W / s / 2)), 4), round(H * 0.41, 4)]}
+    base = np.asarray(sp['color'], np.float32)[None, None, :] * (1 + 0.03 * oil[..., None] + sp.get('streak', 0.03) * streak[..., None])
+    if sp.get('rib_color'): col = base * (1 - rib[..., None]) + np.asarray(sp['rib_color'], np.float32)[None, None, :] * rib[..., None] * (1 + 0.04 * oil[..., None])
+    else: col = base * (1 + 0.12 * rib[..., None])
+    col = col * (1 - sp.get('shade', 0.4) * shade[..., None])
+    if sp.get('posts'):
+        ps, pwid = sp['posts']; n = max(1, int(round(H / ps))); y = (np.arange(ph) + 0.5) * px[1]; per = H / n
+        pm = np.clip(1 - (np.abs(np.mod(y + per / 2, per) - per / 2) - pwid / 2) / max(1.2 * px[1], 0.004), 0, 1)[:, None].repeat(pw, 1)
+        col = col * (1 - pm[..., None]) + np.asarray(sp.get('post_color', sp.get('rib_color', sp['color'])), np.float32)[None, None, :] * pm[..., None] * (0.8 + 0.2 * rib[..., None])
+        h = np.maximum(h, sp.get('rib_h', 0.03) * 0.8 * pm)
+    return col, h, (W, H), {'altM': [round(s * max(1, round(W / s / 2)), 4), round(H * (0.5 if sp.get('posts') else 0.41), 4)]}
 
 
 def clay_tile(sp, rng, kind):
@@ -319,7 +338,7 @@ KINDS = {'brick': masonry, 'block': masonry, 'pavers': masonry, 'panels': masonr
          'shingle_siding': siding, 'board_batten': siding, 'metal_seam': metal_seam, 'clay_tile': clay_tile, 'asphalt_shingle': asphalt_shingle,
          'court': court, 'planks': planks}
 RUNTIME_KEYS = ('key', 'uvM', 'roughness', 'metalness', 'normalScale', 'tint', 'vertexColors', 'doubleSide', 'weather', 'like', 'offsetM', 'polygonOffset', 'envMapIntensity', 'notes',
-                'alt', 'macro', 'micro', 'roughVar', 'streaks')
+                'alt', 'macro', 'micro', 'roughVar', 'streaks', 'rot')
 
 
 def build(name, sp, out_dir, preview=None):

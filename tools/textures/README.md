@@ -42,7 +42,8 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
 6. **Generate.** `python tools/textures/generate.py <id> --preview /tmp/prev`. Look at the 3 x 2 tiled previews for
    seams and repetition. Kinds: brick (running, third, stack, flemish, common, english; dark headers), block, pavers,
    panels, stucco, concrete (broom, form boards, control joints), siding, shingle_siding, board_batten, metal_seam,
-   clay_tile, asphalt_shingle, court, planks.
+   clay_tile, asphalt_shingle, court, planks. Stucco / concrete with `panel` take `panel_var` (each scored slab its own
+   tone: paving) and shift the second sample by whole panels.
 7. **Wire** (below), then the checks: map check 0 fails, practice without console errors, FPS on medium, download size,
    and a side-by-side per school building (game vs photo vs tiles) in `dev/shots/textures/<id>/`
    (`ref-compare/` inside it is gitignored: it contains the reference photos).
@@ -62,6 +63,11 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
 - `uvM` = metres per UV unit of the geometry (facade kit 2.2, limestone 3.0, roofs 3.0). The loader sets
   `repeat = uvM / sizeM`, so a course is exactly `courseM` tall everywhere. Facade-kit walls on a generated masonry
   texture snap sills and heads to its courses and make soldier lintels one brick tall.
+- Style options for a campus kit (src/world/facade.js): `frame`, `band`, `coping` = material keys for sashes / doors, the
+  panel band and the coping; `upper: '<key>'` on a 'modern' style = a closed upper storey in that keyed texture over a
+  glazed base; `noCorner` drops the corner piers; `doorU` pins the door (metres along the wall piece). `rot: 90` on a texture spec lays a vertical-seam tile horizontally
+  (ribbed metal, louvre blades: `metal_seam` with `rib_color`, `sharp`, `posts`). Pack-only tints and styles are set
+  under `if (ctx.TX)` so `?tex=0` is still the look before the pack (Marin: `PACK` in src/campuses/marin/kit.js).
 - Corners: the facade kit carries `uOff` round the ring, so bond and courses continue across returns. Never scale a
   texture to fit a wall; change the wall (or the snap) instead.
 - No visible repetition: tiles are 2-5 m with low frequencies flattened, and every material with `weather: [grime,

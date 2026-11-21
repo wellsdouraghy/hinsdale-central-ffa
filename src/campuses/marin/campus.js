@@ -24,6 +24,7 @@ export default {
     groundMask: 'campuses/marin/ground_mask.png',
     roofs: 'campuses/marin/roofs.jpg',
     surfaceClasses: 'campuses/marin/surface_classes.png',
+    textures: 'campuses/marin/tex/tex.json',   // generated building textures (tools/textures/campuses/marin/materials.json); ?tex=0 = without
   },
   sat: { minX: -330, maxX: 330, minZ: -300, maxZ: 300 },
   playBounds: { minX: -186, maxX: 182, minZ: -176, maxZ: 204 },

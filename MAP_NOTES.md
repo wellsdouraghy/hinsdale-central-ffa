@@ -252,6 +252,63 @@ Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they
    - **Frame time**: `__bench` in a hidden pane on a machine shared with other agents is +-1 ms noise. A/B inside
      one tab (toggle the uniform, e.g. `material.userData.txSurface.uAlt.value.z`), interleave the runs and take the
      minimum. The second tile sample is now taken only where the cross-fade needs it (`textureGrad`, so mips match).
+10. **Marin v3 lessons (switching on a pack of pale stucco, metal and shingle).**
+   - **An override of a tinted tile changes almost nothing by itself.** Marin's pack (neutral stucco + neutral shingle
+     with the old means) rendered within 2 sRGB levels of `?tex=0`. The look comes from the TINTS, the trim and the
+     roofs: budget the work there, and make every pack-only colour conditional on `ctx.TX` so `?tex=0` stays the true
+     "before" in the same build.
+   - **Pale walls: calibrate, do not divide.** `swatch / tile mean` put cream stucco at 218/215/212 in the sun (white:
+     the tone curve flattens everything above ~0.6 albedo and the sky fill takes the yellow out). Multiply the wall
+     material's `color` in the console by three trial factors, shoot one sunlit and one shaded wall straight on (ray
+     from outside to the wall, camera 9 m back along its normal, median of the modal-luminance pixels) and interpolate:
+     the Library's measured [0.66, 0.60, 0.52] needs a tint of [0.68, 0.60, 0.43] (albedo [0.58, 0.51, 0.37]) to read
+     211/207/196 sunlit. Going further (albedo 0.50/0.42/0.27) matches the sunlit swatch better and turns every wall
+     the sun grazes mustard: check the east and north walls before settling.
+   - **Read the roofs from an aerial, not from the style.** Mission-style cream buildings were given terracotta; the
+     aquatic-centre aerial shows brown composition shingle on all of them and a teal standing-seam Athletic Center.
+     One oblique drone photo fixes more of the helicopter view than any wall texture.
+   - **Frames and trim are part of the material sheet.** Dark green sashes on the cream buildings, white on Foster Hall
+     and porch posts painted the WALL colour (not white) are what make them recognisable; a style takes `frame`, `band`
+     and `coping` material keys from the campus kit.
+   - **A facade that changes skin along its length** (Science Center: louvre screen | ribbed metal | louvre screen over a
+     glazed base) is a per-piece style (`kitWalls` `pieceStyle`) plus `upper: '<keyed texture>'` on a 'modern' style;
+     horizontal ribs are the vertical-seam tile with `rot: 90` in the sheet (the loader rotates the sampler, UVs stay
+     in metres). Dark metal: metalness <= 0.25, or a shaded wall mirrors the sky and reads navy (v4: it read navy at
+     metalness 0 too; the cure is a warm albedo, item 11).
+   - **Do not ship what nothing uses**: the deck tile had no deck to go on; it came out of the sheet (the loader fetches
+     every texture a manifest lists).
+11. **Marin v4 lessons (independent QA of v3: no louvres, a dark-green box, mauve roofs, grey walls in shade).**
+   - **Count the meshes after wiring a skin.** `maLouvre` had no mesh at all and `maRibMetal` was one 6-vertex quad: the
+     Science Center's west front is ONE ring edge, `pieceStyle` saw one midpoint and the whole front took one style. A
+     wall that changes skin along its length needs a piece to END at each change: `kitWalls` `opts.cuts(i, a, b)` returns
+     the fractions along the edge to cut at (same seat, same height). After wiring, list `static:<key>` meshes and their
+     vertex counts in the console; a keyed texture with no mesh is a bug, not a detail.
+   - **Cutting a wall moves its door.** The facade kit only gives a 'modern' wall a door when it is over 26 m and picks
+     the bay at random: the three pieces had none, and the step and walk outside led to a window. A style now takes
+     `doorU` (metres along the piece); the Science Center pins its door to the world z the uncut wall had. Compare the
+     cut front with `?tex=0` for doors, downspouts and wall packs, not only for the skins.
+   - **Shade is the binding constraint for every pale or neutral material.** The sky fill here is about twice as blue
+     as it is red: an off-white panel in shade reads 111/123/150, cream stucco at albedo B/G 0.72 reads 96/99/106
+     (blue-grey), charcoal metal 28/33/49 (navy, with metalness 0 as well: it is the diffuse fill, not a reflection).
+     Tune on the SHADED wall first, then check the sunlit one: cream wants albedo B/G ~0.55 (tint [0.71, 0.585, 0.32]:
+     shade 103/101/88, sun 215/206/180); a neutral charcoal wants albedo B/R ~0.55 ([0.19, 0.165, 0.105] reads 51/53/54).
+   - **Measure the patch you think you are measuring.** A box that sat on the white parapet band said the wall tint was
+     fine at a multiplier that had turned the walls mustard. Save the shot, look at it, then place the box; keep the
+     boxes with the camera strings so the before and after numbers come from the same pixels (`git stash`, reload,
+     measure, `git stash pop`).
+   - **A neutral shingle tile is not neutral on screen**: the tile mean leans blue ([0.0315, 0.0303, 0.0364]) and the
+     sky adds more, so a brown tint of [4.6, 3.5, 2.5] rendered 131/113/113 (mauve). A brown roof needs G well above B
+     in the tint: [4.8, 3.8, 2.0] renders 134/118/102 (R > G > B), the aerial's swatch is 131/113/103.
+   - **`band` is a colour decision.** The Visual Arts Center's panel band in frame green made a dark box; the default
+     white band is wrong too. Street View shows wall colour up to a thin coping: give the style a band material in the
+     wall's colour and keep only the coping in the trim colour.
+   - **Paving needs slab-to-slab tone.** One mottled sheet with scored joints reads as white paper from eye height. The
+     generator's `panel_var` gives every scored slab its own tone and warmth (`flatten` low, or the low-pass removes
+     it); the override takes `weather: [g, 0, 0]` for the tone drift and the second sample, and the second sample is
+     shifted by WHOLE panels (`altM` from `panel`) or the joints double up in the cross-fade.
+   - **A QA camera inside a sealed building is not a finding**: the "blocky canopy by the Athletic Center" was the
+     double-sided roof of Foster Hall's north wing seen from inside it (collision 2.9 m overhead). Check every QA pose
+     with `__look` before fixing what it shows.
 
 ## Map check (required before QA)
 
