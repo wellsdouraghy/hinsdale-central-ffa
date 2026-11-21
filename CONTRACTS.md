@@ -35,6 +35,7 @@ World = {
   groundY(x, z): number,           // walkable ground height at x,z (top of terrain, not roofs)
   spawnPoints: THREE.Vector3[],    // >= 24 outdoor spawns at ground level spread over the play area, not inside geometry
   playBounds: { minX, maxX, minZ, maxZ },
+  playEdge: [[x, z], ...] | null, // optional: the visible boundary line (fence / barriers) the player clamp follows (MAP_NOTES F48); null = playBounds rectangle
   sunDirection: THREE.Vector3,     // normalized, pointing FROM scene TO sun
   update(dt, camera): void,        // every frame (tile streaming, shadow camera follow, etc.)
   render(overlayScene, overlayCamera): void, // renders the frame incl. post-processing, then draws overlayScene
@@ -364,3 +365,6 @@ Gameplay must call the new optional methods with `?.` so either side can land fi
   (terrain only), dead bodies / finisher victims lie on the slope (`src/game/groundConform.js`), finishers allowed on even
   slopes <= ~18 deg, fall-out thresholds relative to the ground. Flat campuses are byte-identical (same spawns, nav,
   collision and visual geometry). Dev: `?terrainTest=1` / `?campus=terraintest`; map check `terrain` check.
+- `playEdge` (optional, 2026-11): the closed polygon of the boundary fence line. The player controller clamps the capsule inside it
+  (src/game/player.js `_clampToEdge`) instead of inside the playBounds rectangle, so the fence, not an invisible wall, stops a player
+  (MAP_NOTES rule F48, map check `edgeClamp`). playBounds is unchanged for nav, spawns, bots and the helicopter.

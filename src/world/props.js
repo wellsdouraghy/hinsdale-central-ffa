@@ -419,6 +419,8 @@ export function buildProps(ctx) {
 // outside the play bounds, so the walkable area, the nav grid and the spawns are untouched.
 function edgeDressing(ctx, nearTrunk) {
   const pb = ctx.playBounds; const E = 0.7; const trees = ctx.gen.trees || [];
+  // (rule F48) the player clamp runs on the fence / barrier line (E outside the bounds; the east lot's fence at 0.5 m stops a player first)
+  ctx.playEdge = [[pb.minX - E, pb.minZ - E], [pb.maxX + E, pb.minZ - E], [pb.maxX + E, pb.maxZ + E], [pb.minX - E, pb.maxZ + E]];
   // chain-link run with a gap wherever a tree trunk stands on the line (the trunk closes the gap)
   const edgeFence = (ax, az, bx, bz) => {
     const L = Math.hypot(bx - ax, bz - az), tx = (bx - ax) / L, tz = (bz - az) / L; const gaps = [];

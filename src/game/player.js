@@ -315,9 +315,12 @@ export class PlayerController {
     this.height += (target.height - this.height) * ks;
     this.eye += (target.eye - this.eye) * ks;
 
-    // Play bounds (invisible walls).
+    // Play area. Rule F48 (MAP_NOTES): the clamp follows the visible boundary line (world.playEdge: the fence / barrier line),
+    // so the fence stops a player first and the clamp only holds anyone who gets over it; no invisible wall short of it.
+    // Worlds without an edge line keep the playBounds rectangle.
     const b = this.world.playBounds;
-    if (b) {
+    if (this.world.playEdge) this._clampToEdge(this.world.playEdge);
+    else if (b) {
       const px = THREE.MathUtils.clamp(this.position.x, b.minX + RADIUS, b.maxX - RADIUS);
       const pz = THREE.MathUtils.clamp(this.position.z, b.minZ + RADIUS, b.maxZ - RADIUS);
       if (px !== this.position.x) { this.position.x = px; this.velocity.x = 0; }
@@ -325,6 +328,33 @@ export class PlayerController {
     }
     if (this.position.y < (terr ? terr.heightAt(this.position.x, this.position.z) : 0) - 20 && this.onFellOut) this.onFellOut();
     this._stuckWatch(dt, input);
+  }
+
+  /**
+   * Keeps the capsule (radius RADIUS) inside the closed polygon `ring` ([[x, z], ...], either winding): a centre outside
+   * it is put back on the nearest point of the line, then the centre is pushed RADIUS clear of every segment (round at
+   * the vertices, like a fence's corner post). Only the outward part of the horizontal velocity is removed.
+   */
+  _clampToEdge(ring) {
+    const p = this.position, N = ring.length; let x = p.x, z = p.z;
+    let inside = false; for (let i = 0, j = N - 1; i < N; j = i++) { const a = ring[i], c = ring[j]; if ((a[1] > z) !== (c[1] > z) && x < (c[0] - a[0]) * (z - a[1]) / (c[1] - a[1]) + a[0]) inside = !inside; }
+    const near = (i) => { const a = ring[i], c = ring[(i + 1) % N]; const dx = c[0] - a[0], dz = c[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); return [a[0] + dx * t, a[1] + dz * t]; };
+    let snapped = -1;
+    if (!inside) { let best = Infinity; for (let i = 0; i < N; i++) { const q = near(i); const d = Math.hypot(x - q[0], z - q[1]); if (d < best) { best = d; snapped = i; } } const q = near(snapped); x = q[0]; z = q[1]; }
+    let area = 0; for (let i = 0; i < N; i++) { const a = ring[i], c = ring[(i + 1) % N]; area += a[0] * c[1] - c[0] * a[1]; }
+    for (let it = 0; it < 3; it++) {
+      let moved = false;
+      for (let i = 0; i < N; i++) {
+        const q = near(i); let dx = x - q[0], dz = z - q[1]; let d = Math.hypot(dx, dz); if (d >= RADIUS) continue;
+        if (d < 1e-6) { const a = ring[i], c = ring[(i + 1) % N], L = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1, s = Math.sign(area) || 1; dx = -(c[1] - a[1]) / L * s; dz = (c[0] - a[0]) / L * s; d = 0; } else { dx /= d; dz /= d; }
+        x += dx * (RADIUS - d); z += dz * (RADIUS - d); moved = true;
+      }
+      if (!moved) break;
+    }
+    const mx = x - p.x, mz = z - p.z, ml = Math.hypot(mx, mz); if (ml < 1e-9) return;
+    const nx = mx / ml, nz = mz / ml, vd = this.velocity.x * nx + this.velocity.z * nz;
+    if (vd < 0) { this.velocity.x -= nx * vd; this.velocity.z -= nz * vd; }
+    p.x = x; p.z = z;
   }
 
   /**

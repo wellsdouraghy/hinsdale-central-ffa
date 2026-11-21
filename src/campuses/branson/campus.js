@@ -46,7 +46,7 @@ export default {
   sky: { horizonHaze: 1 },
   ground: { asphaltDeblur: 1 },
   // hidden-helicopter candidates [x, y, z]: found with a scan (dev/world.html __heliScan), y = 0 ground
-  heliPark: [[-88, 0, -23], [66.6, 0, -0.5], [-203, 0, 29.5], [-203, 0, 62], [57, 0, 62], [-203, 0, 172], [-68, 0, 80], [-36, 0, 75], [-4, 0, 70], [-52, 0, 110], [-21, 0, 106], [9, 0, 98], [-30, 0, 26], [-128, 0, -41]],   // (hidden first: car parks, the courts, the glen, lawns behind buildings, Prize Day Field; four on the pitch as spares. Sitework keeps tree trunks 11.5 m back from each)
+  heliPark: [[-88, 0, -23], [66.6, 0, -0.5], [-203, 0, 29.5], [-203, 0, 62], [57, 0, 62], [-202, 0, 166], [-68, 0, 80], [-36, 0, 75], [-4, 0, 70], [-52, 0, 110], [-21, 0, 106], [9, 0, 98], [-30, 0, 26], [-128, 0, -41]],   // (hidden first: car parks, the courts, the glen, lawns behind buildings, Prize Day Field; four on the pitch as spares. Sitework keeps tree trunks 11.5 m back from each)
   walkSeeds: [[-188, -29], [-204, -27], [48, -28], [68, -28], [-160, 133], [28, -22], [-36, 95], [-95, 48], [-10, -18], [-110, -50], [-112, 30], [-60, 20]],
   // Menu camera tour: camera path + look-at path (Catmull-Rom), field of view, caption. -z = north.
   tour: [

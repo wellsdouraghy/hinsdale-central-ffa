@@ -477,6 +477,7 @@ function streets(ctx) {
 function boundary(ctx) {
   const { data, playBounds: pb } = ctx; const m = 1.2;
   const corners = [[pb.minX - m, pb.minZ - m], [pb.maxX + m, pb.minZ - m], [pb.maxX + m, pb.maxZ + m], [pb.minX - m, pb.maxZ + m]];
+  ctx.playEdge = corners.map((c) => [...c]);   // (rule F48) the player clamp is the fence line: no invisible wall in front of the fence
   const segs = []; for (const r of data.roads) { const hw = r.tags.highway; if (!STREETS.includes(hw)) continue; for (let i = 0; i < r.line.length - 1; i++) segs.push([r.line[i], r.line[i + 1], ROADW[hw] / 2 + 1.0]); }
   const onStreet = (x, z) => segs.some(([a, b, w]) => { const dx = b[0] - a[0], dz = b[1] - a[1]; const t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t) < w; });
   const inBld = (x, z) => (ctx.buildingRings || []).some((r) => pointInRing(x, z, r));

@@ -89,11 +89,15 @@ thin = conc & ~ndi.binary_opening(conc, iterations=max(1, int(1.6 * ppm)))      
 thin = ndi.binary_dilation(thin, iterations=1) & conc & osm_paths                 # (a thin strip away from any mapped path is glare, not paving)
 # fix round 8: the academic quad's courtyard is lawn between its three paved strips (nadir tiles): the classifier's thin "paths" across it go back to lawn
 QUAD = poly_mask([(-160.5, 114.5), (-151.5, 121.5), (-141.5, 147.5), (-150.5, 157), (-166, 151), (-174.5, 140.5)]); thin &= ~QUAD
+# fix round 9: the lawn round Tallant's north door walk: the classifier's thin strips and soft fringes beside the walk and the quad path (kept as
+# "path" next to the OSM footway) drew faint whitish smears on the grass. Inside this window only the digitised walks and paths are paving.
+TALL = poly_mask([(-164, 147), (-141, 147), (-141, 161.5), (-164, 161.5)]); thin &= ~TALL
 to_g = strict & ((asph & ~lots & ~streets) | (conc & ~thin & ~keep & ~courts & ~lots))
 to_a = strict & lots & ~asph
 n_g, n_a = int(to_g.sum() / ppm ** 2), int(to_a.sum() / ppm ** 2)
 paint(to_g, GRASS, T_GRASS)
 paint(QUAD & ~keep & ~bld & ~lots, GRASS, T_GRASS)   # (fix round 8: one lawn tone over the quad's courtyard; pale streaks of the photo read as paths fading into the grass)
+paint(TALL & ~keep & ~bld & ~lots, GRASS, T_GRASS)   # (fix round 9: one lawn tone round Tallant's door walk; the walks are painted hard again in step 3)
 # fix round 5: lawns and beds that are dry gold in the (summer) tiles keep the lawn class and take a pale olive / gold tone (soft edges)
 for pts, tn in extra.DRY_LAWNS: paint(poly_mask(pts) & ~bld & (mask[..., 0] < 128) & (mask[..., 1] < 128) & (mask[..., 3] > 128), GRASS, np.array(tn, np.float32), 2)
 paint(court, CONC, np.array((150, 144, 136), np.float32), 1, True)   # the forecourt of the hall's entrance: neutral paving under the real red tiles the builder lays (a red tone here bled over the drive's edge)

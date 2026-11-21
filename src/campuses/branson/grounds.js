@@ -232,11 +232,20 @@ function boundary(ctx) {
   const inBld = (x, z) => (ctx.buildingRings || []).some((r) => pointInRing(x, z, r));
   const trunks = (ctx.gen.trees || []).filter((t) => t[0] > pb.minX - 8 && t[0] < pb.maxX + 8 && t[1] > pb.minZ - 8 && t[1] < pb.maxZ + 8);
   const cxm = (pb.minX + pb.maxX) / 2, czm = (pb.minZ + pb.maxZ) / 2;
-  // (fix round 8) where a neighbour's court or pool straddles the edge, the fence goes ROUND it (the bounds themselves are a straight line: player.js clamps);
-  // it ran across the court and stopped on the pool's coping. Detours: { e: edge, s0..s1: metres along the edge, path: fence line from s0 to s1 }
-  const DET = []; { const [qx, qz, qr] = NB_POOL, R = qr + 1.3, zs = pb.maxZ + m, xw = pb.minX - m; const a0 = Math.asin((zs - qz) / R), a1 = Math.atan2(zs - qz, xw - qx); const na = Math.ceil((a1 - a0) / 0.4); const arc = [];
-    for (let k = 0; k < na; k++) { const an = a0 + (a1 - a0) * k / na; arc.push([qx + Math.cos(an) * R, qz + Math.sin(an) * R]); } arc.push([xw, zs]); DET.push({ e: 2, s0: pb.maxX + m - arc[0][0], s1: 1e9, path: arc });
+  // (fix round 8) where a neighbour's court or pool straddles the edge, the fence goes ROUND it (it ran across the court and stopped on the pool's coping).
+  // Detours: { e: edge, s0..s1: metres along the edge, path: fence line from s0 to s1 }.
+  // (fix round 9, rule F48: the fence line is also the player clamp, ctx.playEdge, so no invisible wall stands in front of it.) The round pool is left
+  // OUTSIDE: the fence bows in round its north side, 1.3 m off the water's edge (clear of the coping), from the south edge to the west edge (the corner
+  // and the first metres of the west edge go). The court stays INSIDE (two helicopter spots stand beside it, and the wood east of it has no
+  // tree-free ground for them): the fence goes round its west side and the clamp follows it there.
+  const DET = []; { const [qx, qz, qr] = NB_POOL, R = qr + 1.3, zs = pb.maxZ + m, xw = pb.minX - m; const a0 = Math.asin((zs - qz) / R), a1 = -Math.PI + Math.acos((qx - xw) / R); const na = Math.ceil((a0 - a1) / 0.35); const arc = [];
+    for (let k = 0; k <= na; k++) { const an = a0 + (a1 - a0) * k / na; arc.push([qx + Math.cos(an) * R, qz + Math.sin(an) * R]); } arc[na] = [xw, arc[na][1]];
+    DET.push({ e: 2, s0: pb.maxX + m - arc[0][0], s1: 1e9, path: arc }, { e: 3, s0: -1, s1: zs - arc[na][1], path: [] });
     const c = NB_COURT, z1 = c.slab[3] + 0.8, z0 = c.slab[2] - 0.3, xo = c.slab[0] - 0.8; DET.push({ e: 3, s0: zs - z1, s1: zs - z0, path: [[xw, z1], [xo, z1], [xo, z0], [xw, z0]] }); }
+  { const ring = []; const add = (p) => { const l = ring[ring.length - 1]; if (!l || Math.hypot(l[0] - p[0], l[1] - p[1]) > 0.01) ring.push([p[0], p[1]]); };
+    for (let e = 0; e < 4; e++) { const a = corners[e], b = corners[(e + 1) % 4], L = Math.hypot(b[0] - a[0], b[1] - a[1]), tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const ds = DET.filter((d) => d.e === e).sort((p, q) => p.s0 - q.s0);
+      if (!ds.length || ds[0].s0 > 0) add(a); for (const d of ds) { if (d.s0 > 0) add([a[0] + tx * d.s0, a[1] + tz * d.s0]); d.path.forEach(add); if (d.s1 < L) add([a[0] + tx * d.s1, a[1] + tz * d.s1]); } }
+    if (Math.hypot(ring[0][0] - ring[ring.length - 1][0], ring[0][1] - ring[ring.length - 1][1]) < 0.01) ring.pop(); ctx.playEdge = ring; }
   for (let e = 0; e < 4; e++) {
     const a = corners[e], b = corners[(e + 1) % 4]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.ceil(L / 6); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const rot = Math.atan2(-tz, tx);
     let run = null, runScreen = true; const flush = () => { if (run && run.length > 1) hillFence(ctx, run, runScreen ? { h: 2.4, screen: 2.0, every: 3 } : { h: 2.4, every: 3 }); run = null; };
@@ -245,7 +254,14 @@ function boundary(ctx) {
       const p0 = [a[0] + tx * (i * L / n), a[1] + tz * (i * L / n)], p1 = [a[0] + tx * ((i + 1) * L / n), a[1] + tz * ((i + 1) * L / n)], mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
       { const s0p = i * L / n, s1p = (i + 1) * L / n; const det = DET.find((d) => d.e === e && s1p > d.s0 && s0p < d.s1);
         if (det) { const P = (sv) => [a[0] + tx * sv, a[1] + tz * sv]; if (s0p < det.s0 - 0.3) { if (!run) { run = [p0]; runScreen = false; } run.push(P(det.s0)); } flush(); if (!det.done) { hillFence(ctx, det.path, { h: 2.4, every: 3 }); det.done = true; } if (s1p > det.s1 + 0.3) { run = [P(det.s1), p1]; runScreen = false; } continue; } }
-      if (inBld(mid[0], mid[1])) { flush(); continue; }
+      // (fix round 9, F48) a building that straddles the edge closes it only where it stands: the parts of the panel outside its footprint keep their
+      // fence, run 0.3 m into the wall (the whole 6 m panel used to go when its middle fell inside a house, leaving open ground beside the house)
+      if (inBld(mid[0], mid[1]) || inBld(p0[0], p0[1]) || inBld(p1[0], p1[1])) {
+        flush(); const len = L / n, K = Math.ceil(len / 0.25), Q = (u) => [p0[0] + tx * u, p0[1] + tz * u]; let start = null;
+        for (let k = 0; k <= K; k++) { const u = len * k / K, o = !inBld(...Q(u)); if (o && start === null) start = k === 0 ? 0 : Math.max(0, u - len / K - 0.3);
+          if (start !== null && (!o || k === K)) { const end = o ? len : Math.min(len, u + 0.3); if (end - start > 0.4) hillFence(ctx, [Q(start), Q(end)], { h: 2.4, every: 3 }); start = null; } }
+        continue;
+      }
       if (onStreet(mid[0], mid[1])) {
         flush(); panel(p0, p1); const bl = L / n - 0.3; const steep = ctx.terrain && ctx.terrain.maxIn(mid[0], mid[1], 2.8) - ctx.terrain.minIn(mid[0], mid[1], 2.8) > 0.38;
         if (steep) { onSlope(ctx, mid[0], mid[1], bl / 2, () => { ctx.B.solidBox('concrete', 'concrete', mid[0], 0.3, mid[1], bl, 1.0, 0.6, rot, 1 / 3); const pt = ctx.B.v('paint', true); for (const sd of [-0.31, 0.31]) { pt.setColor(0.95, 0.45, 0.05).box(mid[0] + tz * sd, 0.55, mid[1] - tx * sd, bl - 0.3, 0.22, 0.02, rot); pt.setColor(0.9, 0.9, 0.88).box(mid[0] + tz * sd, 0.27, mid[1] - tx * sd, bl - 0.3, 0.16, 0.02, rot); } pt.setColor(1, 1, 1); }); continue; }
@@ -358,7 +374,7 @@ function paving(ctx) {
 // Fix round 7 (off campus, inside the play area; nadir tiles): the neighbour's tennis court west of the Commons and the round pool of the gravel garden in
 // the south-west corner. Fix round 8 (gridded nadir tiles): the court's slab is x -219.6..-203.6, z 19.5..52.8 (ground paint, tools/ground_fix.py), its
 // lines and its net are centred on (-211.8, 38.5); the helicopter spot beside it moved 2.5 m north to keep its rotor clear of the net (campus.js).
-// The pool is a raised round basin on a level spot (sitework), whole: the play-area fence goes round its south side.
+// The pool is a raised round basin on a level spot (sitework), whole and outside play: the play-area fence bows in round its north side (fix round 9).
 export const NB_COURT = { cx: -211.8, cz: 38.5, slab: [-219.6, -203.6, 19.5, 52.8] }, NB_POOL = [-209.3, 183.0, 6.0];
 function neighbours(ctx) {
   const { B } = ctx; const g = ctx.gline; const c = NB_COURT; if (g) { const W = [0.86, 0.86, 0.83]; const L = (x0, z0, x1, z1) => g(c.cx + x0, c.cz + z0, c.cx + x1, c.cz + z1, 0.06, W);

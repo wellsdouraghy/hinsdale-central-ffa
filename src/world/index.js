@@ -178,6 +178,7 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
     // dev-only build registry for the map check (dev/mapcheck.html): prop footprints, tree trunks, shrubs, ground walk grid
     registry: { props: ctx.props || [], trunks: ctx.trunks || [], shrubs: ctx.shrubs, keepClear: ctx.keepClear || [], walkGrid: ctx.walkGrid || null, houses: ctx.houses || [], retaining: ctx.retaining || [], walls: ctx.walls || [], footprints: ctx.footprints || [], streets: ctx.streets?.stations || null, inRoad: ctx.streets?.inRoad || null, streetDesign: ctx.streets?.design || null, notes: ctx.buildNotes || null },   // houses / retaining: optional, filled by hilly campus builders (map check: houses, retaining)
     playBounds: { ...campus.playBounds },
+    playEdge: ctx.playEdge || null,   // [[x, z], ...] the visible boundary line (fence / barriers) the player clamp follows (rule F48); null = the playBounds rectangle
     campus,
     tour: campus.tour || [],
     practiceHeli: campus.practiceHeli || null,

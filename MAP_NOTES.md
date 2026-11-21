@@ -141,13 +141,18 @@ map breaking one of these rules has not finished.
 47. Every door is real or removed. The facade kit puts a door on long walls by default: keep only doors the tiles or
     photos show, and give each kept door a level apron and a walk to the paving (steps where the ground falls more than
     ~0.3 m within 1.5 m). No door opens onto grass or a bank, and no sign stands in front of a door.
+48. The visible boundary and the player clamp agree everywhere: no invisible walls. The clamp is the fence line itself
+    (`ctx.playEdge`, set by the campus's boundary builder; player.js clamps the capsule inside it), so the fence, a barrier
+    or a wall stops the player, never an invisible line short of it. A fence that detours round a neighbour's court or
+    pool takes the clamp with it (or leaves the feature OUTSIDE by bowing in). Branson's straight clamp stopped players
+    in the middle of a pool 6 m short of the fence, and on every campus 1.2 m short of the fence line (map check `edgeClamp`).
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F47 above is ticked off explicitly in the hand-off.
+- Every rule A1-F48 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
@@ -321,7 +326,7 @@ collision and the real player controller. Full run: ~2-3 min per campus (world l
   a top-down debug image over the satellite photo (`window.__mapcheckImage()` returns a PNG data URL), and
   `report.json` / `map.png` download links. Agents: poll `__mapcheckDone` in short waits (a hidden tab still runs, but
   keep each wait under ~30 s), then read `JSON.stringify(__mapcheck.summary)` and the `failures` of failing checks.
-- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, mounds, walkDesign, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary,
+- **Options:** `&only=escape,ladders` or `&skip=bots` (check ids: spawns, ladders, heli, terrain, houses, retaining, mounds, walkDesign, overlook, seating, interior, facadeSweep (= glassBuried + wallGap), props, signs, boundary, edgeClamp,
   visualSolid, roofSkin, escape, roofVoids, bots), `&grid=2.5` (escape sample spacing), `&bots=8&botTime=60`, `&q=low` (default).
 - **Done means:** no `fail` (`report.pass === true`). Every `warn` is either fixed or explained in the hand-off to QA.
   Thresholds live in `TH` at the top of dev/mapcheck.js; change them there, not per campus.
@@ -424,6 +429,13 @@ What each check does (and what to fix when it fails):
    Samples are every 3 m from the corner: a row of 3 m barriers with 0.3 m gaps drifts onto a gap sooner or later,
    so lay roadblocks out in whole multiples of 3 m from the corner. Open edges >= 6 m on asphalt = "stopped
    mid-street": dress them (fence + windscreen, barriers, tree belt).
+8b. **edgeClamp** (rule F48). The real controller walks straight at every 3 m of the boundary line (`world.playEdge`, the
+   fence line the clamp follows; the playBounds rectangle on a world without one) from walkable ground (nav grid) 2.5-14 m inside.
+   Fail: the clamp stops it more than 0.5 m short of a collider (fence, wall, barrier, hedge; a lone trunk out there is
+   scenery) that stands within 10 m ahead (an invisible wall in front of a visible one), it stops inside the line by
+   nothing visible (no collider, no bank too steep to walk), or it ends outside the line (no clamp). Nothing within 10 m =
+   an open edge, counted only (that is the boundary check's business). Fix: put the clamp on the fence line (`ctx.playEdge`
+   in the boundary builder), never the other way round.
 9. **bots** (warn only). 8 normal bots, FFA, 60 s: a bot staying within 2 m for > 12 s while trying to move (not
    fighting, not perched) is logged with its position and goal; the controller's stuck safety net firing for a bot
    (`unstuckPops`) is logged too.
@@ -1369,7 +1381,8 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     metre outside `LOOP_OUTER`, so the kerb test skipped it. Inside a small window the bake and `paintSurface` keep to the traced outline; the red band kerb
     of the tiles runs on round that end.
   - *A fence never crosses a neighbour's court or pool.* `boundary` takes detours (edge, s0..s1, a path): round the south side of the round pool, round the
-    west side of the court. The bounds stay a straight clamp; say so in the hand-off. A basin on a lidar slope needs its own level spot (0.2 m of fall put a
+    west side of the court. The bounds stay a straight clamp; say so in the hand-off. (RETRACTED in fix round 9: a straight clamp inside a detour is an
+    invisible wall; rule F48.) A basin on a lidar slope needs its own level spot (0.2 m of fall put a
     wedge of ground through the water).
   - *A net costs a helicopter spot 8.5 m of clearance.* The neighbour's court got its net and lines on the slab's real centre; the spot beside it moved 2.5 m
     north in the descriptor (30 m from the next one still). Re-read `world.heliSpawns` after any prop near a spot.
@@ -1381,3 +1394,15 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     width and end each rail in a short outward return (`flare` in the steps spec). `__walk` the outer lanes, not only the centre line.
   - *Car counts again (F46):* walk landings kept free with 2.9 m circles emptied four stalls of a full row; one stall per walk (1.75 m at the walk's end).
   - *Vertex-tinted brick:* `B.v('brick', true)` takes a tint (the `brickRed` bucket does not); sample the lit result beside the tiles, the texture is orange.
+- **Fix round 9 (invisible walls at the neighbour's pool and court, smears at Tallant's door):**
+  - *The clamp is the fence line (rule F48).* `boundary` (grounds.js) builds `ctx.playEdge` from the same corners and detours it lays the fence on, and
+    player.js clamps the capsule inside that polygon. Before, the straight playBounds clamp stopped a player 1.2 m short of the fence everywhere, 6 m short
+    of it in the middle of the round pool and 5.8 m short on the court. Hamilton, Marin (fence at 1.2 m) and Hinsdale (fences and barriers at 0.7 m) got
+    their rectangle `playEdge` too. The map check's `edgeClamp` walks the controller at every 3 m of the line.
+  - *Per spot:* the round pool is OUTSIDE now (the fence bows in round its north side, 1.3 m off the water, from the south edge to the west edge; the corner
+    is gone from play) and the helicopter spot on the gravel garden moved from (-203, 172) to (-202, 166) to keep 8.5 m from the new fence. The court stays
+    INSIDE with the clamp following its west detour: bowing the fence in along its east side would put both helicopter spots beside it on the fence, and
+    the wood east of the court has no 10.5 m tree-free ground 30 m apart for them.
+  - *A re-run of ground_fix.py on baked files is not idempotent* (it converted another 800 m2 on a second pass). A targeted fix goes into the script for the
+    next bake AND is applied once to the baked files by a script that does only that step (walk pixels saved and restored). Tallant's door: the
+    classifier's thin "path" strips beside the walk (kept next to the OSM footway) and their soft fringes drew whitish smears; window `TALL` in ground_fix.py.

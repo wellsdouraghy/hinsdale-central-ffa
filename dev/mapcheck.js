@@ -63,6 +63,8 @@ export const TH = {
   signShrinkWarn: 0.6, signAspectWarn: 0.2, signWindowFrac: 0.15, signMinCap: 0.12,
   // 8 boundary
   boundaryStep: 3, boundaryStreetWarn: 6,
+  // 8b edge clamp (rule F48)
+  edgeStep: 3, edgeGap: 0.5, edgeLook: 10,   // m between walks along the boundary line; allowed gap from the capsule to a visible fence / wall where the player stops; how far ahead a visible one counts
   // 9 bots
   botCount: num('bots', 8), botTime: num('botTime', 60), botStuck: 12, botMoveRadius: 2.0,
   // 10 terrain (campuses with a heightfield only)
@@ -1294,6 +1296,73 @@ async function checkBoundary() {
   finishCheck('boundary', res);
 }
 
+// ============================================================================================== 8b edge clamp (rule F48)
+// The visible boundary and the player clamp agree everywhere: the real controller walks straight at every 3 m of the
+// boundary line (world.playEdge: the fence line the clamp follows; the playBounds rectangle on a world without one) from
+// the nearest walkable (nav grid) ground 2.5-14 m inside it. Where it stops, rays look on along the walk at 0.25-1.6 m.
+// Stopped by the clamp (centre RADIUS from the line) more than TH.edgeGap short of a collider (fence, wall, barrier,
+// hedge; a lone tree trunk out there is scenery) that stands within TH.edgeLook = an invisible wall in front of a visible one = fail. Stopped inside the line
+// by nothing visible (no collider within TH.edgeGap, no bank too steep to walk) = fail. A walk that ends outside the
+// line = the clamp does not hold = fail. At the line with nothing within TH.edgeLook = an open edge (the "boundary"
+// check's business: counted here only).
+async function checkEdgeClamp() {
+  const ring = world.playEdge || [[PB.minX, PB.minZ], [PB.maxX, PB.minZ], [PB.maxX, PB.maxZ], [PB.minX, PB.maxZ]];
+  const N = ring.length; let area = 0; for (let i = 0; i < N; i++) { const a = ring[i], b = ring[(i + 1) % N]; area += a[0] * b[1] - b[0] * a[1]; } const sg = Math.sign(area) || 1;
+  const inRing = (x, z) => { let c = false; for (let i = 0, j = N - 1; i < N; j = i++) { const a = ring[i], b = ring[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+  const ctrl = noUnstuck(new PlayerController(world)); const R = 0.35;
+  const nearTrunk = (x, z) => REG.trunks.some((t) => Math.hypot(t[0] - x, t[1] - z) < (t[2] || 0.5) + 0.25);
+  const standable = (x, z) => { const y = GY(x, z); if (Math.max(...[[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dz]) => Math.abs(GY(x + dx, z + dz) - y))) > 0.6) return null;
+    const top = S.first(V(x, y + 4, z), DOWN, 4.2); const yy = top ? top.point.y : y; if (yy - y > 0.5) return null;
+    return S.segDist(V(x, yy + 0.45, z), V(x, yy + 1.7, z), 0.6).d > R + 0.08 ? yy : null; };
+  const out = []; let samples = 0, walked = 0, ok = 0, open = 0, noStart = 0, banks = 0, slid = 0; const TAN_WALK = Math.sqrt(1 - WALK_NORMAL_Y * WALK_NORMAL_Y) / WALK_NORMAL_Y;
+  let lastYield = performance.now();
+  for (let i = 0; i < N; i++) {
+    const a = ring[i], b = ring[(i + 1) % N]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < 0.5) continue;
+    const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L, nx = -tz * sg, nz = tx * sg; const n = Math.max(1, Math.round(L / TH.edgeStep));
+    for (let k = 0; k < n; k++) {
+      samples++; const u = (k + 0.5) * L / n, ex = a[0] + tx * u, ez = a[1] + tz * u;
+      // (start on the walk grid: reachable ground, never inside a hollow house that straddles the edge)
+      let st = null; for (let d = 2.5; d <= 14; d += 0.5) { const x = ex + nx * d, z = ez + nz * d; if (!inRing(x, z) || !navOK(x, z)) continue; const y = standable(x, z); if (y !== null) { st = { x, y, z, d }; break; } }
+      if (!st) { noStart++; continue; }
+      walked++;
+      ctrl.teleport(V(st.x, st.y + 0.05, st.z), Math.atan2(nx, nz));   // forward = (-sin yaw, -cos yaw) = (-nx, -nz): out toward the line
+      for (let k = 0; k < 12; k++) { ctrl.update(DT, { forward: 0, strafe: 0, jump: false, crouchToggle: false, sprint: false }); ctrl.events.length = 0; }   // land first (airborne + forward = a mantle onto whatever ledge is ahead)
+      const hist = []; let t = 0, stopped = false; const T = st.d / 2.5 + 6;
+      for (; t < T; t += DT) {
+        ctrl.update(DT, { forward: 1, strafe: 0, jump: false, crouchToggle: false, sprint: false }); ctrl.events.length = 0;
+        const p = ctrl.position; hist.push([p.x, p.z]); if (hist.length > 15) hist.shift();
+        if (t > 0.4 && ctrl.grounded && hist.length === 15 && Math.hypot(p.x - hist[0][0], p.z - hist[0][1]) < 0.02) { stopped = true; break; }
+      }
+      const p = ctrl.position.clone(); const outside = !inRing(p.x, p.z);
+      // (a lone tree trunk beyond an open edge is scenery, not the boundary: past the capsule's reach, hits on trunks are skipped)
+      let h = TH.edgeLook + R; for (const up of [0.25, 0.6, 1.0, 1.6]) for (const hit of S.all(V(p.x, p.y + up, p.z), V(-nx, 0, -nz), TH.edgeLook + R)) {
+        if (hit.distance > R + TH.edgeGap && nearTrunk(hit.point.x, hit.point.z)) continue; if (hit.distance < h) h = hit.distance; break; }
+      // where the clamp stops a player the capsule's centre is RADIUS from the line; anywhere else something else stopped it:
+      // a collider (rays above) or a bank too steep to walk (the ground itself is visible)
+      let dLine = Infinity; for (let q = 0; q < N; q++) { const A = ring[q], Bq = ring[(q + 1) % N]; const dx = Bq[0] - A[0], dz = Bq[1] - A[1]; const tt = Math.max(0, Math.min(1, ((p.x - A[0]) * dx + (p.z - A[1]) * dz) / (dx * dx + dz * dz || 1))); dLine = Math.min(dLine, Math.hypot(p.x - A[0] - dx * tt, p.z - A[1] - dz * tt)); }
+      const atLine = dLine < R + 0.12;
+      let steep = false; for (let s = 0; s <= 0.9 && !steep; s += 0.15) { const g0 = GY(p.x - nx * (R + s), p.z - nz * (R + s)), g1 = GY(p.x - nx * (R + s + 0.3), p.z - nz * (R + s + 0.3)); if ((g1 - g0) / 0.3 > 0.85 * TAN_WALK || g1 - p.y > 0.45) steep = true; }
+      // (the capsule may be held by something beside the ray: a corner, the gap between two barriers, an oblique wall it slid along)
+      const sd = S.segDist(V(p.x, p.y + 0.3, p.z), V(p.x, p.y + 1.7, p.z), R + TH.edgeGap + 0.01, p.y + 0.2); const touch = sd.at && (sd.at.x - p.x) * -nx + (sd.at.z - p.z) * -nz > -0.05 && (sd.d - R <= TH.edgeGap || !nearTrunk(sd.at.x, sd.at.z)) ? sd.d - R : Infinity;
+      const ahead = Math.min(h - R, touch);
+      const res = { at: [r1(ex), r1(ez)], stop: P3(p), gap: r2(ahead), from: [r1(st.x), r1(st.z)], atLine };
+      let bad = null;
+      if (outside) bad = 'walked out past the boundary line (no clamp)';
+      else if (ahead <= TH.edgeGap) ok++;
+      else if (!atLine && steep) { ok++; banks++; }
+      else if (!atLine && !stopped) slid++;   // still sliding along an obstacle inside the line when time ran out: not a stop
+      else if (atLine && ahead >= TH.edgeLook) open++;
+      else bad = atLine ? `the clamp stops the player ${r2(ahead)} m short of a visible fence / wall` : `stopped ${r2(dLine - R)} m inside the line by nothing visible`;
+      if (bad) { out.push({ ...res, why: bad }); marks.push({ kind: 'edgeClamp', x: p.x, z: p.z }); }
+      if (performance.now() - lastYield > 250) { lastYield = performance.now(); $('status').textContent = `edgeClamp ${samples}`; await tick(); }
+    }
+  }
+  const res = { status: status(out.length, 0), what: `Rule F48 (no invisible walls): the real controller walks at every ${TH.edgeStep} m of the boundary line (${world.playEdge ? 'world.playEdge' : 'playBounds rectangle'}) from walkable ground inside; stopping more than ${TH.edgeGap} m short of a collider or bank that stands within ${TH.edgeLook} m ahead, or ending outside the line, fails. Open edges (nothing within ${TH.edgeLook} m) are counted only (see boundary).`,
+    counts: { samples, walked, stoppedAtVisible: ok, onBank: banks, open, stillSliding: slid, noStart, failing: out.length }, failures: out.slice(0, 60) };
+  log(`edgeClamp: ${res.status} ${walked} walks, ${out.length} invisible-wall stops, ${open} open`);
+  finishCheck('edgeClamp', res);
+}
+
 // ============================================================================================== 9 bots
 async function checkBots() {
   const realNow = performance.now.bind(performance), realRandom = Math.random;
@@ -1339,7 +1408,7 @@ async function checkBots() {
 
 // ---------------------------------------------------------------------------------------------- summary + image
 function renderSummary() {
-  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'walkDesign', 'overlook', 'seating', 'interior', 'facadePeaks', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'bots'];
+  const order = ['escape', 'roofVoids', 'ladders', 'spawns', 'heli', 'terrain', 'houses', 'retaining', 'mounds', 'roads', 'walkDesign', 'overlook', 'seating', 'interior', 'facadePeaks', 'glassBuried', 'wallGap', 'visualSolid', 'roofSkin', 'props', 'signs', 'boundary', 'edgeClamp', 'bots'];
   const lines = [];
   for (const id of order) {
     const c = report.checks[id]; if (!c) continue;
@@ -1377,13 +1446,14 @@ async function drawMap() {
     else if (m.kind === 'sign') { g.fillStyle = m.bad ? '#ffcc00' : 'rgba(255,204,0,0.5)'; g.fillRect(X(m.x) - 5, Z(m.z) - 3, 10, 6); }
     else if (m.kind === 'slope') X8(m.x, m.z, m.bad ? '#ff2020' : '#ff9020', 6, 3);
     else if (m.kind === 'propSlope') X8(m.x, m.z, m.bad ? '#ff00ff' : '#ff88ff', 5, 2);
+    else if (m.kind === 'edgeClamp') X8(m.x, m.z, '#00e5ff', 6, 3);
     else if (m.kind === 'bot') { g.strokeStyle = '#b060ff'; g.lineWidth = 3; g.beginPath(); g.arc(X(m.x), Z(m.z), 6, 0, 7); g.stroke(); }
   }
   window.__mapcheckImage = () => cv.toDataURL('image/png');
 }
 
 // ---------------------------------------------------------------------------------------------- run
-const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['walkDesign', checkWalkDesign], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadePeaks', checkFacadePeaks], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
+const CHECKS = [['spawns', checkSpawns], ['ladders', checkLadders], ['heli', checkHeli], ['terrain', checkTerrain], ['houses', checkHouses], ['retaining', checkRetaining], ['mounds', checkMounds], ['roads', checkRoads], ['walkDesign', checkWalkDesign], ['overlook', checkOverlook], ['seating', checkSeating], ['interior', checkInterior], ['facadePeaks', checkFacadePeaks], ['facadeSweep', checkFacadeSweep], ['props', checkProps], ['signs', checkSigns], ['boundary', checkBoundary], ['edgeClamp', checkEdgeClamp], ['visualSolid', checkVisualSolid], ['roofSkin', checkRoofSkin], ['escape', checkEscape], ['roofVoids', checkRoofVoids], ['bots', checkBots]];
 for (const [id, fn] of CHECKS) {
   if (!enabled(id)) { report.checks[id] = { status: 'skip' }; continue; }
   $('status').textContent = id + '…'; await tick();
