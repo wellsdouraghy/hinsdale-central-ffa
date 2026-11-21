@@ -24,6 +24,7 @@ export const CTF_SPAWN = {
   front: 0.35,              // max cos(angle) between "flag -> spawn" and "flag -> enemy flag" (0.35 = ~70 deg: behind / beside)
   flagSight: 60,            // no clear line of sight to the flag stand from closer than this (m)
   count: 12,                // spawn spots kept per team (farthest-point sampled, spread out)
+  open: 3.75,               // preferred clearance: every nav cell within this of the spot is walkable (m): open ground, not an alley
   enemyNear: 25,            // never spawn within this of a living enemy if any alternative exists (m)
   enemySight: 60,           // ... nor in an enemy's line of sight within this (m)
 };
@@ -109,7 +110,12 @@ function zoneSpawns(world, team) {
     for (let bb = -1; bb <= 1 && ok; bb++) for (let a = -1; a <= 1; a++) if (!walk(i + a, j + bb)) { ok = false; break; }
     if (!ok) continue;
     if (T?.slopeAt && T.slopeAt(x, z) > SPAWN_MAX_GRADE) continue;
-    cands.push({ x, z, d, cos: (dx * ex + dz * ez) / (d * el) });
+    // `open`: every nav cell within S.open metres is walkable too. A spot with only one cell of elbow room can sit in a
+    // dead-end strip (Hinsdale: the 5 m alley between the home stand's back and the fence; bots spawned there walked
+    // under the stand, bumped into its 1 m front deck and hopped the rail). Preferred below, not required.
+    let open = true; const no = Math.ceil(S.open / g.cell);
+    for (let bb = -no; bb <= no && open; bb++) for (let a = -no; a <= no; a++) if (a * a + bb * bb <= no * no && !walk(i + a, j + bb)) { open = false; break; }
+    cands.push({ x, z, d, open, cos: (dx * ex + dz * ez) / (d * el) });
   }
   if (!cands.length) return [];
   const down = new THREE.Vector3(0, -1, 0), o = new THREE.Vector3(), dir = new THREE.Vector3();
@@ -129,18 +135,27 @@ function zoneSpawns(world, team) {
       _ray.set(o.set(c.x, gy + 1.2, c.z), dir.set(Math.cos(k * Math.PI / 2), 0, Math.sin(k * Math.PI / 2))); _ray.far = 1.2;
       if (_ray.intersectObjects(world.collisionMeshes, false).length) return false;
     }
+    // ... and nothing raised beside it: a deck, stage, kerbed planter or prop under chest height that the 1.2 m probes
+    // pass over (downward rays on a 1.5 m ring must land on the ground the spot stands on).
+    for (let k = 0; k < 8; k++) {
+      const ax = c.x + Math.cos(k * Math.PI / 4) * 1.5, az = c.z + Math.sin(k * Math.PI / 4) * 1.5;
+      _ray.set(o.set(ax, gy + 40, az), down); _ray.far = 60;
+      const h2 = _ray.intersectObjects(world.collisionMeshes, false)[0];
+      if (h2 && h2.point.y - Math.max(gy, standY(ax, az)) > 0.5) return false;
+    }
     c.y = gy;
     return true;
   };
   const sees = (c) => c.d < S.flagSight && !cast(flagEye, new THREE.Vector3(c.x, c.y + 1.6, c.z));
   // Thin the candidates (every other one) before raycasting: plenty for 12 spread-out spots.
   const pool = cands.filter((c, k) => k % 2 === 0 && okGround(c));
-  const tiers = [
-    pool.filter((c) => c.cos <= S.front && !sees(c)),
-    pool.filter((c) => c.cos <= S.front),
-    pool.filter((c) => c.cos <= 0.7),
+  const tiersOf = (ps) => [
+    ps.filter((c) => c.cos <= S.front && !sees(c)),
+    ps.filter((c) => c.cos <= S.front),
+    ps.filter((c) => c.cos <= 0.7),
   ];
-  const pick = tiers.find((t) => t.length >= 4) || [];
+  // Open ground first (enough of it for a full, spread-out set); a cramped campus falls back to any clear spot.
+  const pick = tiersOf(pool.filter((c) => c.open)).find((t) => t.length >= S.count * 2) || tiersOf(pool).find((t) => t.length >= 4) || [];
   // Farthest-point sampling, starting from the spot straight behind the flag.
   const out = [];
   if (!pick.length) return out;
