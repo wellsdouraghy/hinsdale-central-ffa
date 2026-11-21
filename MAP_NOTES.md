@@ -138,13 +138,16 @@ map breaking one of these rules has not finished.
     course (map check `facadePeaks`).
 46. Count the cars. A car park in the tiles with twenty cars is a paved lot with stall rows, not a drive through lawn; and paving
     takes its tone from the tiles too (pale concrete drives beside dark asphalt streets).
+47. Every door is real or removed. The facade kit puts a door on long walls by default: keep only doors the tiles or
+    photos show, and give each kept door a level apron and a walk to the paving (steps where the ground falls more than
+    ~0.3 m within 1.5 m). No door opens onto grass or a bank, and no sign stands in front of a door.
 
 **Definition of done for a builder (one-shot):**
 - The map check has 0 fails, and every warning is fixed or explained.
 - The builder has walked every building perimeter, every street and every sidewalk at eye level, plus every new
   stair, gate, ladder and entrance with `__walk`, both ways.
 - Before/after screenshots are taken from collision-checked poses, compared against Street View where it exists.
-- Every rule A1-F46 above is ticked off explicitly in the hand-off.
+- Every rule A1-F47 above is ticked off explicitly in the hand-off.
 
 Then the independent QA reviewer checks the map without seeing the builder's conclusions. Any leftover the reviewer
 finds is fixed, re-checked, release-tested and shipped without asking the user, and its lesson is added to this file
