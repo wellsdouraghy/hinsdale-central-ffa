@@ -7,7 +7,7 @@ import { paintedQuad } from '../../world/fields.js';
 import { nameBoard, kerb, lineRing, plainBlock, WHITE, drapePoly } from './extras.js';
 import { lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
-import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, LOOP_ISLAND_ROWS, LOT_ISLANDS, LOOP_SWALE, STEPS_WALK, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL, obb, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth, KBH_TERR, KBH_TERR_Y, KBH_STEPS } from './kit.js';
+import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, LOOP_ISLAND_ROWS, LOT_ISLANDS, LOOP_SWALE, STEPS_WALK, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL, obb, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth, KBH_TERR, KBH_TERR_Y, KBH_STEPS, QUAD_PATHS } from './kit.js';
 import { KBH_TILE } from './school.js';
 
 const RAD = Math.PI / 180;
@@ -16,8 +16,9 @@ const RAD = Math.PI / 180;
 export const ALUMNI_STEPS = [{ a: [-87.5, 19.0], b: [-88.3, 28.3], w: 2.4, brick: true, head: 3.6 }];   // the red-brick flight down the bank: north-south at x ~ -88, from the lawn walk (z 19) to the brick landing on the terrace (z 28.5): nadir tiles, QA round 4
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
 export const CAR_FREE = [[-112, 30]];
+const ARTS_BRICK_TONE = [0.93, 0.88, 0.99];   // the arts court's brick square: sampled beside the tiles (fix round 8)
 // (fix round 6) stalls a door's walk lands on stay empty: [x, z, radius]
-const WALK_LANDINGS = [[-4.7, -8.0, 2.9], [2.6, -6.2, 2.7], [-107.8, 73.9, 4.0]];   // (+ the walk from the terrace steps, the store by the gym's north wall)
+const WALK_LANDINGS = [[-5.2, -7.3, 1.75], [2.45, -5.2, 1.75], [-107.8, 73.9, 4.0]];   // (fix round 8: one stall each, at the walk's end: the wide circles emptied four stalls of a full row)   // (+ the walk from the terrace steps, the store by the gym's north wall)
 export const SHED = obb(-154.2, -8.4, 11.6, 2.9, -46.5);   // the white storage shed on the north-west edge of the Commons' service yard
 // The Bridge over Ross Creek (campus map item 12): from the end of Park Drive (a) to the quad path (b); deck level y
 export const BRIDGE = { a: [-141.6, 89.6], b: [-147.4, 95.4], y: 1.13, w: 3.2 };   // deck level = the designed end of Park Drive (a pad 0.16 m above it was a hump on the road end: map check `mounds`)
@@ -140,7 +141,7 @@ function vehicles(ctx) {
   // (QA round 4: a full lot, ~20 stalls: nose-in on the north edge, along the shed's north wall, a bay by the courts, a bay by the hall)
   row([-81.0, -59.9], [-57.0, -64.4], -1, 1); row([-80.5, -52.4], [-64.0, -42.0], 1, 0.95); row([-89.6, -52.6], [-83.4, -45.9], 1, 1); row([-59.5, -44.6], [-50.6, -42.4], -1, 1);
   // visitor parking in front of Katharine Branson Hall: the long row on the south kerb, the island side, the bay by the hall
-  row([-13, -10.5], [13, -3.6], 1, 0.9); row([-5, -19.8], [9, -18.6], -1, 0.75); row([-26.1, -24.7], [-19.1, -33.2], 1, 1);   // (fix round 5: the bay by the hall is four stalls 2.7 m inside the kerb of the hall's green strip; two cars hung over the old kerb)
+  row([-13, -10.5], [13, -3.6], 1, 1); row([-21.9, -15.6], [-14.6, -10.8], 1, 1);   /* (fix round 8, rule F46: the tiles show a full row of ~12 cars along the south kerb, on round the bend to the hall's north-east door; it had five) */ row([-5, -19.8], [9, -18.6], -1, 0.75); row([-26.1, -24.7], [-19.1, -33.2], 1, 1);   // (fix round 5: the bay by the hall is four stalls 2.7 m inside the kerb of the hall's green strip; two cars hung over the old kerb)
   // the Commons' service yard under its west gable (nadir tiles: cars along the gable)
   row([-144.9, -5.0], [-151.1, 7.4], 1, 1);   // (four vehicles in the tiles)
   // the gym service drive: along the gym's west wall and the bank north of it
@@ -231,13 +232,20 @@ function boundary(ctx) {
   const inBld = (x, z) => (ctx.buildingRings || []).some((r) => pointInRing(x, z, r));
   const trunks = (ctx.gen.trees || []).filter((t) => t[0] > pb.minX - 8 && t[0] < pb.maxX + 8 && t[1] > pb.minZ - 8 && t[1] < pb.maxZ + 8);
   const cxm = (pb.minX + pb.maxX) / 2, czm = (pb.minZ + pb.maxZ) / 2;
+  // (fix round 8) where a neighbour's court or pool straddles the edge, the fence goes ROUND it (the bounds themselves are a straight line: player.js clamps);
+  // it ran across the court and stopped on the pool's coping. Detours: { e: edge, s0..s1: metres along the edge, path: fence line from s0 to s1 }
+  const DET = []; { const [qx, qz, qr] = NB_POOL, R = qr + 1.3, zs = pb.maxZ + m, xw = pb.minX - m; const a0 = Math.asin((zs - qz) / R), a1 = Math.atan2(zs - qz, xw - qx); const na = Math.ceil((a1 - a0) / 0.4); const arc = [];
+    for (let k = 0; k < na; k++) { const an = a0 + (a1 - a0) * k / na; arc.push([qx + Math.cos(an) * R, qz + Math.sin(an) * R]); } arc.push([xw, zs]); DET.push({ e: 2, s0: pb.maxX + m - arc[0][0], s1: 1e9, path: arc });
+    const c = NB_COURT, z1 = c.slab[3] + 0.8, z0 = c.slab[2] - 0.3, xo = c.slab[0] - 0.8; DET.push({ e: 3, s0: zs - z1, s1: zs - z0, path: [[xw, z1], [xo, z1], [xo, z0], [xw, z0]] }); }
   for (let e = 0; e < 4; e++) {
     const a = corners[e], b = corners[(e + 1) % 4]; const L = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.ceil(L / 6); const tx = (b[0] - a[0]) / L, tz = (b[1] - a[1]) / L; const rot = Math.atan2(-tz, tx);
     let run = null, runScreen = true; const flush = () => { if (run && run.length > 1) hillFence(ctx, run, runScreen ? { h: 2.4, screen: 2.0, every: 3 } : { h: 2.4, every: 3 }); run = null; };
     const ox = e % 2 ? Math.sign(a[0] - cxm) : 0, oz = e % 2 ? 0 : Math.sign(a[1] - czm); const panel = (p0, p1) => hillFence(ctx, [[p0[0] + ox * 0.5, p0[1] + oz * 0.5], [p1[0] + ox * 0.5, p1[1] + oz * 0.5]], { h: 2.4, every: 3 });
     for (let i = 0; i < n; i++) {
       const p0 = [a[0] + tx * (i * L / n), a[1] + tz * (i * L / n)], p1 = [a[0] + tx * ((i + 1) * L / n), a[1] + tz * ((i + 1) * L / n)], mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
-      if (inBld(mid[0], mid[1]) || Math.hypot(mid[0] - NB_POOL[0], mid[1] - NB_POOL[1]) < NB_POOL[2] + 0.5) { flush(); continue; }   // (no fence through the neighbour's round pool: the bounds hold there)
+      { const s0p = i * L / n, s1p = (i + 1) * L / n; const det = DET.find((d) => d.e === e && s1p > d.s0 && s0p < d.s1);
+        if (det) { const P = (sv) => [a[0] + tx * sv, a[1] + tz * sv]; if (s0p < det.s0 - 0.3) { if (!run) { run = [p0]; runScreen = false; } run.push(P(det.s0)); } flush(); if (!det.done) { hillFence(ctx, det.path, { h: 2.4, every: 3 }); det.done = true; } if (s1p > det.s1 + 0.3) { run = [P(det.s1), p1]; runScreen = false; } continue; } }
+      if (inBld(mid[0], mid[1])) { flush(); continue; }
       if (onStreet(mid[0], mid[1])) {
         flush(); panel(p0, p1); const bl = L / n - 0.3; const steep = ctx.terrain && ctx.terrain.maxIn(mid[0], mid[1], 2.8) - ctx.terrain.minIn(mid[0], mid[1], 2.8) > 0.38;
         if (steep) { onSlope(ctx, mid[0], mid[1], bl / 2, () => { ctx.B.solidBox('concrete', 'concrete', mid[0], 0.3, mid[1], bl, 1.0, 0.6, rot, 1 / 3); const pt = ctx.B.v('paint', true); for (const sd of [-0.31, 0.31]) { pt.setColor(0.95, 0.45, 0.05).box(mid[0] + tz * sd, 0.55, mid[1] - tx * sd, bl - 0.3, 0.22, 0.02, rot); pt.setColor(0.9, 0.9, 0.88).box(mid[0] + tz * sd, 0.27, mid[1] - tx * sd, bl - 0.3, 0.16, 0.02, rot); } pt.setColor(1, 1, 1); }); continue; }
@@ -312,47 +320,54 @@ function paving(ctx) {
   const { B } = ctx; const uv = (x, z) => [x / 3, z / 3];
   const inB = (x, z) => (ctx.buildingRings || []).some((r) => pointInRing(x, z, r));
   // (fix round 6: no kerb piece across a walk, and none of a walk's own kerb on a car park or on another walk)
-  const patioRing = Array.from({ length: 16 }, (_, k) => [PATIO[0] + Math.cos(k / 16 * 6.2832) * PATIO[2], PATIO[1] + Math.sin(k / 16 * 6.2832) * PATIO[2]]); const walkRings = [...WALKS.map(([pts, w]) => lineRing(pts, w + 0.1)), KBH_TERR, patioRing]; const onWalk = (x, z, not = -1) => walkRings.some((r, i) => i !== not && pointInRing(x, z, r)); const onLot = (x, z) => [...PAVED_POLYS, LOOP_OUTER].some((r) => pointInRing(x, z, r));
+  // (fix round 8) the quad's paved strips are walks too (pavers + kerb); a walk's kerb is laid by geometry: none where the far side is a car park or a
+  // drive (asphalt), another walk, the terrace, the patio or a plaza. The 1 m surface-class map broke it at every kink of the walk's own painted strip.
+  const AW = [...WALKS, ...QUAD_PATHS];
+  const patioRing = Array.from({ length: 16 }, (_, k) => [PATIO[0] + Math.cos(k / 16 * 6.2832) * PATIO[2], PATIO[1] + Math.sin(k / 16 * 6.2832) * PATIO[2]]); const walkRings = [...AW.map(([pts, w]) => lineRing(pts, w + 0.1)), KBH_TERR, patioRing]; const onWalk = (x, z, not = -1) => walkRings.some((r, i) => i !== not && pointInRing(x, z, r)); const onLot = (x, z) => [...PAVED_POLYS, LOOP_OUTER].some((r) => pointInRing(x, z, r));
+  const plazas = [TERRACE, ARTS_PLAZA, ENTR_COURT]; const farPaved = (wi) => (x, z, sf) => sf === 'asphalt' || onWalk(x, z, wi) || onLot(x, z) || plazas.some((r) => pointInRing(x, z, r));
   for (const r of [...PAVED_POLYS, LOOP_OUTER]) kerb(ctx, r, { skip: inB, off: (x, z) => onWalk(x, z) });
   for (const [pts, w] of PAVED_LINES) kerb(ctx, lineRing(pts, w), { off: (x, z) => onWalk(x, z) });
   for (const [x, z, r] of LOT_ISLANDS) kerb(ctx, Array.from({ length: 10 }, (_, k) => [x + Math.cos(k / 10 * 6.2832) * r, z + Math.sin(k / 10 * 6.2832) * r]), { all: true, h: 0.14, w: 0.24 });
   // the loop's north edge against the dining terrace: a red-brick band kerb (nadir tiles), and the paved walk from the head of the steps
   kerb(ctx, lineRing([LOOP_OUTER[0], LOOP_OUTER[1], LOOP_OUTER[2], LOOP_OUTER[3], [-86.6, 35.2]], 0.3), { all: true, h: 0.1, w: 0.12, color: [0.5, 0.27, 0.21] });
-  { const ring = lineRing(STEPS_WALK, 2.0); const pv = B.v('maPaver'); const L = STEPS_WALK; const g = (x, z) => gY(ctx, x, z) + 0.035;
-    for (let i = 0; i < L.length - 1; i++) { const a = L[i], b = L[i + 1]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]); const n = Math.max(1, Math.ceil(d / 1.2)); const nx = -(b[1] - a[1]) / d, nz = (b[0] - a[0]) / d;
-      for (let k = 0; k < n; k++) { const p = [a[0] + (b[0] - a[0]) * k / n, a[1] + (b[1] - a[1]) * k / n], q = [a[0] + (b[0] - a[0]) * (k + 1) / n, a[1] + (b[1] - a[1]) * (k + 1) / n]; const c = [[p[0] + nx, p[1] + nz], [q[0] + nx, q[1] + nz], [q[0] - nx, q[1] - nz], [p[0] - nx, p[1] - nz]].map(([x, z]) => [x, g(x, z), z]);
-        pv.quad(c[0], c[1], c[2], c[3], uv(c[0][0], c[0][2]), uv(c[1][0], c[1][2]), uv(c[2][0], c[2][2]), uv(c[3][0], c[3][2])); pv.quad(c[3], c[2], c[1], c[0], uv(c[3][0], c[3][2]), uv(c[2][0], c[2][2]), uv(c[1][0], c[1][2]), uv(c[0][0], c[0][2])); } }
-    kerb(ctx, ring, { h: 0.05, w: 0.16, color: [0.56, 0.54, 0.5] }); }
+  // (fix round 8, nadir tiles) the same red band runs on round the loop's west end; the drive's painted shoulder used to spill a metre past the traced edge there and fade into the lawn
+  kerb(ctx, lineRing([LOOP_OUTER[0], LOOP_OUTER[24], LOOP_OUTER[23], LOOP_OUTER[22]], 0.22), { all: true, h: 0.14, w: 0.14, step: 0.8, color: [0.5, 0.27, 0.21] });
+  { const ring = lineRing(STEPS_WALK, 2.0); drapePoly(ctx, B.v('maPaver'), lineRing(STEPS_WALK, 2.16), 0.036, uv); kerb(ctx, ring, { h: 0.05, w: 0.16, step: 0.5, color: [0.56, 0.54, 0.5], paved: (x, z, sf) => sf === 'asphalt' || pointInRing(x, z, TERRACE) }); }
   kerb(ctx, LOOP_GARDEN, { all: true, h: 0.16, w: 0.28 });
   // fix round 5 (F8 / F42): every door's apron and walk, the lane along the hall's east wall, the terrace at its south-east end and the walk from the
   // Bridge are painted as paving in the ground mask (tools/data/extra.py WALKS) and get a low hard edge here; the hall's red tile forecourt too
   // (fix round 6, F42: a walk only painted in the mask met asphalt on a blurred edge. Every walk is laid as real pavers over its painted strip, a
   // flush stone band closes each end that lands on asphalt, and the kerb runs along its grass sides)
   const band = (pts) => kerb(ctx, lineRing(pts, 0.1), { all: true, h: 0.045, w: 0.1, color: [0.62, 0.6, 0.55] });
-  WALKS.forEach(([pts, w], wi) => { drapePoly(ctx, B.v('maPaver'), lineRing(pts, w + 0.16), 0.036, uv); kerb(ctx, lineRing(pts, w), { h: 0.04, w: 0.12, color: [0.6, 0.57, 0.5], skip: inB, off: (x, z) => onWalk(x, z, wi) || onLot(x, z) });
+  AW.forEach(([pts, w], wi) => { drapePoly(ctx, B.v('maPaver'), lineRing(pts, w + 0.16), 0.036, uv); kerb(ctx, lineRing(pts, w), { h: 0.045, w: 0.16, step: 0.5, color: [0.6, 0.57, 0.5], skip: inB, paved: farPaved(wi), off: (x, z) => onWalk(x, z, wi) || onLot(x, z) });
     for (const [e, q] of [[pts[0], pts[1]], [pts[pts.length - 1], pts[pts.length - 2]]]) { const d = Math.hypot(e[0] - q[0], e[1] - q[1]) || 1, tx = (e[0] - q[0]) / d, tz = (e[1] - q[1]) / d; if (ctx.surfaceAt(e[0] + tx * 0.7, e[1] + tz * 0.7) !== 'asphalt' || inB(e[0] + tx * 0.7, e[1] + tz * 0.7) || onWalk(e[0] + tx * 0.7, e[1] + tz * 0.7, wi)) continue; band([[e[0] - tz * (w / 2 + 0.1) + tx * 0.05, e[1] + tx * (w / 2 + 0.1) + tz * 0.05], [e[0] + tz * (w / 2 + 0.1) + tx * 0.05, e[1] - tx * (w / 2 + 0.1) + tz * 0.05]]); } });
   // (fix round 7) the round patio and the hall's south-east terrace are real pavers on their level pads, with a hard edge; a square drain grate on the terrace (tiles)
-  drapePoly(ctx, B.v('maPaver'), patioRing, 0.036, uv); kerb(ctx, patioRing, { h: 0.04, w: 0.12, color: [0.6, 0.57, 0.5], off: (x, z) => onWalk(x, z, WALKS.length + 1) || onLot(x, z) });
-  drapePoly(ctx, B.v('maPaver'), KBH_TERR, 0.04, uv); kerb(ctx, KBH_TERR, { h: 0.05, w: 0.14, color: [0.6, 0.57, 0.5], skip: inB, off: (x, z) => onWalk(x, z, WALKS.length) });
+  drapePoly(ctx, B.v('maPaver'), patioRing, 0.036, uv); kerb(ctx, patioRing, { h: 0.045, w: 0.16, step: 0.5, color: [0.6, 0.57, 0.5], paved: farPaved(AW.length + 1), off: (x, z) => onWalk(x, z, AW.length + 1) || onLot(x, z) });
+  drapePoly(ctx, B.v('maPaver'), KBH_TERR, 0.04, uv); kerb(ctx, KBH_TERR, { h: 0.05, w: 0.16, step: 0.5, color: [0.6, 0.57, 0.5], skip: inB, paved: farPaved(AW.length), off: (x, z) => onWalk(x, z, AW.length) });
   { const m = B.v('blackMetal'); const [gx, gz] = [-2.3, 14.3], rot = Math.atan2(0.783, 0.622); m.box(gx, KBH_TERR_Y + 0.05, gz, 1.5, 0.02, 1.5, rot); const pt = B.v('paint', true); pt.setColor(0.42, 0.42, 0.41); for (let k = -2; k <= 2; k++) pt.box(gx + Math.cos(rot) * k * 0.3, KBH_TERR_Y + 0.062, gz - Math.sin(rot) * k * 0.3, 0.05, 0.012, 1.4, rot); pt.setColor(1, 1, 1); }
   { const tl = B.v('stucco', true); tl.setColor(...KBH_TILE); drapePoly(ctx, tl, ENTR_COURT, 0.04, (x, z) => [x / 2.2, z / 2.2]); tl.setColor(1, 1, 1); }   // (fix round 7: pale salmon tile, sampled beside the tiles; the brick red was far more saturated)
   void 0; kerb(ctx, ENTR_COURT, { h: 0.05, w: 0.16, color: [0.62, 0.47, 0.4], skip: inB }); band([ENTR_COURT[2], ENTR_COURT[3], ENTR_COURT[4]]);   // (real red tile up to the drive's edge, a pale stone band on the join)
   for (const [x, z, len, rot] of [[-43.9, 2.4, 2.6, 0.93], [-36.6, 4.6, 2.2, -0.64], [-34.6, 5.6, 1.6, -0.64]]) ctx.shrubs.push([x, gY(ctx, x, z) + 0.02, z, len, 1.05, rot]);   // the clipped shrubs either side of the entrance steps
   for (const [x, z, r] of [[-12.5, 28.3, 1.65], [-10.0, 28.6, 1.65]]) { propKit.picnicTable(ctx, x, z, r); umbrella(ctx, x, z, gY(ctx, x, z)); }   // the round patio's two tables, side by side on its south rim, each with its (closed) umbrella (fix round 7: gridded nadir tiles)
   { const y = (ctx.terraceY ?? gY(ctx, -106, 31)) + 0.03; B.v('maPaver').poly(TERRACE, null, y, uv); kerb(ctx, TERRACE, { h: 0.06, w: 0.3, color: [0.56, 0.54, 0.5] }); B.v('brickRed').poly([[-92.0, 28.5], [-87.1, 28.7], [-86.9, 31.8], [-91.6, 31.5]], null, y + 0.015, (x, z) => [x / 2.2, z / 2.2]); }   // (the brick landing at the foot of the Alumni Steps)
-  { const y = gY(ctx, 38.7, -4.3) + 0.045; drapePoly(ctx, B.v('maPaver'), ARTS_PLAZA, 0.045, uv); B.v('brickRed').poly(ARTS_BRICK, null, y + 0.015, (x, z) => [x / 2.2, z / 2.2]); kerb(ctx, ARTS_PLAZA, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] }); }
+  { const y = gY(ctx, 38.7, -4.3) + 0.045; drapePoly(ctx, B.v('maPaver'), ARTS_PLAZA, 0.045, uv); { const bk = B.v('brick', true); bk.setColor(...ARTS_BRICK_TONE); drapePoly(ctx, bk, ARTS_BRICK, 0.06, (x, z) => [x / 2.2, z / 2.2]); bk.setColor(1, 1, 1); }   /* (fix round 8: a dull, pale brick as in the tiles, draped on the court like the pavers; it was a saturated orange slab half under them) */ void y; kerb(ctx, ARTS_PLAZA, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] }); }
   // the neighbour's swimming pool north of Fernhill Ave (nadir tiles): water in a coped basin on a paved deck, a small pool house
   { const y = ctx.poolY ?? gY(ctx, -188, -67); B.v('maPaver').poly(POOL_DECK, [POOL], y + 0.03, uv); B.v('water').poly(POOL, null, y - 0.12, uv); kerb(ctx, POOL, { all: true, h: 0.1, w: 0.4, color: [0.7, 0.69, 0.66] }); kerb(ctx, POOL_DECK, { all: true, h: 0.05, w: 0.25, color: [0.56, 0.54, 0.5] });
     atGround(ctx, -191.5, -56, () => { plainBlock(ctx, POOL_HOUSE, -0.4, 2.6, WHITE, [0.3, 0.3, 0.3]); hipRoof(ctx, POOL_HOUSE, 2.6, 1.1, { tint: [3.2, 3.2, 3.3], overhang: 0.4, fill: true }); (ctx.buildingRings = ctx.buildingRings || []).push(POOL_HOUSE); }, 3, 'max'); }
 }
 // Fix round 7 (off campus, inside the play area; nadir tiles): the neighbour's tennis court west of the Commons and the round pool of the gravel garden in
-// the south-west corner. The court is its green slab (ground paint, tools/ground_fix.py) with its lines; its net and fence are left out (two helicopter
-// spots stand beside it). The pool is a raised round basin.
-export const NB_COURT = { cx: -211.0, cz: 38.2 }, NB_POOL = [-209.3, 183.0, 6.0];
+// the south-west corner. Fix round 8 (gridded nadir tiles): the court's slab is x -219.6..-203.6, z 19.5..52.8 (ground paint, tools/ground_fix.py), its
+// lines and its net are centred on (-211.8, 38.5); the helicopter spot beside it moved 2.5 m north to keep its rotor clear of the net (campus.js).
+// The pool is a raised round basin on a level spot (sitework), whole: the play-area fence goes round its south side.
+export const NB_COURT = { cx: -211.8, cz: 38.5, slab: [-219.6, -203.6, 19.5, 52.8] }, NB_POOL = [-209.3, 183.0, 6.0];
 function neighbours(ctx) {
-  const { B } = ctx; const g = ctx.gline; if (g) { const c = NB_COURT, W = [0.86, 0.86, 0.83]; const L = (x0, z0, x1, z1) => g(c.cx + x0, c.cz + z0, c.cx + x1, c.cz + z1, 0.06, W);
+  const { B } = ctx; const g = ctx.gline; const c = NB_COURT; if (g) { const W = [0.86, 0.86, 0.83]; const L = (x0, z0, x1, z1) => g(c.cx + x0, c.cz + z0, c.cx + x1, c.cz + z1, 0.06, W);
     for (const x of [-5.485, -4.115, 4.115, 5.485]) L(x, -11.885, x, 11.885); for (const z of [-11.885, 11.885]) L(-5.485, z, 5.485, z); for (const z of [-6.4, 6.4]) L(-4.115, z, 4.115, z); L(0, -6.4, 0, 6.4); }
-  const [px, pz, pr] = NB_POOL; const y = gY(ctx, px, pz - 3);   /* (a low coping, 0.14 m: under the height a helicopter spot 13 m away counts as an obstacle) */ const n = 28; const ring = Array.from({ length: n }, (_, k) => [px + Math.cos(k / n * 6.2832) * pr, pz + Math.sin(k / n * 6.2832) * pr]);
+  { const y0 = Math.max(gY(ctx, c.cx - 6.4, c.cz), gY(ctx, c.cx, c.cz), gY(ctx, c.cx + 6.4, c.cz));   // the net: posts 0.91 m outside the doubles lines, 1.07 m high (as on the school's courts)
+    B.v('net').quad([c.cx - 6.4, y0 + 0.05, c.cz], [c.cx - 6.4, y0 + 1.0, c.cz], [c.cx + 6.4, y0 + 1.0, c.cz], [c.cx + 6.4, y0 + 0.05, c.cz], [0, 0], [0, 2], [24, 2], [24, 0]);
+    B.v('whitePanel').box(c.cx, y0 + 1.02, c.cz, 12.8, 0.06, 0.05); for (const sx of [-6.4, 6.4]) B.v('blackMetal').cyl(c.cx + sx, y0 - 0.1, c.cz, 0.04, 0.04, 1.17, 8, 1, true);
+    B.c('metal:mesh').box(c.cx, y0 + 0.52, c.cz, 12.8, 1.05, 0.08); }
+  const [px, pz, pr] = NB_POOL; const y = ctx.nbPoolY ?? gY(ctx, px, pz - 3);   /* (a low coping, 0.14 m: under the height a helicopter spot 13 m away counts as an obstacle) */ const n = 28; const ring = Array.from({ length: n }, (_, k) => [px + Math.cos(k / n * 6.2832) * pr, pz + Math.sin(k / n * 6.2832) * pr]);
   { const wt = B.v('paint', true); wt.setColor(0.05, 0.08, 0.15); wt.poly(ring, null, y + 0.07, (x, z) => [x / 3, z / 3]); wt.setColor(1, 1, 1); }   /* (a dark, still pool in the tiles) */ const lm = B.v('limestone'), col = B.c('concrete');
   for (let k = 0; k < n; k++) { const a = (k + 0.5) / n * 6.2832, x = px + Math.cos(a) * pr, z = pz + Math.sin(a) * pr, len = 6.2832 * pr / n + 0.06; lm.box(x, y - 0.23, z, 0.5, 0.74, len, -a, 1 / 3); col.box(x, y - 0.23, z, 0.5, 0.74, len, -a); }
   for (let k = 0; k < 7; k++) { const t = (k - 3) / 3; lm.box(px - 1.9 + t * 0.9, y + 0.07, pz + t * 5.0, 0.9, 0.1, 1.3, 0.18 + 0.1 * (k % 2), 1 / 3); }   // the line of stepping slabs across the water

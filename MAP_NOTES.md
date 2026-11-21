@@ -1354,4 +1354,30 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     descriptor's helicopter spots and bases before adding any neighbour feature.
   - *Grass through a deck:* ground 1 cm above a bridge deck shows as grass on it. Keep the ground 4 cm under the deck for a full lattice cell round the
     bridgehead and paint the surface there as paving (`paintSurface`), so no blades grow under the deck's end or on the join with the walk.
-
+- **Fix round after the eighth QA (ship quality except walk joints, a fence through a pool, nits):**
+  - *Drape paving on the mesh, not on the bilinear height.* `ctx.groundY` is bilinear; the drawn ground is the lattice's own triangles (every 2 m cell split on
+    one diagonal: `terrain.meshHeightAt`, `terrain.lattice`). Pavers cut into 1 m cells on the bilinear height sat under the ground wherever a pad's blend bent
+    it: a translucent patch at a walk's kink, a smear across another, pink squares on the arts court. `drapePoly` (extras.js) now ear-clips the outline and
+    cuts each triangle along the lattice cells AND their diagonals, so the paving is exactly dy above the mesh. Kerbs take the mesh height too.
+  - *The surface-class map is 1 m cells: never use it to decide a walk's kerb.* Beside a walk's own painted strip it reads 'concrete' in a staircase and the
+    kerb broke at every kink. Walk kerbs are laid by geometry (`kerb` `paved`: asphalt, another walk ring, a plaza polygon), in 0.5 m pieces, with a mitre cap
+    on each vertex; `lineRing` mitres its joins (it narrowed the strip at a kink), and the mask's `ImageDraw.line` needs `joint='curve'` or the outside of
+    each bend stays lawn and grass grows through the pavers.
+  - *Every painted path gets pavers and a kerb, or goes.* The quad's three strips were paint only ("fades into the grass"); the classifier's thin leftovers
+    across the courtyard and the photo's pale streaks are painted back to one lawn tone (ground_fix.py `QUAD`).
+  - *A street's painted shoulder can spill past a traced outline.* At the loop's west end the engine's shoulder paint and the 7.4 m "pale drive" band lay a
+    metre outside `LOOP_OUTER`, so the kerb test skipped it. Inside a small window the bake and `paintSurface` keep to the traced outline; the red band kerb
+    of the tiles runs on round that end.
+  - *A fence never crosses a neighbour's court or pool.* `boundary` takes detours (edge, s0..s1, a path): round the south side of the round pool, round the
+    west side of the court. The bounds stay a straight clamp; say so in the hand-off. A basin on a lidar slope needs its own level spot (0.2 m of fall put a
+    wedge of ground through the water).
+  - *A net costs a helicopter spot 8.5 m of clearance.* The neighbour's court got its net and lines on the slab's real centre; the spot beside it moved 2.5 m
+    north in the descriptor (30 m from the next one still). Re-read `world.heliSpawns` after any prop near a spot.
+  - *Read a roof band's section from three obliques before drawing it.* Tallant's clay tiles are a mansard between a white ledge (the wall head, 1 m under the
+    roof) and a white parapet, not a rim lying on the roof: `mansard` (extras.js, true `offsetRing`, not the centroid inset). The ladder lands on the ledge.
+  - *A ladder's place is chosen before the walls are drawn* (school.js `ladderSpot`), and `stuccoWalls` `clear` keeps the window rows off it: three ladders
+    on clear wall, all passing the 7-angle climb.
+  - *Rail ends snag.* A flight as wide as its walk with rails at both edges stops a player in an outer lane dead on the rail's end: widen to the tiles' tread
+    width and end each rail in a short outward return (`flare` in the steps spec). `__walk` the outer lanes, not only the centre line.
+  - *Car counts again (F46):* walk landings kept free with 2.9 m circles emptied four stalls of a full row; one stall per walk (1.75 m at the walk's end).
+  - *Vertex-tinted brick:* `B.v('brick', true)` takes a tint (the `brickRed` bucket does not); sample the lit result beside the tiles, the texture is orange.

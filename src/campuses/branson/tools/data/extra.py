@@ -76,7 +76,7 @@ POOL_HOUSE = [[-195, -58], [-188, -58], [-188, -54], [-195, -54]]
 WALKS = [
     ([[-17.9, -36.5], [-16.2, -40], [-15.8, -48], [-16.6, -56], [-17.8, -61.5]], 2.6),   # the lane along the hall east wall
     ([[-6.6, 18.0], [-8.1, 20.3], [-9.7, 22.9], [-10.9, 25.0]], 2.6),   # from the hall's south-east terrace (KBH_TERR) to the round patio
-    ([[1.95, 3.5], [2.1, 0.0], [2.4, -4.4]], 1.6),   # from the head of the terrace steps to the visitor lot
+    ([[2.15, 3.5], [2.2, 0.0], [2.4, -4.4]], 2.0),   # from the head of the terrace steps to the visitor lot
     ([[-44.7, -48.5], [-46.8, -48.2]], 2.4),   # north block, west door
     ([[-28.1, -63.9], [-26.9, -65.5], [-21.5, -63.6], [-17.9, -61.3]], 1.8),   # north block, north-east door
     ([[-19.9, -50.1], [-16.2, -50.5]], 2.2),   # north block, east door
@@ -94,13 +94,13 @@ WALKS = [
     ([[-91.04, 73.63], [-80.33, 128.06]], 3.6),   # the slab under the gym's east colonnades
     ([[-121.6, 80.37], [-99.4, 75.55]], 1.3),   # a concrete margin along the foot of the gym's north wall
     ([[-145.5, 158.7], [-145.9, 157.2], [-152.6, 156.4]], 2.2),   # Tallant Science Center's north door: apron and walk to the quad path
-    ([[1.75, 4.1], [0.45, 8.0]], 1.8),   # the flight of steps at the terrace's north corner (kit.js KBH_STEPS)
+    ([[1.94, 4.16], [0.64, 8.06]], 2.2),   # the flight of steps at the terrace's north corner (kit.js KBH_STEPS)
 ]
 # Katharine Branson Hall's south-east terrace (kit.js KBH_TERR): gridded nadir tiles, fix round 7
-KBH_TERR = [[-1.6, 6.65], [0.3, 8.3], [1.5, 10.5], [0.6, 12.4], [-0.4, 14.0], [-1.6, 15.9], [-3.0, 17.3], [-5.2, 18.4], [-7.6, 19.2], [-8.6, 18.3], [-10.3, 17.55]]
+KBH_TERR = [[-1.6, 6.65], [0.3, 8.3], [1.75, 8.6], [1.5, 10.5], [0.6, 12.4], [-0.4, 14.0], [-1.6, 15.9], [-3.0, 17.3], [-5.2, 18.4], [-7.6, 19.2], [-8.6, 18.3], [-10.3, 17.55]]
 # Fix round 7, off campus but inside the play area (nadir tiles): the neighbour's tennis court west of the Commons (a green hard court, lines painted by
 # the builder) and the gravel garden round a circular pool in the south-west corner (paths and gravel = one pale tone, the pool is built by the builder)
-NB_COURT = dict(cx=-211.0, cz=38.2, w=18.4, d=37.6)
+NB_COURT = dict(cx=-211.6, cz=36.15, w=16.0, d=33.3)   # (fix round 8, gridded nadir tiles: the slab is x -219.6..-203.6, z 19.5..52.8; the court's lines and net are centred on (-211.8, 38.5): grounds.js NB_COURT)
 NB_GRAVEL = [(-222, 170.5), (-216, 170), (-204, 171), (-196.5, 171.5), (-193, 178), (-192, 186), (-195, 194), (-200, 200), (-222, 200)]
 NB_POOL = (-209.3, 183.0, 6.0)
 PATIO = (-11.2, 27.3, 2.9)

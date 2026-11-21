@@ -26,7 +26,7 @@ rng = np.random.default_rng(7)
 def poly_mask(pts, size=(W, H), scale=ppm):
     im = Image.new('L', size, 0); ImageDraw.Draw(im).polygon([((x - X0) * scale, (z - Z0) * scale) for x, z in pts], fill=255); return np.array(im) > 0
 def line_mask(pts, width):
-    im = Image.new('L', (W, H), 0); ImageDraw.Draw(im).line([((x - X0) * ppm, (z - Z0) * ppm) for x, z in pts], fill=255, width=max(1, int(round(width * ppm)))); return np.array(im) > 0
+    im = Image.new('L', (W, H), 0); ImageDraw.Draw(im).line([((x - X0) * ppm, (z - Z0) * ppm) for x, z in pts], fill=255, width=max(1, int(round(width * ppm))), joint='curve'); return np.array(im) > 0   # (joint: without it a kinked line leaves an open wedge on the outside of each bend: grass grew through the walks' pavers there)
 yy, xx = np.mgrid[0:H, 0:W]; wx = X0 + (xx + 0.5) / ppm; wz = Z0 + (yy + 0.5) / ppm
 inplay = (wx > PLAY[0] - 20) & (wx < PLAY[1] + 20) & (wz > PLAY[2] - 20) & (wz < PLAY[3] + 20)
 asph = mask[..., 0] > 128; conc = mask[..., 1] > 128; syn = mask[..., 2] > 128; dirt = mask[..., 3] < 128; grass = ~(asph | conc | syn | dirt)
@@ -68,6 +68,10 @@ bld = np.zeros((H, W), bool)
 for b_ in D['buildings']:
     if len(b_['outer'][0]) >= 3: bld |= poly_mask(b_['outer'][0])
 lots &= ~ndi.binary_dilation(bld, iterations=2); lots &= ~garden
+# fix round 8 (rule F42): at the loop's west end the OSM service ways' paint spilled up to 1.5 m past the traced outline (kit.js LOOP_OUTER), so the kerb
+# was skipped there and the drive faded into the lawn. Inside this window the paving is the traced outlines and nothing else.
+LOOPW = (wx > -119) & (wx < -99.5) & (wz > 39) & (wz < 57.5); loopw_ok = poly_mask(extra.LOOP_OUTER) | poly_mask(extra.PAVED[4])
+lots &= ~(LOOPW & ~loopw_ok); streets &= ~(LOOPW & ~loopw_ok)
 for ix, iz, ir in extra.LOT_ISLANDS: lots &= ~((wx - ix) ** 2 + (wz - iz) ** 2 < ir * ir)
 asph = mask[..., 0] > 128; conc = mask[..., 1] > 128
 terrace = poly_mask(extra.TERRACE) & ~bld; plaza = poly_mask(extra.ARTS_PLAZA) & ~bld; brick = poly_mask(extra.ARTS_BRICK)
@@ -83,10 +87,13 @@ paths &= ~bld; keep = terrace | plaza | paths | walks | court
 courts = poly_mask(extra.obb(extra.TENNIS['cx'], extra.TENNIS['cz'], 36.6 + 3, 33.5 + 3, extra.TENNIS['ang']))
 thin = conc & ~ndi.binary_opening(conc, iterations=max(1, int(1.6 * ppm)))      # paths under ~3 m wide
 thin = ndi.binary_dilation(thin, iterations=1) & conc & osm_paths                 # (a thin strip away from any mapped path is glare, not paving)
+# fix round 8: the academic quad's courtyard is lawn between its three paved strips (nadir tiles): the classifier's thin "paths" across it go back to lawn
+QUAD = poly_mask([(-160.5, 114.5), (-151.5, 121.5), (-141.5, 147.5), (-150.5, 157), (-166, 151), (-174.5, 140.5)]); thin &= ~QUAD
 to_g = strict & ((asph & ~lots & ~streets) | (conc & ~thin & ~keep & ~courts & ~lots))
 to_a = strict & lots & ~asph
 n_g, n_a = int(to_g.sum() / ppm ** 2), int(to_a.sum() / ppm ** 2)
 paint(to_g, GRASS, T_GRASS)
+paint(QUAD & ~keep & ~bld & ~lots, GRASS, T_GRASS)   # (fix round 8: one lawn tone over the quad's courtyard; pale streaks of the photo read as paths fading into the grass)
 # fix round 5: lawns and beds that are dry gold in the (summer) tiles keep the lawn class and take a pale olive / gold tone (soft edges)
 for pts, tn in extra.DRY_LAWNS: paint(poly_mask(pts) & ~bld & (mask[..., 0] < 128) & (mask[..., 1] < 128) & (mask[..., 3] > 128), GRASS, np.array(tn, np.float32), 2)
 paint(court, CONC, np.array((150, 144, 136), np.float32), 1, True)   # the forecourt of the hall's entrance: neutral paving under the real red tiles the builder lays (a red tone here bled over the drive's edge)
@@ -96,7 +103,7 @@ paint(strict & lots, ASPH, T_ASPH, 2, True)
 pale = poly_mask(extra.LOOP_OUTER) | poly_mask(extra.PAVED[4])
 for r in D['roads']:
     if r['id'] in (12187517, 570965050, 570965049, 570965051): pale |= line_mask([p for p in r['line'] if p[1] > -86], 7.4)
-pale &= ~garden & ~bld & strict; paint(pale, ASPH, np.array((166, 159, 148), np.float32), 1, True)
+pale &= ~garden & ~bld & strict; pale &= ~(LOOPW & ~loopw_ok); paint(pale, ASPH, np.array((166, 159, 148), np.float32), 1, True)
 # the faculty car park north of the tennis shed, the Commons' service yard and its drive read mid grey-tan in the tiles (worn asphalt), lighter than Fernhill Ave
 mid = poly_mask(extra.PAVED[0]) | poly_mask(extra.PAVED[2])
 for r in D['roads']:

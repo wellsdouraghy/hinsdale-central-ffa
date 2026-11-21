@@ -5,10 +5,10 @@ import { addMaterials, minAreaOBB, mulberry32, planWalls, applyPads, planCheeks,
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, PAVED_LINES, DRY, LITTER, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL, KBH_TERR, KBH_TERR_Y, KBH_STEPS } from './kit.js';
+import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, LOOP_OUTER, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, PAVED_LINES, DRY, LITTER, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL, KBH_TERR, KBH_TERR_Y, KBH_STEPS } from './kit.js';
 import { buildSchool, schoolWalls, KBH_LOW } from './school.js';
 import { buildTown, planTown } from './town.js';
-import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF, SHED } from './grounds.js';
+import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF, SHED, NB_POOL } from './grounds.js';
 import { buildTerrain, terrainSampler } from './terrain.js';
 
 // Park Drive and the loop are drawn in OSM with a few long chords: two rounds of corner cutting (end points kept, so
@@ -36,6 +36,7 @@ function sitework(ctx) {
   ctx.terraceY = ctx.flatten({ outline: TERRACE }, { blend: 3 });   // (its real outline, traced from the tiles: a stone plaza, not a circle)
   ctx.flatten({ outline: ARTS_PLAZA }, { y: 9.26, blend: 2.5 });
   { const red = ctx.campus.ctf?.red; if (red) ctx.flatten({ circle: { x: red[0], z: red[1], r: 3.2 } }, { blend: 4.5 }); }   // the red base: a level spot on the wooded slope (cut and fill under 0.7 m)   // (one level with the Fine Arts studios' floor strip: the tiles read 9.5-9.7 over the whole court)
+  { const [qx, qz, qr] = NB_POOL; ctx.nbPoolY = ctx.flatten({ circle: { x: qx, z: qz, r: qr + 0.9 } }, { y: Math.min(T.heightAt(qx, qz - qr), T.heightAt(qx, qz)), blend: 3 }); }   // (fix round 8) the neighbour's round pool stands on a level spot: on the lidar slope (0.2 m across it) the ground rose through the water as a wedge
   ctx.poolY = ctx.flatten({ outline: POOL_DECK }, { blend: 3 }); ctx.flatten({ outline: POOL }, { y: ctx.poolY - 0.95, blend: 0.6 });   // the neighbour's pool deck north of Fernhill Ave   // the paved court between New House and the Fine Arts studios
   // Buildings that back onto the steep wooded hill (the gym and the quad): the hill behind them is cut to a planted
   // bank of 36 deg rising 7.4 m behind the walls, instead of a sheer face many metres high (map check
@@ -89,7 +90,9 @@ function sitework(ctx) {
     const turf = zoneShapes[0], courts = shapeSDF({ outline: tennisRing(0) }).sd;
     const creek = creekSDF(ctx); const bsd = shapeSDF({ rect: { cx: BRIDGE.mid[0], cz: BRIDGE.mid[1], w: 16, d: BRIDGE.span - 1.2, angle: BRIDGE.creekAng } }).sd;
     const deckSd = shapeSDF({ rect: { cx: BRIDGE.mid[0], cz: BRIDGE.mid[1], w: BRIDGE.w + 0.5, d: BRIDGE.span + 5.0, angle: BRIDGE.creekAng } }).sd;   // (no grass under the deck's ends or on the join with the walk)
-    if (ctx.paintSurface) ctx.paintSurface((x, z) => (bsd(x, z) <= 0 ? 'dirt' : null) || streets.surface(x, z) || (courts(x, z) <= 0 || deckSd(x, z) <= 0 ? 'concrete' : creek(x, z) < 1.6 && T.heightAt(x, z) < -0.9 ? 'dirt' : null));
+    // (fix round 8, rule F42) at the loop's west end the paving is the traced outline (kit.js LOOP_OUTER, kerbed): the street's own shoulder is not painted past it
+    const loopSd = shapeSDF({ outline: LOOP_OUTER }).sd, gymDrSd = shapeSDF({ outline: PAVED_POLYS[4] }).sd; const offLoop = (x, z) => x > -119 && x < -99.5 && z > 39 && z < 57.5 && loopSd(x, z) > 0 && gymDrSd(x, z) > 0;
+    if (ctx.paintSurface) ctx.paintSurface((x, z) => (bsd(x, z) <= 0 ? 'dirt' : null) || (offLoop(x, z) ? null : streets.surface(x, z)) || (courts(x, z) <= 0 || deckSd(x, z) <= 0 ? 'concrete' : creek(x, z) < 1.6 && T.heightAt(x, z) < -0.9 ? 'dirt' : null));
     const solid = streets.solid[0] || (() => false); const out = [];
     for (const t of ctx.gen.trees || []) { const p = streets.toVerge(t[0], t[1], 1.0); if (!p) { out.push(t); continue; } if (streets.inRoad(p[0], p[1], 1.0) || solid(p[0], p[1]) || out.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 3)) continue; out.push([p[0], p[1], ...t.slice(2)]); }
     // no tree on the pitch pad, the courts, the dining terrace, the steps, or deep inside a car park

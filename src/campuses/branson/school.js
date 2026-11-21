@@ -11,7 +11,7 @@
 import { sited, kitWalls, flatBuilding, hipRoof, polyRoof, groundLadder, edgeFrame, pointInRing, ensureCCW } from '../marin/kit.js';
 import { simplify, KBH_TERR_Y } from './kit.js';
 import { quadFacing } from '../../world/facade.js';
-import { stuccoWalls, roofCover, solarFlat, dormer, BR_CLAY, BR_TAN, BR_SEAM, CREAM, outFrames, plainBlock, archOpening, winRow, boxOn, gableRoof, solarOn, leanTo, tileRim, ridgeRoof, frenchDoor, noteDoor } from './extras.js';
+import { stuccoWalls, roofCover, solarFlat, dormer, BR_CLAY, BR_TAN, BR_SEAM, CREAM, outFrames, plainBlock, archOpening, winRow, boxOn, gableRoof, solarOn, leanTo, ridgeRoof, frenchDoor, noteDoor, mansard } from './extras.js';
 
 const WOOD = { brick: 'maP_wood_siding', limestone: 'whitePanel' };
 const BROWN = [0.3, 0.2, 0.14];   // dark brown siding (vertex tint on the wood-siding wall texture)
@@ -94,7 +94,8 @@ function gym(ctx, s, h) {
   const gb = { tint: BR_TAN, ov: 0.8, gableBucket: 'maP_wood_siding', gableTint: BROWN, trim: true };
   gableRoof(ctx, boxOn(GYM_N, -11.1), h, 4.2, gb);
   const rs = gableRoof(ctx, boxOn(GYM_S, 78.9), h, 4.4, gb); const L = boxOn(GYM_S, 78.9).L;
-  solarOn(ctx, rs, -L / 2 + 2.5, -1.2, 2.2, rs.hw - 2.0); solarOn(ctx, rs, 1.2, L / 2 - 4, 2.2, rs.hw - 2.0);
+  // (fix round 8, nadir tiles: the array covers nearly the whole west slope in two fields with a narrow gap, from just under the ridge to a metre from the eave)
+  solarOn(ctx, rs, -L / 2 + 0.3, -0.45, 0.8, rs.hw - 1.3); solarOn(ctx, rs, 0.45, L / 2 - 2.4, 0.8, rs.hw - 1.3);
   // (fix round 7, tiles oblique from the north) the north wall: four pairs of white-trimmed windows high under the eave
   { const FN = outFrames(ring).filter((f) => f.nz < -0.9 && f.L > 15).sort((a, b) => b.L - a.L)[0]; if (FN) { const wt = B.v('paint', true);
       for (const t of [0.2, 0.4, 0.6, 0.8]) { const u = FN.L * t; const c = FN.P(u, 5.72, 0.07); wt.setColor(0.84, 0.84, 0.81); wt.box(c[0], c[1], c[2], 2.75, 1.72, 0.06, FN.rotY); wt.setColor(1, 1, 1); winRow(ctx, FN, u - 1.22, u + 1.22, 5.05, 6.4, 1.02, 1.2, 0.12); } } }
@@ -237,6 +238,14 @@ function newHouse(ctx, s, base, all) {
 
 export function buildSchool(ctx) {
   const { B } = ctx; const list = schoolWalls(ctx); const all = list.map((s) => s.ring); const flats = [];
+  // (fix round 8) a roof ladder's place is found BEFORE the walls are drawn: on the longest wall that faces open ground (never a party wall), or the
+  // wall nearest SPEC.ladderAt; the wall is kept clear of windows there (stuccoWalls opts.clear) and Tallant's tile band is left open for it
+  const ladderSpot = (s) => { let best = null; const ring = ensureCCW(s.ring); for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length]; const F = edgeFrame(a[0], a[1], c[0], c[1]); if (F.L < 5) continue;
+      for (const t of s.ladderAt ? [0.2, 0.35, 0.5, 0.65, 0.8] : [0.2, 0.8]) { const p = F.P(F.L * t, 0, 1.4), q = F.P(F.L * t, 0, 0.14); if (all.some((r) => r !== s.ring && (pointInRing(p[0], p[2], r) || pointInRing(q[0] + F.nx * 2.6, q[2] + F.nz * 2.6, r)))) continue;
+        const drop = s.top - ctx.groundY(p[0], p[2]); if (drop < 2.2) continue; const sc = s.ladderAt ? -Math.hypot(q[0] - s.ladderAt[0], q[2] - s.ladderAt[1]) : F.L; if (!best || sc > best.sc) best = { sc, L: F.L, q, F, i, u: F.L * t }; } }
+    return best; };
+  const ladders = new Map(); for (const s of list) if (s.ladder) { const b = ladderSpot(s); if (b) ladders.set(s.key, b); }
+  const clearOf = (s) => (ladders.has(s.key) ? [[ladders.get(s.key).q[0], ladders.get(s.key).q[2], 0.8]] : []);
   for (const s of list) {
     const ring = s.ring;
     sited(ctx, ring, (base) => {
@@ -245,13 +254,18 @@ export function buildSchool(ctx) {
       if (s.key === 'kbhWhite') return kbhWhite(ctx, s, h, all);
       (ctx.buildingRings = ctx.buildingRings || []).push(ring);
       if (s.key === 'newHouse') return newHouse(ctx, s, base, all);
-      if (s.key === 'tallant') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 2, w: 2.6, pitch: 3.3, others: all, noDoor: NO_DOOR, doorMin: 12.5 });   /* (fix round 7: the entrance in the north front, where the quad path ends) */ roofCover(ctx, ring, h + 0.01, [0.5, 0.5, 0.5]); tileRim(ctx, ring, h + 0.07, 2.2, 0.04); flats.push({ s, ring, roofAbs: base + h }); return; }
+      if (s.key === 'tallant') {
+        // (fix round 8, tiles obliques from the north, north-west and west + nadir) the wall head is a white ledge 1 m under the roof; inside it a band of clay
+        // tiles slopes up to a white parapet, and the flat roof inside is grey. It was a thin red rim lying flat on a roof at the wall head. The ladder
+        // lands on the ledge (the tile slope is walkable from there).
+        const hW = h - 1.0; stuccoWalls(ctx, ring, hW, { color: ARTS_WHITE, storeys: 2, w: 2.6, pitch: 3.3, others: all, noDoor: NO_DOOR, doorMin: 12.5, clear: clearOf(s) });   /* (fix round 7: the entrance in the north front, where the quad path ends) */
+        mansard(ctx, ring, hW, h); flats.push({ s, ring, roofAbs: base + hW }); return; }
       if (s.key === 'artsW') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all, noDoor: NO_DOOR }); const box = boxOn(ring, -9); const r = gableRoof(ctx, box, h, 1.3, { tint: [4.6, 4.7, 4.9], ov: 0.3, gableTint: ARTS_WHITE }); solarOn(ctx, r, -box.L / 2 + 1, box.L / 2 - 1, 0.8, r.hw - 0.8); return; }
-      if (s.key === 'artsE') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all, noDoor: NO_DOOR }); roofCover(ctx, ring, h + 0.01, [0.84, 0.84, 0.82]); const box = boxOn(ring, -9);
+      if (s.key === 'artsE') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all, noDoor: NO_DOOR, clear: clearOf(s) }); roofCover(ctx, ring, h + 0.01, [0.84, 0.84, 0.82]); const box = boxOn(ring, -9);
         // (fix round 5, nadir tiles: a white membrane roof with two fields of tilted panel rows, white between the rows and round the rim; it was one sheet of panels)
         for (const [ua, ub] of [[-box.L / 2 + 1.2, -0.9], [0.5, box.L / 2 - 1.2]]) for (let k = 0; k < 4; k++) { const va = -box.W / 2 + 1.0 + k * 2.1; solarFlat(ctx, box, h + 0.14, ua, ub, va, va + 1.55); }
         flats.push({ s, ring, roofAbs: base + h }); return; }
-      if (s.roof === 'flat') { const green = s.key.startsWith('commons'); stuccoWalls(ctx, ring, h, { color: green ? CONC : ARTS_WHITE, storeys: 1, w: 2.2, pitch: 3.2, others: all, noDoor: NO_DOOR }); roofCover(ctx, ring, h + 0.01, green ? SEDUM : [0.72, 0.72, 0.7]); flats.push({ s, ring, roofAbs: base + h }); return; }
+      if (s.roof === 'flat') { const green = s.key.startsWith('commons'); stuccoWalls(ctx, ring, h, { color: green ? CONC : ARTS_WHITE, storeys: 1, w: 2.2, pitch: 3.2, others: all, noDoor: NO_DOOR, clear: clearOf(s) }); roofCover(ctx, ring, h + 0.01, green ? SEDUM : [0.72, 0.72, 0.7]); flats.push({ s, ring, roofAbs: base + h }); return; }
       if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: [0.66, 0.6, 0.5], storeys: 1, w: 2.7, pitch: 3.2, others: all, noDoor: NO_DOOR, glazedEnds: 12, gableRise: 3.5, gableGlass: true, gableDoor: (F) => F.nx > 0.5 && F.nz > 0.5 });   /* (fix round 7: the entrance = glazed doors in the south-east gable, onto the dining terrace) */ /* both gable ends are glass: the west one over the service yard */ const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { tint: BR_SEAM, ov: 0.9, gableTint: [0.66, 0.6, 0.5] }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
       // Katharine Branson Hall and the quad: cream stucco under clay tile, tall windows in a regular rhythm (arched on the hall), arched doors
       stuccoWalls(ctx, ring, h, { floor: s.level !== undefined ? Math.max(0, s.level - base) : 0, y0: -1.2, plinth: [0.5, 0.45, 0.37], cap: [0.3, 0.22, 0.18], color: [0.93, 0.8, 0.54], arched: s.key === 'kbh' || s.key === 'kbhNorth', stoops: s.key === 'kbh', lower: s.key === 'richardson', per: s.key === 'kbh' ? (F) => { const u = kwU(F.ax + F.tx * F.L / 2, F.az + F.tz * F.L / 2); return u > KBH_SPLIT_U ? { up: KBH_WING.se.up, top: KBH_WING.se.eave - s.top, plinth: [0.93, 0.8, 0.54], custom: F.nx > 0.6 && F.nz > 0.4 && F.L > 10 ? kbhSeEnd(ctx, s, base) : null } : u > 14 && F.nx > 0.4 && F.nz < -0.6 ? { doorMin: 11 } : null; } : null,   /* (the 12 m piece of the north-east wall by the entrance court keeps its door: the tiles show the entrance steps there) */ storeys: s.key === 'kbh' || s.key === 'kbhNorth' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, noDoor: NO_DOOR, trim: [0.8, 0.78, 0.72] });
@@ -280,13 +294,7 @@ export function buildSchool(ctx) {
         for (const bk of [B.v('solar'), B.c('metal')]) { bk.quad(P(10, 1.2), P(10, 6.2), P(24, 6.2), P(24, 1.2), [0, 0], [0, 3], [13, 3], [13, 0]); bk.quad(P(24, 1.2), P(24, 6.2), P(10, 6.2), P(10, 1.2), [13, 0], [13, 3], [0, 3], [0, 0]); } }
     }, { id: s.name });
   }
-  // service ladders up to the flat roofs: on the longest wall that faces open ground (never a party wall)
-  for (const f of flats) {
-    if (!f.s.ladder) continue; let best = null;
-    for (let i = 0; i < f.ring.length; i++) { const a = f.ring[i], c = f.ring[(i + 1) % f.ring.length]; const F = edgeFrame(a[0], a[1], c[0], c[1]); if (F.L < 5) continue;
-      for (const t of [0.2, 0.8]) { const p = F.P(F.L * t, 0, 1.4), q = F.P(F.L * t, 0, 0.14); if (all.some((r) => r !== f.ring && (pointInRing(p[0], p[2], r) || pointInRing(q[0] + F.nx * 2.6, q[2] + F.nz * 2.6, r)))) continue;
-        const drop = f.roofAbs - ctx.groundY(p[0], p[2]); if (drop < 2.2) continue; if (!best || F.L > best.L) best = { L: F.L, q, F }; } }
-    if (best) groundLadder(ctx, best.q[0], best.q[2], best.F.nx, best.F.nz, f.roofAbs);
-  }
+  // service ladders up to the flat roofs, at the spots found above
+  for (const f of flats) { const best = ladders.get(f.s.key); if (best) groundLadder(ctx, best.q[0], best.q[2], best.F.nx, best.F.nz, f.roofAbs); }
   B.v('stucco', true).setColor(1, 1, 1);
 }

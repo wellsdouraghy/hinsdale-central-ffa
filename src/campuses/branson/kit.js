@@ -41,7 +41,7 @@ export const LITTER = [[[-193.0, -36.5], [-183.5, -36.5], [-180.0, -31.5], [-180
 export const WALKS = [
   [[[-17.9, -36.5], [-16.2, -40], [-15.8, -48], [-16.6, -56], [-17.8, -61.5]], 2.6],   // the lane along the hall east wall
   [[[-6.6, 18.0], [-8.1, 20.3], [-9.7, 22.9], [-10.9, 25.0]], 2.6],   // from the hall's south-east terrace (KBH_TERR) to the round patio
-  [[[1.95, 3.5], [2.1, 0.0], [2.4, -4.4]], 1.6],   // from the head of the terrace steps to the visitor lot
+  [[[2.15, 3.5], [2.2, 0.0], [2.4, -4.4]], 2.0],   // from the head of the terrace steps to the visitor lot (fix round 8: as wide as the flight)
   [[[-44.7, -48.5], [-46.8, -48.2]], 2.4],   // north block, west door
   [[[-28.1, -63.9], [-26.9, -65.5], [-21.5, -63.6], [-17.9, -61.3]], 1.8],   // north block, north-east door
   [[[-19.9, -50.1], [-16.2, -50.5]], 2.2],   // north block, east door
@@ -61,11 +61,14 @@ export const WALKS = [
   [[[-121.6, 80.37], [-99.4, 75.55]], 1.3],   // a concrete margin along the foot of the gym's north wall (the lot is paved up to it)
   [[[-145.5, 158.7], [-145.9, 157.2], [-152.6, 156.4]], 2.2],   // Tallant Science Center's north door: apron and walk to the quad path
 ];
+// (fix round 8, rule F42) the academic quad's paved strips (tools/data/extra.py PATHS, painted in the ground mask): laid as real pavers with a kerb like every
+// other walk; they were paint only and faded into the lawn
+export const QUAD_PATHS = [[[[-165.8, 127.2], [-158.8, 117.3]], 5.0], [[[-176.3, 138.8], [-167.0, 149.3], [-153.0, 156.3]], 3.5], [[[-153.0, 122.5], [-146.0, 148.2]], 3.0]];
 // Katharine Branson Hall's south-east terrace (fix round 7, gridded nadir tiles + obliques): a paved terrace at 8.6 against the walk-out lower storey of
 // the hall's south-east end, a flight of steps at its north corner up to the visitor lot's level, a walk from its south corner to the round patio
-export const KBH_TERR = [[-1.6, 6.65], [0.3, 8.3], [1.5, 10.5], [0.6, 12.4], [-0.4, 14.0], [-1.6, 15.9], [-3.0, 17.3], [-5.2, 18.4], [-7.6, 19.2], [-8.6, 18.3], [-10.3, 17.55]];
+export const KBH_TERR = [[-1.6, 6.65], [0.3, 8.3], [1.75, 8.6], [1.5, 10.5], [0.6, 12.4], [-0.4, 14.0], [-1.6, 15.9], [-3.0, 17.3], [-5.2, 18.4], [-7.6, 19.2], [-8.6, 18.3], [-10.3, 17.55]];
 export const KBH_TERR_Y = 8.6;
-export const KBH_STEPS = { a: [1.75, 4.1], b: [0.45, 8.0], w: 1.6, head: 2.4 };
+export const KBH_STEPS = { a: [1.94, 4.16], b: [0.64, 8.06], w: 2.0, head: 2.4, flare: true };   // (fix round 8: 2.0 m wide as the tiles' tread stripes read (1.8-2.0), widened to the east, away from the hall's corner; the rails end in outward returns so a player in an outer lane is led in, not caught on a rail end; the terrace has a paved landing under the foot)
 export const PATIO = [-11.2, 27.3, 2.9];   // (fix round 7: 4 m east of where it stood, gridded nadir tiles)   // the round patio at the end of the terrace walk
 export const ENTR_COURT = [[-40.44, -0.4], [-34.89, 3.71], [-36.9, 6.43], [-37.68, 6.24], [-44.44, 4.99]];   // the red tile forecourt at the foot of the hall's entrance steps (fix round 6: it ends on the drive's north edge, laid as real tile with a stone band on the join)
 // the organic garden's fenced plot and the sundial, measured on a nadir tiles shot (fix round 6): plot 10.7 x 7.5 m, bearing -5.6 deg; the dial 4 m across
@@ -211,6 +214,10 @@ export function buildStairs(ctx, spec) {
       quadFacing(bk, P(0, v + sd * 0.12, y0 - 0.8), P(L, v + sd * 0.12, y1 - 0.8), P(L, v + sd * 0.12, y1 + 0.25), P(0, v + sd * 0.12, y0 + 0.25), [sd * nx, 0, sd * nz]); }
     const m = B.v('blackMetal'); const np = Math.max(2, Math.round(L / 1.8)); for (let k = 0; k <= np; k++) { const u = L * k / np, y = y0 + (y1 - y0) * k / np; const p = P(u, v, y + 0.25); m.box(p[0], p[1] + 0.45, p[2], 0.04, 0.9, 0.04, rot); }
     m.tube(P(0, v, y0 + 1.15), P(L, v, y1 + 1.15), 0.025, 6);
+    // (fix round 8) spec.flare: each rail ends in a short outward return (45 deg, 0.55 m) with its own post: a player coming down or up an outer lane slides
+    // along it into the flight instead of stopping dead on the rail's end
+    if (spec.flare) for (const [u, y, dir] of [[0, y0, -1], [L, y1, 1]]) { const q0 = P(u, v, y), q1 = P(u + dir * 0.55, v + sd * 0.55, y); m.tube([q0[0], q0[1] + 1.15, q0[2]], [q1[0], q1[1] + 1.15, q1[2]], 0.025, 6); m.box(q1[0], q1[1] + 0.58, q1[2], 0.04, 1.16, 0.04, rot);
+      const fn = [dir * tx * 0.7 - sd * nx * 0.7, 0, dir * tz * 0.7 - sd * nz * 0.7]; for (const k of [1, -1]) quadFacing(B.c('metal'), [q0[0], q0[1] - 0.1, q0[2]], [q1[0], q1[1] - 0.1, q1[2]], [q1[0], q1[1] + 1.15, q1[2]], [q0[0], q0[1] + 1.15, q0[2]], [k * fn[0], 0, k * fn[2]]); }
     const c0 = P(L / 2, v, (y0 + y1) / 2 + 0.7); const len = Math.hypot(L, drop); const g = new Float32Array(0); void g;
     // rail collision: a thin sloping slab (two quads back to back are enough for the capsule)
     quadFacing(B.c('metal'), P(0, v, y0 + 0.25), P(L, v, y1 + 0.25), P(L, v, y1 + 1.15), P(0, v, y0 + 1.15), [sd * nx, 0, sd * nz]); quadFacing(B.c('metal'), P(L, v, y1 + 0.25), P(0, v, y0 + 0.25), P(0, v, y0 + 1.15), P(L, v, y1 + 1.15), [-sd * nx, 0, -sd * nz]); void c0; void len; }

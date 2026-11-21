@@ -1,10 +1,9 @@
 # Branson campus: builder hand-off (keep current; commit with every milestone)
 
-Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 7 (after QA round 7: map check and walks
-passed, 13 items) is done and verified item by item; next = independent QA round 8, release test, deploy. Matched game | tiles sheets of this round (same
-pose, game side shot after the last code change): dev/shots/branson-v8/ (cmp_n_* nadir pairs, cmp_o_* obliques, ref_n_*.jpg = the tiles nadirs with a metre
-grid drawn on them, sh_*.jpg eye-level game sheets, walks.txt = every `__walk` of the round, x/ = page helpers and pose lists; before_* = the state before
-the round). Tiles shots are Google imagery: never commit that folder.
+Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 8 (after QA round 8: ship quality except two
+should-fix items and seven nits) is done, each item with a game | tiles pair; next = release test, deploy. Pairs of this round: dev/shots/branson-v9/
+(gp_a_n_*.jpg = gridded nadir game | tiles, cmp_tall / cmp_kstep = obliques game | tiles, sheet_eye / sheet_ladders = eye-level game sheets, walks.txt = every
+`__walk` of the round, x/ = page helpers). Tiles shots are Google imagery: never commit that folder.
 
 ## Frame and key coordinates (x east, z south, metres)
 - origin lat 37.96545, lon -122.56545; y = 0 is Tom Ryan Field (NAVD88 16.54 m; 3D-tiles surface = game height - 16.28, one constant)
@@ -33,9 +32,9 @@ osm.py -> sat.py -> (dev/branson-tiles.html __dumpHeights -> data/tile_heights.j
   236 m apart, 0 overlook cells each, both on nadir tiles. Cover (map check, 16 rays, 30 m): 0.50 / 0.50 (0.62 / 0.50 on the round-6 run: the red figure moves with the parked cars); 3 x 3 means at 0.5 m 0.49 / 0.49.
   The point figure still moves a ray with the parked cars' random layout: scan with the map check's `__coverAt(x, z)`.
 - practice heli on the pitch (-33, 92); 14 candidates in campus.js, 12 placed (tennis courts, west lawns, Prize Day Field, the south-west corner, six on the pitch,
-  one in the faculty car park on Fernhill at (-128, -41)); the spot in the tennis-shed car park is gone (that lot is full of cars now); spots are 30 m apart at least;
+  one in the faculty car park on Fernhill at (-128, -41)); the spot beside the neighbour's court is (-203, 29.5) since fix round 8 (its net); the spot in the tennis-shed car park is gone (that lot is full of cars now); spots are 30 m apart at least;
   sitework keeps trunks 11.5 m back from each
-- 32 FFA spawns, 10 per team; ladders on the flat roofs (Commons north wing, Fine Arts x2, Tallant); pitched roofs by grapple
+- 32 FFA spawns, 10 per team; ladders on the flat roofs (Commons north wing, Maxwell Music Hall, Tallant: on clear wall, Tallant's lands on the ledge under its tile band); pitched roofs by grapple
 - doors with steps (fix round 6): Katharine Branson Hall's entrance (red tile), its north-east door of the taller part and its south door (stoop + 6 risers each, `doorStoop` in extras.js), all walked both ways (dev/shots/branson-v7/walks.txt)
 - stairs: the Alumni Steps = the red-brick flight running north-south down the bank, (-87.5, 19.0) -> (-88.3, 28.3), brick landing on the terrace, paved walk from its head up to the hall's south drive (kit.js STEPS_WALK); the Bridge. All walked both ways with `__walk` (dev/marin.html?campus=branson) at the end of fix round 4, with the steps walk, the arts court walks, the loop's north edge, Richardson Hall's east side and five approaches to the red base.
 
@@ -59,7 +58,10 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
 - [x] QA round 7: items 1-13 fixed, each with a game | tiles pair (see MAP_NOTES.md "Fix round after the seventh QA")
 - [x] map check after round 7: 0 fails; warning: seating (the same hillside houses); `retaining` skip; Hinsdale / Hamilton pass, Marin 0 fails; build passes;
   practice + a started CTF host match with 6 bots run without console errors
-- [ ] independent QA round 8, release test, deploy
+- [x] QA round 8: items 1-9 fixed, each with a game | tiles pair (see MAP_NOTES.md "Fix round after the eighth QA")
+- [x] map check after round 8 (with the merged ladder fix: 3 ladders x 7 angles): 0 fails; warning: seating (the same hillside houses); `retaining` skip;
+  Hinsdale / Hamilton / Marin 0 fails; build passes; practice + a started CTF host match with 6 bots run without console errors
+- [ ] release test, deploy
 
 ## Known weak spots (for QA / a successor)
 - base cover is 0.50 / 0.50 but the measure is noisy (2-10 rays of 16 within 10 m of the red base); real solid cover round red is the Fernhill hedge, trunks and parked cars, shrubs and low conifer sprays are not solid
@@ -72,9 +74,13 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
 - the low curved bay outside the hall's bowed end (fix round 7, on the reviewer's reading of the 1 m height grid): floor 12.9, parapet to 13.9, arc 181-222 deg
   round (-47.42, -9.92), radius 9.1-11.7. Every tiles oblique of it is closed by tree canopy: its windows, the parapet's real height (the grid reads 14.4-14.9)
   and its north end (the grid suggests ~228 deg; beyond 222 the roof-skin check fails beside the link's roof) are not resolved
-- the neighbour's tennis court (west edge, half inside the bounds) is its green slab and lines only: no net, no fence (helicopter spots stand at (-203, 32) and
-  (-203, 62) beside it; the play-area fence crosses it). The neighbour's round pool in the south-west corner is a raised basin on gravel; the play-area fence
-  stops at its coping (the bounds still hold); the garden's paths, hedges and benches are one gravel tone
+- the neighbour's tennis court (west edge, half inside the bounds) has its slab, lines and net; the play-area fence goes round its west side and round the
+  south side of the neighbour's round pool (fix round 8), but the bounds are still the straight lines x -215 / z 184: a player is stopped by the clamp part
+  way across the court and the pool. The garden's paths, hedges and benches are one gravel tone
+- Tallant's tile band (fix round 8) runs round the whole building; the tiles show it on the north, north-west and west sides, the rest is under canopy. Its plan
+  is still the digitised hexagon (the tiles show a zig-zag north front under a deep overhang on columns)
+- the visitor lot has 18 cars (10 in the south row, two stalls kept free where walks land); the tiles show ~22
+- the loop's west end: inside the window x -119..-99.5, z 39..57.5 the paving is the traced outline only (ground_fix.py `LOOPW`, world.js `offLoop`)
 - Richardson Hall's creek side is drawn as a walk-out lower storey (cream, small windows) wherever the ground is 2.3 m under the floor: under closed canopy in
   the tiles, not confirmed by a photo. Tallant's door (north front, arched like the kit's other doors) and the Commons' glazed doors (south-east gable) stand
   where the paths and the terrace end; neither is resolved in the tiles

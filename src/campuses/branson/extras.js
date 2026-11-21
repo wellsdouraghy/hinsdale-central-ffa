@@ -65,10 +65,13 @@ export function stuccoWalls(ctx, ringIn, h, opts = {}) {
     const m = 1.0; const nA = Math.max(1, Math.floor((F.L - 2 * m) / (opts.pitch || 2.7))); const uDoor = opts.arched ? m + (F.L - 2 * m) / nA * ((nA >> 1) + 0.5) : F.L / 2; const pD = F.P(uDoor, 0, 0);
     const stoop = hung && opts.stoops && f0 - gLow < 2.0; const banned = (opts.noDoor || []).some(([x, z]) => Math.hypot(pD[0] - x, pD[2] - z) < 3);
     const door = F.L > (per.doorMin || opts.doorMin || 13) && (!hung || stoop) && !banned; const note = (u) => { if (stoop) doorStoop(ctx, F, u, f0, { id: opts.id || ringIn.id, cheek: color }); else noteDoor(ctx, F, u, opts.id || ringIn.id); };
+    // (fix round 8) opts.clear = [[x, z, r]]: no window within r of a spot on this wall (a roof ladder stands on clear wall, never across windows)
+    const clr = (opts.clear || []).map(([x, z, r]) => ({ u: (x - F.ax) * F.tx + (z - F.az) * F.tz, d: Math.abs((x - F.ax) * F.nx + (z - F.az) * F.nz), r })).filter((c) => c.d < 1.2 && c.u > 0 && c.u < F.L).sort((p, q) => p.u - q.u);
+    const rowC = (a, b, y0, y1, w, pitch) => { let u = a; for (const c of clr) { if (c.u - c.r > u && c.u + c.r < b) { tallRow(ctx, F, u, c.u - c.r, y0, y1, w, pitch); u = c.u + c.r; } } tallRow(ctx, F, u, b, y0, y1, w, pitch); };
     for (let s = 0; s < st; s++) { const y = f0 + s * fh; const w = opts.w || 1.15, pitch = opts.pitch || 2.7;
       if (s === 0 && opts.arched) { const n = Math.max(1, Math.floor((F.L - 2 * m) / pitch)); const stp = (F.L - 2 * m) / n; for (let k = 0; k < n; k++) { const u = m + stp * (k + 0.5); if (door && k === (n >> 1)) { archOpening(ctx, F, u, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); note(u); } else archOpening(ctx, F, u, y + 0.75, w, Math.min(1.75, fh - 1.9), { trim: opts.trim, mullions: 2, bars: [y + 1.6] }); } }
-      else { if (s === 0 && door) { archOpening(ctx, F, F.L / 2, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); note(F.L / 2); if (F.L / 2 - 1.6 - m > pitch) { tallRow(ctx, F, m, F.L / 2 - 1.6, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); tallRow(ctx, F, F.L / 2 + 1.6, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } }
-        else tallRow(ctx, F, m, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } } }
+      else { if (s === 0 && door) { archOpening(ctx, F, F.L / 2, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); note(F.L / 2); if (F.L / 2 - 1.6 - m > pitch) { rowC(m, F.L / 2 - 1.6, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); rowC(F.L / 2 + 1.6, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } }
+        else rowC(m, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } } }
   return ring;
 }
 /** Every door drawn on a school wall is noted (world position on the wall, the way out): grounds.js lays an apron and a walk at each (rule F8). */
@@ -221,11 +224,24 @@ export function leanTo(ctx, F, u0, u1, depth, yWall, yEave, opts = {}) {
 }
 /** Ring pulled toward its centroid by d metres (fine for near-convex footprints). */
 export function inset(ring, d) { let cx = 0, cz = 0; for (const p of ring) { cx += p[0]; cz += p[1]; } cx /= ring.length; cz /= ring.length; return ring.map((p) => { const L = Math.hypot(cx - p[0], cz - p[1]) || 1; return [p[0] + (cx - p[0]) * d / L, p[1] + (cz - p[1]) * d / L]; }); }
-/** Clay-tile rim just inside a flat roof's parapet: a band sloping down toward the middle (Tallant Science Center). */
-export function tileRim(ctx, ringIn, yTop, w = 2.0, drop = 0.3, tint = BR_CLAY) {
-  const ring = ensureCCW(ringIn); const a = inset(ring, 0.45), b = inset(ring, 0.45 + w); const bk = ctx.B.v('shingles', true); bk.setColor(tint[0], tint[1], tint[2]);
-  for (let i = 0; i < ring.length; i++) { const j = (i + 1) % ring.length; const L = Math.hypot(a[j][0] - a[i][0], a[j][1] - a[i][1]); quadFacing(bk, [a[i][0], yTop, a[i][1]], [a[j][0], yTop, a[j][1]], [b[j][0], yTop - drop, b[j][1]], [b[i][0], yTop - drop, b[i][1]], [0, 1, 0], [[0, 0], [L / 3, 0], [L / 3, w / 3], [0, w / 3]]); }
-  bk.setColor(1, 1, 1);
+/** True offset of a ring: every edge moved d along its outward normal (d < 0: inward), neighbouring edges re-intersected (mitred, capped). */
+export function offsetRing(ringIn, d) {
+  const ring = ensureCCW(ringIn); const Fs = outFrames(ring); const n = ring.length;
+  return ring.map((v, i) => { const A = Fs[(i + n - 1) % n], B = Fs[i]; const k = Math.max(0.35, 1 + A.nx * B.nx + A.nz * B.nz); return [v[0] + d * (A.nx + B.nx) / k, v[1] + d * (A.nz + B.nz) / k]; });
+}
+/**
+ * The top of Tallant Science Center (tiles obliques from the north, north-west and west + nadir, fix round 8): the wall head is a white ledge `ledge`
+ * wide at hW; inside it a band of clay barrel tiles slopes up over `run` to a white parapet band at h; the flat roof inside is `roofCol`. Heights
+ * local. Visual + collision (the tile slope and the deck; the ledge is the wall prism's own cap).
+ */
+export function mansard(ctx, ringIn, hW, h, opts = {}) {
+  const { B } = ctx; const ring = ensureCCW(ringIn); const n = ring.length; const ledge = opts.ledge ?? 1.3, run = opts.run ?? 1.6, pw = opts.parapet ?? 0.5; const tint = opts.tint || BR_CLAY, wh = opts.white || [0.8, 0.8, 0.78];
+  const r1 = offsetRing(ring, -ledge), r2 = offsetRing(ring, -(ledge + run)), r3 = offsetRing(ring, -(ledge + run + pw)); const tl = B.v('shingles', true), pt = B.v('paint', true), col = B.c('concrete'); const sl = Math.hypot(run, h - hW); const Y = (p, y) => [p[0], y, p[1]];
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; const L = Math.hypot(ring[j][0] - ring[i][0], ring[j][1] - ring[i][1]); const F = edgeFrame(ring[i][0], ring[i][1], ring[j][0], ring[j][1]); let nx = F.nx, nz = F.nz; if ((r1[i][0] - ring[i][0]) * nx + (r1[i][1] - ring[i][1]) * nz > 0) { nx = -nx; nz = -nz; }
+    pt.setColor(wh[0], wh[1], wh[2]); quadFacing(pt, Y(ring[i], hW + 0.012), Y(ring[j], hW + 0.012), Y(r1[j], hW + 0.012), Y(r1[i], hW + 0.012), [0, 1, 0]); quadFacing(pt, Y(r2[i], h + 0.004), Y(r2[j], h + 0.004), Y(r3[j], h + 0.004), Y(r3[i], h + 0.004), [0, 1, 0]);
+    tl.setColor(tint[0], tint[1], tint[2]); quadFacing(tl, Y(r1[i], hW + 0.012), Y(r1[j], hW + 0.012), Y(r2[j], h + 0.004), Y(r2[i], h + 0.004), [nx, 1, nz], [[0, 0], [L / 3, 0], [L / 3, sl / 3], [0, sl / 3]]); tl.setColor(1, 1, 1);
+    quadFacing(col, Y(r1[i], hW), Y(r1[j], hW), Y(r2[j], h), Y(r2[i], h), [nx, 1, nz]); }
+  const rc = opts.roofCol || [0.5, 0.5, 0.5]; pt.setColor(rc[0], rc[1], rc[2]); pt.poly(r3, null, h + 0.004, (x, z) => [x / 3, z / 3]); pt.setColor(1, 1, 1); col.poly(r2, null, h, (x, z) => [x / 3, z / 3]);
 }
 /**
  * Free-standing name board on two posts (the names are the school's own campus-map legend). Faces `deg` (0 = text read
@@ -262,14 +278,39 @@ export function dormer(ctx, roof, o, u, sd, w = 2.4, opts = {}) {
 /** Concrete kerb along the edges of a paved outline (a hard edge between paving and planting, rule F42), following the ground.
  * Skipped where the far side is paved too (surfaceAt asphalt / concrete) unless opts.all. No collision (12 cm). */
 export function kerb(ctx, ringIn, opts = {}) {
-  const ring = ensureCCW(ringIn); const w = opts.w || 0.22, hgt = opts.h || 0.12; const pt = ctx.B.v('paint', true); const col = opts.color || [0.5, 0.5, 0.48]; const g = (x, z) => ctx.groundY(x, z);
-  for (const F of outFrames(ring)) { const n = Math.max(1, Math.ceil(F.L / 1.6));
+  // (fix round 8) heights from the ground AS DRAWN (terrain.meshHeightAt: the bilinear height is up to a few cm off the mesh on curved ground and buried
+  // kerb pieces); opts.step = piece length (walks: 0.5 m, so a kerb stops within a quarter metre of a join); opts.paved(px, pz, s) replaces the
+  // surface-class test of the far side (the class map is 1 m cells: beside a walk's own painted strip it broke the kerb at every kink)
+  const ring = ensureCCW(ringIn); const w = opts.w || 0.22, hgt = opts.h || 0.12; const pt = ctx.B.v('paint', true); const col = opts.color || [0.5, 0.5, 0.48]; const g = meshY(ctx); const step = opts.step || 1.6;
+  const Fs = outFrames(ring), ends = Fs.map(() => [false, false]);
+  for (const F of Fs) { const n = Math.max(1, Math.ceil(F.L / step));
     for (let k = 0; k < n; k++) { const u0 = F.L * k / n, u1 = F.L * (k + 1) / n, um = (u0 + u1) / 2; const px = F.ax + F.tx * um + F.nx * 0.9, pz = F.az + F.tz * um + F.nz * 0.9; const s = ctx.surfaceAt(px, pz);
-      if (!opts.all && (s === 'asphalt' || s === 'concrete')) continue; if (opts.skip && opts.skip(px, pz)) continue; if (opts.off && opts.off(F.ax + F.tx * um, F.az + F.tz * um)) continue;   // (off: the kerb piece itself would lie on other paving, e.g. across a walk)
+      if (!opts.all && (opts.paved ? opts.paved(px, pz, s) : (s === 'asphalt' || s === 'concrete'))) continue; if (opts.skip && opts.skip(px, pz)) continue; if (opts.off && opts.off(F.ax + F.tx * um, F.az + F.tz * um)) continue;   // (off: the kerb piece itself would lie on other paving, e.g. across a walk)
+      if (k === 0) ends[F.i][0] = true; if (k === n - 1) ends[F.i][1] = true;
       const P = (u, o, dy) => { const x = F.ax + F.tx * u + F.nx * o, z = F.az + F.tz * u + F.nz * o; return [x, g(x, z) + dy, z]; };
       pt.setColor(col[0], col[1], col[2]); quadFacing(pt, P(u0, -w / 2, hgt), P(u1, -w / 2, hgt), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [0, 1, 0]);
       pt.setColor(col[0] * 0.8, col[1] * 0.8, col[2] * 0.8); quadFacing(pt, P(u0, w / 2, -0.05), P(u1, w / 2, -0.05), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [F.nx, 0, F.nz]); quadFacing(pt, P(u0, -w / 2, -0.05), P(u1, -w / 2, -0.05), P(u1, -w / 2, hgt), P(u0, -w / 2, hgt), [-F.nx, 0, -F.nz]); } }
+  // a mitre cap on every vertex where both edges are kerbed: separate pieces left an open wedge on the outside of each bend
+  const nR = ring.length; for (let i = 0; i < nR; i++) { const A = Fs[(i + nR - 1) % nR], Bf = Fs[i]; const flipA = Math.hypot(A.ax - ring[i][0], A.az - ring[i][1]) < 1e-6, flipB = Math.hypot(Bf.ax - ring[i][0], Bf.az - ring[i][1]) > 1e-6;
+    if (!ends[A.i][flipA ? 0 : 1] || !ends[Bf.i][flipB ? 1 : 0]) continue; const v = ring[i]; const dt = A.nx * Bf.nx + A.nz * Bf.nz; if (dt > 0.9995 || dt < -0.2) continue; const k = 1 + dt; const mx = (A.nx + Bf.nx) / k, mz = (A.nz + Bf.nz) / k;
+    const Q = (ox, oz, dy) => [v[0] + ox, g(v[0] + ox, v[1] + oz) + dy, v[1] + oz]; const h2 = w / 2; pt.setColor(col[0], col[1], col[2]);
+    quadFacing(pt, Q(A.nx * h2, A.nz * h2, hgt), Q(mx * h2, mz * h2, hgt), Q(Bf.nx * h2, Bf.nz * h2, hgt), Q(-mx * h2, -mz * h2, hgt), [0, 1, 0]); pt.setColor(col[0] * 0.8, col[1] * 0.8, col[2] * 0.8);
+    quadFacing(pt, Q(A.nx * h2, A.nz * h2, -0.05), Q(mx * h2, mz * h2, -0.05), Q(mx * h2, mz * h2, hgt), Q(A.nx * h2, A.nz * h2, hgt), [A.nx, 0, A.nz]); quadFacing(pt, Q(mx * h2, mz * h2, -0.05), Q(Bf.nx * h2, Bf.nz * h2, -0.05), Q(Bf.nx * h2, Bf.nz * h2, hgt), Q(mx * h2, mz * h2, hgt), [Bf.nx, 0, Bf.nz]); }
   pt.setColor(1, 1, 1);
+}
+/** The ground as drawn and collided (the mesh's own triangles), falling back to the builder's bilinear height. */
+export const meshY = (ctx) => (ctx.terrain && ctx.terrain.meshHeightAt ? ctx.terrain.meshHeightAt : (x, z) => (ctx.groundY ? ctx.groundY(x, z) : 0));
+/** Ear-clipping triangulation of a simple ring (either winding): [[a, b, c], ...]. */
+export function earclip(ring) {
+  let ar = 0; for (let i = 0; i < ring.length; i++) { const p = ring[i], q = ring[(i + 1) % ring.length]; ar += p[0] * q[1] - q[0] * p[1]; } const sg = ar >= 0 ? 1 : -1;
+  const cr = (a, b, c) => ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * sg; const idx = ring.map((_, i) => i); const out = []; let guard = 0;
+  const inT = (p, a, b, c) => cr(a, b, p) > 1e-9 && cr(b, c, p) > 1e-9 && cr(c, a, p) > 1e-9;
+  while (idx.length > 3 && guard++ < 4000) { let done = false, flat = -1, fv = 1e-7;
+    for (let i = 0; i < idx.length; i++) { const ia = idx[(i + idx.length - 1) % idx.length], ib = idx[i], ic = idx[(i + 1) % idx.length]; const a = ring[ia], b = ring[ib], c = ring[ic]; const k = cr(a, b, c);
+      if (Math.abs(k) < fv) { fv = Math.abs(k); flat = i; } if (k <= 1e-9) continue; if (idx.some((j) => j !== ia && j !== ib && j !== ic && inT(ring[j], a, b, c))) continue;
+      out.push([a, b, c]); idx.splice(i, 1); done = true; break; }
+    if (!done) { if (flat >= 0) idx.splice(flat, 1); else break; } }
+  if (idx.length === 3) out.push(idx.map((k) => ring[k])); return out;
 }
 /**
  * A paved surface draped on the ground: the outline is cut into 1 m cells (clipped to the outline) and every vertex takes the drawn
@@ -277,14 +318,29 @@ export function kerb(ctx, ringIn, opts = {}) {
  * sinks (the arts court: its west end meets the drive 0.35 m higher, its south strip falls 0.7 m to the music hall).
  */
 export function drapePoly(ctx, bucket, ringIn, dy, uvFn) {
+  // (fix round 8, rules E22 / B12) the paving is cut along the ground mesh's OWN triangles (terrain.lattice: every cell split on its (a, b)-(a+1, b+1)
+  // diagonal) and takes terrain.meshHeightAt, so it lies exactly dy above the drawn ground everywhere. Cutting it into 1 m cells on the bilinear height
+  // let the ground poke through wherever a pad's blend bent it (a translucent patch at the kink of the Bridge walk, a smear across the patio walk).
   const ring = ensureCCW(ringIn); let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const p of ring) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+  const lat = ctx.terrain && ctx.terrain.lattice; const H = meshY(ctx);
+  const cuts = (arr, lo, hi) => { const o = []; if (arr && arr.length > 1 && lo >= arr[0] && hi <= arr[arr.length - 1]) { let i = 0; while (i < arr.length - 2 && arr[i + 1] <= lo) i++; for (; i < arr.length; i++) { o.push(arr[i]); if (arr[i] >= hi) break; } } else for (let v = Math.floor(lo); v < hi + 1; v++) o.push(v); return o; };
+  const xs = cuts(lat && lat.xs, x0, x1), zs = cuts(lat && lat.zs, z0, z1);
   const clip = (poly, a, b, c) => { const o = []; for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; const dp = a * p[0] + b * p[1] - c, dq = a * q[0] + b * q[1] - c; if (dp >= 0) o.push(p); if ((dp >= 0) !== (dq >= 0)) { const t = dp / (dp - dq); o.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); } } return o; };
-  const V = (p) => [p[0], ctx.groundY(p[0], p[1]) + dy, p[1]];
-  for (let cz = Math.floor(z0); cz < z1; cz++) for (let cx = Math.floor(x0); cx < x1; cx++) {
-    let poly = clip(ring, 1, 0, cx); if (poly.length < 3) continue; poly = clip(poly, -1, 0, -(cx + 1)); if (poly.length < 3) continue; poly = clip(poly, 0, 1, cz); if (poly.length < 3) continue; poly = clip(poly, 0, -1, -(cz + 1)); if (poly.length < 3) continue;
-    let ar = 0; for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; ar += p[0] * q[1] - q[0] * p[1]; } if (Math.abs(ar) < 1e-4) continue;
-    const v0 = V(poly[0]); for (let i = 1; i < poly.length - 1; i++) { const a = V(poly[i]), b = V(poly[i + 1]); const ux = a[0] - v0[0], uz = a[2] - v0[2], vx = b[0] - v0[0], vz = b[2] - v0[2]; if (Math.abs(ux * vz - uz * vx) < 1e-6) continue;
-      if (uz * vx - ux * vz >= 0) bucket.tri(v0, a, b, uvFn(v0[0], v0[2]), uvFn(a[0], a[2]), uvFn(b[0], b[2])); else bucket.tri(v0, b, a, uvFn(v0[0], v0[2]), uvFn(b[0], b[2]), uvFn(a[0], a[2])); } }
+  const V = (p) => [p[0], H(p[0], p[1]) + dy, p[1]];
+  const emit = (poly) => { if (poly.length < 3) return; let ar = 0; for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; ar += p[0] * q[1] - q[0] * p[1]; } if (Math.abs(ar) < 1e-5) return;
+    const v0 = V(poly[0]); for (let i = 1; i < poly.length - 1; i++) { const a = V(poly[i]), b = V(poly[i + 1]); const ux = a[0] - v0[0], uz = a[2] - v0[2], vx = b[0] - v0[0], vz = b[2] - v0[2]; if (Math.abs(ux * vz - uz * vx) < 1e-7) continue;
+      if (uz * vx - ux * vz >= 0) bucket.tri(v0, a, b, uvFn(v0[0], v0[2]), uvFn(a[0], a[2]), uvFn(b[0], b[2])); else bucket.tri(v0, b, a, uvFn(v0[0], v0[2]), uvFn(b[0], b[2]), uvFn(a[0], a[2])); } };
+  for (const tri of earclip(ring)) { let tx0 = Infinity, tz0 = Infinity, tx1 = -Infinity, tz1 = -Infinity; for (const p of tri) { tx0 = Math.min(tx0, p[0]); tx1 = Math.max(tx1, p[0]); tz0 = Math.min(tz0, p[1]); tz1 = Math.max(tz1, p[1]); }
+    for (let j = 0; j < zs.length - 1; j++) { const za = zs[j], zb = zs[j + 1]; if (zb <= tz0 || za >= tz1) continue;
+      for (let i = 0; i < xs.length - 1; i++) { const xa = xs[i], xb = xs[i + 1]; if (xb <= tx0 || xa >= tx1) continue;
+        let poly = clip(tri, 1, 0, xa); if (poly.length < 3) continue; poly = clip(poly, -1, 0, -xb); if (poly.length < 3) continue; poly = clip(poly, 0, 1, za); if (poly.length < 3) continue; poly = clip(poly, 0, -1, -zb); if (poly.length < 3) continue;
+        // the cell's diagonal runs from (xa, za) to (xb, zb): v >= u on one side (terrain.js meshHeightAt)
+        const dx = xb - xa, dz = zb - za; const c0 = -dz * xa + dx * za; emit(clip(poly, -dz, dx, c0)); emit(clip(poly, dz, -dx, -c0)); } } }
 }
 /** Closed ring round a polyline of width w (for kerbing a drive drawn as a line). */
-export function lineRing(pts, w) { const L = [], R = []; for (let i = 0; i < pts.length; i++) { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; const nx = -(b[1] - a[1]) / d * w / 2, nz = (b[0] - a[0]) / d * w / 2; L.push([pts[i][0] + nx, pts[i][1] + nz]); R.push([pts[i][0] - nx, pts[i][1] - nz]); } return [...L, ...R.reverse()]; }
+export function lineRing(pts, w) {   // (fix round 8: mitred joins, so a walk keeps its full width round a kink)
+  const L = [], R = [], n = pts.length;
+  for (let i = 0; i < n; i++) { const a = pts[Math.max(0, i - 1)], p = pts[i], b = pts[Math.min(n - 1, i + 1)]; let ax = p[0] - a[0], az = p[1] - a[1], bx = b[0] - p[0], bz = b[1] - p[1]; let la = Math.hypot(ax, az), lb = Math.hypot(bx, bz);
+    if (la < 1e-9) { ax = bx; az = bz; la = lb; } if (lb < 1e-9) { bx = ax; bz = az; lb = la; } ax /= la || 1; az /= la || 1; bx /= lb || 1; bz /= lb || 1; let mx = ax + bx, mz = az + bz; const ml = Math.hypot(mx, mz) || 1; mx /= ml; mz /= ml;
+    const hw = w / 2 / Math.max(0.45, mx * ax + mz * az); L.push([p[0] - mz * hw, p[1] + mx * hw]); R.push([p[0] + mz * hw, p[1] - mx * hw]); }
+  return [...L, ...R.reverse()]; }
