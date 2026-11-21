@@ -1,7 +1,7 @@
 // A non-local player (network peer or practice dummy): interpolation buffer, third-person character, hitbox.
 import * as THREE from 'three';
 import { createCharacter } from '../visuals/character.js';
-import { terrainActive, conformToGround, lieWeight } from './groundConform.js';
+import { terrainActive, conformToGround, lieWeight, castWorld, floorBelow } from './groundConform.js';
 
 export const INTERP_DELAY = 0.1; // seconds of buffering for smooth playback
 
@@ -84,15 +84,50 @@ export class RemotePlayer {
     this.feet.copy(pos);
     this.yaw = yaw;
     this.velocity.set(0, 0, 0);
+    this.corpse = null;
     this.character.reset();
     this.character.object3D.visible = true;
     this._applyTransform();
   }
 
-  kill() {
+  /** from: world position of the killer (optional): the body falls away from it, carried by its own momentum. */
+  kill(from = null) {
     this.alive = false;
     this.deadAt = performance.now() / 1000;
-    this.character.die();
+    this.corpse = null;
+    if (this.puppeted) { this.character.die(); return; }        // a finisher poses this body
+    const v = this.velocity, push = new THREE.Vector3();
+    if (from) { push.set(this.feet.x - from.x, 0, this.feet.z - from.z); const l = push.length(); push.multiplyScalar(l > 1e-3 ? 1 / l : 0); }
+    push.x += v.x * 0.12; push.z += v.z * 0.12;
+    if (push.lengthSq() < 0.04) push.set(Math.sin(this.yaw) + (Math.random() - 0.5) * 0.8, 0, Math.cos(this.yaw)); // backward
+    const fall = pickFall(this.feet, push.normalize());
+    this.character.die(fall);
+    // the body keeps some of its momentum (a runner stumbles on, a jumper drops to the floor) until it settles
+    const hs = Math.hypot(v.x, v.z), kh = Math.min(this.grounded ? 0.4 : 1, (this.grounded ? 3 : 8) / Math.max(hs, 1e-3));
+    this.corpse = { v: new THREE.Vector3(v.x * kh, Math.min(6, v.y), v.z * kh), t: 0, floor: floorBelow(this.feet) };
+    if (!Number.isFinite(this.corpse.floor)) this.corpse.floor = this.feet.y;
+  }
+
+  /** Dead body: slides out its momentum (stopped by walls) and drops onto the floor under it. */
+  _settleCorpse(dt) {
+    const c = this.corpse, v = c.v, f = this.feet;
+    c.t += dt;
+    if (c.t > 4) { this.corpse = null; return; }
+    const hs = Math.hypot(v.x, v.z);
+    if (hs > 0.05) {
+      _dir.set(v.x / hs, 0, v.z / hs);
+      if (castWorld(_org.set(f.x, f.y + 0.45, f.z), _dir, hs * dt + 0.4)) v.x = v.z = 0;
+      else {
+        f.x += v.x * dt; f.z += v.z * dt;
+        const fl = floorBelow(f);
+        if (Number.isFinite(fl)) c.floor = fl;
+      }
+    }
+    if (f.y > c.floor + 1e-3 || v.y > 0) {
+      v.y -= 22 * dt;
+      f.y = Math.max(c.floor, f.y + v.y * dt);
+    }
+    if (f.y <= c.floor + 1e-3) { f.y = c.floor; v.y = 0; const k = Math.exp(-6 * dt); v.x *= k; v.z *= k; }
   }
 
   hide() {
@@ -104,6 +139,7 @@ export class RemotePlayer {
     // A melee finisher is moving this character (FinisherView keeps `feet` on it): no interpolation meanwhile.
     if (this.puppeted) { this.character.update(dt); return; }
     if (this.alive && this.buffer.length && this.offset !== null) this._interpolate(now - this.offset - INTERP_DELAY);
+    else if (!this.alive && this.corpse) this._settleCorpse(Math.min(dt, 0.05));
     this._applyTransform();
     const v = this.velocity, live = this.alive;
     this.character.setState({
@@ -138,6 +174,8 @@ export class RemotePlayer {
     const k = (rt - a.ts) / Math.max(1e-6, b.ts - a.ts);
     this.feet.set(lerp(a.p[0], b.p[0], k), lerp(a.p[1], b.p[1], k), lerp(a.p[2], b.p[2], k));
     this._copyMeta(k < 0.5 ? a : b);
+    // velocity drives the stride and leans: blend it too, so 20 Hz samples don't step the gait
+    this.velocity.set(lerp(a.v[0], b.v[0], k), lerp(a.v[1], b.v[1], k), lerp(a.v[2], b.v[2], k));
     this.yaw = lerpAngle(a.yaw, b.yaw, k);
     this.pitch = lerp(a.pitch, b.pitch, k);
     this.crouch = lerp(a.c ? 1 : 0, b.c ? 1 : 0, k);
@@ -220,6 +258,28 @@ export class RemotePlayer {
     this.scene.remove(this.character.object3D);
     this.character.dispose();
   }
+}
+
+const _dir = new THREE.Vector3(), _org = new THREE.Vector3(), _fd = new THREE.Vector3();
+const FALL_TRY = [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9, Math.PI];
+/**
+ * Death fall direction that keeps the body out of walls: the preferred push if there is room for a 1.75 m body,
+ * else the nearest clear direction, else the roomiest one with the fall cut short (slumped against the wall).
+ */
+function pickFall(feet, push) {
+  let best = null, bestC = -1;
+  for (const a of FALL_TRY) {
+    const s = Math.sin(a), c = Math.cos(a);
+    _fd.set(push.x * c + push.z * s, 0, -push.x * s + push.z * c);
+    let clear = 1.9;
+    for (const h of [0.45, 1.0]) {
+      const hit = castWorld(_org.set(feet.x, feet.y + h, feet.z), _fd, clear);
+      if (hit) clear = Math.min(clear, hit.distance);
+    }
+    if (clear >= 1.8) return { dir: _fd.clone(), maxAngle: Math.PI / 2 };
+    if (clear > bestC) { bestC = clear; best = _fd.clone(); }
+  }
+  return { dir: best, maxAngle: Math.asin(Math.min(1, Math.max(0.3, (bestC - 0.2) / 1.7))) };
 }
 
 function lerp(a, b, k) { return a + (b - a) * k; }

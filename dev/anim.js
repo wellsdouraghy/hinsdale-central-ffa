@@ -115,6 +115,11 @@ const SCEN = {
   deathrun: { fn: (t) => (t < 0.6 ? base({ p: [0, 0, -7.5 * t], v: [0, 0, -7.5], s: 1 }) : base({ p: [0, 0, -4.5], v: [0, 0, -7.5] })), times: [0.55, 0.7, 0.85, 1.0, 1.2, 1.6], view: 'side', events: [[0.6, (r) => r.character.die(new THREE.Vector3(0, 0, -1))]] },
 };
 SCEN.grappleclose = { ...SCEN.grapple, wide: 0, times: [0.36, 0.5, 0.8, 1.3, 1.62, 1.75, 1.9], view: 'q' };
+SCEN.grappleside = { ...SCEN.grapple, wide: 0, track: 1, times: [0.36, 0.5, 0.7, 1.0, 1.3, 1.6, 1.8], view: 'side' };
+SCEN.grapplefront = { ...SCEN.grapple, wide: 0, track: 1, times: [0.36, 0.5, 0.7, 1.0, 1.3], view: 'front' };
+SCEN.deathfwd = { ...SCEN.death, view: 'side', events: [[0.3, (r) => r.character.die(new THREE.Vector3(0, 0, -1))]] };
+SCEN.deathside = { ...SCEN.death, view: 'front', events: [[0.3, (r) => r.character.die(new THREE.Vector3(1, 0, 0.2))]] };
+SCEN.deathlate = { ...SCEN.death, times: [1.0, 1.6, 2.4], view: 'side' };
 const VIEWS = { q: [2.4, 1.5, -3.0], side: [4.4, 1.2, -0.4], front: [0.5, 1.4, -4.6], back: [1.6, 1.6, 4.2] };
 
 let rp = null;
@@ -136,7 +141,7 @@ function pose(sc, t, dt, fired) {
 }
 function frame(sc, s, view) {
   const off = VIEWS[view || sc.view || 'q'], k = sc.wide ? 1.7 : 1;
-  const ty = sc.wide ? s.p[1] + 1.1 : s.p[1] * 0.85 + 0.95;
+  const ty = sc.wide ? s.p[1] + 1.1 : sc.track ? s.p[1] + 0.95 : s.p[1] * 0.85 + 0.95;
   camera.position.set(s.p[0] + off[0] * k, ty + (off[1] - 0.95) * k, s.p[2] + off[2] * k);
   camera.lookAt(s.p[0], ty, s.p[2]);
   sun.position.set(s.p[0] - 5, s.p[1] + 9, s.p[2] - 4); sun.target.position.set(s.p[0], s.p[1], s.p[2]); sun.target.updateMatrixWorld();

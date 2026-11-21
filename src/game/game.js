@@ -475,7 +475,11 @@ export class Game {
     }
     this.enemyBars.delete(m.victim);
     if (meV) this._die(m);
-    else this.remotes.get(m.victim)?.kill();
+    else {
+      // the body falls away from the killer (none for self / environment kills: momentum only)
+      const from = m.killer === m.victim ? null : m.killer === this.localId ? this.player.position : this.remotes.get(m.killer)?.feet;
+      this.remotes.get(m.victim)?.kill(from || null);
+    }
   }
 
   _die(m) {
