@@ -1,0 +1,657 @@
+{
+ "campus": "branson",
+ "school": "The Branson School",
+ "note": "Reference photos are NOT in the repo (third-party copyright). They live in the gitignored src/campuses/branson/tools/data/refs/ and are re-collected with tools/textures/scrape.py. Used only to measure materials; no texture contains reference pixels.",
+ "counts": {
+  "web": 28,
+  "streetview": 15,
+  "reviewed": 28
+ },
+ "skippedByRobots": [
+  "commons search: Branson School Ross California",
+  "commons search: Katharine Branson School"
+ ],
+ "images": [
+  {
+   "file": "page_db564ab486.jpg",
+   "url": "https://www.e-architect.com/wp-content/uploads/2010/08/branson-fine-arts-center-ross-usa-dwp.webp",
+   "page": "https://www.e-architect.com/america/branson-fine-arts-center",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Branson School Fine Arts Center: Ross building",
+   "px": [
+    900,
+    527
+   ],
+   "building": "Fine Arts Center",
+   "facade": "south front with the yellow house",
+   "shows": "pale yellow board and batten, white trim and pergola, grey shingle gable; yellow stucco house",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_1664b62f2b.jpg",
+   "url": "https://www.e-architect.com/images/jpgs/america/branson_fine_arts_center_t100810_dwp4.jpg",
+   "page": "https://www.e-architect.com/america/branson-fine-arts-center",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    900,
+    643
+   ],
+   "building": "whole campus",
+   "facade": "site plan",
+   "shows": "building layout",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_72472ea60e.jpg",
+   "url": "https://www.e-architect.com/images/jpgs/america/branson_student_commons_t100810_dwp2.jpg",
+   "page": "https://www.e-architect.com/america/branson-fine-arts-center",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    900,
+    600
+   ],
+   "building": "Student Commons",
+   "facade": "gable front at dusk",
+   "shows": "white frame and glass, wood soffit, concrete wing walls, steps",
+   "use": "massing",
+   "reviewed": true
+  },
+  {
+   "file": "page_07f89d49a1.jpg",
+   "url": "https://www.e-architect.com/wp-content/uploads/2010/08/branson-student-commons-ross-california.webp",
+   "page": "https://www.e-architect.com/america/branson-student-commons",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Branson Student Commons, School in Ross, California",
+   "px": [
+    900,
+    600
+   ],
+   "building": "Student Commons",
+   "facade": "from the meadow",
+   "shows": "setting; standing-seam roof",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_88908847d0.jpg",
+   "url": "https://www.e-architect.com/images/jpgs/america/branson_student_commons_t100810_dwp5.jpg",
+   "page": "https://www.e-architect.com/america/branson-student-commons",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    900,
+    600
+   ],
+   "building": "Student Commons",
+   "facade": "front, daylight",
+   "shows": "white frame, roof overhang, lawn",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_a41cdb7707.jpg",
+   "url": "https://www.e-architect.com/images/jpgs/america/branson_student_commons_t100810_dwp6.jpg",
+   "page": "https://www.e-architect.com/america/branson-student-commons",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    900,
+    600
+   ],
+   "building": "Student Commons",
+   "facade": "roof with PV and concrete wing",
+   "shows": "standing-seam metal, board-formed concrete, planted roof",
+   "use": "roof",
+   "reviewed": true
+  },
+  {
+   "file": "page_044712cd6a.jpg",
+   "url": "https://www.e-architect.com/images/jpgs/america/branson_student_commons_t100810_dwp7.jpg",
+   "page": "https://www.e-architect.com/america/branson-student-commons",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    900,
+    600
+   ],
+   "building": "Student Commons",
+   "facade": "side terrace",
+   "shows": "standing-seam roof, white frame, concrete terrace",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_bc0852d32b.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_01.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "og:image",
+   "px": [
+    1000,
+    667
+   ],
+   "building": "Student Commons",
+   "facade": "gable front at dusk",
+   "shows": "duplicate rendition",
+   "use": "massing",
+   "reviewed": true
+  },
+  {
+   "file": "page_1a81fb340e.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_02.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "bs_030814_02",
+   "px": [
+    1000,
+    667
+   ],
+   "building": "Student Commons",
+   "facade": "from the meadow",
+   "shows": "duplicate",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_665b32c8dc.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_03.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "bs_030814_03",
+   "px": [
+    1000,
+    667
+   ],
+   "building": "Student Commons",
+   "facade": "side terrace",
+   "shows": "duplicate",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_e8f420a324.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_05.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "bs_030814_05",
+   "px": [
+    1000,
+    667
+   ],
+   "building": "Student Commons",
+   "facade": "roof with PV",
+   "shows": "duplicate",
+   "use": "roof",
+   "reviewed": true
+  },
+  {
+   "file": "page_30907340a8.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_04.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1000,
+    667
+   ],
+   "building": "Student Commons",
+   "facade": "front, daylight",
+   "shows": "duplicate",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_513031b5d6.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_09.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1000,
+    667
+   ],
+   "building": "Student Commons",
+   "facade": "entrance frame close",
+   "shows": "white steel / wood frame members, sunshade",
+   "use": "detail",
+   "reviewed": true
+  },
+  {
+   "file": "page_f8594c6bc6.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_10.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1200,
+    857
+   ],
+   "building": "whole campus",
+   "facade": "site plan",
+   "shows": "duplicate",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_85fe6b54fe.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_11.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1200,
+    677
+   ],
+   "building": "Student Commons",
+   "facade": "section drawing",
+   "shows": "roof pitch and wing heights",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "page_05aa43a2de.jpg",
+   "url": "https://www.contemporist.com/wp-content/uploads/2014/08/bs_030814_12.jpg",
+   "page": "https://www.contemporist.com/?p=93427",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1000,
+    1314
+   ],
+   "building": "Student Commons",
+   "facade": "floor plan",
+   "shows": "footprint",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "site_bb8cbf382e.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto,t_image_size_5/v1792780089/bransonorg/ijehcrfdoh1pdoedrswq/about_hero.jpg",
+   "page": "https://www.branson.org/about",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1600,
+    533
+   ],
+   "building": "quad",
+   "facade": "lawn with the classroom buildings",
+   "shows": "cream stucco, tile roofs, oaks",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "site_29ae4c88af.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto,t_image_size_5/v1652373992/bransonorg/g5p4kemdewzg36j9czt8/SustainabilityGarden.jpg",
+   "page": "https://www.branson.org/about",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "School garden",
+   "px": [
+    1600,
+    1067
+   ],
+   "building": "garden",
+   "facade": "raised beds",
+   "shows": "garden structures",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "site_2d1a95ac69.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto/v1633982163/bransonorg/h97bhkasmfezsrp6osko/About_VisitUs_HeroImage.jpg",
+   "page": "https://www.branson.org/about",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "View of the academic quad with students working",
+   "px": [
+    1440,
+    550
+   ],
+   "building": "quad building",
+   "facade": "long front with tile roof",
+   "shows": "cream-yellow stucco, white trim, terracotta mission tile",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "site_f00888d7e8.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto,t_image_size_5/v1785186418/bransonorg/yy0jrpoysorfik8bcxpl/chriscorner_hero2026-2.jpg",
+   "page": "https://www.branson.org/about/leadership/chris-corner",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1600,
+    533
+   ],
+   "building": "quad arcade",
+   "facade": "arcade posts and brackets",
+   "shows": "white wood posts with brackets, cream wall, tile eave",
+   "use": "detail",
+   "reviewed": true
+  },
+  {
+   "file": "site_f812b44cd4.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto/v1636264880/bransonorg/nj3tc9ymwnv1nchlf7gh/CHRIS_LEtTER_EDIt_crop.png",
+   "page": "https://www.branson.org/about/leadership/chris-corner",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Branson Convocation 2021",
+   "px": [
+    1068,
+    793
+   ],
+   "building": "quad building",
+   "facade": "eave against the sky",
+   "shows": "cream stucco, low roof edge",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "site_d020f73f0e.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto/v1706303419/bransonorg/yqibbuiclqhyvzrsslwy/About_AtaGlanceHero2.jpg",
+   "page": "https://www.branson.org/about/branson-at-a-glance",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "trees and students",
+   "px": [
+    1600,
+    791
+   ],
+   "building": "upper building",
+   "facade": "two-storey yellow building",
+   "shows": "yellow stucco, white trim, dark shutters, exterior stair",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "site_efe7d0d022.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto/v1665100865/bransonorg/emjr6etnus6qygzfzrbc/Sustainability_Hero.jpg",
+   "page": "https://www.branson.org/about/branson-sustainability",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Garden",
+   "px": [
+    1189,
+    500
+   ],
+   "building": "garden",
+   "facade": "raised beds, second view",
+   "shows": "garden structures",
+   "use": "context",
+   "reviewed": true
+  },
+  {
+   "file": "site_0bcde6b015.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto,t_image_size_5/v1652475046/bransonorg/xxrapuoportspoj0u4yr/Emission-Reducing_Transportation_Programs_Cover.jpg",
+   "page": "https://www.branson.org/about/branson-sustainability",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Teachers posing with their bikes",
+   "px": [
+    1600,
+    1200
+   ],
+   "building": "quad building",
+   "facade": "drive side",
+   "shows": "cream stucco wall, mission tile eave close enough to see the barrels",
+   "use": "roof",
+   "reviewed": true
+  },
+  {
+   "file": "site_d316902edc.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto,t_image_size_5/v1635916002/bransonorg/dg4tawhg4vuuc4apdktm/About_Visit_VirtualTourVideo.png",
+   "page": "https://www.branson.org/about/visit",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "aerial view of the athletics building and campus ",
+   "px": [
+    1600,
+    881
+   ],
+   "building": "whole campus",
+   "facade": "aerial oblique",
+   "shows": "roofs among the oaks: brown shingle and tile",
+   "use": "roof",
+   "reviewed": true
+  },
+  {
+   "file": "site_0bd1cde52b.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto/v1636758765/bransonorg/gv3l1cgfpkaauda65syd/About_ContactUsHero.jpg",
+   "page": "https://www.branson.org/about/visit/visit-us",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "view of BRANSON lettering on Tom Ryan Field ",
+   "px": [
+    1437,
+    550
+   ],
+   "building": "gym",
+   "facade": "from the turf field",
+   "shows": "dark brown cedar shingles, white trim and gable glazing; turf with wordmark",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "site_87a7f7e3af.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto,t_image_size_5/v1706301644/bransonorg/irjgwgt53uaipr19nfac/Careers_FacultyBenefits.jpg",
+   "page": "https://www.branson.org/about/careers",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "faculty members walking together and smiling",
+   "px": [
+    1600,
+    1294
+   ],
+   "building": "quad building",
+   "facade": "porch",
+   "shows": "white posts, cream wall",
+   "use": "detail",
+   "reviewed": true
+  },
+  {
+   "file": "site_852b2820a6.jpg",
+   "url": "https://resources.finalsite.net/images/f_auto,q_auto/v1634759575/bransonorg/jau2illvgj3eeifwkwao/Admissions_LearnMore_HeroImage.jpg",
+   "page": "https://www.branson.org/admissions",
+   "source": "site",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Students milling around in the academic quad",
+   "px": [
+    1440,
+    550
+   ],
+   "building": "quad",
+   "facade": "main building across the lawn",
+   "shows": "cream stucco, tile hips and gable, arcade",
+   "use": "colour",
+   "reviewed": true
+  }
+ ],
+ "streetview": [
+  {
+   "file": "974153830.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "rOLN8n0rYYNhawcAm2roRg",
+   "date": "2025-04",
+   "building": "974153830",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "974153830_b.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "ZTBxJuSTuB2R8LUf8rTV-w",
+   "date": "2025-04",
+   "building": "974153830_b",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "974153831.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "ALaL82UyIT-PBneW_roakA",
+   "date": "2025-04",
+   "building": "974153831",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "975104506.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "RV50Uk-Vc5RxKbgTOmOAGQ",
+   "date": "2025-04",
+   "building": "975104506",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "975106084.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "i9bwuGoNYVvLoSndq_Pv9A",
+   "date": "2025-04",
+   "building": "975106084",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "975108094.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "Tg5Hsfz05TTvTWo6s1VWIw",
+   "date": "2025-04",
+   "building": "975108094",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "976135755.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "zW17KnimY_DU4g-obihBIg",
+   "date": "2025-04",
+   "building": "976135755",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "976475036.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "lbSugNkVkvWMV8gwB3Y0Yg",
+   "date": "2023-03",
+   "building": "976475036",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "976475036_b.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "lbSugNkVkvWMV8gwB3Y0Yg",
+   "date": "2023-03",
+   "building": "976475036_b",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "976477404.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "c2bP5jBQ2GcQ3adsOqd9gw",
+   "date": "2025-04",
+   "building": "976477404",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s_kbh_fernhill.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "HcVJ6yisxs2Mr-FoHUiq0A",
+   "date": "2025-04",
+   "building": "s_kbh_fernhill",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s_gate.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "Yl7LHdLbgXJBPTp9AsKQeg",
+   "date": "2025-04",
+   "building": "s_gate",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s_tennis_lot.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "F3SWPaXViOcksvUm5tBC7w",
+   "date": "2025-04",
+   "building": "s_tennis_lot",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s_commons.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "zW17KnimY_DU4g-obihBIg",
+   "date": "2025-04",
+   "building": "s_commons",
+   "shows": "",
+   "reviewed": false
+  },
+  {
+   "file": "s_fernhill_west.jpg",
+   "source": "Google Street View Static API (cached locally, not redistributable)",
+   "pano": "rEeao7SVVFjyrtMYo35JZg",
+   "date": "2025-04",
+   "building": "s_fernhill_west",
+   "shows": "",
+   "reviewed": false
+  }
+ ]
+}

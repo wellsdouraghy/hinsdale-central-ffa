@@ -107,8 +107,8 @@ export function addMaterials(ctx) {
   M.awning = std({ vertexColors: true, roughness: 0.85, side: THREE.DoubleSide });
   // facade styles for this campus (see STYLES in facade.js; tint multiplies the wall bucket's vertex colour)
   Object.assign(STYLES, {
-    hamBrick: { kind: 'class', bay: 4.4, frame: 'frame', top: 'stone', tint: BRICK_TINT, beds: true },                // salmon brick, cast-stone trim
-    hamLow: { kind: 'lowmod', bay: 4.4, frame: 'frame', top: 'stone', tint: BRICK_TINT, beds: true },
+    hamBrick: { wall: 'hamBrick', kind: 'class', bay: 4.4, frame: 'frame', top: 'stone', tint: BRICK_TINT, beds: true },                // salmon brick, cast-stone trim
+    hamLow: { wall: 'hamBrick', kind: 'lowmod', bay: 4.4, frame: 'frame', top: 'stone', tint: BRICK_TINT, beds: true },
     hamCream: { kind: 'class', bay: 4.4, frame: 'frame', top: 'stone', tint: [0.74, 0.67, 0.5], beds: true },         // cream stucco classroom blocks
     hamLowCream: { kind: 'lowmod', bay: 4.4, frame: 'frame', top: 'stone', tint: [0.74, 0.68, 0.52] },
     hamBungalow: { kind: 'lowmod', bay: 4.0, frame: 'frameAlu', top: 'panel', tint: [0.7, 0.68, 0.6] },
@@ -203,7 +203,9 @@ export function hipRoof(ctx, boxOrRing, eaveY, rise, opts = {}) {
   const rA = gable ? u0 : Math.min(u0 + hw, (u0 + u1) / 2), rB = gable ? u1 : Math.max(u1 - hw, (u0 + u1) / 2);
   const A = W(u0, v0, eaveY), Bp = W(u1, v0, eaveY), C = W(u1, v1, eaveY), Dd = W(u0, v1, eaveY);
   const R0 = W(rA, vc, eaveY + rise), R1 = W(rB, vc, eaveY + rise); const sl = Math.hypot(hw, rise);
-  const bucket = B.v(opts.bucket || 'shingles', true); const t = opts.tint || CLAY; if (bucket.setColor) bucket.setColor(t[0], t[1], t[2]);
+  // opts.tex: keyed roof texture of the campus pack (e.g. mission tile), untinted; falls back to tinted shingles
+  const rtx = opts.tex && ctx.TX && ctx.TX.tex[opts.tex] && ctx.TX.tex[opts.tex].key ? opts.tex : null;
+  const bucket = B.v(rtx || opts.bucket || 'shingles', true); const t = rtx ? [1, 1, 1] : (opts.tint || CLAY); if (bucket.setColor) bucket.setColor(t[0], t[1], t[2]);
   const col = opts.noCollision ? null : B.c('concrete'); const up = [0, 1, 0];
   // opts.planeUV: texture coordinates from the face plane itself (along the eave in world metres, up the slope), so
   // faces of two intersecting roofs that lie in one plane carry the same shingles and do not shimmer (polyRoof)
@@ -326,8 +328,10 @@ export function wallDecal(ctx, tex, F, uC, yC, w, h, out = 0.03, opts = {}) {
 // arcadeTop (round-headed windows on the top storey).
 // Visual only apart from the parapet and door canopies: the caller adds the building's collision prism.
 export function storeyWalls(ctx, ringIn, h, o = {}) {
-  const { B } = ctx; const ring = ensureCCW(ringIn); const key = o.key || 'brick'; const tint = o.tint || (key === 'brick' ? BRICK_TINT : [0.74, 0.67, 0.5]);
-  const top = h - (o.parapet ? 0.8 : 0.5); const n = o.storeys || Math.max(1, Math.round(top / 3.9)); const fh = top / n; const S = key === 'brick' ? BRICK_S : 0.45;
+  // o.tex: a keyed texture of the campus pack (src/world/campusTextures.js) that replaces the shared, tinted `key` bucket
+  const { B } = ctx; const ring = ensureCCW(ringIn); const baseKey = o.key || 'brick'; const tx = o.tex && ctx.TX && ctx.TX.tex[o.tex] && ctx.TX.tex[o.tex].key ? o.tex : null;
+  const key = tx || baseKey; const tint = o.tint || (tx ? [1, 1, 1] : baseKey === 'brick' ? BRICK_TINT : [0.74, 0.67, 0.5]);
+  const top = h - (o.parapet ? 0.8 : 0.5); const n = o.storeys || Math.max(1, Math.round(top / 3.9)); const fh = top / n; const S = baseKey === 'brick' ? BRICK_S : 0.45;
   const trim = B.v(o.trim || 'limestone'), fr = B.v(o.frame || 'frame'), gl = B.v('glassInt'); const bayW = o.bay || 3.8, wh = Math.min(o.winH || 2.0, fh - 1.45), sill = o.sill || 1.0;
   const wb = B.v(key, true); let u = 0, gi = Math.abs(Math.round(ring[0][0] * 3 + ring[0][1] * 5)) % 50;
   const win = (F, c, w2, y0, y1) => {
@@ -365,7 +369,7 @@ export function storeyWalls(ctx, ringIn, h, o = {}) {
       const door = o.doors !== false && L > 20 ? Math.floor(nb / 2) : -1;
       for (let k = 0; k < nb; k++) {
         const c = m + (k + 0.5) * bay;
-        if (o.piers && k > 0) { wb.setColor(tint[0] * 0.94, tint[1] * 0.94, tint[2] * 0.94); fbox(wb, F, m + k * bay - 0.3, m + k * bay + 0.3, 0.55, top, 0, 0.09, S, u, 'fs'); wb.setColor(tint[0], tint[1], tint[2]); }
+        if (o.piers && k > 0) { wb.setColor(tint[0] * 0.94, tint[1] * 0.94, tint[2] * 0.94); fbox(wb, F, m + k * bay - 0.3, m + k * bay + 0.3, 0.55, top, 0, 0.09, S, u, 'f'); wb.setColor(tint[0] * 0.72, tint[1] * 0.72, tint[2] * 0.72); fbox(wb, F, m + k * bay - 0.3, m + k * bay + 0.3, 0.55, top, 0, 0.09, S, u, 'sw'); wb.setColor(tint[0], tint[1], tint[2]); }   // returns: shaded, bond wrapped, lit like the wall (fbox 'w')
         for (let s = 0; s < n; s++) {
           const y0 = s * fh + sill, y1 = y0 + wh;
           if (s === 0 && k === door) {

@@ -12,3 +12,11 @@ src/campuses/*/tools/data/dem/
 # Street View side-by-side comparison sheets (contain Google imagery: local review only)
 dev/shots/*/streetview-compare/
 __pycache__/
+
+# Scraped reference photos for texture work (third-party copyright: local reference only, never committed)
+src/campuses/*/tools/data/refs/
+tools/textures/**/refs_raw/
+# side-by-sides that contain reference photos (local review only)
+dev/shots/textures/*/ref-compare/
+dev/shots/textures/*/v2/ref-compare/
+dev/shots/textures/*/v3/ref-compare/

@@ -29,6 +29,7 @@ export default {
     groundMask: 'assets/world/ground_mask.png',
     roofs: 'assets/world/roofs.jpg',
     surfaceClasses: 'assets/world/surface_classes.png',
+    textures: 'campuses/hinsdale/tex/tex.json',   // building textures generated from reference photos (tools/textures/)
   },
   sat: { minX: -394.85, maxX: 394.85, minZ: -305.44, maxZ: 305.44 },
   playBounds: { minX: -222, maxX: 292, minZ: -212, maxZ: 214 },

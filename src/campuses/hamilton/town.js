@@ -295,7 +295,7 @@ export function buildTown(ctx) {
     }
     const ring = ringOf.get(b.id) || simplify(raw, 0.5); ring.id = b.id;
     (ctx.buildingRings = ctx.buildingRings || []).push(ring);
-    if (BRICKBOX[b.id]) { const h = BRICKBOX[b.id]; const f = flatBuilding(ctx, ring, h, 'hamAud', { skin: SKIN_BRICK, surface: 'brick', units: 2 }); flats.push({ ring: f.ring, roofY: f.roofY, area: info.area }); nKit++;
+    if (BRICKBOX[b.id]) { const h = BRICKBOX[b.id]; const f = flatBuilding(ctx, ring, h, 'hamTownBrick', { skin: SKIN_BRICK, surface: 'brick', units: 2 }); flats.push({ ring: f.ring, roofY: f.roofY, area: info.area }); nKit++;
       // Street View: an Art Deco brick box, fluted brick piers, a tall doorway with a cast-stone surround and relief panel up a flight of steps, two tall narrow windows
       const fe = FAC[String(b.id)] && frontEdge(f.ring, FAC[String(b.id)], 8); if (fe) { const F = fe.F, L = F.L, ls = B.v('limestone'), bk = B.v('brick', true); bk.setColor(1.0, 0.82, 0.7);
         for (const u of [0.5, L * 0.25, L * 0.4, L * 0.6, L * 0.75, L - 0.5]) fbox(bk, F, u - 0.35, u + 0.35, 0, h - 0.5, 0, 0.14, BRICK_S, u, 'fs'); bk.setColor(1, 1, 1);
