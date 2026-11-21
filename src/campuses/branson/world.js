@@ -5,7 +5,7 @@ import { addMaterials, minAreaOBB, mulberry32, planWalls, applyPads, planCheeks,
 import { shapeSDF } from '../../world/terrain.js';
 import { gradeStreets } from '../../world/streets.js';
 import { pointInRing } from '../../world/util.js';
-import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, PAVED_LINES, DRY, LITTER, WALKS, PATIO, ENTR_COURT } from './kit.js';
+import { addStyles, fieldRing, tennisRing, isStreet, streetWidth, stairGrade, centroid, TERRACE, ARTS_PLAZA, ARTS_LAWN, LOOP_GARDEN, POOL, POOL_DECK, POOL_HOUSE, PAVED_POLYS, PAVED_LINES, DRY, LITTER, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL } from './kit.js';
 import { buildSchool, schoolWalls, KBH_LOW } from './school.js';
 import { buildTown, planTown } from './town.js';
 import { buildGrounds, ALUMNI_STEPS, CAR_FREE, BRIDGE, creekSDF, SHED } from './grounds.js';
@@ -29,8 +29,8 @@ function sitework(ctx) {
   // the tennis courts: one level slab
   ctx.tennisY = ctx.flatten({ outline: tennisRing(1.6) }, { blend: 3 });
   // the organic garden's raised beds stand on a level plot of Katharine Branson Hall's south-west lawn
-  ctx.flatten({ rect: { cx: -63.9, cz: 18.7, w: 11, d: 11.5, angle: 0.1 } }, { blend: 3.5 });
-  ctx.flatten({ circle: { x: -41.6, z: 20.4, r: 2.4 } }, { blend: 2.5 });
+  ctx.flatten({ rect: { cx: GARDEN.cx, cz: GARDEN.cz, w: GARDEN.w + 0.8, d: GARDEN.d + 0.8, angle: GARDEN.ang * Math.PI / 180 } }, { blend: 3.5 });   // (fix round 6: the fenced plot's real place and size)
+  ctx.flatten({ circle: { x: SUNDIAL[0], z: SUNDIAL[1], r: SUNDIAL[2] + 0.6 } }, { blend: 2.5 });
   ctx.flatten({ circle: { x: PATIO[0], z: PATIO[1], r: PATIO[2] + 0.4 } }, { blend: 3 });   // the round patio at the end of the hall's terrace walk (two tables)   // the sundial's level spot on the lawn
   // the dining terrace in front of the Commons hall (tables under umbrellas)
   ctx.terraceY = ctx.flatten({ outline: TERRACE }, { blend: 3 });   // (its real outline, traced from the tiles: a stone plaza, not a circle)
@@ -88,7 +88,7 @@ function sitework(ctx) {
     // no tree on the pitch pad, the courts, the dining terrace, the steps, or deep inside a car park
     const stairs = ALUMNI_STEPS.map((s) => shapeSDF({ rect: { cx: (s.a[0] + s.b[0]) / 2, cz: (s.a[1] + s.b[1]) / 2, w: Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]) + 5, d: s.w + 4, angle: Math.atan2(s.b[1] - s.a[1], s.b[0] - s.a[0]) } }).sd);
     const poolSd = shapeSDF({ outline: POOL_DECK }).sd, phSd = shapeSDF({ outline: POOL_HOUSE }).sd; const plazaSd = shapeSDF({ outline: ARTS_PLAZA }).sd, gardenSd = shapeSDF({ outline: LOOP_GARDEN }).sd;
-    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && poolSd(t[0], t[1]) > 2 && phSd(t[0], t[1]) > 3 && plazaSd(t[0], t[1]) > 1.5 && gardenSd(t[0], t[1]) > 3 && Math.hypot(t[0] + 41.6, t[1] - 20.4) > 4 && !(ctx.campus.heliPark || []).some((p) => p[1] < 0.5 && Math.hypot(t[0] - p[0], t[1] - p[2]) < 11.6) && Math.hypot(t[0] + 3.5, t[1] + 32) > 13.5 /* the Blue Atlas Cedar's crown */ && !(t[0] > -69 && t[0] < -58.5 && t[1] > 12 && t[1] < 25) /* the organic garden */ && !ALUMNI_STEPS.some((st) => Math.hypot(t[0] - st.a[0], t[1] - st.a[1]) < 3.2) && !(Math.abs(t[0] + 81) < 9 && Math.abs(t[1] - 11) < 9 && [[-87.3, 18.4], [-86.6, 14.5], [-82.0, 9.5], [-73.5, 3.4], [-84.3, 12], [-77.7, 6.4]].some((q) => Math.hypot(t[0] - q[0], t[1] - q[1]) < 2.6)) /* the walk from the head of the steps */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
+    ctx.gen.trees = out.filter((t) => turf(t[0], t[1]) > 2.5 && poolSd(t[0], t[1]) > 2 && phSd(t[0], t[1]) > 3 && plazaSd(t[0], t[1]) > 1.5 && gardenSd(t[0], t[1]) > 3 && Math.hypot(t[0] - SUNDIAL[0], t[1] - SUNDIAL[1]) > 4.4 && !(ctx.campus.heliPark || []).some((p) => p[1] < 0.5 && Math.hypot(t[0] - p[0], t[1] - p[2]) < 11.6) && Math.hypot(t[0] + 3.5, t[1] + 32) > 13.5 /* the Blue Atlas Cedar's crown */ && !(Math.abs(t[0] - GARDEN.cx) < GARDEN.w / 2 + 1.2 && Math.abs(t[1] - GARDEN.cz) < GARDEN.d / 2 + 1.6) /* the organic garden */ && !ALUMNI_STEPS.some((st) => Math.hypot(t[0] - st.a[0], t[1] - st.a[1]) < 3.2) && !(Math.abs(t[0] + 81) < 9 && Math.abs(t[1] - 11) < 9 && [[-87.3, 18.4], [-86.6, 14.5], [-82.0, 9.5], [-73.5, 3.4], [-84.3, 12], [-77.7, 6.4]].some((q) => Math.hypot(t[0] - q[0], t[1] - q[1]) < 2.6)) /* the walk from the head of the steps */ && Math.hypot(t[0] - BRIDGE.mid[0], t[1] - BRIDGE.mid[1]) > 5 && Math.hypot(t[0] - 52, t[1] - 67) > 12.5 /* Prize Day Field: an open lawn (campus map), and a helicopter spot */ && courts(t[0], t[1]) > 2 && zoneShapes[2](t[0], t[1]) > 0 && stairs.every((sd) => sd(t[0], t[1]) > 0)
       && !(ctx.surfaceAt(t[0], t[1]) === 'asphalt' && [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5], [1.8, 1.8], [-1.8, 1.8], [1.8, -1.8], [-1.8, -1.8]].every(([dx, dz]) => ctx.surfaceAt(t[0] + dx, t[1] + dz) === 'asphalt')));
   }
   // the academic quad's courtyard is an open lawn (nadir tiles): no scanned tree inside it, only the three round clipped ones pushed below

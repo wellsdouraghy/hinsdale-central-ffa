@@ -17,7 +17,7 @@ export const fieldRing = (d = 0) => obb(FIELD.cx, FIELD.cz, FIELD.turfL + 2 * d,
 // Outlines traced from nadir Google 3D-tiles views (the same numbers as tools/data/extra.py, which paints the ground from them)
 export const TERRACE = [[-120.4, 26.4], [-112.4, 17.6], [-108.0, 21.2], [-103.2, 23.6], [-98.4, 27.2], [-92.5, 28.2], [-87.0, 28.5], [-86.6, 35.2], [-95.2, 37.2], [-101.6, 40.8], [-106.8, 44.4], [-109.6, 42.0], [-115.2, 34.0]];
 export const TERRACE_TABLES = [[-107.4, 26.0], [-104.0, 29.1], [-99.8, 32.6], [-109.7, 29.8], [-107.0, 32.0], [-103.7, 35.0], [-113.0, 33.0], [-109.7, 35.6], [-106.1, 38.6]];
-export const LOOP_GARDEN = [[-103.6, 51.6], [-100.8, 47.6], [-95.2, 44.0], [-87.2, 41.6], [-80.0, 42.0], [-76.2, 45.6], [-77.6, 47.2], [-84.0, 49.2], [-88.0, 51.6], [-92.0, 53.6], [-98.4, 56.0], [-102.8, 54.8]];
+export const LOOP_GARDEN = [[-100.0, 47.1], [-95.8, 44.5], [-90.2, 42.5], [-86.4, 41.8], [-82.7, 41.8], [-79.6, 42.5], [-77.1, 43.6], [-76.3, 44.3], [-75.8, 45.1], [-75.7, 45.9], [-75.9, 46.7], [-76.5, 47.4], [-77.6, 48.0], [-82.8, 49.1], [-85.5, 50.1], [-90.5, 52.9], [-98.8, 56.0], [-101.9, 56.4], [-103.3, 55.9], [-104.2, 54.7], [-104.5, 52.3], [-103.7, 50.5]];   // (fix round 6: a rounded oval, both ends round as in the nadir tiles; the old outline ended in two points)
 // the island's two stall rows, then one stall per pair of points round the south-east rim (fix round 5: a round sweep of cars nose-out, nadir tiles)
 export const LOOP_ISLAND_ROWS = 2;
 export const LOOP_ROWS = [[[-100.0, 57.8], [-84.8, 53.6]], [[-83.2, 52.4], [-78.0, 47.6]], [[-68.6, 51.32], [-68.86, 54.06]], [[-68.86, 54.06], [-69.66, 56.68]], [[-69.66, 56.68], [-71.06, 59.04]], [[-71.06, 59.04], [-73.15, 60.92]], [[-73.15, 60.92], [-75.31, 62.62]], [[-75.31, 62.62], [-77.6, 64.12]], [[-77.6, 64.12], [-80.03, 65.4]], [[-80.03, 65.4], [-82.58, 66.43]], [[-82.58, 66.43], [-85.25, 67.2]], [[-85.25, 67.2], [-88.01, 67.59]], [[-88.01, 67.59], [-90.79, 67.44]]];
@@ -40,20 +40,29 @@ export const LITTER = [[[-193.0, -36.5], [-183.5, -36.5], [-180.0, -31.5], [-180
 // Fix round 5 (rule F8, nadir tiles): paved walks and door aprons, [points, width]; painted as concrete by tools/ground_fix.py (extra.py WALKS), kerbed in grounds.js
 export const WALKS = [
   [[[-17.9, -36.5], [-16.2, -40], [-15.8, -48], [-16.6, -56], [-17.8, -61.5]], 2.6],   // the lane along the hall east wall
-  [[[-22.3, 10.6], [-24.9, 13.9]], 2.0],   // the hall south door
   [[[2.6, 6.4], [-7, 18.6]], 3.2],   // the terrace along the hall south-east end
   [[[-7, 18.6], [-12, 23.5], [-15, 26.6]], 2.6],   // its walk to the round patio
   [[[2.6, 6.4], [5.5, 1.5], [7, -1.8]], 2.0],   // from the terrace to the visitor lot
-  [[[-15.3, -7.0], [-14.2, -8.5]], 2.4],   // the hall north-east door
   [[[-44.7, -48.5], [-46.8, -48.2]], 2.4],   // north block, west door
   [[[-28.1, -63.9], [-26.9, -65.5], [-21.5, -63.6], [-17.9, -61.3]], 1.8],   // north block, north-east door
   [[[-19.9, -50.1], [-16.2, -50.5]], 2.2],   // north block, east door
   [[[-24.4, -34.7], [-23.5, -34.0], [-21.4, -36.7], [-19.3, -36.9]], 1.8],   // north block, court door
   [[[60.2, 10.2], [60.0, 8.6], [52, 7.4], [46.4, 6.9]], 1.8],   // Music Hall north door
   [[[-147.4, 95.4], [-151, 101], [-157, 110], [-159, 115]], 2.4],   // from the Bridge to the quad
+  // fix round 6 (rule F47): every kept door has an apron and a walk to paving
+  [[[-24.9, -13.8], [-23.7, -15.4]], 2.4],   // the hall's north-east door by the entrance court (at grade, onto the visitor lot)
+  [[[-9.1, -2.0], [-7.5, -4.2], [-5.4, -7.0]], 2.8],   // the hall's north-east door of the taller half: stoop, steps, a walk to the visitor lot
+  [[[-22.25, 10.4], [-23.9, 12.5]], 2.8],   // the hall's south door: stoop and steps down to the south drive
+  [[[50.6, -22.4], [50.3, -24.4], [52.6, -29.5], [52.8, -36.8]], 1.6],   // New House's north door to the parking court on Circle Drive (tiles: a stair and deck north of the door)
+  [[[-121.6, 94.6], [-119.5, 95.9], [-116.1, 109.3], [-110.9, 131.3]], 2.2],   // the service walk along the gym's west wall, from the car bays past its three service doors
+  [[[-144.4, 137.7], [-146.3, 138.7]], 2.2],   // Richardson Hall's door: apron to the quad path
+  [[[44.9, 8.3], [46.5, 8.05]], 2.2],   // Fine Arts east door: apron to the court walk
 ];
 export const PATIO = [-15, 27, 3.0];   // the round patio at the end of the terrace walk
-export const ENTR_COURT = [[-40.44, -0.4], [-34.89, 3.71], [-38.57, 8.69], [-44.14, 4.58]];   // the red tile forecourt at the foot of the hall's entrance steps
+export const ENTR_COURT = [[-40.44, -0.4], [-34.89, 3.71], [-36.9, 6.43], [-37.68, 6.24], [-44.44, 4.99]];   // the red tile forecourt at the foot of the hall's entrance steps (fix round 6: it ends on the drive's north edge, laid as real tile with a stone band on the join)
+// the organic garden's fenced plot and the sundial, measured on a nadir tiles shot (fix round 6): plot 10.7 x 7.5 m, bearing -5.6 deg; the dial 4 m across
+export const GARDEN = { cx: -64.5, cz: 17.0, w: 10.7, d: 7.5, ang: -5.6 };
+export const SUNDIAL = [-43.3, 21.7, 2.0];
 export const STEPS_WALK = [[-87.3, 18.4], [-86.6, 14.5], [-82.0, 9.5], [-73.5, 3.4]];   // from the head of the Alumni Steps up to the hall's south drive
 // the two tennis courts north of the Commons (one slab, courts side by side)
 export const TENNIS = { cx: -96.7, cz: -27.2, ang: 32.2, w: 36.6, d: 33.5 };

@@ -1,10 +1,11 @@
 # Branson campus: builder hand-off (keep current; commit with every milestone)
 
-Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 5 (after QA round 5, "close")
-is done and verified item by item; next = independent QA round 6, release test, deploy. Matched game | tiles sheets of this round (same pose,
-game side shot after the last code change): dev/shots/branson-v6/ (v6_cmp_NN_*.jpg per item group; g_* / t_* are the single frames; sh_*.jpg are
-eye-level game sheets; kbh_roof_grid.txt = game minus tiles roof heights on a 4 m grid, made by kbhcmp.py from kbh_game6.json / kbh_tiles6.json;
-nh_tiles6.json = New House heights; x/ holds the page helpers and pose lists). Tiles shots are Google imagery: never commit that folder.
+Campus id `branson` (The Branson School, 39 Fernhill Ave, Ross CA). Terrain campus. Still IN_REVIEW: fix round 6 (after QA round 6: both round-5
+blockers fixed, 12 new items) is done and verified item by item; next = independent QA round 7, release test, deploy. Matched game | tiles sheets of this
+round (same pose, game side shot after the last code change): dev/shots/branson-v7/ (cmp_n_* nadir pairs, cmp_o_* obliques, sh_*.jpg eye-level game
+sheets, ref_kw_bow.jpg = gridded tiles close-ups of the hall's bowed end, kbh_roof_cmp.txt = game minus tiles roof heights from kbhcmp7.py over
+kbh_g7c.json / kbh_t7.json (1 m), walks.txt = every `__walk` of the round, x/ = page helpers and pose lists; before_* = the state before the round).
+Tiles shots are Google imagery: never commit that folder.
 
 ## Frame and key coordinates (x east, z south, metres)
 - origin lat 37.96545, lon -122.56545; y = 0 is Tom Ryan Field (NAVD88 16.54 m; 3D-tiles surface = game height - 16.28, one constant)
@@ -30,12 +31,13 @@ osm.py -> sat.py -> (dev/branson-tiles.html __dumpHeights -> data/tile_heights.j
 - CTF: red (Bulls) [-189.5, -29.5] in campus.js, drawn by the engine at (-190, -29): IN the wood between the faculty car park's entrance and
   its west drive, 7 m south of the Fernhill hedge, on a leaf-litter floor (`LITTER`), three oaks 4-7 m from the flag; walked both ways from the
   lot, the west drive, the dry clearing, Fernhill and the wood below. Blue (Wildcats) [48, -28] (drawn at (48, -29); lawn north of New House).
-  236 m apart, 0 overlook cells each, both on nadir tiles. Cover (map check, 16 rays, 30 m): 0.50 / 0.50; 3 x 3 means at 0.5 m 0.49 / 0.49.
+  236 m apart, 0 overlook cells each, both on nadir tiles. Cover (map check, 16 rays, 30 m): 0.50 / 0.50 (0.62 / 0.50 on the round-6 run: the red figure moves with the parked cars); 3 x 3 means at 0.5 m 0.49 / 0.49.
   The point figure still moves a ray with the parked cars' random layout: scan with the map check's `__coverAt(x, z)`.
 - practice heli on the pitch (-33, 92); 14 candidates in campus.js, 12 placed (tennis courts, west lawns, Prize Day Field, the south-west corner, six on the pitch,
   one in the faculty car park on Fernhill at (-128, -41)); the spot in the tennis-shed car park is gone (that lot is full of cars now); spots are 30 m apart at least;
   sitework keeps trunks 11.5 m back from each
 - 32 FFA spawns, 10 per team; ladders on the flat roofs (Commons north wing, Fine Arts x2, Tallant); pitched roofs by grapple
+- doors with steps (fix round 6): Katharine Branson Hall's entrance (red tile), its north-east door of the taller part and its south door (stoop + 6 risers each, `doorStoop` in extras.js), all walked both ways (dev/shots/branson-v7/walks.txt)
 - stairs: the Alumni Steps = the red-brick flight running north-south down the bank, (-87.5, 19.0) -> (-88.3, 28.3), brick landing on the terrace, paved walk from its head up to the hall's south drive (kit.js STEPS_WALK); the Bridge. All walked both ways with `__walk` (dev/marin.html?campus=branson) at the end of fix round 4, with the steps walk, the arts court walks, the loop's north edge, Richardson Hall's east side and five approaches to the red base.
 
 ## Campus map tick list (branson.org/about/campus-map)
@@ -51,18 +53,29 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
 - [x] map check 0 fails incl. the new `facadePeaks` test (one warning: seating, below); Hinsdale / Hamilton pass, Marin 0 fails (its own old warnings); build passes; practice + a started CTF host match with 6 bots run without console errors
 - [x] QA round 5: items 1-15 fixed, each with a game | tiles pair (see MAP_NOTES.md "Fix round after the fifth QA")
 - [x] map check on the merged base (mounds / walkDesign included): 0 fails; warning: seating (below); `retaining` reports "skip" (no block registered: the pitch's south side falls to the creek, a ball-stop fence stands there); Hinsdale / Hamilton pass, Marin 0 fails; build passes
-- [ ] independent QA round 6, release test, deploy
+- [x] QA round 6: items 1-12 fixed, each with a game | tiles pair (see MAP_NOTES.md "Fix round after the sixth QA"); item 11 (the gym's south wall)
+  is left blank on purpose: it stands under closed canopy in every tiles view and no photo of it was found
+- [x] map check after round 6: 0 fails; warning: seating (the same four hillside houses); `retaining` skip; Hinsdale / Hamilton pass, Marin 0 fails; build passes;
+  practice + a started CTF host match with 6 bots run without console errors
+- [ ] independent QA round 7, release test, deploy
 
 ## Known weak spots (for QA / a successor)
 - base cover is 0.50 / 0.50 but the measure is noisy (2-10 rays of 16 within 10 m of the red base); real solid cover round red is the Fernhill hedge, trunks and parked cars, shrubs and low conifer sprays are not solid
-- Katharine Branson Hall's roof against the tiles (dev/shots/branson-v6/kbh_roof_grid.txt): 4 m grid mean |diff| 0.47 m, 2 cells over 1.6 m (an eave line on the north block,
-  the long wing's north-east eave at (-28, -14)). Left: the long wing's south-east half reads 0.8-1.0 m higher in the tiles on both slopes (its eave is ~15.3 there, the game keeps 14.4);
-  the hall's main floor is ~1.2 m above the south lawn in the tiles, the game's floor is at grade and only the entrance door is raised over its steps
+- Katharine Branson Hall's roof against the tiles (dev/shots/branson-v7/kbh_roof_cmp.txt): 1 m grid mean |diff| 0.38 m over the whole hall, 0.17 m over the taller
+  south-east part, 0.17 m over the white block; cells over 1.6 m are a tree over the link's west wall, a vent on the ridge, and the long wing's north-east
+  slope between u 16 and 26 (the tiles show a nearly flat strip at ~16.1 along that eave: not rebuilt)
+- the hall's floors: the south-east part's floor line is drawn 0.9 m above the pad (stoops and steps at its two doors). The tiles oblique from the south
+  shows the ground there 1.5-1.8 m BELOW the pad (a walk-out lower storey and a terrace with a rail at the south-east end): the game keeps the fill pad at
+  10.3, so that end reads one storey, and its end wall has no door (the tiles show no flight of steps)
+- doors (rule F47): the kit's default doors that no tiles view shows are removed (list `NO_DOOR` in school.js); the gym's three west service doors are
+  kept (generic facade kit, the wall is under canopy) with a service walk along the wall; New House's north door has a walk to the Circle Drive court
+  that passes 4 m east of the blue flag (the tiles show a stair and deck there, the rest of the route is under canopy)
+- the 13-14.9 m readings just west of the hall's bowed end (tiles height grid) are not built: both obliques show planting under the tree canopy there
 - the white block's facade (arch count, cornice) is read from two blurry obliques; its raised centre is blank as in the tiles; the walk from the terrace at the hall's south-east
   end to the visitor lot is read as steps + a walk from one nadir shot
 - New House is built from the height grid (main gable, two south gables, flat white block, cross gable, two dormers); its two small west gablets and the low east lean-to are not built
 - lawn tones: only four outlines are painted dry (the hall's south lawn, the bank north of the Commons, two beds at the loop); the rest keeps the baked green
-- the organic garden and the sundial stand ~2.5 m south of where the tiles show them (found this round, not moved)
+- the organic garden is the tiles' fenced plot (10.7 x 7.5 m) with six square beds; the real bed layout inside it is not resolved. The loop island is rounded but narrower than in the tiles
 - the cars on the loop's rim and in the gym drive's bays stand on the drive's grade (up to 1 in 7); the patio at the end of the terrace walk has two tables on one spot
 - the Alumni Steps are one flight; the tiles oblique suggests a second parallel brick flight or wall east of it (under the canopy, not resolved)
 - the yard shed's doors are read from blurry tiles
@@ -71,7 +84,7 @@ Branson Hall: built | 5 New House: built (grey, gabled, dormers) | 6 Douglas Fin
   above a wall's floor, the price of cut-only pads (no fill)
 - name boards stand at entrances; real sign positions unverified. New Oaks / Tallant naming inferred from the legend order
 - Fine Arts / New House keep their OSM positions (the Esri photo is sheared up to ~5 m there against the tiles)
-- the gym keeps the generic kit walls under brown siding; concrete pad blocks remain at two of its doors
+- the gym keeps the generic kit walls under brown siding; concrete pad blocks remain at two of its doors; its south wall (26 m) is blank: under closed canopy in the tiles, no photo found (F41 exception, stated)
 - creek: gravel paint + boulders in a grassed channel, dry (no water visible in the tiles)
 
 ## Marin

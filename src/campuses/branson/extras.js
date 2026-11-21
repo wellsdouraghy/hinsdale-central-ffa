@@ -39,25 +39,56 @@ export function stuccoWalls(ctx, ringIn, h, opts = {}) {
   if (ctx.terrain) { const plan = ctx.wallPlans ? ctx.wallPlans.get(ringKey(ring)) : null; (ctx.footprints = ctx.footprints || []).push({ id: opts.id || ringIn.id || ctx.siteName || null, ring, roof: base + h, floor: plan ? plan.maxLevel : base }); }   // map check: interior, fill
   const others = opts.others || []; const inAny = (x, z) => others.some((r) => r !== ringIn && pointIn(x, z, r));
   for (const F of outFrames(ring)) { if (F.L < 2.6) continue; const mx = F.ax + F.tx * F.L / 2, mz = F.az + F.tz * F.L / 2; if (inAny(mx + F.nx * 0.8, mz + F.nz * 0.8)) continue;
+    // (fix round 6) opts.per(F) -> { up, top }: this wall's floor stands `up` above the building's and its top `top` above h (a taller part of one footprint)
+    const per = opts.per ? opts.per(F) || {} : {}; const hW = h + (per.top || 0);
     // the floor this wall's openings stand on: the building's floor (opts.floor, local) or the ground at the wall, whichever is
     // higher, so no sill is ever below grade and no wall stays blank because the datum is lower than the ground here
-    let gw = -1e9; if (ctx.groundY) for (const t of [0.1, 0.5, 0.9]) gw = Math.max(gw, ctx.groundY(F.ax + F.tx * F.L * t + F.nx * 0.5, F.az + F.tz * F.L * t + F.nz * 0.5) - base); const f0 = Math.max(opts.floor || 0, gw > -1e8 ? gw : 0, 0);
+    let gw = -1e9; if (ctx.groundY) for (const t of [0.1, 0.5, 0.9]) gw = Math.max(gw, ctx.groundY(F.ax + F.tx * F.L * t + F.nx * 0.5, F.az + F.tz * F.L * t + F.nz * 0.5) - base); const f0 = Math.max((opts.floor || 0) + (per.up || 0), gw > -1e8 ? gw : 0, 0);
     // a wall whose ground lies well below the floor (a building on a bank): a plain base course from the ground up to the floor line
     // and no door hanging in the air (opts.plinth = colour)
     let gLow = 1e9; if (ctx.groundY) for (let t = 0.05; t <= 0.96; t += 0.1) gLow = Math.min(gLow, ctx.groundY(F.ax + F.tx * F.L * t + F.nx * 0.4, F.az + F.tz * F.L * t + F.nz * 0.4) - base); const hung = opts.plinth && gLow < 1e8 && f0 - gLow > 0.6;
-    if (hung) { const yb = Math.min(gLow, opts.y0 ?? -0.6) - 0.5, yt = f0 + 0.04; const c = F.P(F.L / 2, (yb + yt) / 2, 0.0); const bk = ctx.B.v(opts.bucket || 'stucco', true); bk.setColor(...opts.plinth); bk.box(c[0], c[1], c[2], F.L + 0.14, yt - yb, 0.14, F.rotY, 0.45); bk.setColor(1, 1, 1); }
-    const hh = h - f0; if (hh < 2.4) continue; const st = Math.max(1, Math.min(opts.storeys || 9, Math.round(hh / 3.3))); const fh = hh / st;
-    if (opts.glazedEnds && F.L < opts.glazedEnds && opts.gableGlass) { gableGlazing(ctx, F, f0 + 0.15, h, opts.gableRise || 0, { trim: [0.8, 0.8, 0.78] }); continue; }
+    if (hung) { const yb = Math.min(gLow, opts.y0 ?? -0.6) - 0.5, yt = f0 + 0.04; const bk = ctx.B.v(opts.bucket || 'stucco', true); bk.setColor(...opts.plinth); const o = 0.07, S = 0.45;   // (faces drawn from outside only: a box here showed its inner face to the roof-skin check's rays)
+      quadFacing(bk, F.P(-o, yb, o), F.P(F.L + o, yb, o), F.P(F.L + o, yt, o), F.P(-o, yt, o), [F.nx, 0, F.nz], [[0, yb * S], [F.L * S, yb * S], [F.L * S, yt * S], [0, yt * S]]); quadFacing(bk, F.P(-o, yt, 0), F.P(F.L + o, yt, 0), F.P(F.L + o, yt, o), F.P(-o, yt, o), [0, 1, 0]);
+      quadFacing(bk, F.P(-o, yb, 0), F.P(-o, yb, o), F.P(-o, yt, o), F.P(-o, yt, 0), [-F.tx, 0, -F.tz]); quadFacing(bk, F.P(F.L + o, yb, 0), F.P(F.L + o, yb, o), F.P(F.L + o, yt, o), F.P(F.L + o, yt, 0), [F.tx, 0, F.tz]); bk.setColor(1, 1, 1); }
+    const hh = hW - f0; if (hh < 2.4) continue; const st = Math.max(1, Math.min(opts.storeys || 9, Math.round(hh / 3.3))); const fh = hh / st;
+    if (opts.glazedEnds && F.L < opts.glazedEnds && opts.gableGlass) { gableGlazing(ctx, F, f0 + 0.15, hW, opts.gableRise || 0, { trim: [0.8, 0.8, 0.78] }); continue; }
     if (opts.glazedEnds && F.L < opts.glazedEnds) { archOpening(ctx, F, F.L / 2, f0 + 0.25, Math.min(F.L - 2.4, 7), Math.max(1.6, hh - 0.4 - Math.min(F.L - 2.4, 7) / 2 + (opts.gableRise || 0) * 0.6), { trim: [0.75, 0.75, 0.73], mullions: 5, bars: [f0 + 1.3, f0 + 2.4, f0 + 3.5] }); continue; }
-    const door = F.L > (opts.doorMin || 13) && !hung; const m = 1.0;
+    // Rule F47: a door only where the tiles or photos show one. The kit's default (a door on every wall over 13 m) is switched off per wall by
+    // opts.noDoor = [[x, z], ...] (a wall whose door would stand within 3 m of a listed point gets a window there instead). A door whose floor stands
+    // above the ground (opts.stoops, up to 2 m) gets a stoop and a flight of steps down to the ground instead of being dropped.
+    const m = 1.0; const nA = Math.max(1, Math.floor((F.L - 2 * m) / (opts.pitch || 2.7))); const uDoor = opts.arched ? m + (F.L - 2 * m) / nA * ((nA >> 1) + 0.5) : F.L / 2; const pD = F.P(uDoor, 0, 0);
+    const stoop = hung && opts.stoops && f0 - gLow < 2.0; const banned = (opts.noDoor || []).some(([x, z]) => Math.hypot(pD[0] - x, pD[2] - z) < 3);
+    const door = F.L > (per.doorMin || opts.doorMin || 13) && (!hung || stoop) && !banned; const note = (u) => { if (stoop) doorStoop(ctx, F, u, f0, { id: opts.id || ringIn.id, cheek: color }); else noteDoor(ctx, F, u, opts.id || ringIn.id); };
     for (let s = 0; s < st; s++) { const y = f0 + s * fh; const w = opts.w || 1.15, pitch = opts.pitch || 2.7;
-      if (s === 0 && opts.arched) { const n = Math.max(1, Math.floor((F.L - 2 * m) / pitch)); const stp = (F.L - 2 * m) / n; for (let k = 0; k < n; k++) { const u = m + stp * (k + 0.5); if (door && k === (n >> 1)) { archOpening(ctx, F, u, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); noteDoor(ctx, F, u, opts.id || ringIn.id); } else archOpening(ctx, F, u, y + 0.75, w, Math.min(1.75, fh - 1.9), { trim: opts.trim, mullions: 2, bars: [y + 1.6] }); } }
-      else { if (s === 0 && door) { archOpening(ctx, F, F.L / 2, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); noteDoor(ctx, F, F.L / 2, opts.id || ringIn.id); if (F.L / 2 - 1.6 - m > pitch) { tallRow(ctx, F, m, F.L / 2 - 1.6, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); tallRow(ctx, F, F.L / 2 + 1.6, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } }
+      if (s === 0 && opts.arched) { const n = Math.max(1, Math.floor((F.L - 2 * m) / pitch)); const stp = (F.L - 2 * m) / n; for (let k = 0; k < n; k++) { const u = m + stp * (k + 0.5); if (door && k === (n >> 1)) { archOpening(ctx, F, u, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); note(u); } else archOpening(ctx, F, u, y + 0.75, w, Math.min(1.75, fh - 1.9), { trim: opts.trim, mullions: 2, bars: [y + 1.6] }); } }
+      else { if (s === 0 && door) { archOpening(ctx, F, F.L / 2, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); note(F.L / 2); if (F.L / 2 - 1.6 - m > pitch) { tallRow(ctx, F, m, F.L / 2 - 1.6, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); tallRow(ctx, F, F.L / 2 + 1.6, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } }
         else tallRow(ctx, F, m, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } } }
   return ring;
 }
 /** Every door drawn on a school wall is noted (world position on the wall, the way out): grounds.js lays an apron and a walk at each (rule F8). */
 export const noteDoor = (ctx, F, u, id) => { const p = F.P(u, 0, 0); (ctx.doors = ctx.doors || []).push({ x: +p[0].toFixed(2), z: +p[2].toFixed(2), nx: +F.nx.toFixed(3), nz: +F.nz.toFixed(3), id: id || null }); };
+/**
+ * A door whose floor stands above the ground (fix round 6, rule F47): a stoop at the threshold and a straight flight down to the ground, in concrete with
+ * pale nosings, low rendered cheek walls each side; collision on the stoop and on the plane through the nosings (rule D18). yTop is the floor (local).
+ * The door is noted at the foot of the flight (grounds.js lays the walk from there).
+ */
+export function doorStoop(ctx, F, uc, yTop, o = {}) {
+  const { B } = ctx; const base = B.off ? B.off.y : 0; const w = o.w || 2.4, dep = o.stoop || 0.6, tr = o.tread || 0.28;   /* (a short stoop and 0.28 m treads: the hall's south drive runs 2.2 m from the wall) */ const P = (u, y, out) => F.P(uc + u, y, out);
+  const gAt = (d) => { const p = P(0, 0, d); return ctx.groundY(p[0], p[2]) - base; };
+  let n = Math.max(2, Math.ceil((yTop - gAt(dep + 1.6)) / 0.165)); let run = n * tr; let yFoot = gAt(dep + run + 0.3); n = Math.max(2, Math.ceil((yTop - yFoot) / 0.165)); run = n * tr; yFoot = gAt(dep + run + 0.3);   // (risers of 0.165 at most: the nosing plane stays under 31 deg, the controller stalls on 36)
+  const riser = (yTop - yFoot) / n, tread = run / n; const yLow = Math.min(yFoot, gAt(0.3), gAt(dep)) - 0.6; const mat = B.v(o.bucket || 'concrete'), col = B.c('concrete'), lime = B.v('limestone');
+  { const c = P(0, (yTop + yLow) / 2, dep / 2); mat.box(c[0], c[1], c[2], w + 0.5, yTop - yLow, dep, F.rotY, 1 / 3); col.box(c[0], c[1], c[2], w + 0.5, yTop - yLow, dep, F.rotY); }
+  for (let k = 0; k < n - 1; k++) { const yT = yTop - riser * (k + 1); const c = P(0, (yT + yLow) / 2, dep + tread * (k + 0.5)); mat.box(c[0], c[1], c[2], w, yT - yLow, tread + 0.02, F.rotY, 1 / 3); const q = P(0, yT + 0.006, dep + tread * (k + 1) - 0.04); lime.box(q[0], q[1], q[2], w, 0.012, 0.08, F.rotY, 1 / 3); }
+  quadFacing(col, P(-w / 2, yTop + 0.01, dep - 0.05), P(w / 2, yTop + 0.01, dep - 0.05), P(w / 2, yFoot + riser * 0.4, dep + run - tread), P(-w / 2, yFoot + riser * 0.4, dep + run - tread), [0, 1, 0]);
+  quadFacing(col, P(-w / 2, yFoot + riser * 0.4, dep + run - tread), P(w / 2, yFoot + riser * 0.4, dep + run - tread), P(w / 2, yFoot - 0.05, dep + run + 0.25), P(-w / 2, yFoot - 0.05, dep + run + 0.25), [0, 1, 0]);
+  const ck = o.cheek || CREAM; const L = dep + run;
+  for (const sd of [-1, 1]) { const u = sd * (w / 2 + 0.2); for (const bk of [B.v('stucco', true), col]) { if (bk.setColor) bk.setColor(ck[0], ck[1], ck[2]);
+      quadFacing(bk, P(u - 0.15, yTop + 0.55, 0), P(u + 0.15, yTop + 0.55, 0), P(u + 0.15, yFoot + 0.55, L), P(u - 0.15, yFoot + 0.55, L), [0, 1, 0]);
+      for (const s2 of [-0.15, 0.15]) quadFacing(bk, P(u + s2, yLow, 0), P(u + s2, yLow, L), P(u + s2, yFoot + 0.55, L), P(u + s2, yTop + 0.55, 0), [Math.sign(s2) * F.tx, 0, Math.sign(s2) * F.tz]);
+      quadFacing(bk, P(u - 0.15, yLow, L), P(u + 0.15, yLow, L), P(u + 0.15, yFoot + 0.55, L), P(u - 0.15, yFoot + 0.55, L), [F.nx, 0, F.nz]); if (bk.setColor) bk.setColor(1, 1, 1); } }
+  const foot = P(0, 0, L + 0.4); (ctx.doors = ctx.doors || []).push({ x: +foot[0].toFixed(2), z: +foot[2].toFixed(2), nx: +F.nx.toFixed(3), nz: +F.nz.toFixed(3), id: o.id || null, steps: n, rise: +(yTop - yFoot).toFixed(2) });
+  return { n, riser, tread, run, yFoot };
+}
 const pointIn = (x, z, r) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > z) !== (b[1] > z) && x < (b[0] - a[0]) * (z - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
 function tallRow(ctx, F, u0, u1, y0, y1, w, pitch) { const n = Math.max(0, Math.floor((u1 - u0) / pitch)); if (!n) return; const stp = (u1 - u0) / n; for (let k = 0; k < n; k++) { const u = u0 + stp * (k + 0.5); winRow(ctx, F, u - w / 2 - 0.05, u + w / 2 + 0.05, y0, y1, w, w); } }   // (one window: the span is a little over one pitch)
 const QF = (b, p0, p1, p2, p3, ua, ub, uc, ud) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2]; const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx]; if (n[0] * QF.n[0] + n[2] * QF.n[1] >= 0) b.quad(p0, p1, p2, p3, ua, ub, uc, ud); else b.quad(p0, p3, p2, p1, ua, ud, uc, ub); };
@@ -215,7 +246,7 @@ export function kerb(ctx, ringIn, opts = {}) {
   const ring = ensureCCW(ringIn); const w = opts.w || 0.22, hgt = opts.h || 0.12; const pt = ctx.B.v('paint', true); const col = opts.color || [0.5, 0.5, 0.48]; const g = (x, z) => ctx.groundY(x, z);
   for (const F of outFrames(ring)) { const n = Math.max(1, Math.ceil(F.L / 1.6));
     for (let k = 0; k < n; k++) { const u0 = F.L * k / n, u1 = F.L * (k + 1) / n, um = (u0 + u1) / 2; const px = F.ax + F.tx * um + F.nx * 0.9, pz = F.az + F.tz * um + F.nz * 0.9; const s = ctx.surfaceAt(px, pz);
-      if (!opts.all && (s === 'asphalt' || s === 'concrete')) continue; if (opts.skip && opts.skip(px, pz)) continue;
+      if (!opts.all && (s === 'asphalt' || s === 'concrete')) continue; if (opts.skip && opts.skip(px, pz)) continue; if (opts.off && opts.off(F.ax + F.tx * um, F.az + F.tz * um)) continue;   // (off: the kerb piece itself would lie on other paving, e.g. across a walk)
       const P = (u, o, dy) => { const x = F.ax + F.tx * u + F.nx * o, z = F.az + F.tz * u + F.nz * o; return [x, g(x, z) + dy, z]; };
       pt.setColor(col[0], col[1], col[2]); quadFacing(pt, P(u0, -w / 2, hgt), P(u1, -w / 2, hgt), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [0, 1, 0]);
       pt.setColor(col[0] * 0.8, col[1] * 0.8, col[2] * 0.8); quadFacing(pt, P(u0, w / 2, -0.05), P(u1, w / 2, -0.05), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [F.nx, 0, F.nz]); quadFacing(pt, P(u0, -w / 2, -0.05), P(u1, -w / 2, -0.05), P(u1, -w / 2, hgt), P(u0, -w / 2, hgt), [-F.nx, 0, -F.nz]); } }

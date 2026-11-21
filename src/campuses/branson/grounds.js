@@ -7,7 +7,7 @@ import { paintedQuad } from '../../world/fields.js';
 import { nameBoard, kerb, lineRing, plainBlock, WHITE, drapePoly } from './extras.js';
 import { lampPost, turfNoise, landmarkKit } from '../../world/landmarks.js';
 import { propKit } from '../../world/props.js';
-import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, LOOP_ISLAND_ROWS, LOT_ISLANDS, LOOP_SWALE, STEPS_WALK, WALKS, PATIO, ENTR_COURT, obb, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
+import { TERRACE, ARTS_PLAZA, ARTS_LAWN, ARTS_BRICK, LOOP_OUTER, PAVED_POLYS, PAVED_LINES, POOL, POOL_DECK, POOL_HOUSE, TERRACE_TABLES, LOOP_GARDEN, LOOP_ROWS, LOOP_ISLAND_ROWS, LOT_ISLANDS, LOOP_SWALE, STEPS_WALK, WALKS, PATIO, ENTR_COURT, GARDEN, SUNDIAL, obb, FIELD, TENNIS, along, fieldRing, tennisRing, retainRun, hedgeRun, buildStairs, isStreet, streetWidth } from './kit.js';
 
 const RAD = Math.PI / 180;
 // the Alumni Steps: from Katharine Branson Hall's south lawn down the bank to the car-park loop (graded in sitework)
@@ -15,6 +15,8 @@ const RAD = Math.PI / 180;
 export const ALUMNI_STEPS = [{ a: [-87.5, 19.0], b: [-88.3, 28.3], w: 2.4, brick: true, head: 3.6 }];   // the red-brick flight down the bank: north-south at x ~ -88, from the lawn walk (z 19) to the brick landing on the terrace (z 28.5): nadir tiles, QA round 4
 // open spots the car layout keeps free (flag bases and the practice pad are added by the builder)
 export const CAR_FREE = [[-112, 30]];
+// (fix round 6) stalls a door's walk lands on stay empty: [x, z, radius]
+const WALK_LANDINGS = [[-4.7, -8.0, 2.9]];
 export const SHED = obb(-154.2, -8.4, 11.6, 2.9, -46.5);   // the white storage shed on the north-west edge of the Commons' service yard
 // The Bridge over Ross Creek (campus map item 12): from the end of Park Drive (a) to the quad path (b); deck level y
 export const BRIDGE = { a: [-141.6, 89.6], b: [-147.4, 95.4], y: 1.13, w: 3.2 };   // deck level = the designed end of Park Drive (a pad 0.16 m above it was a hump on the road end: map check `mounds`)
@@ -56,8 +58,9 @@ function field(ctx) {
   // goals
   const cs = Math.cos(F.ang * RAD), sn = Math.sin(F.ang * RAD); const gw = along(F, -A, 0), ge = along(F, A, 0);
   landmarkKit.soccerGoal(ctx, gw[0], gw[1], Math.atan2(-cs, -sn)); landmarkKit.soccerGoal(ctx, ge[0], ge[1], Math.atan2(cs, sn));
-  // South side: the pitch is cut into the toe of the wooded hill. A retaining wall (terraced, planted) holds the bank
-  // 2 m outside the turf; where there is no bank to hold, a black ball-stop fence.
+  // South side: the pitch is NOT cut into a hill; its south side falls to Ross Creek, which runs behind it (the wooded hill starts beyond the creek).
+  // So the run below finds no bank to hold (map check `retaining`: skip) and a black ball-stop fence stands 2 m outside the turf; a retaining panel
+  // is built only where the ground really stands above the pitch.
   const R2 = fieldRing(2.0); const south = [R2[3], R2[2]];
   const nRet = (ctx.retaining || []).length; const panels = retainRun(ctx, south, [F.cx, F.cz], { d: 4.7, frontY: 0, min: 0.7 });
   for (let k = nRet; k < (ctx.retaining || []).length; k++) ctx.retaining[k].allowTall = true;   // the pitch's wall: terraced wherever the bank lets a tread in, one taller riser where the toe of the hill is too steep for one
@@ -104,7 +107,7 @@ function tennis(ctx) {
 function vehicles(ctx) {
   const { playBounds: pb } = ctx; const rnd = mulberry32(1920);
   const tpls = [propKit.buildCarTemplate(propKit.CAR_TYPES.suv), propKit.buildCarTemplate(propKit.CAR_TYPES.sedan), propKit.buildCarTemplate(propKit.CAR_TYPES.hatch)];
-  const keep = ctx.keepClear || []; const trunks = ctx.gen.trees || []; const placed = []; let n = 0; const S = ctx.streets;
+  const keep = [...(ctx.keepClear || []), ...WALK_LANDINGS]; const trunks = ctx.gen.trees || []; const placed = []; let n = 0; const S = ctx.streets;
   let loose = false; const car = (x, z, heading, fill = 0.7) => {
     const r1 = rnd(), r2 = rnd(), r3 = rnd(), r4 = rnd(); if (r4 > fill) return;
     if (x < pb.minX + 3 || x > pb.maxX - 3 || z < pb.minZ + 3 || z > pb.maxZ - 3) return;
@@ -197,16 +200,16 @@ function streetscape(ctx) {
 }
 
 // ------------------------------------------------------------------------------------------ dining terrace, steps
-/** A white market umbrella over a terrace table (nadir tiles and the school's photos: every table has one): pole, eight-gore canopy, a thin collision slab. */
+/** A market umbrella at a terrace table, CLOSED (fix round 6: the nadir tiles show the nine tables dark and bare, no open white canopies): a pole
+ * with the furled charcoal canopy strapped round it; collision on the pole only. */
 function umbrella(ctx, x, z, y) {
-  const { B } = ctx; B.v('blackMetal').cyl(x, y, z, 0.03, 0.03, 2.55, 6, 1, true); const pt = B.v('paint', true); const R = 1.45, n = 8, yr = y + 2.12, ya = y + 2.58;
-  for (let k = 0; k < n; k++) { const a0 = k / n * Math.PI * 2 + 0.39, a1 = (k + 1) / n * Math.PI * 2 + 0.39; const p0 = [x, ya, z], p1 = [x + Math.cos(a0) * R, yr, z + Math.sin(a0) * R], p2 = [x + Math.cos(a1) * R, yr, z + Math.sin(a1) * R];
-    const v = k % 2 ? 0.86 : 0.8; pt.setColor(v, v * 0.985, v * 0.95); pt.tri(p0, p2, p1); pt.setColor(v * 0.72, v * 0.71, v * 0.69); pt.tri(p0, p1, p2); }
-  pt.setColor(1, 1, 1); B.c('wood').box(x, y + 2.03, z, 2.5, 0.12, 2.5, 0.39); B.c('metal').box(x, y + 1.6, z, 0.08, 1.3, 0.08);
+  const { B } = ctx; B.v('blackMetal').cyl(x, y, z, 0.03, 0.03, 2.5, 6, 1, true); const pt = B.v('paint', true);
+  pt.setColor(0.17, 0.18, 0.2); pt.cyl(x, y + 1.05, z, 0.13, 0.055, 1.3, 8, 1, true); pt.setColor(0.1, 0.1, 0.11); pt.cyl(x, y + 1.5, z, 0.11, 0.11, 0.05, 8, 1, true);
+  pt.setColor(1, 1, 1); B.c('metal').box(x, y + 1.25, z, 0.1, 2.5, 0.1);
 }
 function campusLife(ctx) {
   const { B } = ctx;
-  // the Commons' dining terrace: tables under white market umbrellas (the imagery shows about ten)
+  // the Commons' dining terrace: nine tables, each with its (closed) market umbrella
   const y = ctx.terraceY ?? gY(ctx, -106, 31);
   for (const [x, z] of TERRACE_TABLES) {
     propKit.picnicTable(ctx, x, z, 0.724); umbrella(ctx, x, z, y);
@@ -307,8 +310,10 @@ function rocks(ctx) {
 function paving(ctx) {
   const { B } = ctx; const uv = (x, z) => [x / 3, z / 3];
   const inB = (x, z) => (ctx.buildingRings || []).some((r) => pointInRing(x, z, r));
-  for (const r of [...PAVED_POLYS, LOOP_OUTER]) kerb(ctx, r, { skip: inB });
-  for (const [pts, w] of PAVED_LINES) kerb(ctx, lineRing(pts, w));
+  // (fix round 6: no kerb piece across a walk, and none of a walk's own kerb on a car park or on another walk)
+  const walkRings = WALKS.map(([pts, w]) => lineRing(pts, w + 0.1)); const onWalk = (x, z, not = -1) => walkRings.some((r, i) => i !== not && pointInRing(x, z, r)); const onLot = (x, z) => [...PAVED_POLYS, LOOP_OUTER].some((r) => pointInRing(x, z, r));
+  for (const r of [...PAVED_POLYS, LOOP_OUTER]) kerb(ctx, r, { skip: inB, off: (x, z) => onWalk(x, z) });
+  for (const [pts, w] of PAVED_LINES) kerb(ctx, lineRing(pts, w), { off: (x, z) => onWalk(x, z) });
   for (const [x, z, r] of LOT_ISLANDS) kerb(ctx, Array.from({ length: 10 }, (_, k) => [x + Math.cos(k / 10 * 6.2832) * r, z + Math.sin(k / 10 * 6.2832) * r]), { all: true, h: 0.14, w: 0.24 });
   // the loop's north edge against the dining terrace: a red-brick band kerb (nadir tiles), and the paved walk from the head of the steps
   kerb(ctx, lineRing([LOOP_OUTER[0], LOOP_OUTER[1], LOOP_OUTER[2], LOOP_OUTER[3], [-86.6, 35.2]], 0.3), { all: true, h: 0.1, w: 0.12, color: [0.5, 0.27, 0.21] });
@@ -320,9 +325,13 @@ function paving(ctx) {
   kerb(ctx, LOOP_GARDEN, { all: true, h: 0.16, w: 0.28 });
   // fix round 5 (F8 / F42): every door's apron and walk, the lane along the hall's east wall, the terrace at its south-east end and the walk from the
   // Bridge are painted as paving in the ground mask (tools/data/extra.py WALKS) and get a low hard edge here; the hall's red tile forecourt too
-  for (const [pts, w] of WALKS) kerb(ctx, lineRing(pts, w), { h: 0.04, w: 0.12, color: [0.6, 0.57, 0.5], skip: inB });
+  // (fix round 6, F42: a walk only painted in the mask met asphalt on a blurred edge. Every walk is laid as real pavers over its painted strip, a
+  // flush stone band closes each end that lands on asphalt, and the kerb runs along its grass sides)
+  const band = (pts) => kerb(ctx, lineRing(pts, 0.1), { all: true, h: 0.045, w: 0.1, color: [0.62, 0.6, 0.55] });
+  WALKS.forEach(([pts, w], wi) => { drapePoly(ctx, B.v('maPaver'), lineRing(pts, w + 0.16), 0.036, uv); kerb(ctx, lineRing(pts, w), { h: 0.04, w: 0.12, color: [0.6, 0.57, 0.5], skip: inB, off: (x, z) => onWalk(x, z, wi) || onLot(x, z) });
+    for (const [e, q] of [[pts[0], pts[1]], [pts[pts.length - 1], pts[pts.length - 2]]]) { const d = Math.hypot(e[0] - q[0], e[1] - q[1]) || 1, tx = (e[0] - q[0]) / d, tz = (e[1] - q[1]) / d; if (ctx.surfaceAt(e[0] + tx * 0.7, e[1] + tz * 0.7) !== 'asphalt' || inB(e[0] + tx * 0.7, e[1] + tz * 0.7) || onWalk(e[0] + tx * 0.7, e[1] + tz * 0.7, wi)) continue; band([[e[0] - tz * (w / 2 + 0.1) + tx * 0.05, e[1] + tx * (w / 2 + 0.1) + tz * 0.05], [e[0] + tz * (w / 2 + 0.1) + tx * 0.05, e[1] - tx * (w / 2 + 0.1) + tz * 0.05]]); } });
   kerb(ctx, Array.from({ length: 14 }, (_, k) => [PATIO[0] + Math.cos(k / 14 * 6.2832) * PATIO[2], PATIO[1] + Math.sin(k / 14 * 6.2832) * PATIO[2]]), { h: 0.04, w: 0.12, color: [0.6, 0.57, 0.5] });
-  kerb(ctx, ENTR_COURT, { h: 0.05, w: 0.16, color: [0.5, 0.3, 0.24], skip: inB });
+  drapePoly(ctx, B.v('brickRed'), ENTR_COURT, 0.04, (x, z) => [x / 2.2, z / 2.2]); kerb(ctx, ENTR_COURT, { h: 0.05, w: 0.16, color: [0.5, 0.3, 0.24], skip: inB }); band([ENTR_COURT[2], ENTR_COURT[3], ENTR_COURT[4]]);   // (real red tile up to the drive's edge, a pale stone band on the join)
   for (const [x, z, len, rot] of [[-43.9, 2.4, 2.6, 0.93], [-36.6, 4.6, 2.2, -0.64], [-34.6, 5.6, 1.6, -0.64]]) ctx.shrubs.push([x, gY(ctx, x, z) + 0.02, z, len, 1.05, rot]);   // the clipped shrubs either side of the entrance steps
   for (const [x, z, r] of [[-14.2, 26.0, 0.5], [-16.1, 27.6, -0.4]]) propKit.picnicTable(ctx, x, z, r);   // the round patio's tables
   { const y = (ctx.terraceY ?? gY(ctx, -106, 31)) + 0.03; B.v('maPaver').poly(TERRACE, null, y, uv); kerb(ctx, TERRACE, { h: 0.06, w: 0.3, color: [0.56, 0.54, 0.5] }); B.v('brickRed').poly([[-92.0, 28.5], [-87.1, 28.7], [-86.9, 31.8], [-91.6, 31.5]], null, y + 0.015, (x, z) => [x / 2.2, z / 2.2]); }   // (the brick landing at the foot of the Alumni Steps)
@@ -335,8 +344,11 @@ function landmarks(ctx) {
   const { B } = ctx;
   // the blue apron strip along the gym (nadir tiles)
   if (ctx.gline) ctx.gline(-86.2, 104.5, -82.4, 124.5, 1.1, [0.1, 0.25, 0.6]);
-  // the lawn sundial south of Katharine Branson Hall (nadir tiles: a pale stone disc ~3 m across with a gnomon)
-  { const x = -41.6, z = 20.4; atGround(ctx, x, z, () => { B.v('limestone').cyl(x, -0.2, z, 1.6, 1.6, 0.42, 20, 1 / 3, true); B.c('concrete').cyl(x, -0.2, z, 1.6, 1.6, 0.42, 10, 1, true); const pt = B.v('paint', true); pt.setColor(0.42, 0.33, 0.2); pt.tri([x - 0.03, 0.22, z + 0.7], [x - 0.03, 1.0, z - 0.5], [x - 0.03, 0.22, z - 0.5]); pt.tri([x + 0.03, 0.22, z - 0.5], [x + 0.03, 1.0, z - 0.5], [x + 0.03, 0.22, z + 0.7]); pt.setColor(1, 1, 1); propKit.registerProp(ctx, 'sundial', x, z, 0, 3.2, 3.2, 0.3); }, 1.7, 'max'); }
+  // the lawn sundial south of Katharine Branson Hall (nadir tiles, fix round 6: a pale stone disc 4 m across at (-43.3, 21.7) with a slender
+  // gnomon rod that throws a shadow several metres long: an inclined rod toward the north at the latitude angle, on two struts)
+  { const [x, z, r] = SUNDIAL; atGround(ctx, x, z, () => { B.v('limestone').cyl(x, -0.2, z, r, r, 0.42, 24, 1 / 3, true); B.c('concrete').cyl(x, -0.2, z, r, r, 0.42, 12, 1, true);
+      const m = B.v('blackMetal'); const a = [x, 0.22, z + 1.0], b = [x, 2.42, z - 1.8]; m.tube(a, b, 0.035, 6, 1); m.tube([x - 0.5, 0.22, z - 0.9], [x, 1.63, z - 0.8], 0.02, 5, 1); m.tube([x + 0.5, 0.22, z - 0.9], [x, 1.63, z - 0.8], 0.02, 5, 1);
+      B.c('metal').box(x, 1.0, z - 0.75, 0.9, 1.6, 0.12); propKit.registerProp(ctx, 'sundial', x, z, 0, 2 * r, 2 * r, 0.3); }, r + 0.1, 'max'); }
   // the sculpture on the brick square of the arts court (nadir tiles: a dark, open, spindly metal piece ~2.5 m across, lower than
   // a person; no photo of it found): three dark bronze bars leaning into an open tripod with a ring, on the bricks, no plinth
   { const x = 38.7, z = -4.3; atGround(ctx, x, z, () => { const m = B.v('blackMetal'); const ft = [[-1.15, 0.5], [1.05, 0.75], [0.1, -1.2]], ap = [[0.35, 1.75, 0.1], [-0.3, 1.55, -0.2], [0.05, 1.95, 0.3]];
@@ -353,20 +365,23 @@ function landmarks(ctx) {
 
 // ------------------------------------------------------------------------------------------ name boards, the organic garden
 // One board per named item of the school's campus map (branson.org/about/campus-map: the legend is the source of every name),
-// standing by that building's entrance. Skipped if the spot is on a road or in a footprint.
+// standing by that building's entrance, beside the door and never in front of it (rule F47; QA round 6 moved the Music Hall's to the lawn
+// east of its real north door and New Oaks' across the quad path, 5 m to the side of the door). Skipped if the spot is on a road or in a footprint.
 const BOARDS = [
-  [-9.5, -5.5, -36, ['KATHARINE', 'BRANSON HALL']], [-97, 24.5, 40, ['THE COMMONS']], [26, 14, 90, ['DOUGLAS', 'FINE ARTS CENTER']], [62, 25.5, 9, ['MAXWELL', 'MUSIC HALL']],
+  [-13.4, -7.2, -36, ['KATHARINE', 'BRANSON HALL']], [-97, 24.5, 40, ['THE COMMONS']], [26, 14, 90, ['DOUGLAS', 'FINE ARTS CENTER']], [64.3, 7.3, 189, ['MAXWELL', 'MUSIC HALL']],
   [47.5, 2.2, 15, ['NEW HOUSE']], [30, -44, -20, ['CROSSWAYS']], [-86.5, 70.5, 12, ['GYM COMPLEX']], [-40, 61, 9, ['TOM RYAN FIELD']],
-  [-155.5, 108, 60, ['STUDY HALL']], [-153.8, 124, 65, ['RICHARDSON HALL']], [-162.9, 149.9, -45, ['NEW OAKS']], [-146, 155.3, 0, ['TALLANT', 'SCIENCE CENTER']],
-  [-91.4, 29.4, 20, ['ALUMNI STEPS']], [-64, 13.2, 0, ['ORGANIC GARDEN']],
+  [-155.5, 108, 60, ['STUDY HALL']], [-153.8, 124, 65, ['RICHARDSON HALL']], [-164.0, 144.2, -45, ['NEW OAKS']], [-146, 155.3, 0, ['TALLANT', 'SCIENCE CENTER']],
+  [-91.4, 29.4, 20, ['ALUMNI STEPS']], [-60.6, 11.9, 180, ['ORGANIC GARDEN']],
 ];
 function boards(ctx) {
   const S = ctx.streets; let n = 0;
   for (const [x, z, deg, lines] of BOARDS) { if ((S && S.inRoad(x, z, 1.2)) || (ctx.buildingRings || []).some((r) => pointInRing(x, z, r)) || (ctx.gen.trees || []).some((t) => Math.hypot(t[0] - x, t[1] - z) < 1.6)) { console.warn('[branson] name board skipped', lines.join(' '), x, z); continue; } nameBoard(ctx, x, z, deg, lines); n++; }
   ctx.boardCount = n;
-  // Organic Garden (campus map item 9): raised timber beds on Katharine Branson Hall's south-west lawn (nadir tiles)
-  const pt = ctx.B.v('paint', true);
-  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { const x = -66.5 + i * 2.6, z = 16.6 + j * 4.2; atGround(ctx, x, z, () => { pt.setColor(0.42, 0.3, 0.2).box(x, 0.2, z, 1.3, 0.5, 3.2, 0.1); pt.setColor(0.22, 0.34, 0.14).box(x, 0.47, z, 1.1, 0.06, 3.0, 0.1); pt.setColor(1, 1, 1); ctx.B.c('wood').box(x, 0.2, z, 1.3, 0.5, 3.2, 0.1); propKit.registerProp(ctx, 'bed', x, z, 0.1, 1.3, 3.2, 0.5); }, 1.6, 'min'); }
+  // Organic Garden (campus map item 9), fix round 6 from a nadir tiles shot: a fenced plot of 10.7 x 7.5 m on the hall's south-west lawn, bark mulch
+  // (painted by tools/ground_fix.py), six square raised beds in two rows, a low wire fence with a gate on the north and the south side
+  const pt = ctx.B.v('paint', true); const Gd = GARDEN, rot = -Gd.ang * RAD;
+  for (let i = 0; i < 3; i++) for (let j = 0; j < 2; j++) { const [x, z] = along(Gd, (i - 1) * 3.3, (j - 0.5) * 3.3); atGround(ctx, x, z, () => { pt.setColor(0.42, 0.3, 0.2).box(x, 0.2, z, 2.5, 0.5, 2.2, rot); pt.setColor(0.07, 0.12, 0.045).box(x, 0.47, z, 2.3, 0.06, 2.0, rot); pt.setColor(1, 1, 1); ctx.B.c('wood').box(x, 0.2, z, 2.5, 0.5, 2.2, rot); propKit.registerProp(ctx, 'bed', x, z, rot, 2.5, 2.2, 0.5); }, 1.7, 'min'); }
+  { const R = obb(Gd.cx, Gd.cz, Gd.w, Gd.d, Gd.ang); hillFence(ctx, [...R, R[0]], { h: 1.2, black: true, every: 3, gaps: [[Gd.w / 2 - 0.8, Gd.w / 2 + 0.8], [Gd.w + Gd.d + Gd.w / 2 - 0.8, Gd.w + Gd.d + Gd.w / 2 + 0.8]] }); }
 }
 
 export function buildGrounds(ctx) {

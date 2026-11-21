@@ -1239,3 +1239,28 @@ in CAMPUSES.md "Terrain"). Campuses without it stay exactly flat at y = 0. Marin
     flat top, groups of one large and a few small stones at irregular intervals across the whole bed.
   - *Shared dev tabs and servers:* another agent can navigate your browser tab or merge into the checkout while you work (vite reloads, 504 on new
     optimised deps: restart your server). Open your own tab per page, re-import helpers after every reload, and never commit during someone else's merge.
+- **Fix round after the sixth QA (a door onto a bank, a bowed end read wrong, a wing 0.9 m low, doors onto grass):**
+  - *The door default is the bug, not the missing apron.* `stuccoWalls` put a door on every wall over 13 m; nine of them faced a bank, a bed or closed canopy.
+    Decide per door from a nadir tiles shot (is there a walk to it?) and keep a list of the ones that go (`NO_DOOR`, matched by position within 3 m);
+    every kept door gets its walk in `WALKS` (kit.js + tools/data/extra.py) in the same commit. The map check does not test this: print
+    `registry.notes.doors` with the surface class 0.5 / 2 / 4 m out and the ground drop over 1.5 m and 6 m.
+  - *A height grid and a photo of the same roof can be read as two different buildings.* The reviewer and the builder both took the 13-14.9 m cells west
+    of the hall for "a lower curved bay"; a bay was built, then a gridded nadir close-up (fov 14, a 2 m grid drawn on it) and two obliques showed the
+    white half-round IS the 15.7 block's own end and the low cells are planting under a tree. Before building from a grid, draw the grid ON the photo.
+  - *A wing that is uniformly low on both slopes is a taller part, not a wrong pitch.* Cross-sections every 2-4 m in the wing's own frame (u along, v across)
+    showed the eave line 0.8 m and the ridge 0.9 m higher from u 25 on, and the nadir's hip lines showed where that part's own hip rises out of the lower
+    roof. Build it as its own walls + its own `ridgeRoof`; let the lower ridge run on into it. Mean |diff| there went 0.86 -> 0.17 m.
+  - *One footprint, two floor lines:* `stuccoWalls` takes `per(F)` (floor and top offsets for a wall); insert a vertex where the part changes so the kit lays
+    out each piece on its own (and so the door of each piece lands where the tiles show the steps). A door whose floor is above the ground gets a stoop and
+    steps (`doorStoop`), noted at its foot. Keep risers at 0.165 or less: the nosing plane of a 0.18 / 0.28 flight is 36 deg and the controller stalls on it.
+  - *Roof-skin "open" rays after a facade change:* (1) a box used as a base course shows its inner face to rays from the attic: draw base courses as
+    outward quads; (2) two rings that share a party wall must share the SAME vertices (a literal 6 cm off the county vertex failed a cell); (3) `ridgeRoof`
+    has no ceiling: the wall prism's cap must cover the roof's plan.
+  - *A walk painted in the mask has a blurred end on asphalt* (4 px / m, plus the macro photo's own blur, bleeds its tone ~0.5 m). Lay every walk as real
+    draped pavers over its painted strip, keep the mask tone under coloured paving neutral (the red forecourt's paint bled onto the drive), and stop
+    kerbs from crossing walks (`kerb` `off`). Keep the stall a walk lands on empty.
+  - *Closed is a state too:* the tiles show the terrace tables without canopies: umbrellas are furled poles now. Gnomons, gates and fences come from the
+    same nadir shot as the outline (the sundial's 9 m shadow gave the inclined rod; the garden's dark outline gave its fence).
+  - *vite 504 on a dynamically imported game module* (map check `bots`: "Failed to fetch dynamically imported module") is the shared node_modules
+    re-optimising under another agent's server: restart your own server, do not debug the module. And never dump a served module's source in a tool
+    result: vite inlines `import.meta.env`, API key included.

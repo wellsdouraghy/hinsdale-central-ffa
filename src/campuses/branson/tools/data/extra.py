@@ -44,7 +44,7 @@ PAVED = [
 # The car-park loop (nadir tiles, 12.5 px/m): a one-way lane round an island whose north half is a boulder garden and whose
 # south half is a stall row; a second stall row on the outer south-east kerb. Asphalt = LOOP_OUTER minus LOOP_GARDEN.
 LOOP_OUTER = [[-106.8, 44.4], [-101.6, 40.8], [-95.2, 37.2], [-87.2, 35.2], [-75.2, 35.6], [-66.4, 37.8], [-62.4, 39.8], [-68.4, 45.2], [-67.6, 48.3], [-66.0, 51.0], [-66.5, 55.4], [-68.1, 59.4], [-71.1, 62.5], [-74.4, 65.0], [-77.7, 67.1], [-81.3, 68.7], [-85.0, 69.8], [-89.0, 70.2], [-93.1, 69.6], [-95.6, 66.0], [-101.6, 65.3], [-107.2, 62.4], [-109.7, 58.0], [-110.4, 53.2], [-109.2, 47.6]]
-LOOP_GARDEN = [[-103.6, 51.6], [-100.8, 47.6], [-95.2, 44.0], [-87.2, 41.6], [-80.0, 42.0], [-76.2, 45.6], [-77.6, 47.2], [-84.0, 49.2], [-88.0, 51.6], [-92.0, 53.6], [-98.4, 56.0], [-102.8, 54.8]]
+LOOP_GARDEN = [[-100.0, 47.1], [-95.8, 44.5], [-90.2, 42.5], [-86.4, 41.8], [-82.7, 41.8], [-79.6, 42.5], [-77.1, 43.6], [-76.3, 44.3], [-75.8, 45.1], [-75.7, 45.9], [-75.9, 46.7], [-76.5, 47.4], [-77.6, 48.0], [-82.8, 49.1], [-85.5, 50.1], [-90.5, 52.9], [-98.8, 56.0], [-101.9, 56.4], [-103.3, 55.9], [-104.2, 54.7], [-104.5, 52.3], [-103.7, 50.5]]   # (fix round 6: rounded ends)
 # the Commons' dining terrace: a paved stone plaza between the hall's south-east end and the loop
 TERRACE = [[-120.4, 26.4], [-112.4, 17.6], [-108.0, 21.2], [-103.2, 23.6], [-98.4, 27.2], [-92.5, 28.2], [-87.0, 28.5], [-86.6, 35.2], [-95.2, 37.2], [-101.6, 40.8], [-106.8, 44.4], [-109.6, 42.0], [-115.2, 34.0]]
 # the paved court between New House and the Fine Arts studios, its lawn panel and the brick square with the sculpture
@@ -75,20 +75,26 @@ POOL_HOUSE = [[-195, -58], [-188, -58], [-188, -54], [-195, -54]]
 # lawns and beds that are dry gold in the (summer) tiles, as (outline, tone); the faculty car park is pale grey paving
 WALKS = [
     ([[-17.9, -36.5], [-16.2, -40], [-15.8, -48], [-16.6, -56], [-17.8, -61.5]], 2.6),   # the lane along the hall east wall
-    ([[-22.3, 10.6], [-24.9, 13.9]], 2.0),   # the hall south door
     ([[2.6, 6.4], [-7, 18.6]], 3.2),   # the terrace along the hall south-east end
     ([[-7, 18.6], [-12, 23.5], [-15, 26.6]], 2.6),   # its walk to the round patio
     ([[2.6, 6.4], [5.5, 1.5], [7, -1.8]], 2.0),   # from the terrace to the visitor lot
-    ([[-15.3, -7.0], [-14.2, -8.5]], 2.4),   # the hall north-east door
     ([[-44.7, -48.5], [-46.8, -48.2]], 2.4),   # north block, west door
     ([[-28.1, -63.9], [-26.9, -65.5], [-21.5, -63.6], [-17.9, -61.3]], 1.8),   # north block, north-east door
     ([[-19.9, -50.1], [-16.2, -50.5]], 2.2),   # north block, east door
     ([[-24.4, -34.7], [-23.5, -34.0], [-21.4, -36.7], [-19.3, -36.9]], 1.8),   # north block, court door
     ([[60.2, 10.2], [60.0, 8.6], [52, 7.4], [46.4, 6.9]], 1.8),   # Music Hall north door
     ([[-147.4, 95.4], [-151, 101], [-157, 110], [-159, 115]], 2.4),   # from the Bridge to the quad
+    ([[-24.9, -13.8], [-23.7, -15.4]], 2.4),   # the hall's north-east door by the entrance court (at grade, onto the visitor lot)
+    ([[-9.1, -2.0], [-7.5, -4.2], [-5.4, -7.0]], 2.8),   # the hall's north-east door of the taller half: stoop, steps, a walk to the visitor lot
+    ([[-22.25, 10.4], [-23.9, 12.5]], 2.8),   # the hall's south door: stoop and steps down to the south drive
+    ([[50.6, -22.4], [50.3, -24.4], [52.6, -29.5], [52.8, -36.8]], 1.6),   # New House's north door to the parking court on Circle Drive (tiles: a stair and deck north of the door)
+    ([[-121.6, 94.6], [-119.5, 95.9], [-116.1, 109.3], [-110.9, 131.3]], 2.2),   # the service walk along the gym's west wall, from the car bays past its three service doors
+    ([[-144.4, 137.7], [-146.3, 138.7]], 2.2),   # Richardson Hall's door: apron to the quad path
+    ([[44.9, 8.3], [46.5, 8.05]], 2.2),   # Fine Arts east door: apron to the court walk
 ]
 PATIO = (-15, 27, 3.0)
-ENTR_COURT = [[-40.44, -0.4], [-34.89, 3.71], [-38.57, 8.69], [-44.14, 4.58]]
+ENTR_COURT = [[-40.44, -0.4], [-34.89, 3.71], [-36.9, 6.43], [-37.68, 6.24], [-44.44, 4.99]]
+GARDEN = dict(cx=-64.5, cz=17.0, w=10.7, d=7.5, ang=-5.6)   # the organic garden's fenced plot (bark mulch)
 DRY_LAWNS = [
     ([(-72, 5.5), (-60, 4), (-52, 6.5), (-44, 9), (-36, 10), (-30, 12), (-25, 16), (-19, 23), (-17, 30), (-30, 36), (-50, 34), (-70, 28), (-84, 20), (-80, 10)], (110, 116, 70)),   # the hall's south lawn: mown, pale olive
     ([(-150, -24), (-128, -30), (-116, -30), (-112, -12), (-122, -2), (-138, -16), (-146, -10)], (138, 126, 90)),   # the bank between the faculty car park and the Commons

@@ -89,7 +89,7 @@ n_g, n_a = int(to_g.sum() / ppm ** 2), int(to_a.sum() / ppm ** 2)
 paint(to_g, GRASS, T_GRASS)
 # fix round 5: lawns and beds that are dry gold in the (summer) tiles keep the lawn class and take a pale olive / gold tone (soft edges)
 for pts, tn in extra.DRY_LAWNS: paint(poly_mask(pts) & ~bld & (mask[..., 0] < 128) & (mask[..., 1] < 128) & (mask[..., 3] > 128), GRASS, np.array(tn, np.float32), 2)
-paint(court, CONC, np.array((150, 90, 72), np.float32), 1, True)   # the red tile forecourt of the hall's entrance (the drive is painted over its south edge)
+paint(court, CONC, np.array((150, 144, 136), np.float32), 1, True)   # the forecourt of the hall's entrance: neutral paving under the real red tiles the builder lays (a red tone here bled over the drive's edge)
 paint(strict & lots, ASPH, T_ASPH, 2, True)
 # the school's own drives are pale concrete in the tiles (Park Drive from the gate to the Bridge, the loop, the gym service drive), not dark asphalt:
 # same class (cars, kerbs and the street painter read 'asphalt'), the photo tone the shader takes its colour from made pale
@@ -111,6 +111,7 @@ paint(garden, DIRT, np.array((150, 128, 98), np.float32), 2, True)              
 paint(line_mask(*extra.LOOP_SWALE) & garden, DIRT, np.array((176, 170, 158), np.float32), 2, True)   # ...with a dry creek of pale cobbles
 for pts in extra.DRY: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((158, 134, 92), np.float32), 3)   # the dry clearing in the wood west of the faculty lot                    # the island's boulder garden: mulch
 for pts in extra.LITTER: paint(poly_mask(pts) & ~streets & ~lots, DIRT, np.array((122, 108, 78), np.float32), 3)   # the wood floor round the red base: leaf litter, not lawn
+Gd = extra.GARDEN; paint(poly_mask(extra.obb(Gd['cx'], Gd['cz'], Gd['w'], Gd['d'], Gd['ang'])) & ~bld, DIRT, np.array((128, 98, 80), np.float32), 2, True)   # the organic garden's fenced plot: bark mulch between the raised beds
 print('play area: %d m2 of false paving -> lawn, %d m2 of car park filled in' % (n_g, n_a))
 # 3. real paved places get one even class and tone (terrace: stone pavers; arts court: pale pavers + a brick square; quad strips)
 paint(terrace, CONC, T_PAVER, 1, True); paint(paths, CONC, T_PAVER, 1, True); paint(walks & ~(mask[..., 0] > 128), CONC, np.array((160, 146, 122), np.float32), 1, True); paint(plaza, CONC, np.array((158, 142, 126), np.float32), 1, True); paint(brick, CONC, np.array((142, 92, 74), np.float32), 1, True)

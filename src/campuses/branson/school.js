@@ -45,9 +45,15 @@ export const SCHOOL_IDS = new Set(SPEC.map((s) => s.id));
 // to the south, and a strip along the hall's south-west side that holds the main entrance), with a raised white centre at 18.8; the clay hips
 // start behind it. Wing frame: u along the long south-east wing from its north corner, v across it to the south-west.
 const KW = (u, v) => [+(-41.5 + 0.804 * u - 0.595 * v).toFixed(2), +(-25.2 + 0.595 * u + 0.804 * v).toFixed(2)];
-export const KBH_RAISED = [KW(2.3, 10.2), KW(9.7, 10.2), KW(9.7, 22.8), KW(2.3, 22.8)];   // the raised centre (tiles 18.5-18.9)
+export const KBH_RAISED = [KW(1.7, 10.2), KW(9.7, 10.2), KW(9.7, 14.8), KW(10.9, 14.8), KW(10.9, 22.6), KW(1.7, 22.6)];   // the raised centre (tiles 18.5-18.9; QA round 6, 1 m grid: its north-west edge at u 1.7, its south-east edge at u 10.9 outside the clay wing)
 const KBH_IN = [KW(25.4, 14.8), KW(9.7, 14.8), KBH_RAISED[1], KBH_RAISED[0]];   // the line where the white block ends under the clay roofs: strip end -> raised block's east and north corners
-export const KBH_LOW = [[-58.4, -5.5], [-55, -9.8], [-55.1, -12.1], [-54.4, -14.2], [-52.9, -16], [-51.3, -17], [-49.9, -18.4], KBH_RAISED[0], KBH_RAISED[1], KW(9.7, 14.8), KW(25.4, 14.8), [-31.1, 3.5], [-32.6, 5.4], [-41, -1.2], [-45.5, 4.5]];
+export const KBH_BOW = [[-56.5, -10.19], [-56.26, -12.0], [-55.66, -13.72], [-54.74, -15.3], [-53.52, -16.65], [-52.05, -17.73]];   // the bowed north-west end, south to north (the arc's last point at (-50.4, -18.5) is left out: it stood in the nook under the link's eave)
+export const KBH_LOW = [[-58.4, -5.5], [-58.0, -9.4], ...KBH_BOW, [-49.9, -18.4], KBH_RAISED[0], KBH_RAISED[1], KW(9.7, 14.8), KW(25.4, 14.8), [-31.1, 3.5], [-32.6, 5.4], [-41, -1.2], [-45.5, 4.5]];
+// The bowed end (QA round 6; tiles 0.5 m height grid, a gridded nadir close-up and two obliques, dev/shots/branson-v7/ref_kw_bow.jpg): the 15.7 block's
+// own north-west end is a shallow bow with a parapet and a dentil cornice, an arc of radius 9.1 round (-47.4, -9.9) from (-56.5, -10.2) to (-50.4, -18.5)
+// (sagitta 1.6 m), then a 1.5 m step out to the block's west corner. The 13-14.9 m readings in the grid just west of it lie under the tree canopy
+// (planting at the foot of the wall in the obliques, no roof): nothing is built there.
+export const KBH_SPLIT_U = 25.2;   // the long wing's south-east part (u beyond this) is taller: eave and ridge 0.8-0.9 m higher in the tiles
 const nearIdx = (r, q) => { let bi = 0, bd = 1e9; r.forEach((p, i) => { const d = Math.hypot(p[0] - q[0], p[1] - q[1]); if (d < bd) { bd = d; bi = i; } }); return bi; };
 const arcOf = (r, i, j) => { const o = []; for (let k = i; ; k = (k + 1) % r.length) { o.push(r[k]); if (k === j) break; } return o; };
 /** Replaces the arc of ring r between the vertices nearest a and b that passes the vertex nearest `mid` by the points `ins` (given a -> b). */
@@ -61,7 +67,12 @@ function splitKbh(ring) {
   const ja = nearIdx(main, [-40.1, -36.8]), jb = nearIdx(main, [-30.1, -27.8]), jn = main[nearIdx(main, [-35.3, -69.1])];
   const p2 = arcOf(main, ja, jb), q2 = arcOf(main, jb, ja); const north = p2.includes(jn) ? p2 : q2; let rest = p2.includes(jn) ? q2 : p2;
   rest = rest.filter((p) => Math.hypot(p[0] + 30.1, p[1] + 27.8) > 0.8);
-  return { white: ensureCCW(KBH_LOW.map((p) => p.slice())), main: ensureCCW(rest), north: ensureCCW(north) };
+  // (fix round 6) a vertex on each long wall where the taller south-east half starts, so walls, floors and doors are laid out per half
+  const mainR = ensureCCW(rest); for (const q of [KW(KBH_SPLIT_U, 0), KW(KBH_SPLIT_U, 17.05)]) { let bi = -1, bd = 1.6;   /* (the county walls stand up to 0.7 m off the wing frame's lines) */ for (let i = 0; i < mainR.length; i++) { const a = mainR[i], b = mainR[(i + 1) % mainR.length]; const dx = b[0] - a[0], dz = b[1] - a[1]; const L2 = dx * dx + dz * dz; const t = ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / L2; if (t < 0.02 || t > 0.98) continue; const d = Math.hypot(q[0] - a[0] - dx * t, q[1] - a[1] - dz * t); if (d < bd) { bd = d; bi = i; } }
+    if (bi >= 0) { const a = mainR[bi], b = mainR[(bi + 1) % mainR.length]; const dx = b[0] - a[0], dz = b[1] - a[1]; const t = ((q[0] - a[0]) * dx + (q[1] - a[1]) * dz) / (dx * dx + dz * dz); mainR.splice(bi + 1, 0, [+(a[0] + dx * t).toFixed(2), +(a[1] + dz * t).toFixed(2)]); } }
+  // the white block's corners on the party line take the hall's own (county) vertices: 6 cm between the two wall planes let roof-skin rays through
+  const white = ensureCCW(KBH_LOW.map((p) => { const q = mainR[nearIdx(mainR, p)]; return Math.hypot(q[0] - p[0], q[1] - p[1]) < 0.15 ? q.slice() : p.slice(); }));
+  return { white, main: mainR, north: ensureCCW(north) };
 }
 
 const cache = new WeakMap();
@@ -118,8 +129,12 @@ function kbhWhite(ctx, s, h, all) {
   const pt = B.v('paint', true); const band = (F, y, hh, col) => { const c = F.P(F.L / 2, y, 0.1); pt.setColor(...col); pt.box(c[0], c[1], c[2], F.L + 0.3, hh, 0.14, F.rotY);   /* (wholly outside the wall plane and under the roof level: a face inside the wall reads as an open attic to the roof-skin check) */ pt.setColor(1, 1, 1); };
   for (const F of outFrames(KBH_RAISED)) band(F, yTop - 0.17, 0.28, [0.74, 0.72, 0.66]);
   // two condenser units on the lower roof beside the raised centre (nadir tiles)
-  for (const [u, v] of [[11.4, 17.2], [12.9, 17.6]]) { const q = KW(u, v); B.v('galv').box(q[0], h + 0.45, q[1], 1.0, 0.9, 1.0, 0.64); B.c('metal').box(q[0], h + 0.45, q[1], 1.0, 0.9, 1.0, 0.64); }
+  for (const [u, v] of [[12.3, 17.2], [13.8, 17.6]]) { const q = KW(u, v); B.v('galv').box(q[0], h + 0.45, q[1], 1.0, 0.9, 1.0, 0.64); B.c('metal').box(q[0], h + 0.45, q[1], 1.0, 0.9, 1.0, 0.64); }
   const trim = [0.86, 0.84, 0.78]; const E = KBH_ENTRANCE;
+  // the bow: a parapet rim on the roof edge and a row of dentils under the cornice, on its facets only
+  { const onBow = (F) => [[F.ax, F.az], [F.ax + F.tx * F.L, F.az + F.tz * F.L]].every(([x, z]) => Math.abs(Math.hypot(x + 47.42, z + 9.92) - 9.08) < 0.25);
+    for (const F of outFrames(ring)) { if (!onBow(F)) continue; const c = F.P(F.L / 2, h + 0.17, -0.14); pt.setColor(0.8, 0.78, 0.72); pt.box(c[0], c[1], c[2], F.L + 0.12, 0.34, 0.28, F.rotY);
+      pt.setColor(0.7, 0.68, 0.62); for (let u = 0.25; u < F.L - 0.1; u += 0.46) { const q = F.P(u, h - 0.46, 0.12); pt.box(q[0], q[1], q[2], 0.2, 0.16, 0.12, F.rotY); } pt.setColor(1, 1, 1); } }
   for (const F of outFrames(ring)) {
     const mx = F.ax + F.tx * F.L / 2 + F.nx * 0.8, mz = F.az + F.tz * F.L / 2 + F.nz * 0.8; if (all.some((r) => r !== ring && pointInRing(mx, mz, r))) continue;
     band(F, h - 0.2, 0.32, [0.74, 0.72, 0.66]); band(F, f0 + 0.1, 0.5, [0.7, 0.67, 0.6]);
@@ -148,28 +163,23 @@ function kbhWhite(ctx, s, h, all) {
     else { const pitch = F.L > 12 ? 3.4 : 2.7, m = F.L > 12 ? 1.2 : 0.9; const n = Math.max(1, Math.floor((F.L - 2 * m) / pitch)), st = (F.L - 2 * m) / n; for (let k = 0; k < n; k++) archOpening(ctx, F, m + st * (k + 0.5), y0, F.L > 12 ? 1.9 : 1.6, 1.9, { trim, mullions: 3, bars: [y0 + 1.2] }); }
   }
 }
-// arched entrance porches of the hall: on the visitor-lot side (the two flights of steps in the re-entrant corner) and on the lawn side
-const KBH_ROOFS = [[[[-41.5, -25.2], [-0.5, 5.1], [-10.7, 18.9], [-51.7, -11.4]], 19.0]];   // the long south-east wing (QA round 4: its north-west end pulled back off the white wing, ridge 19.0)
+// the long south-east wing in two parts (QA round 6, tiles cross-sections every 2-4 m + the nadir hip lines): north-west of u 25.2 eave 14.4 / ridge 19.0 as
+// before, its ridge running on to u 33 where it dies into the taller part; the south-east part (u 25.2-51) is its own hip: eave line 15.2 (15.7 at the
+// wall), ridge 19.9 from u 33.7 to u 42, hipped at BOTH ends (the north-west hip rises out of the lower roof)
+const KBH_WING = { nw: { ring: [KW(0, 0), KW(KBH_SPLIT_U, 0), KW(KBH_SPLIT_U, 17.1), KW(0, 17.1)], a: KW(8.55, 8.55), b: KW(33, 8.55), y: 19.0 }, se: { ring: [KW(KBH_SPLIT_U, 0), KW(51, 0), KW(51, 17.1), KW(KBH_SPLIT_U, 17.1)], a: KW(33.7, 8.55), b: KW(42, 8.55), y: 19.9, eave: 15.2, up: 0.9 } };
+const kwU = (x, z) => 0.804 * (x + 41.5) + 0.595 * (z + 25.2);
+// Rule F47 (QA round 6): doors of the kit's default layout that no tiles view or photo shows (a wall under closed canopy or facing a bank or a bed, no
+// walk to it in the nadir tiles): Study Hall west and south-west, New Oaks south-west, both Commons wings, Fine Arts south and west, the Music Hall's
+// south side, New House east
+const NO_DOOR = [[-180.4, 118.5], [-181.1, 135.4], [-179.8, 161.6], [-128.0, -2.3], [-139.7, 20.8], [38.0, 15.9], [29.1, 10.8], [61.8, 20.2], [61.0, -16.8], [-5.4, 12.1]];   // (+ the hall's south-east end: the tiles show a terrace 1.8 m below the floor there and no flight of steps)
 // the link between the north block and the wings: its own outline (the hall's west wall with its notch, the chord to the north block, the entrance court's
 // corner) and the ridge the tiles show, (-45, -30) -> (-38, -21) at 18.3; the old box hip hung 5 m over the entrance court
 const KBH_LINK = { ring: [[-51.6, -26.6], [-44.8, -35.7], [-40.1, -36.8], [-34, -30.8], [-35.6, -28.7], [-27.9, -22.6], [-31.1, -18.5], [-38, -13], [-49.9, -18.4]], a: [-45, -30.2], b: [-38.2, -20.8], y: 18.3 };
 // Richardson Hall is two blocks, each under its own hip: the smaller north block and the larger south block set 2 m further east (county outline)
 const RICH_PARTS = [[[-151.3, 119.6], [-140.9, 114.3], [-136.3, 123.4], [-146.7, 128.7]], [[-149.2, 128.4], [-138.3, 124.4], [-129.3, 141.9], [-139.6, 147.1]]];
 const STUDY_MAIN = [[-159.0, 113.7], [-174.2, 139.5], [-188.0, 131.4], [-172.8, 105.6]], STUDY_ANNEX = [[-170.9, 106.7], [-168.8, 103.1], [-159.2, 108.7], [-161.3, 112.3]];
-const KBH_PORCH = [[[-31, -18], [-22, -11]]];
-function kbhPorches(ctx, s) {
-  const { B } = ctx; const ring = s.ring;
-  for (const [p, q] of KBH_PORCH) { const near = (t) => { let bp = ring[0], bd = 1e9; for (const r of ring) { const d = Math.hypot(r[0] - t[0], r[1] - t[1]); if (d < bd) { bd = d; bp = r; } } return bp; }; const a = near(p), b = near(q);
-    const F = outFrames([a, b, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]]).find((f) => f.L > 3) || edgeFrame(a[0], a[1], b[0], b[1]); let Fo = edgeFrame(a[0], a[1], b[0], b[1]);
-    const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2; if (pointInRing(mx + Fo.nx * 1.0, mz + Fo.nz * 1.0, ring)) Fo = edgeFrame(b[0], b[1], a[0], a[1]); void F;
-    const uc = Fo.L / 2, w = 4.2, d = 1.5, hh = 4.3; const blk = [Fo.P(uc - w / 2, 0, -0.3), Fo.P(uc + w / 2, 0, -0.3), Fo.P(uc + w / 2, 0, d), Fo.P(uc - w / 2, 0, d)].map((t) => [t[0], t[2]]);
-    plainBlock(ctx, blk, -0.6, hh, CREAM, BR_CLAY.map((v) => v * 0.2)); 
-    let Ff = edgeFrame(blk[3][0], blk[3][1], blk[2][0], blk[2][1]); if (Ff.nx * Fo.nx + Ff.nz * Fo.nz < 0) Ff = edgeFrame(blk[2][0], blk[2][1], blk[3][0], blk[3][1]);
-    archOpening(ctx, Ff, Ff.L / 2, 0.05, 2.2, 2.0, { kind: 'door', trim: [0.8, 0.79, 0.74] }); { const q = Fo.P(uc, 0, d); (ctx.doors = ctx.doors || []).push({ x: q[0], z: q[2], nx: Fo.nx, nz: Fo.nz, id: s.name, porch: true }); }
-    // a low landing with two steps in front of the arch
-    const l0 = Ff.P(Ff.L / 2, 0, 0.9); for (const [k, dd] of [[0, 1.8], [1, 2.6]]) { B.v('concrete').box(l0[0] + Ff.nx * (dd - 1.8) * 0.5, -0.3 - k * 0.16, l0[2] + Ff.nz * (dd - 1.8) * 0.5, 3.4, 0.6, dd, Ff.rotY, 1 / 3); B.c('concrete').box(l0[0] + Ff.nx * (dd - 1.8) * 0.5, -0.3 - k * 0.16, l0[2] + Ff.nz * (dd - 1.8) * 0.5, 3.4, 0.6, dd, Ff.rotY); }
-  }
-}
+// (fix round 6: the arched porch block that was planned on the visitor-lot side had collapsed to nothing when the hall's outline changed; the door of
+// that wall now stands where the tiles show the entrance steps, see the per-half layout in buildSchool)
 
 // ---- New House (campus map item 5). Fix round 5, from the tiles' 1 m height grid and obliques (dev/shots/branson-v6/nh_tiles6.json, t_nh_obl_*):
 // a steep main gable along the house (ridge 20.1, north eave 14.5), a two-storey south part under two parallel gables running south (ridges 19.4,
@@ -178,7 +188,7 @@ function kbhPorches(ctx, s) {
 function newHouse(ctx, s, base, all) {
   const { B } = ctx; const ring = s.ring; const A = -17 * Math.PI / 180, ax = Math.cos(A), az = Math.sin(A), bx = -az, bz = ax; const P = (a, b) => [42.4 + a * ax + b * bx, -20 + a * az + b * bz];
   const yN = 14.5 - base, yS = 17.4 - base, yR = 20.1 - base, yF = 17.45 - base; const trim = [0.85, 0.85, 0.83];
-  stuccoWalls(ctx, ring, yN, { color: HOUSE_WHITE, storeys: 1, w: 1.0, pitch: 2.5, others: all, trim });
+  stuccoWalls(ctx, ring, yN, { color: HOUSE_WHITE, storeys: 1, w: 1.0, pitch: 2.5, others: all, noDoor: NO_DOOR, trim });
   const south = [P(0, 8), P(11.5, 8), P(11.5, 17.75), P(0.1, 17.75)], flat = [P(11.5, 8), P(17.05, 8), P(16.8, 16.6), P(11.5, 16.6)];
   plainBlock(ctx, south, yN - 0.2, yS, HOUSE_WHITE, null); plainBlock(ctx, flat, yN - 0.2, yF, HOUSE_WHITE, [0.84, 0.84, 0.82]);
   // first-floor windows on the open faces of the south part (west, south, east)
@@ -202,27 +212,30 @@ export function buildSchool(ctx) {
       if (s.key === 'kbhWhite') return kbhWhite(ctx, s, h, all);
       (ctx.buildingRings = ctx.buildingRings || []).push(ring);
       if (s.key === 'newHouse') return newHouse(ctx, s, base, all);
-      if (s.key === 'tallant') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 2, w: 2.6, pitch: 3.3, others: all }); roofCover(ctx, ring, h + 0.01, [0.5, 0.5, 0.5]); tileRim(ctx, ring, h + 0.07, 2.2, 0.04); flats.push({ s, ring, roofAbs: base + h }); return; }
-      if (s.key === 'artsW') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all }); const box = boxOn(ring, -9); const r = gableRoof(ctx, box, h, 1.3, { tint: [4.6, 4.7, 4.9], ov: 0.3, gableTint: ARTS_WHITE }); solarOn(ctx, r, -box.L / 2 + 1, box.L / 2 - 1, 0.8, r.hw - 0.8); return; }
-      if (s.key === 'artsE') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all }); roofCover(ctx, ring, h + 0.01, [0.84, 0.84, 0.82]); const box = boxOn(ring, -9);
+      if (s.key === 'tallant') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 2, w: 2.6, pitch: 3.3, others: all, noDoor: NO_DOOR }); roofCover(ctx, ring, h + 0.01, [0.5, 0.5, 0.5]); tileRim(ctx, ring, h + 0.07, 2.2, 0.04); flats.push({ s, ring, roofAbs: base + h }); return; }
+      if (s.key === 'artsW') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all, noDoor: NO_DOOR }); const box = boxOn(ring, -9); const r = gableRoof(ctx, box, h, 1.3, { tint: [4.6, 4.7, 4.9], ov: 0.3, gableTint: ARTS_WHITE }); solarOn(ctx, r, -box.L / 2 + 1, box.L / 2 - 1, 0.8, r.hw - 0.8); return; }
+      if (s.key === 'artsE') { stuccoWalls(ctx, ring, h, { color: ARTS_WHITE, storeys: 1, w: 2.4, pitch: 3.1, others: all, noDoor: NO_DOOR }); roofCover(ctx, ring, h + 0.01, [0.84, 0.84, 0.82]); const box = boxOn(ring, -9);
         // (fix round 5, nadir tiles: a white membrane roof with two fields of tilted panel rows, white between the rows and round the rim; it was one sheet of panels)
         for (const [ua, ub] of [[-box.L / 2 + 1.2, -0.9], [0.5, box.L / 2 - 1.2]]) for (let k = 0; k < 4; k++) { const va = -box.W / 2 + 1.0 + k * 2.1; solarFlat(ctx, box, h + 0.14, ua, ub, va, va + 1.55); }
         flats.push({ s, ring, roofAbs: base + h }); return; }
-      if (s.roof === 'flat') { const green = s.key.startsWith('commons'); stuccoWalls(ctx, ring, h, { color: green ? CONC : ARTS_WHITE, storeys: 1, w: 2.2, pitch: 3.2, others: all }); roofCover(ctx, ring, h + 0.01, green ? SEDUM : [0.72, 0.72, 0.7]); flats.push({ s, ring, roofAbs: base + h }); return; }
-      if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: [0.66, 0.6, 0.5], storeys: 1, w: 2.7, pitch: 3.2, others: all, glazedEnds: 12, gableRise: 3.5, gableGlass: true }); /* both gable ends are glass: the west one over the service yard */ const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { tint: BR_SEAM, ov: 0.9, gableTint: [0.66, 0.6, 0.5] }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
+      if (s.roof === 'flat') { const green = s.key.startsWith('commons'); stuccoWalls(ctx, ring, h, { color: green ? CONC : ARTS_WHITE, storeys: 1, w: 2.2, pitch: 3.2, others: all, noDoor: NO_DOOR }); roofCover(ctx, ring, h + 0.01, green ? SEDUM : [0.72, 0.72, 0.7]); flats.push({ s, ring, roofAbs: base + h }); return; }
+      if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: [0.66, 0.6, 0.5], storeys: 1, w: 2.7, pitch: 3.2, others: all, noDoor: NO_DOOR, glazedEnds: 12, gableRise: 3.5, gableGlass: true }); /* both gable ends are glass: the west one over the service yard */ const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { tint: BR_SEAM, ov: 0.9, gableTint: [0.66, 0.6, 0.5] }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
       // Katharine Branson Hall and the quad: cream stucco under clay tile, tall windows in a regular rhythm (arched on the hall), arched doors
-      stuccoWalls(ctx, ring, h, { floor: s.level !== undefined ? Math.max(0, s.level - base) : 0, y0: -1.2, plinth: [0.5, 0.45, 0.37], cap: [0.3, 0.22, 0.18], color: [0.93, 0.8, 0.54], arched: s.key === 'kbh' || s.key === 'kbhNorth', storeys: s.key === 'kbh' || s.key === 'kbhNorth' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, trim: [0.8, 0.78, 0.72] });
+      stuccoWalls(ctx, ring, h, { floor: s.level !== undefined ? Math.max(0, s.level - base) : 0, y0: -1.2, plinth: [0.5, 0.45, 0.37], cap: [0.3, 0.22, 0.18], color: [0.93, 0.8, 0.54], arched: s.key === 'kbh' || s.key === 'kbhNorth', stoops: s.key === 'kbh', per: s.key === 'kbh' ? (F) => { const u = kwU(F.ax + F.tx * F.L / 2, F.az + F.tz * F.L / 2); return u > KBH_SPLIT_U ? { up: KBH_WING.se.up, top: KBH_WING.se.eave - s.top } : u > 14 && F.nx > 0.4 && F.nz < -0.6 ? { doorMin: 11 } : null; } : null,   /* (the 12 m piece of the north-east wall by the entrance court keeps its door: the tiles show the entrance steps there) */ storeys: s.key === 'kbh' || s.key === 'kbhNorth' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, noDoor: NO_DOOR, trim: [0.8, 0.78, 0.72] });
       // Katharine Branson Hall: three hips with the RIDGE heights of the tiles (rule F32: 19.8 over the south-east wing, 19.0 over the
       // middle, 18.4 over the north block); one pitch over the whole plan left the wings 3.5 m low
-      if (s.key === 'kbh') { for (const [quad, rise] of KBH_ROOFS) hipRoof(ctx, quad, h, rise - s.top, { tint: BR_CLAY, overhang: s.ov, fill: true });
+      if (s.key === 'kbh') { const wg = KBH_WING; ridgeRoof(ctx, wg.nw.ring, h, wg.nw.a, wg.nw.b, wg.nw.y - base, { ov: s.ov });
+        // the taller south-east half: its walls run on up to its own eave, then its own hip
+        { const near = (t) => ring[nearIdx(ring, t)]; const se = [near(KW(KBH_SPLIT_U, 0)), near([0.2, 5.0]), near([-11, 19.1]), near(KW(KBH_SPLIT_U, 17.05))]; const yE = wg.se.eave - base;
+          plainBlock(ctx, se, h, yE, [0.93, 0.8, 0.54], [0.3, 0.22, 0.18]); ridgeRoof(ctx, wg.se.ring, yE, wg.se.a, wg.se.b, wg.se.y - base, { ov: 0.9 }); }
         ridgeRoof(ctx, KBH_LINK.ring, h, KBH_LINK.a, KBH_LINK.b, KBH_LINK.y - base, { ov: 0.5 });
         // the cross ridge between the link and the white block's raised centre (tiles 1 m grid: 19.0-19.2 along u = 4.6, falling 0.5 per metre to
         // both sides): a pitched clay roof on that ridge. (Fix round 5: the flat stucco "deck" that stood here read as a blank wall above the roofline.)
         { const XR = [KW(-4.6, 0.6), KW(13.8, 0.6), KW(13.8, 10.2), KW(-1.9, 10.2), [-50.3, -20.0]]; ridgeRoof(ctx, XR, 14.25 - base, KW(4.6, 2.4), KW(4.6, 10.2), 19.1 - base, { ov: 0 });   // (its rim lies inside the link's and the wing's roofs: a rim above them left a slit into the space between the skins)
           // its rake against the white block north-west of the raised centre: a white wall up to the roof line
-          const st = B.v('stucco', true); st.setColor(0.88, 0.82, 0.68); const a0 = KW(0.0, 10.27), a1 = KW(2.3, 10.27); const q = [[a0[0], 15.5 - base, a0[1]], [a1[0], 15.5 - base, a1[1]], [a1[0], 17.45 - base, a1[1]], [a0[0], 15.72 - base, a0[1]]];
+          const st = B.v('stucco', true); st.setColor(0.88, 0.82, 0.68); const a0 = KW(0.0, 10.27), a1 = KW(1.7, 10.27); const q = [[a0[0], 15.5 - base, a0[1]], [a1[0], 15.5 - base, a1[1]], [a1[0], 17.0 - base, a1[1]], [a0[0], 15.72 - base, a0[1]]];
           quadFacing(st, q[0], q[1], q[2], q[3], [-0.595, 0, 0.804]); st.setColor(1, 1, 1); }
-        kbhPorches(ctx, s); }
+        }
       else if (s.key === 'kbhNorth') { ridgeRoof(ctx, ring, h, [-33.2, -53.5], [-33.0, -43.0], 17.3 - base, { ov: 0.7 });   // (ridge 17.2-17.3 under the white roof monitor, which tops out at 18.2: tiles grid)
         { const pt = B.v('paint', true); pt.setColor(0.74, 0.74, 0.72); pt.box(-33.0, 17.7 - base, -48.0, 3.2, 1.1, 9.4, 0.1); pt.setColor(1, 1, 1); B.c('concrete').box(-33.0, 17.7 - base, -48.0, 3.2, 1.1, 9.4, 0.1); } }
       else if (s.key === 'study') { hipRoof(ctx, STUDY_MAIN, h, s.rise + 0.4, { tint: BR_CLAY, overhang: s.ov, fill: true }); hipRoof(ctx, STUDY_ANNEX, h - 0.5, 1.5, { tint: BR_CLAY, overhang: 0.4, fill: true }); }   // (one straight rectangle under one roof + the small north-east annex: nadir tiles; the union-of-hips roof drew a concave east side)

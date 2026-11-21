@@ -17,7 +17,7 @@ const tame = (rgb) => { if (!rgb) return rgb; const l = (rgb[0] + rgb[1] + rgb[2
 const MAIN_STREETS = [];
 // single buildings Street View shows differently from the generic house: First Presbyterian's hall on E St is a brown
 // wood-sided hall under one steep gable
-const LOOK_FIX = { 976778295: { col: [204, 192, 176], roofTint: [13.8, 11.2, 8.3] } };   // the tennis shed: light taupe-grey walls and roof (tiles, QA round 4)
+const LOOK_FIX = { 976778295: { col: [204, 192, 176], roofTint: [13.8, 11.2, 8.3] }, 975107315: { roofTint: [9.3, 9.8, 10.3] }, 975106084: { roofTint: [12.6, 10.6, 9.6] } };   // (+ QA round 6: Crossways' roof is light grey, the house north of the tennis courts pale grey-pink in the tiles; both drew dark)   // the tennis shed: light taupe-grey walls and roof (tiles, QA round 4)
 const HOUSE_FIX = { 976135755: { top: 12.65, rise: 2.4 } };   // (the house west of the Commons: eave height from the 3D tiles, absolute)
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([]);
