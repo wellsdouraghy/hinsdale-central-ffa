@@ -17,6 +17,7 @@ const tame = (rgb) => { if (!rgb) return rgb; const l = (rgb[0] + rgb[1] + rgb[2
 const MAIN_STREETS = [];
 // single buildings Street View shows differently from the generic house: First Presbyterian's hall on E St is a brown
 // wood-sided hall under one steep gable
+const LOOK_FIX = { 976778295: { col: [196, 188, 176], roofTint: [7.6, 7.1, 6.4] } };   // the tennis shed: light taupe-grey walls and roof (tiles, QA round 4)
 const HOUSE_FIX = { 976135755: { top: 12.65, rise: 2.4 } };   // (the house west of the Commons: eave height from the 3D tiles, absolute)
 // OSM buildings that are really sheds / carports under trees or duplicates of hand-built structures
 const SKIP = new Set([]);
@@ -107,7 +108,7 @@ function house(ctx, ring, info, rnd, fa, id) {
   const top = Math.max(plan.top, ringGround(ctx, ring).max + 1.0); let rowsDrawn = 0;
   const kind = WALL_KINDS.includes(fa.wall) ? fa.wall : 'stucco'; const col = tame(fa.col || [214, 206, 188]); const tint = wallTint(col).map((v) => v * 1.12), dark = wallTint(col.map((v) => v * 0.84));
   const trim = fa.trim ? lin(fa.trim) : [0.85, 0.84, 0.8];
-  const roofTint = (fa.roofMat === 'clay_tile' ? CLAY : tileTint(fa.roofCol && fa.roofMat !== 'membrane' ? fa.roofCol.map((v) => Math.max(v, 70)) : info.col)).map((v) => v * 2.1);
+  const roofTint = fa.roofTint || ((fa.roofMat === 'clay_tile' ? CLAY : tileTint(fa.roofCol && fa.roofMat !== 'membrane' ? fa.roofCol.map((v) => Math.max(v, 70)) : info.col)).map((v) => v * 2.1));
   sited(ctx, ring, (base) => {
     const eave = top - base; const w = B.v('maW_' + kind, true), pl = B.v('maP_' + kind, true); const tb = B.v('paint', true); let lowerBays = null;
     for (let i = 0; i < ring.length; i++) {
@@ -327,7 +328,7 @@ export function planTown(ctx, rings = [], zones = []) {
   // look of a building Street View could not see: its nearest classified neighbour of the same roof kind (never a random skin)
   const cen = (r) => { let x = 0, z = 0; for (const p of r) { x += p[0]; z += p[1]; } return [x / r.length, z / r.length]; };
   const known = data.buildings.filter((b) => inPlay(b) && FACADES[b.id] && FACADES[b.id].col).map((b) => ({ c: cen(b.outer[0]), fa: FACADES[b.id], flat: gen.buildings[String(b.id)].roof === 'flat' }));
-  const facadeOf = (b, info) => { const own = { ...(FACADES[b.id] || {}), ...(HOUSE_FIX[b.id] || {}) }; if (own.col && own.wall) return own; const c = cen(b.outer[0]); let best = null; for (const k of known) { if (k.flat !== (info.roof === 'flat')) continue; const d = Math.hypot(k.c[0] - c[0], k.c[1] - c[1]); if (!best || d < best.d) best = { d, fa: k.fa }; } const n = best ? best.fa : {}; return { ...own, wall: own.wall || n.wall, col: own.col || n.col, trim: own.trim || n.trim, roofCol: own.roofCol || n.roofCol, roofMat: own.roofMat || n.roofMat }; };
+  const facadeOf = (b, info) => { const own = { ...(FACADES[b.id] || {}), ...(HOUSE_FIX[b.id] || {}), ...(LOOK_FIX[b.id] || {}) }; if (own.col && own.wall) return own; const c = cen(b.outer[0]); let best = null; for (const k of known) { if (k.flat !== (info.roof === 'flat')) continue; const d = Math.hypot(k.c[0] - c[0], k.c[1] - c[1]); if (!best || d < best.d) best = { d, fa: k.fa }; } const n = best ? best.fa : {}; return { ...own, wall: own.wall || n.wall, col: own.col || n.col, trim: own.trim || n.trim, roofCol: own.roofCol || n.roofCol, roofMat: own.roofMat || n.roofMat }; };
   const plan = { inPlay, facadeOf, houses: new Map(), tops: new Map() }; const pads = [];
   for (const b of data.buildings) { const ov = OVERRIDE[b.id]; if (ov && inPlay(b)) planWalls(ctx, simplify(b.outer[0], 0.5), ov.top, ov.style, { others: rings, name: b.tags.name || b.id }); }
   for (const b of data.buildings) {

@@ -42,9 +42,14 @@ export function stuccoWalls(ctx, ringIn, h, opts = {}) {
     // the floor this wall's openings stand on: the building's floor (opts.floor, local) or the ground at the wall, whichever is
     // higher, so no sill is ever below grade and no wall stays blank because the datum is lower than the ground here
     let gw = -1e9; if (ctx.groundY) for (const t of [0.1, 0.5, 0.9]) gw = Math.max(gw, ctx.groundY(F.ax + F.tx * F.L * t + F.nx * 0.5, F.az + F.tz * F.L * t + F.nz * 0.5) - base); const f0 = Math.max(opts.floor || 0, gw > -1e8 ? gw : 0, 0);
+    // a wall whose ground lies well below the floor (a building on a bank): a plain base course from the ground up to the floor line
+    // and no door hanging in the air (opts.plinth = colour)
+    let gLow = 1e9; if (ctx.groundY) for (let t = 0.05; t <= 0.96; t += 0.1) gLow = Math.min(gLow, ctx.groundY(F.ax + F.tx * F.L * t + F.nx * 0.4, F.az + F.tz * F.L * t + F.nz * 0.4) - base); const hung = opts.plinth && gLow < 1e8 && f0 - gLow > 0.6;
+    if (hung) { const yb = Math.min(gLow, opts.y0 ?? -0.6) - 0.5, yt = f0 + 0.04; const c = F.P(F.L / 2, (yb + yt) / 2, 0.0); const bk = ctx.B.v(opts.bucket || 'stucco', true); bk.setColor(...opts.plinth); bk.box(c[0], c[1], c[2], F.L + 0.14, yt - yb, 0.14, F.rotY, 0.45); bk.setColor(1, 1, 1); }
     const hh = h - f0; if (hh < 2.4) continue; const st = Math.max(1, Math.min(opts.storeys || 9, Math.round(hh / 3.3))); const fh = hh / st;
+    if (opts.glazedEnds && F.L < opts.glazedEnds && opts.gableGlass) { gableGlazing(ctx, F, f0 + 0.15, h, opts.gableRise || 0, { trim: [0.8, 0.8, 0.78] }); continue; }
     if (opts.glazedEnds && F.L < opts.glazedEnds) { archOpening(ctx, F, F.L / 2, f0 + 0.25, Math.min(F.L - 2.4, 7), Math.max(1.6, hh - 0.4 - Math.min(F.L - 2.4, 7) / 2 + (opts.gableRise || 0) * 0.6), { trim: [0.75, 0.75, 0.73], mullions: 5, bars: [f0 + 1.3, f0 + 2.4, f0 + 3.5] }); continue; }
-    const door = F.L > (opts.doorMin || 13); const m = 1.0;
+    const door = F.L > (opts.doorMin || 13) && !hung; const m = 1.0;
     for (let s = 0; s < st; s++) { const y = f0 + s * fh; const w = opts.w || 1.15, pitch = opts.pitch || 2.7;
       if (s === 0 && opts.arched) { const n = Math.max(1, Math.floor((F.L - 2 * m) / pitch)); const stp = (F.L - 2 * m) / n; for (let k = 0; k < n; k++) { const u = m + stp * (k + 0.5); if (door && k === (n >> 1)) archOpening(ctx, F, u, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); else archOpening(ctx, F, u, y + 0.75, w, Math.min(1.75, fh - 1.9), { trim: opts.trim, mullions: 2, bars: [y + 1.6] }); } }
       else { if (s === 0 && door) { archOpening(ctx, F, F.L / 2, y + 0.05, 1.7, 1.75, { kind: 'door', trim: opts.trim }); if (F.L / 2 - 1.6 - m > pitch) { tallRow(ctx, F, m, F.L / 2 - 1.6, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); tallRow(ctx, F, F.L / 2 + 1.6, F.L - m, y + 0.8, y + Math.min(fh - 0.55, 2.75), w, pitch); } }
@@ -56,6 +61,19 @@ function tallRow(ctx, F, u0, u1, y0, y1, w, pitch) { const n = Math.max(0, Math.
 const QF = (b, p0, p1, p2, p3, ua, ub, uc, ud) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2]; const n = [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx]; if (n[0] * QF.n[0] + n[2] * QF.n[1] >= 0) b.quad(p0, p1, p2, p3, ua, ub, uc, ud); else b.quad(p0, p3, p2, p1, ua, ud, uc, ub); };
 QF.n = [0, 0];
 const triF = (b, p0, p1, p2, n) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2]; const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx; if (cx * n[0] + cy * n[1] + cz * n[2] >= 0) b.tri(p0, p1, p2, [0.5, 0.5], [0.5, 1], [0.4, 1]); else b.tri(p0, p2, p1, [0.5, 0.5], [0.4, 1], [0.5, 1]); };
+/** A fully glazed gable end on a wall frame: glass from y0 up to the roof line (eave height `eave` at both ends, `rise` more at
+ * the middle), behind a grid of pale mullions and transoms (the Commons hall: 3D-tiles oblique). */
+export function gableGlazing(ctx, F, y0, eave, rise, opts = {}) {
+  QF.n = [F.nx, F.nz]; const { B } = ctx; const out = opts.out ?? 0.05; const m = opts.margin ?? 0.35; const u0 = m, u1 = F.L - m, mid = F.L / 2; const gl = B.v('glass'); const fr = B.v('paint', true); const t = 0.09;
+  const top = (u) => eave + rise * (1 - Math.abs(u - mid) / mid) - 0.3; const P = (u, y, o = out) => F.P(u, y, o);
+  const nb = Math.max(2, Math.round((u1 - u0) / 1.35 / 2) * 2), bw = (u1 - u0) / nb;
+  for (let k = 0; k < nb; k++) { const a = u0 + bw * k, b = a + bw; QF(gl, P(a, y0), P(a, top(a)), P(b, top(b)), P(b, y0), [0, 0], [0, 1], [1, 1], [1, 0]); }
+  fr.setColor(...(opts.trim || [0.78, 0.78, 0.76]));
+  for (let k = 0; k <= nb; k++) { const u = u0 + bw * k; QF(fr, P(u - t / 2, y0, out + 0.02), P(u - t / 2, top(u), out + 0.02), P(u + t / 2, top(u), out + 0.02), P(u + t / 2, y0, out + 0.02)); }
+  for (let y = y0; y < eave + rise; y += 1.25) for (let k = 0; k < nb; k++) { const a = u0 + bw * k, b = a + bw; if (y + t > Math.min(top(a), top(b))) continue; QF(fr, P(a, y - t / 2, out + 0.02), P(a, y + t / 2, out + 0.02), P(b, y + t / 2, out + 0.02), P(b, y - t / 2, out + 0.02)); }
+  for (let k = 0; k < nb; k++) { const a = u0 + bw * k, b = a + bw; QF(fr, P(a, top(a) - t, out + 0.02), P(a, top(a) + t * 0.6, out + 0.02), P(b, top(b) + t * 0.6, out + 0.02), P(b, top(b) - t, out + 0.02)); }   // the raking head under the roof
+  fr.setColor(1, 1, 1);
+}
 /** Arched opening drawn on a wall frame: a dark recess (rect + half round) with a pale surround. kind 'glass' | 'door'. */
 export function archOpening(ctx, F, uc, y0, w, hRect, opts = {}) {
   QF.n = [F.nx, F.nz]; const { B } = ctx; const out = opts.out ?? 0.04; const r = w / 2; const N = 8; const mat = B.v(opts.kind === 'door' ? 'door' : 'glass');
@@ -103,6 +121,27 @@ export function gableRoof(ctx, o, eaveY, rise, opts = {}) {
   for (let y0 = 0; y0 + 0.25 < rise; y0 += 0.8) { const y1 = Math.min(y0 + 0.8, rise - 0.05), b = hw * (1 - y1 / rise); if (b < 0.15) break; const p = W(0, 0, eaveY + (y0 + y1) / 2); B.c('wood').box(p[0], p[1], p[2], o.L, y1 - y0, 2 * b, -o.ang * RAD); }
   bk.setColor(t[0] * 0.8, t[1] * 0.8, t[2] * 0.8); bk.tube(W(u0, 0, top), W(u1, 0, top), 0.13, 5, 1); bk.setColor(1, 1, 1);
   return { W, hw, top, eaveY, rise, yAt: (v) => eaveY + rise * (1 - Math.abs(v) / hw) };
+}
+/**
+ * Hip roof over any (roughly convex) outline with an explicit ridge segment: every eave edge rises to the nearer ridge end, so the
+ * planes follow the measured ridge instead of a single pitch (Katharine Branson Hall's north block and link: tiles height grid).
+ * eaveY / ridgeY local heights; opts: tint, ov (eave overhang). Tiled planes, a soffit, walkable collision.
+ */
+export function ridgeRoof(ctx, ringIn, eaveY, ra, rb, ridgeY, opts = {}) {
+  const { B } = ctx; const ring = ensureCCW(ringIn); const ov = opts.ov ?? 0.7; const t = opts.tint || BR_CLAY; const bk = B.v('shingles', true), col = B.c('concrete'); const n = ring.length;
+  // eave line: each vertex pushed out along the bisector of its two edge normals
+  const out = ring.map((p, i) => { const a = ring[(i + n - 1) % n], b = ring[(i + 1) % n]; const e1 = [p[0] - a[0], p[1] - a[1]], e2 = [b[0] - p[0], b[1] - p[1]]; const l1 = Math.hypot(...e1) || 1, l2 = Math.hypot(...e2) || 1; let nx = e1[1] / l1 + e2[1] / l2, nz = -e1[0] / l1 - e2[0] / l2; const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l; if (pointIn(p[0] + nx * 0.2, p[1] + nz * 0.2, ring)) { nx = -nx; nz = -nz; } return [p[0] + nx * ov, p[1] + nz * ov]; });
+  const R = [[ra[0], ridgeY, ra[1]], [rb[0], ridgeY, rb[1]]]; const near = (p) => (Math.hypot(p[0] - ra[0], p[1] - ra[1]) <= Math.hypot(p[0] - rb[0], p[1] - rb[1]) ? 0 : 1);
+  const tri = (bkt, p0, p1, p2, uvs) => { const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p2[0] - p0[0], vy = p2[1] - p0[1], vz = p2[2] - p0[2]; const ny = uz * vx - ux * vz; if (ny >= 0) bkt.tri(p0, p1, p2, ...(uvs || [])); else bkt.tri(p0, p2, p1, ...(uvs ? [uvs[0], uvs[2], uvs[1]] : [])); };
+  bk.setColor(t[0], t[1], t[2]);
+  for (let i = 0; i < n; i++) { const a2 = out[i], b2 = out[(i + 1) % n]; const a = [a2[0], eaveY, a2[1]], b = [b2[0], eaveY, b2[1]]; const ka = near(a2), kb = near(b2); const L = Math.hypot(b2[0] - a2[0], b2[1] - a2[1]); const S = 1 / 3;
+    const sl = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+    if (ka === kb) { tri(bk, a, b, R[ka], [[0, 0], [L * S, 0], [L * S / 2, sl(a, R[ka]) * S]]); tri(col, a, b, R[ka]); }
+    else { tri(bk, a, b, R[kb], [[0, 0], [L * S, 0], [L * S, sl(b, R[kb]) * S]]); tri(bk, a, R[kb], R[ka], [[0, 0], [L * S, sl(b, R[kb]) * S], [0, sl(a, R[ka]) * S]]); tri(col, a, b, R[kb]); tri(col, a, R[kb], R[ka]); } }
+  bk.setColor(t[0] * 0.8, t[1] * 0.8, t[2] * 0.8); bk.tube(R[0], R[1], 0.13, 5, 1); bk.setColor(1, 1, 1);
+  const pt = B.v('paint', true); pt.setColor(0.78, 0.77, 0.73); for (let i = 0; i < n; i++) { const j = (i + 1) % n; quadFacing(pt, [ring[i][0], eaveY - 0.02, ring[i][1]], [ring[j][0], eaveY - 0.02, ring[j][1]], [out[j][0], eaveY - 0.02, out[j][1]], [out[i][0], eaveY - 0.02, out[i][1]], [0, -1, 0]); } pt.setColor(1, 1, 1);
+  // a solid attic so nobody can stand inside the roof: slabs under the ridge, narrowing upward
+  const c0 = [(ra[0] + rb[0]) / 2, (ra[1] + rb[1]) / 2]; const rise = ridgeY - eaveY; for (let k = 0; k < 4; k++) { const f = (k + 0.5) / 4; const sc = 1 - (k + 1) / 4; if (sc <= 0.05) break; col.prism(ring.map((p) => [c0[0] + (p[0] - c0[0]) * sc * 0.9, c0[1] + (p[1] - c0[1]) * sc * 0.9]), eaveY + rise * (k / 4), eaveY + rise * ((k + 1) / 4), 1, true); void f; }
 }
 /** Solar array lying on a gable roof's slope: u range, v range (same sign = same slope). */
 export function solarOn(ctx, roof, ua, ub, va, vb, lift = 0.09) {
@@ -179,6 +218,21 @@ export function kerb(ctx, ringIn, opts = {}) {
       pt.setColor(col[0], col[1], col[2]); quadFacing(pt, P(u0, -w / 2, hgt), P(u1, -w / 2, hgt), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [0, 1, 0]);
       pt.setColor(col[0] * 0.8, col[1] * 0.8, col[2] * 0.8); quadFacing(pt, P(u0, w / 2, -0.05), P(u1, w / 2, -0.05), P(u1, w / 2, hgt), P(u0, w / 2, hgt), [F.nx, 0, F.nz]); quadFacing(pt, P(u0, -w / 2, -0.05), P(u1, -w / 2, -0.05), P(u1, -w / 2, hgt), P(u0, -w / 2, hgt), [-F.nx, 0, -F.nz]); } }
   pt.setColor(1, 1, 1);
+}
+/**
+ * A paved surface draped on the ground: the outline is cut into 1 m cells (clipped to the outline) and every vertex takes the drawn
+ * ground height + dy, so paving that runs off its level pad onto a graded street edge or down a gentle slope neither floats nor
+ * sinks (the arts court: its west end meets the drive 0.35 m higher, its south strip falls 0.7 m to the music hall).
+ */
+export function drapePoly(ctx, bucket, ringIn, dy, uvFn) {
+  const ring = ensureCCW(ringIn); let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const p of ring) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
+  const clip = (poly, a, b, c) => { const o = []; for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; const dp = a * p[0] + b * p[1] - c, dq = a * q[0] + b * q[1] - c; if (dp >= 0) o.push(p); if ((dp >= 0) !== (dq >= 0)) { const t = dp / (dp - dq); o.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]); } } return o; };
+  const V = (p) => [p[0], ctx.groundY(p[0], p[1]) + dy, p[1]];
+  for (let cz = Math.floor(z0); cz < z1; cz++) for (let cx = Math.floor(x0); cx < x1; cx++) {
+    let poly = clip(ring, 1, 0, cx); if (poly.length < 3) continue; poly = clip(poly, -1, 0, -(cx + 1)); if (poly.length < 3) continue; poly = clip(poly, 0, 1, cz); if (poly.length < 3) continue; poly = clip(poly, 0, -1, -(cz + 1)); if (poly.length < 3) continue;
+    let ar = 0; for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; ar += p[0] * q[1] - q[0] * p[1]; } if (Math.abs(ar) < 1e-4) continue;
+    const v0 = V(poly[0]); for (let i = 1; i < poly.length - 1; i++) { const a = V(poly[i]), b = V(poly[i + 1]); const ux = a[0] - v0[0], uz = a[2] - v0[2], vx = b[0] - v0[0], vz = b[2] - v0[2]; if (Math.abs(ux * vz - uz * vx) < 1e-6) continue;
+      if (uz * vx - ux * vz >= 0) bucket.tri(v0, a, b, uvFn(v0[0], v0[2]), uvFn(a[0], a[2]), uvFn(b[0], b[2])); else bucket.tri(v0, b, a, uvFn(v0[0], v0[2]), uvFn(b[0], b[2]), uvFn(a[0], a[2])); } }
 }
 /** Closed ring round a polyline of width w (for kerbing a drive drawn as a line). */
 export function lineRing(pts, w) { const L = [], R = []; for (let i = 0; i < pts.length; i++) { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; const nx = -(b[1] - a[1]) / d * w / 2, nz = (b[0] - a[0]) / d * w / 2; L.push([pts[i][0] + nx, pts[i][1] + nz]); R.push([pts[i][0] - nx, pts[i][1] - nz]); } return [...L, ...R.reverse()]; }
