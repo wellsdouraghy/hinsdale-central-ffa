@@ -46,6 +46,7 @@
       "colors": [[0.3, 0.17, 0.14], [0.34, 0.2, 0.17], [0.26, 0.15, 0.13], [0.31, 0.22, 0.19], [0.22, 0.14, 0.13]], "weights": [4, 3, 2, 1.5, 1],
       "mortar": [0.2, 0.18, 0.16], "unit_var": 0.07, "joint_depth": 0.003, "flash": 0.05, "target": [0.3, 0.19, 0.16], "roughness": 0.9, "normalScale": 0.8 }
   },
+  "replaces": ["brickColor", "brickNormal", "brickRough"],
   "overrides": {
     "brick": { "tex": "hcBrickBlend", "uvM": 2.2, "roughness": 0.92, "normalScale": 1.0 },
     "limestone": { "tex": "hcLimestone", "uvM": 3.0, "tint": [1, 1, 1], "roughness": 0.8, "normalScale": 0.7 },

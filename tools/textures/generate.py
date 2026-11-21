@@ -292,5 +292,5 @@ if __name__ == '__main__':
         ent = build(name, sp, out_dir, preview); ents.append(ent)
         sz = sum(os.path.getsize(os.path.join(out_dir, ent[k])) for k in ('map', 'normal')); total += sz
         print(f"{name:22s} {sp['kind']:15s} {ent['sizeM'][0]:.3f} x {ent['sizeM'][1]:.3f} m  {ent['px'][0]}x{ent['px'][1]}  {sz / 1024:.0f} kB  mean {ent['meanLinear']}")
-    json.dump({'campus': cid, 'version': 1, 'textures': ents, 'overrides': sheet.get('overrides', {})}, open(man_path, 'w'), indent=1)
+    json.dump({'campus': cid, 'version': 1, 'textures': ents, 'overrides': sheet.get('overrides', {}), 'replaces': sheet.get('replaces', [])}, open(man_path, 'w'), indent=1)
     print('wrote', man_path, f'{total / 1e6:.2f} MB generated this run')

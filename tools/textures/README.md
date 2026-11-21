@@ -52,8 +52,10 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
   `?tex=1`; `?tex=0` turns a pack off (that is the "before" for screenshots).
 - `overrides` in the sheet re-skin materials the builder already uses (`brick`, `stucco`, `limestone`, `shingles`,
   `<id>Paver` ...) with no code change. Tinted (vertex-colour) materials want a NEUTRAL tile with the old mean
-  (stucco 0.85, shingles 0.20) so the builder's per-building tints keep working; the tints are then set from the
+  (MEASURE the tile it replaces: stucco canvas 0.85, shared shingles 0.032, not the 0.2 a code comment claims) so the builder's per-building tints keep working; the tints are then set from the
   swatches (`swatch / tile mean`).
+- `replaces` (sheet top level): shared tiles the pack makes redundant on this campus (`brickColor`, `brickNormal`,
+  `brickRough` when both `brick` and `brickRed` are overridden). They are then not downloaded at all.
 - A texture with `key` becomes its own material: write walls to `ctx.B.v(key, true)` or, through the facade kit, give
   the style `wall: '<key>'` (src/world/facade.js). Without a pack the kit falls back to `'brick'` + `tint`.
 - `uvM` = metres per UV unit of the geometry (facade kit 2.2, limestone 3.0, roofs 3.0). The loader sets

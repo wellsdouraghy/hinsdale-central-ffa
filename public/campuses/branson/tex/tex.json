@@ -37,13 +37,14 @@
     1024
    ],
    "meanLinear": [
-    0.2,
-    0.2,
-    0.2
+    0.0315,
+    0.0303,
+    0.0364
    ],
    "courseM": 0.143,
    "roughness": 0.92,
-   "normalScale": 0.9
+   "normalScale": 0.9,
+   "notes": "neutral: same linear mean as the shared shingles_color.jpg it replaces (measured, 0.032), so the per-roof vertex tints keep their colours"
   },
   {
    "name": "brTile",
@@ -200,5 +201,6 @@
    "normalScale": 0.9,
    "roughness": 0.92
   }
- }
+ },
+ "replaces": []
 }

@@ -161,5 +161,10 @@
    "roughness": 0.9,
    "normalScale": 0.8
   }
- }
+ },
+ "replaces": [
+  "brickColor",
+  "brickNormal",
+  "brickRough"
+ ]
 }

@@ -5,7 +5,7 @@ import { makeCanvas, canvasTexture, mulberry32 } from './util.js';
 const BASE = './assets/world/';
 
 /** files: the campus's per-site images ({ groundMacro, groundMask, roofs } relative to the site root). */
-export async function loadTextures(renderer, quality, onProgress, files = {}) {
+export async function loadTextures(renderer, quality, onProgress, files = {}, skip = []) {
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
   const aniso = quality === 'low' ? Math.min(2, maxAniso) : Math.min(quality === 'high' ? 16 : 8, maxAniso);
   const loader = new THREE.TextureLoader();
@@ -22,6 +22,8 @@ export async function loadTextures(renderer, quality, onProgress, files = {}) {
   const keys = Object.keys(list); let done = 0; const out = {};
   await Promise.all(keys.map(async (k) => {
     const [file, srgb, repeat] = list[k];
+    // shared tiles a campus texture pack replaces everywhere (tex.json `replaces`) are not downloaded: a 1 x 1 stand-in keeps the material table valid
+    if (skip.includes(k)) { const d = new THREE.DataTexture(new Uint8Array(srgb ? [255, 255, 255, 255] : [128, 128, 255, 255]), 1, 1); d.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; d.wrapS = d.wrapT = THREE.RepeatWrapping; d.needsUpdate = true; out[k] = d; done++; onProgress(done / keys.length); return; }
     const t = await loader.loadAsync(files[k] ? './' + files[k] : BASE + file);
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;

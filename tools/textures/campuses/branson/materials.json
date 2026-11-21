@@ -22,7 +22,7 @@
   },
   "textures": {
     "brStucco": { "kind": "stucco", "finish": "sand", "size_m": [4.8, 4.8], "px": [1024, 1024], "seed": 51, "color": [0.85, 0.85, 0.84], "mottle": 0.03, "grain": 0.04, "roughness": 0.93, "normalScale": 0.85 },
-    "brShingle": { "kind": "asphalt_shingle", "style": "architectural", "exposure": 0.143, "size_m": [3.0, 3.0], "px": [1024, 1024], "seed": 52, "colors": [[0.2, 0.2, 0.2], [0.23, 0.23, 0.23], [0.17, 0.17, 0.17]], "unit_var": 0.1, "target": [0.2, 0.2, 0.2], "roughness": 0.92, "normalScale": 0.9 },
+    "brShingle": { "kind": "asphalt_shingle", "style": "architectural", "exposure": 0.143, "size_m": [3.0, 3.0], "px": [1024, 1024], "seed": 52, "colors": [[0.032, 0.031, 0.036], [0.038, 0.037, 0.043], [0.026, 0.025, 0.03]], "unit_var": 0.1, "target": [0.0315, 0.0303, 0.0364], "notes": "neutral: same linear mean as the shared shingles_color.jpg it replaces (measured, 0.032), so the per-roof vertex tints keep their colours", "roughness": 0.92, "normalScale": 0.9 },
     "brTile": { "kind": "clay_tile", "key": "brTile", "pitch": 0.21, "exposure": 0.36, "size_m": [2.94, 2.88], "px": [1024, 1024], "seed": 53,
       "colors": [[0.42, 0.17, 0.09], [0.52, 0.26, 0.15], [0.3, 0.12, 0.07], [0.46, 0.21, 0.12], [0.36, 0.2, 0.13]], "weights": [4, 2, 2, 2, 1], "unit_var": 0.13, "target": [0.37, 0.16, 0.085],
       "roughness": 0.88, "normalScale": 1.0, "uvM": 3.0, "doubleSide": true, "weather": [0.16, 0.0, 0.0], "flatten": 0.6 },

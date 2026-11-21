@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { Builder } from './util.js';
 import { loadTextures, createMaterials } from './assets.js';
-import { loadCampusTextures, applyCampusTextures } from './campusTextures.js';
+import { fetchCampusPack, loadCampusTextures, applyCampusTextures } from './campusTextures.js';
 import { createSky, sunDirection, applyBakedShadow } from './sky.js';
 import { createGround, SAT, GROUND_BAKE_LAYER } from './ground.js';
 import { createTerrain, installBuilderHelpers } from './terrain.js';
@@ -70,10 +70,10 @@ export async function createWorld({ renderer, scene, camera, settings = {}, onPr
   const sky = await createSky({ renderer, scene, quality, opts: campus.sky });
 
   progress(0.12, 'Loading textures');
-  const T = await loadTextures(renderer, quality, (f) => progress(0.12 + f * 0.28, 'Loading textures'), { groundMacro: F.groundMacro, groundMask: F.groundMask, roofs: F.roofs });
+  const texPre = await fetchCampusPack(campus);   // optional per-campus texture pack (campusTextures.js; null when the campus has none)
+  const T = await loadTextures(renderer, quality, (f) => progress(0.12 + f * 0.28, 'Loading textures'), { groundMacro: F.groundMacro, groundMask: F.groundMask, roofs: F.roofs }, texPre ? texPre.replaces : []);
   const M = createMaterials(T, quality);
-  // optional per-campus texture pack generated from reference photos (campusTextures.js; null when the campus has none)
-  const texPack = await loadCampusTextures(campus, T, quality);
+  const texPack = await loadCampusTextures(texPre, T, quality);
   await tick();
 
   // surface class lookup for footsteps etc. (1 m grid baked from the surface mask)

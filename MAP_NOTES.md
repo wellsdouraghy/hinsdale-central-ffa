@@ -148,6 +148,8 @@ Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they
    athletic wing; Hamilton's Brown Hall is Flemish bond with clinker headers), assigned per building / style.
 5. **Tinted materials keep their mean**: an override of a vertex-tinted material (stucco, shingles) must be a NEUTRAL
    tile with the old mean, or every building that tints it changes colour. Put the measured colour in the tint.
+   Measure the old tile's linear mean from the file; do not trust a constant in the code (the shared shingle tile is
+   0.032, the kits' `TILE_AVG` says 0.2: a neutral 0.2 shingle turned every Marin and Branson roof pink-white).
 6. **Check**: `?tex=0` is the before, default the after; one side-by-side per school building against a photo from the
    same side and a tiles render, in `dev/shots/textures/<id>/` (the `ref-compare/` folder there is gitignored because
    it contains the photos). Map check 0 fails, practice with no console errors, FPS on medium, pack size (2-4 MB).

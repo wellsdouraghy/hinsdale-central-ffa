@@ -22,12 +22,17 @@ const WEATHER = `#include <map_fragment>
 
 function flag() { try { return new URLSearchParams(globalThis.location ? globalThis.location.search : '').get('tex'); } catch (e) { return null; } }
 
-/** Loads the campus pack (or returns null). Call before the builder runs; `applyCampusTextures` after it. */
-export async function loadCampusTextures(campus, T, quality) {
+/** Step 1 (before the shared textures load): the pack's manifest, or null. `replaces` lists shared tiles it makes redundant. */
+export async function fetchCampusPack(campus) {
   const f = flag(); if (f === '0') return null;
   const file = (campus.files && campus.files.textures) || (f === '1' ? `campuses/${campus.id}/tex/tex.json` : null);
   if (!file) return null;
-  let man; try { man = await fetch('./' + file).then((r) => r.json()); } catch (e) { console.warn('[textures] no pack', file); return null; }
+  try { const man = await fetch('./' + file).then((r) => r.json()); return { file, man, replaces: man.replaces || [] }; } catch (e) { console.warn('[textures] no pack', file); return null; }
+}
+
+/** Step 2: loads the pack's images. Call before the builder runs; `applyCampusTextures` after it. */
+export async function loadCampusTextures(pre, T, quality) {
+  if (!pre) return null; const { file, man } = pre;
   const base = file.slice(0, file.lastIndexOf('/') + 1); const loader = new THREE.TextureLoader(); const withNormals = quality !== 'low';
   const pack = { campus: man.campus, tex: {}, overrides: man.overrides || {}, bytes: 0 };
   await Promise.all(man.textures.map(async (e) => {
