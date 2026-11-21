@@ -18,3 +18,4 @@ src/campuses/*/tools/data/refs/
 tools/textures/**/refs_raw/
 # side-by-sides that contain reference photos (local review only)
 dev/shots/textures/*/ref-compare/
+dev/shots/textures/*/v2/ref-compare/

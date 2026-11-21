@@ -32,7 +32,8 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
 3. **Review.** `refs.py sheet <id> sheet.jpg 0 60` (local file, do not commit), drop people / interiors / adverts with
    `refs.py prune`, then write `notes.json` for every kept photo (building, facade, what it tells you).
    `refs.py manifest <id>` writes the committed `refs.json`.
-4. **Measure.** `refs.py swatch` on SUNLIT patches (shaded walls carry the sky's blue), scaled against a known surface in
+4. **Measure.** `refs.py swatch ... --wb` on SUNLIT patches only (a shaded wall carries the sky's blue: Hinsdale's first
+   pack came out grey that way), white-balanced and scaled against a known surface in
    the same frame (new concrete ~0.50, white paint ~0.80, cast stone ~0.60 linear). `refs.py pitch` + a known height
    (door leaf 2.13 m, CMU course 0.203 m) gives the course height. When a photo cannot resolve it, say so in the sheet
    and use the standard unit (modular brick 194 x 57 mm, 3 courses = 203 mm).
@@ -63,8 +64,17 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
   texture snap sills and heads to its courses and make soldier lintels one brick tall.
 - Corners: the facade kit carries `uOff` round the ring, so bond and courses continue across returns. Never scale a
   texture to fit a wall; change the wall (or the snap) instead.
-- No visible repetition: tiles are 2-5 m with low frequencies flattened; the keyed materials add world-space weathering
-  (grime, damp base, efflorescence: `weather: [g, d, e]`) so no two bays match.
+- No visible repetition: tiles are 2-5 m with low frequencies flattened, and every material with `weather: [grime,
+  damp base, efflorescence]` (all keyed textures by default; an override only when the sheet asks, because it replaces
+  the material's own fragment hook: fine for `brick` and plain standard materials) runs the shared surface shader in
+  src/world/campusTextures.js: a second sample of the tile shifted by `altM` (a whole number of units / courses, from
+  the generator) cross-faded by world noise, tone and warm-cool drift (`macro`, 0.3), rain streaks (`streaks`, 0.1),
+  micro grain near the camera (`micro`, 0.1) and texel-driven roughness (`roughVar`, 0.5). `alt: 0` switches the
+  second sample off for one texture; low quality never takes it.
+- Masonry colour: `colors` + `weights` are the palette of unit faces, `target` the measured mean of the FACES (mortar is
+  its own swatch), `target_tile` a whole-wall mean instead. Detail knobs (all optional): `texture` (wirecut, sand,
+  smooth, split), `unit_var`, `hue_var`, `grad`, `flash`, `heart_frac`, `scum_frac`, `chips`, `wobble`, `smear`, `pits`,
+  `bake_shadow`. Concrete: `boards` (board-formed, plank height in m), `pinholes`.
 - Budget: 1024 px per ~2.5 m (2048 x 1024 only for variegated brick), albedo + normal JPG, no roughness map (scalar).
   Normal maps are skipped on low quality. A pack is 2-4 MB per campus and only that campus downloads it.
 

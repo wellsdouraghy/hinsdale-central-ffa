@@ -1,6 +1,6 @@
 {
  "campus": "branson",
- "version": 1,
+ "version": 2,
  "textures": [
   {
    "name": "brStucco",
@@ -16,9 +16,13 @@
     1024
    ],
    "meanLinear": [
-    0.85,
-    0.85,
-    0.84
+    0.8494,
+    0.8494,
+    0.8394
+   ],
+   "altM": [
+    1.776,
+    2.064
    ],
    "roughness": 0.93,
    "normalScale": 0.85
@@ -42,6 +46,10 @@
     0.0364
    ],
    "courseM": 0.143,
+   "altM": [
+    1.2505,
+    1.43
+   ],
    "roughness": 0.92,
    "normalScale": 0.9,
    "notes": "neutral: same linear mean as the shared shingles_color.jpg it replaces (measured, 0.032), so the per-roof vertex tints keep their colours"
@@ -65,6 +73,10 @@
     0.085
    ],
    "courseM": 0.36,
+   "altM": [
+    1.47,
+    1.44
+   ],
    "key": "brTile",
    "uvM": 3.0,
    "roughness": 0.88,
@@ -95,6 +107,10 @@
     0.053
    ],
    "courseM": 0.13,
+   "altM": [
+    0.946,
+    1.04
+   ],
    "key": "brCedar",
    "uvM": 2.2,
    "roughness": 0.9,
@@ -120,8 +136,12 @@
    ],
    "meanLinear": [
     0.5894,
-    0.5304,
+    0.5305,
     0.3242
+   ],
+   "altM": [
+    1.2,
+    0.984
    ],
    "key": "brBoardBatten",
    "uvM": 2.2,
@@ -151,6 +171,10 @@
     0.308,
     0.3179
    ],
+   "altM": [
+    1.2,
+    0.984
+   ],
    "key": "brSeam",
    "uvM": 3.0,
    "roughness": 0.5,
@@ -173,9 +197,13 @@
     512
    ],
    "meanLinear": [
-    0.3649,
-    0.3649,
-    0.3553
+    0.3747,
+    0.3747,
+    0.3648
+   ],
+   "altM": [
+    1.332,
+    1.032
    ],
    "key": "brFormConcrete",
    "uvM": 2.2,

@@ -12,13 +12,44 @@
 import * as THREE from 'three';
 import { withWorld } from './assets.js';
 
-const WEATHER = `#include <map_fragment>
+// Surface shader shared by every pack material that asks for it (`weather` on a keyed texture or on an override).
+//   uWx   [grime, damp base, efflorescence]
+//   uAlt  second sample of the same tile, shifted by a whole number of units / courses (tex.json `altM`), cross-faded in
+//         by slow world-space noise: joints stay registered, but no two stretches of wall show the same bricks, so a
+//         2-5 m tile does not read as a grid on a 60 m wall. z = 0 turns it off (low quality: one sample).
+//   uVar  [macro tone drift, rain streaks, micro grain (fades out with distance: no shimmer), roughness variation]
+const PARS = 'uniform vec3 uWx; uniform vec3 uAlt; uniform vec4 uVar; uniform vec2 uMic; float txLum = 1.0; float txDamp = 0.0;';
+const WEATHER = `#ifdef USE_MAP
+  vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+  if (uAlt.z > 0.0) {
+    float am = wNoise(vWPos.xz * 0.19 + vec2(vWPos.y * 0.23, -vWPos.y * 0.17)) * 0.65 + wNoise(vWPos.xz * 0.53 + vWPos.y * 0.61) * 0.35;
+    sampledDiffuseColor = mix(sampledDiffuseColor, texture2D( map, vMapUv + uAlt.xy ), smoothstep(0.44, 0.56, am) * uAlt.z);
+  }
+  txLum = dot(sampledDiffuseColor.rgb, vec3(0.3, 0.55, 0.15));
+  diffuseColor *= sampledDiffuseColor;
+#endif
   { float gr = wNoise(vWPos.xz * 0.35 + vWPos.y * 0.9) * 0.6 + wNoise(vec2(vWPos.x + vWPos.z, vWPos.y) * 1.7) * 0.4;
     float big = wNoise(vec2(vWPos.x * 0.07 + vWPos.z * 0.11, vWPos.y * 0.13));          // slow drift: no two bays look the same
-    float base = smoothstep(1.1, 0.0, vWPos.y);
-    diffuseColor.rgb *= (1.0 - uWx.x * 0.5 + uWx.x * gr) * (1.0 - uWx.x * 0.35 + uWx.x * 0.7 * big) * (1.0 - uWx.y * base * (0.6 + 0.8 * gr));
-    float eff = smoothstep(0.72, 0.95, wNoise(vWPos.xz * 0.9 + vWPos.y * 2.3)) * smoothstep(0.2, 1.2, vWPos.y) * uWx.z;
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8, 0.78, 0.74), eff); }`;
+    float wallness = 1.0 - smoothstep(0.5, 0.9, abs(vWN.y));                             // grade damp / streaks belong on walls, not on roofs and paving
+    float base = smoothstep(1.1, 0.0, vWPos.y) * wallness;
+    txDamp = uWx.y * base * (0.6 + 0.8 * gr);
+    diffuseColor.rgb *= (1.0 - uWx.x * 0.5 + uWx.x * gr) * (1.0 - uVar.x * 0.5 + uVar.x * big) * (1.0 - txDamp);
+    diffuseColor.rgb *= mix(vec3(1.0), vec3(1.035, 1.0, 0.955), (big - 0.5) * 2.0 * uVar.x * 2.0);   // warm / cool drift with the tone drift
+    float st = wNoise(vec2(vWPos.x * 2.3 + vWPos.z * 1.7, vWPos.y * 0.11)) * 0.7 + wNoise(vec2(vWPos.x * 5.1 - vWPos.z * 4.3, vWPos.y * 0.23)) * 0.3;
+    diffuseColor.rgb *= 1.0 - uVar.y * wallness * smoothstep(0.52, 0.85, st);              // rain run-off: long vertical streaks
+    float eff = smoothstep(0.72, 0.95, wNoise(vWPos.xz * 0.9 + vWPos.y * 2.3)) * smoothstep(0.2, 1.2, vWPos.y) * uWx.z * wallness;
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8, 0.78, 0.74), eff);
+    #ifdef USE_MAP
+    float pxw = length(fwidth(vWPos));
+    float mf = smoothstep(0.006, 0.0012, pxw) * uVar.z;                                    // only where a texel is bigger than a pixel
+    if (mf > 0.001) { vec2 q = fract(vMapUv) * uMic; diffuseColor.rgb *= 1.0 + mf * (wNoise(q) + wNoise(q * 2.3 + 7.1) - 1.0); }
+    #endif
+  }`;
+const ROUGH = `float roughnessFactor = roughness;
+#ifdef USE_ROUGHNESSMAP
+  roughnessFactor *= texture2D( roughnessMap, vRoughnessMapUv ).g;
+#endif
+  roughnessFactor = clamp(roughnessFactor + uVar.w * (txLum - uMicMean()) - 0.9 * txDamp, 0.25, 1.0);`;
 
 function flag() { try { return new URLSearchParams(globalThis.location ? globalThis.location.search : '').get('tex'); } catch (e) { return null; } }
 
@@ -50,6 +81,23 @@ function fit(tex, e, uvM, offsetM) {
   t.needsUpdate = true; return t;
 }
 
+// Weathering + anti-repetition + micro grain + roughness variation (see WEATHER). Uniforms are per material; the program is shared.
+function surface(m, e, o, w, quality) {
+  const lite = quality === 'low';
+  const alt = o.alt ?? e.alt ?? 1, macro = o.macro ?? e.macro ?? 0.3, streaks = o.streaks ?? e.streaks ?? 0.1, micro = o.micro ?? e.micro ?? 0.1, rv = o.roughVar ?? e.roughVar ?? 0.5;
+  const mean = e.meanLinear ? 0.3 * e.meanLinear[0] + 0.55 * e.meanLinear[1] + 0.15 * e.meanLinear[2] : 0.3;
+  const U = {
+    uWx: { value: new THREE.Vector3(w[0], w[1], w[2]) },
+    uAlt: { value: new THREE.Vector3(e.altM ? e.altM[0] / e.sizeM[0] : 0, e.altM ? e.altM[1] / e.sizeM[1] : 0, e.altM && !lite ? alt : 0) },
+    uVar: { value: new THREE.Vector4(macro, streaks, lite ? 0 : micro, rv / Math.max(mean, 0.02)) },
+    uMic: { value: new THREE.Vector2(Math.round(e.sizeM[0] / 0.004), Math.round(e.sizeM[1] / 0.004)) },   // 4 mm grain, whole cells per tile
+    uMean: { value: mean },
+  };
+  withWorld(m, { key: 'txSurface', pars: PARS + ' uniform float uMean; float uMicMean() { return uMean; }', map: WEATHER, rough: ROUGH });
+  const prev = m.onBeforeCompile; m.onBeforeCompile = (sh) => { prev(sh); Object.assign(sh.uniforms, U); };
+  m.userData.txSurface = U;
+}
+
 function skinMaterial(m, e, o, quality) {
   const uvM = o.uvM || e.uvM || 2.2; const off = o.offsetM || e.offsetM;
   m.map = fit(e.map, e, uvM, off);
@@ -71,13 +119,14 @@ export function applyCampusTextures(ctx, pack) {
     const m = new THREE.MeshStandardMaterial({ vertexColors: e.vertexColors !== false, side: e.doubleSide ? THREE.DoubleSide : THREE.FrontSide });
     if (e.doubleSide) m.shadowSide = THREE.BackSide;
     if (e.polygonOffset) { m.polygonOffset = true; m.polygonOffsetFactor = -e.polygonOffset; m.polygonOffsetUnits = -e.polygonOffset; }
-    if (w) { const uni = { value: new THREE.Vector3(w[0], w[1], w[2]) }; withWorld(m, { key: 'txWeather', pars: 'uniform vec3 uWx;', map: WEATHER }); const prev = m.onBeforeCompile; m.onBeforeCompile = (sh) => { prev(sh); sh.uniforms.uWx = uni; }; }
+    if (w) surface(m, e, {}, w, quality);
     M[e.key] = skinMaterial(m, e, {}, quality);
   }
   for (const [key, o] of Object.entries(pack.overrides)) {
     const m = M[key], e = pack.tex[o.tex];
     if (!m || !m.isMaterial || !e) { if (!o.optional) console.warn('[textures] override skipped', key); continue; }
     skinMaterial(m, e, o, quality);
+    if (o.weather) surface(m, e, o, o.weather, quality);    // replaces the material's own fragment hook (the sheet only asks for it where that is right: M.brick, plain standard materials)
   }
 }
 

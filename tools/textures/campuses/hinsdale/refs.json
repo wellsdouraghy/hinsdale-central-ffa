@@ -3,16 +3,13 @@
  "school": "Hinsdale Central High School",
  "note": "Reference photos are NOT in the repo (third-party copyright). They live in the gitignored src/campuses/hinsdale/tools/data/refs/ and are re-collected with tools/textures/scrape.py. Used only to measure materials; no texture contains reference pixels.",
  "counts": {
-  "web": 14,
+  "web": 18,
   "streetview": 0,
-  "reviewed": 14
+  "reviewed": 18
  },
  "skippedByRobots": [
-  "commons search: Hinsdale Central High School",
-  "commons search: Hinsdale Central High School aerial",
-  "https://www.hinsdale86.org/our-district/news-and-announcements/dbpp/~board/news-and-announcements/post/district-86-celeb",
-  "https://www.hinsdale86.org/our-district/news-and-announcements/dbpp/~board/news-and-announcements/post/link-crew-support",
-  "https://www.hinsdale86.org/our-district/news-and-announcements/dbpp/~board/news-and-announcements/post/yusuf-ahmed-resea"
+  "https://en.wikipedia.org/wiki/Special:CentralAutoLogin/start",
+  "https://www.thebluebook.com/iProView/802320/evergreen-specialties-and-design-inc/subcontractors/construction-projects/hi"
  ],
  "images": [
   {
@@ -265,6 +262,78 @@
    "facade": "close-up of doors and east return",
    "shows": "running bond resolved: course 68 mm from the 2.13 m door; salmon / grey flashed units; red clay pavers; bronze downspout",
    "use": "coursing",
+   "reviewed": true
+  },
+  {
+   "file": "page_d464c8d1af.jpg",
+   "url": "https://www.pepperconstruction.com/sites/default/files/styles/teaser_large/public/images/hinsdale_central_horizontal_1_0.jpg?itok=oFyXxT5r",
+   "page": "https://www.pepperconstruction.com/project/hinsdale-township-high-school-district-86-aquatic-center-renovations",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    960,
+    600
+   ],
+   "building": "interior courtyard (student services addition)",
+   "facade": "north-west corner of the courtyard",
+   "shows": "professional photo: tan-buff brick on the upper left wing, clearly red-brown brick spandrels on the right wing, bronze curtain wall",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_2b7f70cec7.jpg",
+   "url": "https://www.pepperconstruction.com/sites/default/files/styles/max_1300x1300/public/images/hinsdale_central_banner_1_0.jpg?itok=IvG0vkJv",
+   "page": "https://www.pepperconstruction.com/project/hinsdale-township-high-school-district-86-masterplan",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "Hinsdale Central ",
+   "px": [
+    1300,
+    813
+   ],
+   "building": "main entrance (Grant St side)",
+   "facade": "entrance front at dusk",
+   "shows": "professional photo: warm orange-tan brick both sides of the white canopy; brick R:G:B about 1 : 0.58 : 0.35 after white-balancing on the concrete steps",
+   "use": "colour",
+   "reviewed": true
+  },
+  {
+   "file": "page_fdb6a1173d.jpg",
+   "url": "https://www.thehinsdalean.com/IMG/FZCWLEq-BP8REAOLS0LzgmF-IOxQY/XPATH/home/cms_data/dfault/photos/stories/id/5/1/3351/s_topXEXT1433x33091is.jpg",
+   "page": "https://thehinsdalean.com/story/2021/07/08/news/phase-2-construction-on-track-at-central/3351.html",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "",
+   "px": [
+    1067,
+    800
+   ],
+   "building": "stadium",
+   "facade": "aerial, straight down",
+   "shows": "field and track colours; red-brown brick field house at the west edge",
+   "use": "ground",
+   "reviewed": true
+  },
+  {
+   "file": "page_3f22af9edb.jpg",
+   "url": "https://eea-ltd.com/wp-content/uploads/2020/08/P1010068-edit-2-2000x1500.jpg",
+   "page": "https://eea-ltd.com/project/hinsdale-central-high-school/",
+   "source": "page",
+   "licence": "not stated (all rights reserved assumed)",
+   "author": "",
+   "caption": "background",
+   "px": [
+    2000,
+    1500
+   ],
+   "building": "whole campus",
+   "facade": "aerial oblique from the south-east (older)",
+   "shows": "all wings read warm tan-brown, none grey",
+   "use": "colour",
    "reviewed": true
   }
  ],

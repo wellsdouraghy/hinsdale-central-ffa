@@ -150,10 +150,32 @@ Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they
    tile with the old mean, or every building that tints it changes colour. Put the measured colour in the tint.
    Measure the old tile's linear mean from the file; do not trust a constant in the code (the shared shingle tile is
    0.032, the kits' `TILE_AVG` says 0.2: a neutral 0.2 shingle turned every Marin and Branson roof pink-white).
-6. **Check**: `?tex=0` is the before, default the after; one side-by-side per school building against a photo from the
-   same side and a tiles render, in `dev/shots/textures/<id>/` (the `ref-compare/` folder there is gitignored because
+6. **Check**: `?tex=0` is the before, default the after; one side-by-side per school building (before | after | photo
+   from the same side) in `dev/shots/textures/<id>/v2/` (the `ref-compare/` folder there is gitignored because
    it contains the photos). Map check 0 fails, practice with no console errors, FPS on medium, pack size (2-4 MB).
-7. Lessons so far: a clay-tile or batten albedo with no baked shading reads as flat stripes (bake the barrel / batten
+7. **Colour: what made the difference (v2, after "Hinsdale brick is too grey").** The v1 Hinsdale bricks were measured
+   honestly and still came out grey-purple in the game. Why, and the rules that fix it:
+   - **Sunlit patches only, white-balanced in the same frame.** Two of the three v1 brick patches were on the shaded
+     north front: R/B measured 1.0 for a brick that is R/B ~2-3 in sun. Take `refs.py swatch ... --wb` on a wall the sun
+     is on, with a neutral in the same photo (concrete walk, steps, white canopy). No sunlit photo -> go and find one
+     (architect / contractor project pages have them) before generating anything.
+   - **Phone photos under-read saturation** (HDR tone mapping): the same entrance brick was R/B 1.8 on a phone and 2.85
+     in the contractor's architectural photo. Weight the professional photo, and ask someone who knows the building.
+   - **Measure brick faces and mortar separately.** A mean over the whole wall folds ~18 % grey mortar into the brick
+     colour; fitting the tile mean to that swatch then greys every unit. Masonry `target` = mean of the unit FACES;
+     `mortar` is its own swatch; `target_tile` (faces + joints) only where a whole-wall mean is all there is.
+   - **Judge in the game, in shade.** The sky fills shadows with blue: an albedo of R/B 1.7 reads purple on a north wall,
+     R/B 2.9-3.6 still reads brick. The side-by-side that matters is game wall in shade vs photo wall in shade.
+   - **Variation sells it**: 6-7 palette colours with weights (dark flashed units ~1 in 25, not 1 in 8), per-unit tone
+     and hue jitter, end-to-end gradient, dark hearts, pale scum, then wobbling arrises, chips, sanded recessed mortar
+     and a little baked top-light under each bed joint (reads at distances where the normal map has mipped out).
+   - **No grid at distance**: the surface shader takes a second sample of the same tile shifted by a whole number of
+     units and courses (`altM`, written by the generator) and cross-fades by slow world noise, so joints stay
+     registered but no two stretches of wall repeat; plus tone / warm-cool drift, rain streaks, damp base, 4 mm micro
+     grain that fades out with distance (no shimmer) and roughness that follows the texel (dark flashed units a bit
+     glossier, mortar and damp base different). Zero extra downloads; one extra texture sample on medium / high.
+   - Non-brick masonry (block, cast stone) must have almost no hue jitter (0.006): 0.025 turns it pastel.
+8. Lessons so far: a clay-tile or batten albedo with no baked shading reads as flat stripes (bake the barrel / batten
    shadow into the colour, the normal map alone is not enough at roof distance); mission tile must be double-sided like
    shingles; a brick tile under ~2.5 m wide repeats visibly on a 60 m gym wall unless the weathering shader is on.
 

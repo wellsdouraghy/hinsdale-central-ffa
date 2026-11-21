@@ -82,5 +82,29 @@
   "facade": "close-up of doors and east return",
   "shows": "running bond resolved: course 68 mm from the 2.13 m door; salmon / grey flashed units; red clay pavers; bronze downspout",
   "use": "coursing"
+ },
+ "page_d464c8d1af.jpg": {
+  "building": "interior courtyard (student services addition)",
+  "facade": "north-west corner of the courtyard",
+  "shows": "professional photo: tan-buff brick on the upper left wing, clearly red-brown brick spandrels on the right wing, bronze curtain wall",
+  "use": "colour"
+ },
+ "page_2b7f70cec7.jpg": {
+  "building": "main entrance (Grant St side)",
+  "facade": "entrance front at dusk",
+  "shows": "professional photo: warm orange-tan brick both sides of the white canopy; brick R:G:B about 1 : 0.58 : 0.35 after white-balancing on the concrete steps",
+  "use": "colour"
+ },
+ "page_fdb6a1173d.jpg": {
+  "building": "stadium",
+  "facade": "aerial, straight down",
+  "shows": "field and track colours; red-brown brick field house at the west edge",
+  "use": "ground"
+ },
+ "page_3f22af9edb.jpg": {
+  "building": "whole campus",
+  "facade": "aerial oblique from the south-east (older)",
+  "shows": "all wings read warm tan-brown, none grey",
+  "use": "colour"
  }
 }
