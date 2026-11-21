@@ -1,0 +1,236 @@
+{
+ "campus": "branson",
+ "version": 2,
+ "textures": [
+  {
+   "name": "brStucco",
+   "kind": "stucco",
+   "map": "brStucco_c.jpg",
+   "normal": "brStucco_n.jpg",
+   "sizeM": [
+    4.8,
+    4.8
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.8494,
+    0.8494,
+    0.8394
+   ],
+   "altM": [
+    1.776,
+    2.064
+   ],
+   "roughness": 0.93,
+   "normalScale": 0.85
+  },
+  {
+   "name": "brShingle",
+   "kind": "asphalt_shingle",
+   "map": "brShingle_c.jpg",
+   "normal": "brShingle_n.jpg",
+   "sizeM": [
+    3.05,
+    2.86
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.0315,
+    0.0303,
+    0.0364
+   ],
+   "courseM": 0.143,
+   "altM": [
+    1.2505,
+    1.43
+   ],
+   "roughness": 0.92,
+   "normalScale": 0.9,
+   "notes": "neutral: same linear mean as the shared shingles_color.jpg it replaces (measured, 0.032), so the per-roof vertex tints keep their colours"
+  },
+  {
+   "name": "brTile",
+   "kind": "clay_tile",
+   "map": "brTile_c.jpg",
+   "normal": "brTile_n.jpg",
+   "sizeM": [
+    2.94,
+    2.88
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.37,
+    0.16,
+    0.085
+   ],
+   "courseM": 0.36,
+   "altM": [
+    1.47,
+    1.44
+   ],
+   "key": "brTile",
+   "uvM": 3.0,
+   "roughness": 0.88,
+   "normalScale": 1.0,
+   "doubleSide": true,
+   "weather": [
+    0.16,
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "name": "brCedar",
+   "kind": "shingle_siding",
+   "map": "brCedar_c.jpg",
+   "normal": "brCedar_n.jpg",
+   "sizeM": [
+    2.2,
+    2.21
+   ],
+   "px": [
+    1024,
+    1024
+   ],
+   "meanLinear": [
+    0.15,
+    0.083,
+    0.05
+   ],
+   "courseM": 0.13,
+   "altM": [
+    0.946,
+    1.04
+   ],
+   "key": "brCedar",
+   "uvM": 2.2,
+   "roughness": 0.9,
+   "normalScale": 1.0,
+   "weather": [
+    0.15,
+    0.2,
+    0.0
+   ]
+  },
+  {
+   "name": "brLap",
+   "kind": "siding",
+   "map": "brLap_c.jpg",
+   "normal": "brLap_n.jpg",
+   "sizeM": [
+    4.8,
+    2.415
+   ],
+   "px": [
+    1024,
+    512
+   ],
+   "meanLinear": [
+    0.5768,
+    0.5191,
+    0.3173
+   ],
+   "courseM": 0.105,
+   "altM": [
+    2.4,
+    1.26
+   ],
+   "key": "brLap",
+   "uvM": 2.2,
+   "roughness": 0.78,
+   "normalScale": 1.0,
+   "weather": [
+    0.1,
+    0.15,
+    0.0
+   ]
+  },
+  {
+   "name": "brSeam",
+   "kind": "metal_seam",
+   "map": "brSeam_c.jpg",
+   "normal": "brSeam_n.jpg",
+   "sizeM": [
+    2.4,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.2981,
+    0.308,
+    0.3179
+   ],
+   "altM": [
+    1.2,
+    0.984
+   ],
+   "key": "brSeam",
+   "uvM": 3.0,
+   "roughness": 0.55,
+   "metalness": 0.3,
+   "normalScale": 1.0,
+   "doubleSide": true,
+   "weather": false,
+   "notes": "v3: metalness 0.7 -> 0.3 (the roof mirrored the sky and read navy-grey 107/112/131 against the photo's 177/178/186)"
+  },
+  {
+   "name": "brFormConcrete",
+   "kind": "concrete",
+   "map": "brFormConcrete_c.jpg",
+   "normal": "brFormConcrete_n.jpg",
+   "sizeM": [
+    3.6,
+    2.4
+   ],
+   "px": [
+    512,
+    512
+   ],
+   "meanLinear": [
+    0.3747,
+    0.3747,
+    0.3648
+   ],
+   "altM": [
+    1.332,
+    1.032
+   ],
+   "key": "brFormConcrete",
+   "uvM": 2.2,
+   "roughness": 0.86,
+   "normalScale": 0.9,
+   "weather": [
+    0.15,
+    0.3,
+    0.05
+   ]
+  }
+ ],
+ "overrides": {
+  "stucco": {
+   "tex": "brStucco",
+   "uvM": 2.2,
+   "normalScale": 0.85,
+   "roughness": 0.93
+  },
+  "shingles": {
+   "tex": "brShingle",
+   "uvM": 3.0,
+   "normalScale": 0.9,
+   "roughness": 0.92
+  }
+ },
+ "replaces": []
+}
