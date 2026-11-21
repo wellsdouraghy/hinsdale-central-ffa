@@ -249,7 +249,7 @@ def siding(sp, rng, kind):
         shadow = np.clip(1 - ((1 - uy) * e - drop) / 0.010, 0, 1); gap = np.clip(1 - ex / max(0.002, px[0]), 0, 1)
         pal = pick_palette(rng, n, sp.get('colors') or [sp['color']], sp.get('weights')) * (1 + sp.get('unit_var', 0.1) * rng.standard_normal(n).astype(np.float32))[:, None]
         grainv = noise((ph, pw), 0, rng, aniso=(34, 0.8))
-        col = pal[uid] * ((1 - 0.55 * shadow) * (1 - 0.6 * gap))[..., None] * (1 + sp.get('grain', 0.07) * grainv[..., None])
+        col = pal[uid] * ((1 - sp.get('course_shadow', 0.55) * shadow) * (1 - sp.get('gap_dark', 0.6) * gap))[..., None] * (1 + sp.get('grain', 0.07) * grainv[..., None])   # (course_shadow / gap_dark: how dark the butt shadow line and the keyways are drawn; lower them for a dark wall, or the courses read as brick joints at 30 m)
         # each shingle: its own grain direction strength, a cupped face, a butt that has weathered darker than the top
         cup = (np.abs(ux - 0.5) * 2) ** 2 * rng.uniform(-0.6, 1.0, n).astype(np.float32)[uid]
         wx = np.clip(uy, 0, 1) ** 2 * rng.uniform(0.3, 1.0, n).astype(np.float32)[uid]

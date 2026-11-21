@@ -15,20 +15,22 @@ export const CREAM = [0.86, 0.75, 0.52];
 // texture's bucket, or the fallback when the pack is off. PACK = linear vertex tints that go with it: walls over the neutral stucco tile (mean 0.85),
 // roofs over the neutral shingle tile (mean 0.0315), [1, 1, 1]-ish over the keyed tiles (their colour is in the texture); all of them were set against
 // sunlit AND shaded walls in game screenshots (MAP_NOTES "Textures from references").
+// v4 (independent QA): the warm wall tints are set on the SHADED wall first (R/G >= 1.06 with B < G there, or cream reads khaki and white blue-grey).
 export const packKey = (ctx, key, fallback) => (ctx.TX && ctx.TX.tex[key] && ctx.TX.tex[key].key ? key : fallback);
 export const PACK = {
-  cream: [0.80, 0.64, 0.28],      // the quad's cream-yellow stucco (school site photos)
-  kbh: [0.84, 0.70, 0.36],        // Katharine Branson Hall: a paler cream (tiles obliques, the drone still)
-  white: [0.80, 0.75, 0.52],      // warm white stucco: the hall's west block, Tallant, New House
-  tile: [1, 1, 1],                // brTile
+  cream: [0.86, 0.64, 0.28],      // the quad's cream-yellow stucco (school site photos)
+  kbh: [0.94, 0.72, 0.36],        // Katharine Branson Hall: a paler cream (tiles obliques, the drone still)
+  white: [0.93, 0.74, 0.46],      // warm white stucco: the hall's west block, Tallant
+  house: [0.94, 0.74, 0.32],      // New House: pale yellow stucco (the house beside the Fine Arts Center in the architect's photo)
+  tile: [1, 0.96, 1],             // brTile
   cedar: [1.0, 0.95, 0.8],               // brCedar
-  lap: [1.27, 1.13, 0.86],                 // brLap
+  lap: [1.34, 1.16, 0.72],                 // brLap
   conc: [1.12, 1.0, 0.78],                // brFormConcrete
   seam: [1.5, 1.48, 1.4],                // brSeam
   tan: [8.6, 7.1, 4.3],           // the gym's grey-tan composition shingle
   grey: [4.4, 4.4, 3.9],          // Fine Arts Center: grey composition shingle
   lightGrey: [7.0, 7.0, 6.2],     // New House
-  gymBase: [0.78, 0.70, 0.46],    // the gym's entrance block below the cedar: cream stucco
+  gymBase: [0.92, 0.69, 0.34],    // the gym's entrance block below the cedar: cream stucco
   soffit: [0.5, 0.36, 0.2],       // the Commons: clear-finished wood under the roof overhangs
 };
 /** Texture coordinates in a roof plane, in metres / 3: u along the eave a -> b (world distance, so collinear eaves carry on), v up the slope from it. */

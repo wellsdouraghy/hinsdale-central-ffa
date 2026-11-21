@@ -21,11 +21,11 @@ const WOOD = { brick: 'maP_wood_siding', limestone: 'whitePanel' };
 function lookOf(ctx) {
   const tx = !!ctx.TX; const k = (key, fb) => packKey(ctx, key, fb); const keyed = (key, fb, tint, fbTint) => (k(key, null) ? { bucket: key, tint } : { bucket: fb, tint: fbTint });
   const cedar = keyed('brCedar', 'maP_wood_siding', PACK.cedar, BROWN), lap = keyed('brLap', 'stucco', PACK.lap, ARTS_WHITE), conc = keyed('brFormConcrete', 'stucco', PACK.conc, CONC);
-  return { tx, cedar, lap, conc,
+  return { tx, cedar, lap, conc, hall: tx ? conc : { bucket: 'stucco', tint: [0.66, 0.6, 0.5] },   // (v4) the Commons hall's own side walls are the wings' concrete (they were lavender stucco beside it)
     clay: k('brTile', null) ? { bucket: 'brTile', tint: PACK.tile } : { tint: BR_CLAY },
     seam: k('brSeam', null) ? { bucket: 'brSeam', tint: PACK.seam, soffit: PACK.soffit } : { tint: BR_SEAM },
     cream: tx ? PACK.cream : CREAM0, kbh: tx ? PACK.kbh : CREAM0, white: tx ? PACK.white : null,
-    tan: tx ? PACK.tan : BR_TAN, grey: tx ? PACK.grey : [4.6, 4.7, 4.9], lightGrey: tx ? PACK.lightGrey : LIGHT_GREY };
+    tan: tx ? PACK.tan : BR_TAN, grey: tx ? PACK.grey : [4.6, 4.7, 4.9], lightGrey: tx ? PACK.lightGrey : LIGHT_GREY, house: tx ? PACK.house : null };
 }
 let LK = null;   // set at the top of buildSchool
 const CREAM0 = [0.93, 0.8, 0.54];
@@ -103,8 +103,23 @@ export function schoolWalls(ctx) {
 // ---- the gym: two halls under gable roofs (north hall ridge east-west, south hall ridge north-south with the solar arrays on
 // its west slope), and the east front on the field: a glazed gabled entrance with an arched window between two lean-to colonnades
 const GYM_N = [[-122, 81], [-99, 76], [-93, 73], [-86, 104], [-115, 109]], GYM_S = [[-87, 104], [-82, 129], [-83, 134], [-108, 139], [-115, 109]];
+// (texture pack v4) Part of a wall drawn by the facade kit takes another skin: every triangle of bucket `from` added since vertex float `n0` that lies in the
+// plane of frame F (from 0.4 m behind it to dMax in front: a county wall bows off its chord) is cut at u0 / u1 along the wall and at the absolute height yTop; the part inside moves to bucket `to` in `tint` (uv in wall metres * S),
+// the rest stays. No vertex moves: the wall, its openings and its collision are what the kit laid out.
+function reskinWall(from, n0, to, F, u0, u1, yTop, tint, dMax = 0.4, S = 0.45) {
+  const rec = []; for (let i = n0 / 3; i < from.pos.length / 3; i++) rec.push({ p: from.pos.slice(i * 3, i * 3 + 3), n: from.nor.slice(i * 3, i * 3 + 3), t: from.uv.slice(i * 2, i * 2 + 2), c: from.col ? from.col.slice(i * 3, i * 3 + 3) : null });
+  from.pos.length = n0; from.nor.length = n0; from.uv.length = n0 / 3 * 2; if (from.col) from.col.length = n0;
+  const U = (v) => (v.p[0] - F.ax) * F.tx + (v.p[2] - F.az) * F.tz, D = (v) => (v.p[0] - F.ax) * F.nx + (v.p[2] - F.az) * F.nz;
+  const mix = (a, b, k) => ({ p: a.p.map((x, j) => x + (b.p[j] - x) * k), n: a.n, t: a.t.map((x, j) => x + (b.t[j] - x) * k), c: a.c ? a.c.map((x, j) => x + (b.c[j] - x) * k) : null });
+  const split = (poly, f) => { const inn = [], out = []; for (let i = 0; i < poly.length; i++) { const a = poly[i], b = poly[(i + 1) % poly.length]; const fa = f(a), fb = f(b); (fa >= 0 ? inn : out).push(a); if ((fa >= 0) !== (fb >= 0)) { const m = mix(a, b, fa / (fa - fb)); inn.push(m); out.push(m); } } return [inn, out]; };
+  const put = (bk, poly, own) => { for (let i = 1; i + 1 < poly.length; i++) for (const v of [poly[0], poly[i], poly[i + 1]]) { bk.pos.push(v.p[0], v.p[1], v.p[2]); bk.nor.push(v.n[0], v.n[1], v.n[2]); if (own) { bk.uv.push(v.t[0], v.t[1]); if (bk.col) bk.col.push(...(v.c || [1, 1, 1])); } else { bk.uv.push(U(v) * S, v.p[1] * S); if (bk.col) bk.col.push(tint[0], tint[1], tint[2]); } } };
+  for (let i = 0; i + 2 < rec.length; i += 3) { let poly = [rec[i], rec[i + 1], rec[i + 2]];
+    if (poly.some((v) => D(v) < -0.4 || D(v) > dMax) || poly.every((v) => U(v) <= u0) || poly.every((v) => U(v) >= u1) || poly.every((v) => v.p[1] >= yTop)) { put(from, poly, true); continue; }
+    for (const f of [(v) => yTop - v.p[1], (v) => U(v) - u0, (v) => u1 - U(v)]) { const [inn, out] = split(poly, f); if (out.length >= 3) put(from, out, true); poly = inn; if (poly.length < 3) break; }
+    if (poly.length >= 3) put(to, poly, false); }
+}
 function gym(ctx, s, h) {
-  const { B } = ctx; const ring = s.ring;
+  const { B } = ctx; const ring = s.ring; const kitN0 = LK.tx ? B.v(LK.cedar.bucket, true).pos.length : 0;
   kitWalls(ctx, ring, h, s.style, { skin: { ...s.skin, brick: LK.cedar.bucket }, id: s.name }); B.c('concrete').prism(ring, 0, h, 1, true); (ctx.buildingRings = ctx.buildingRings || []).push(ring);
   const BROWN = LK.cedar.tint, WSID = LK.cedar.bucket, BR_TAN = LK.tan;   // (this build's siding and roof colour: see lookOf)
   const gb = { tint: BR_TAN, ov: 0.8, gableBucket: WSID, gableTint: BROWN, trim: true };
@@ -132,6 +147,8 @@ function gym(ctx, s, h) {
   let Ff = edgeFrame(blk[3][0], blk[3][1], blk[2][0], blk[2][1]); if (Ff.nx * F.nx + Ff.nz * F.nz < 0) Ff = edgeFrame(blk[2][0], blk[2][1], blk[3][0], blk[3][1]);
   archOpening(ctx, Ff, Ff.L / 2, 0.35, 5.4, 3.3, { mullions: 6, bars: [1.2, 2.25, 3.3], trim: [0.82, 0.81, 0.78], out: 0.05 });
   leanTo(ctx, F, 1.0, ue - hw, 3.4, 4.5, 3.3, { tint: BR_TAN }); leanTo(ctx, F, ue + hw, F.L - 1.0, 3.4, 4.5, 3.3, { tint: BR_TAN });
+  // (texture pack v4; school site photo from the field) the walls behind the two colonnades are the entrance block's cream stucco up to the lean-to roofs, cedar above
+  if (LK.tx) { const base = B.off ? B.off.y : 0; const to = B.v('stucco', true); for (const [ua, ub] of [[1.0, ue - hw], [ue + hw, F.L - 1.0]]) reskinWall(B.v(WSID, true), kitN0, to, F, ua, ub, base + 4.42, PACK.gymBase, 1.0); }
   // the second, smaller gable north of the entrance (a window over the north colonnade): 3D tiles oblique from the field
   { const un = ue - south * 13.5; const c2 = F.P(un, 0, -2.4); gableRoof(ctx, { cx: c2[0], cz: c2[2], ang, L: 6.0, W: 9.0 }, h - 1.2, 2.6, { tint: BR_TAN, ov: 0.6, ovEnd: 0.4, gableBucket: WSID, gableTint: BROWN, ends: [false, true], trim: true });
     const blk2 = [F.P(un - 4.5, 0, -0.6), F.P(un + 4.5, 0, -0.6), F.P(un + 4.5, 0, 0.6), F.P(un - 4.5, 0, 0.6)].map((p) => [p[0], p[2]]); st.setColor(...BROWN); st.prism(blk2, 4.4, h - 1.2, 0.45, false); st.setColor(1, 1, 1); B.c('concrete').prism(blk2, 4.4, h - 1.2, 1, true);
@@ -238,7 +255,7 @@ const STUDY_MAIN = [[-159.0, 113.7], [-174.2, 139.5], [-188.0, 131.4], [-172.8, 
 // Frame: a along the north wall from its west corner (bearing -17 deg), b across the house to the south.
 function newHouse(ctx, s, base, all) {
   const { B } = ctx; const ring = s.ring; const A = -17 * Math.PI / 180, ax = Math.cos(A), az = Math.sin(A), bx = -az, bz = ax; const P = (a, b) => [42.4 + a * ax + b * bx, -20 + a * az + b * bz];
-  const yN = 14.5 - base, yS = 17.4 - base, yR = 20.1 - base, yF = 17.45 - base; const trim = [0.85, 0.85, 0.83]; const HOUSE_WHITE = LK.white || HOUSE_WHITE0, LIGHT_GREY = LK.lightGrey;
+  const yN = 14.5 - base, yS = 17.4 - base, yR = 20.1 - base, yF = 17.45 - base; const trim = [0.85, 0.85, 0.83]; const HOUSE_WHITE = LK.house || HOUSE_WHITE0, LIGHT_GREY = LK.lightGrey;
   stuccoWalls(ctx, ring, yN, { color: HOUSE_WHITE, storeys: 1, w: 1.0, pitch: 2.5, others: all, noDoor: NO_DOOR, trim });
   const south = [P(0, 8), P(11.5, 8), P(11.5, 17.75), P(0.1, 17.75)], flat = [P(11.5, 8), P(17.05, 8), P(16.8, 16.6), P(11.5, 16.6)];
   plainBlock(ctx, south, yN - 0.2, yS, HOUSE_WHITE, null); plainBlock(ctx, flat, yN - 0.2, yF, HOUSE_WHITE, [0.84, 0.84, 0.82]);
@@ -285,7 +302,7 @@ export function buildSchool(ctx) {
         for (const [ua, ub] of [[-box.L / 2 + 1.2, -0.9], [0.5, box.L / 2 - 1.2]]) for (let k = 0; k < 4; k++) { const va = -box.W / 2 + 1.0 + k * 2.1; solarFlat(ctx, box, h + 0.14, ua, ub, va, va + 1.55); }
         flats.push({ s, ring, roofAbs: base + h }); return; }
       if (s.roof === 'flat') { const green = s.key.startsWith('commons'); const sk = green ? LK.conc : LK.lap; stuccoWalls(ctx, ring, h, { color: sk.tint, bucket: sk.bucket, storeys: 1, w: 2.2, pitch: 3.2, others: all, noDoor: NO_DOOR, clear: clearOf(s) }); roofCover(ctx, ring, h + 0.01, green ? SEDUM : [0.72, 0.72, 0.7]); flats.push({ s, ring, roofAbs: base + h }); return; }
-      if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: [0.66, 0.6, 0.5], storeys: 1, w: 2.7, pitch: 3.2, others: all, noDoor: NO_DOOR, glazedEnds: 12, gableRise: 3.5, gableGlass: true, gableDoor: (F) => F.nx > 0.5 && F.nz > 0.5 });   /* (fix round 7: the entrance = glazed doors in the south-east gable, onto the dining terrace) */ /* both gable ends are glass: the west one over the service yard */ const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { ...LK.seam, ov: 0.9, gableTint: [0.66, 0.6, 0.5] }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
+      if (s.key === 'commonsHall') { stuccoWalls(ctx, ring, h, { color: LK.hall.tint, bucket: LK.hall.bucket, storeys: 1, w: 2.7, pitch: 3.2, others: all, noDoor: NO_DOOR, glazedEnds: 12, gableRise: 3.5, gableGlass: true, gableDoor: (F) => F.nx > 0.5 && F.nz > 0.5 });   /* (fix round 7: the entrance = glazed doors in the south-east gable, onto the dining terrace) */ /* both gable ends are glass: the west one over the service yard */ const box = boxOn(ring, 41.5); const r = gableRoof(ctx, box, h, 3.5, { ...LK.seam, ov: 0.9, gableTint: LK.hall.tint, ...(LK.tx ? { gableBucket: LK.hall.bucket } : {}) }); solarOn(ctx, r, -box.L / 2 + 1.5, box.L / 2 - 1.5, 0.9, r.hw - 1.0); return; }
       // Katharine Branson Hall and the quad: cream stucco under clay tile, tall windows in a regular rhythm (arched on the hall), arched doors
       const wallCol = s.key.startsWith('kbh') ? LK.kbh : LK.cream;
       stuccoWalls(ctx, ring, h, { floor: s.level !== undefined ? Math.max(0, s.level - base) : 0, y0: -1.2, plinth: [0.5, 0.45, 0.37], cap: [0.3, 0.22, 0.18], color: wallCol, arched: s.key === 'kbh' || s.key === 'kbhNorth', stoops: s.key === 'kbh', lower: s.key === 'richardson', per: s.key === 'kbh' ? (F) => { const u = kwU(F.ax + F.tx * F.L / 2, F.az + F.tz * F.L / 2); return u > KBH_SPLIT_U ? { up: KBH_WING.se.up, top: KBH_WING.se.eave - s.top, plinth: wallCol, custom: F.nx > 0.6 && F.nz > 0.4 && F.L > 10 ? kbhSeEnd(ctx, s, base) : null } : u > 14 && F.nx > 0.4 && F.nz < -0.6 ? { doorMin: 11 } : null; } : null,   /* (the 12 m piece of the north-east wall by the entrance court keeps its door: the tiles show the entrance steps there) */ storeys: s.key === 'kbh' || s.key === 'kbhNorth' ? 1 : Math.max(1, Math.round(h / 3.2)), others: all, noDoor: NO_DOOR, trim: [0.8, 0.78, 0.72] });
