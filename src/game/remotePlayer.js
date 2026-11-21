@@ -1,7 +1,7 @@
 // A non-local player (network peer or practice dummy): interpolation buffer, third-person character, hitbox.
 import * as THREE from 'three';
 import { createCharacter } from '../visuals/character.js';
-import { terrainActive, conformToGround, lieWeight, castWorld, floorBelow } from './groundConform.js';
+import { terrainActive, conformToGround, lieWeight, castWorld, floorBelow, groundAt } from './groundConform.js';
 
 export const INTERP_DELAY = 0.1; // seconds of buffering for smooth playback
 
@@ -96,39 +96,12 @@ export class RemotePlayer {
     this.deadAt = performance.now() / 1000;
     this.corpse = null;
     if (this.puppeted) { this.character.die(); return; }        // a finisher poses this body
-    const v = this.velocity, push = new THREE.Vector3();
-    if (from) { push.set(this.feet.x - from.x, 0, this.feet.z - from.z); const l = push.length(); push.multiplyScalar(l > 1e-3 ? 1 / l : 0); }
-    push.x += v.x * 0.12; push.z += v.z * 0.12;
-    if (push.lengthSq() < 0.04) push.set(Math.sin(this.yaw) + (Math.random() - 0.5) * 0.8, 0, Math.cos(this.yaw)); // backward
-    const fall = pickFall(this.feet, push.normalize());
-    this.character.die(fall);
-    // the body keeps some of its momentum (a runner stumbles on, a jumper drops to the floor) until it settles
-    const hs = Math.hypot(v.x, v.z), kh = Math.min(this.grounded ? 0.4 : 1, (this.grounded ? 3 : 8) / Math.max(hs, 1e-3));
-    this.corpse = { v: new THREE.Vector3(v.x * kh, Math.min(6, v.y), v.z * kh), t: 0, floor: floorBelow(this.feet) };
-    if (!Number.isFinite(this.corpse.floor)) this.corpse.floor = this.feet.y;
+    const d = deathFall(this.feet, this.velocity, this.grounded, from, this.yaw);
+    this.character.die(d.fall);
+    this.corpse = d.corpse;
   }
 
-  /** Dead body: slides out its momentum (stopped by walls) and drops onto the floor under it. */
-  _settleCorpse(dt) {
-    const c = this.corpse, v = c.v, f = this.feet;
-    c.t += dt;
-    if (c.t > 4) { this.corpse = null; return; }
-    const hs = Math.hypot(v.x, v.z);
-    if (hs > 0.05) {
-      _dir.set(v.x / hs, 0, v.z / hs);
-      if (castWorld(_org.set(f.x, f.y + 0.45, f.z), _dir, hs * dt + 0.4)) v.x = v.z = 0;
-      else {
-        f.x += v.x * dt; f.z += v.z * dt;
-        const fl = floorBelow(f);
-        if (Number.isFinite(fl)) c.floor = fl;
-      }
-    }
-    if (f.y > c.floor + 1e-3 || v.y > 0) {
-      v.y -= 22 * dt;
-      f.y = Math.max(c.floor, f.y + v.y * dt);
-    }
-    if (f.y <= c.floor + 1e-3) { f.y = c.floor; v.y = 0; const k = Math.exp(-6 * dt); v.x *= k; v.z *= k; }
-  }
+  _settleCorpse(dt) { if (!settleCorpse(this.corpse, this.feet, dt)) this.corpse = null; }
 
   hide() {
     this.alive = false;
@@ -262,12 +235,26 @@ export class RemotePlayer {
 
 const _dir = new THREE.Vector3(), _org = new THREE.Vector3(), _fd = new THREE.Vector3();
 const FALL_TRY = [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9, Math.PI];
+const _sp = new THREE.Vector3();
+/** Is there floor for a lying body along `dir` (no drop-off under the torso)? Slopes on the terrain count as floor. */
+function supported(feet, dir) {
+  const onTerrain = terrainActive() && Math.abs(feet.y - groundAt(feet.x, feet.z)) < 0.2;
+  for (const d of [0.8, 1.5]) {
+    _sp.set(feet.x + dir.x * d, feet.y, feet.z + dir.z * d);
+    const fl = floorBelow(_sp);
+    if (fl >= feet.y - 0.4) continue;
+    if (onTerrain && Math.abs(fl - groundAt(_sp.x, _sp.z)) < 0.08) continue;     // a slope: the body lies along it
+    return false;
+  }
+  return true;
+}
 /**
- * Death fall direction that keeps the body out of walls: the preferred push if there is room for a 1.75 m body,
- * else the nearest clear direction, else the roomiest one with the fall cut short (slumped against the wall).
+ * Death fall direction: the preferred push if there is room for a 1.75 m body (no wall) and floor under it (no
+ * drop-off), else the nearest such direction; at a ledge with no supported direction the body goes over the edge
+ * (edge: true, the corpse slides off and drops); boxed in by walls it slumps (fall cut short).
  */
 function pickFall(feet, push) {
-  let best = null, bestC = -1;
+  let best = null, bestC = -1, edge = null;
   for (const a of FALL_TRY) {
     const s = Math.sin(a), c = Math.cos(a);
     _fd.set(push.x * c + push.z * s, 0, -push.x * s + push.z * c);
@@ -276,10 +263,64 @@ function pickFall(feet, push) {
       const hit = castWorld(_org.set(feet.x, feet.y + h, feet.z), _fd, clear);
       if (hit) clear = Math.min(clear, hit.distance);
     }
-    if (clear >= 1.8) return { dir: _fd.clone(), maxAngle: Math.PI / 2 };
+    if (clear >= 1.8) {
+      if (supported(feet, _fd)) return { dir: _fd.clone(), maxAngle: Math.PI / 2 };
+      edge ||= _fd.clone();
+    }
     if (clear > bestC) { bestC = clear; best = _fd.clone(); }
   }
+  if (edge) return { dir: edge, maxAngle: Math.PI / 2, edge: true };
   return { dir: best, maxAngle: Math.asin(Math.min(1, Math.max(0.3, (bestC - 0.2) / 1.7))) };
+}
+
+/**
+ * How a body at `feet` (moving at `vel`) dies: the fall for character.die() (away from `from`, the killer or blast,
+ * plus momentum; out of walls; off a ledge rather than hanging over it) and the corpse state for settleCorpse().
+ */
+export function deathFall(feet, vel, grounded, from, yaw) {
+  const push = new THREE.Vector3();
+  if (from) { push.set(feet.x - from.x, 0, feet.z - from.z); const l = push.length(); push.multiplyScalar(l > 1e-3 ? 1 / l : 0); }
+  push.x += vel.x * 0.12; push.z += vel.z * 0.12;
+  if (push.lengthSq() < 0.04) push.set(Math.sin(yaw) + (Math.random() - 0.5) * 0.8, 0, Math.cos(yaw)); // backward
+  const fall = pickFall(feet, push.normalize());
+  // the body keeps some of its momentum (a runner stumbles on, a jumper drops to the floor) until it settles
+  const hs = Math.hypot(vel.x, vel.z), kh = Math.min(grounded ? 0.4 : 1, (grounded ? 3 : 8) / Math.max(hs, 1e-3));
+  const corpse = { v: new THREE.Vector3(vel.x * kh, Math.min(6, vel.y), vel.z * kh), t: 0, floor: floorBelow(feet), edge: null };
+  if (!Number.isFinite(corpse.floor)) corpse.floor = feet.y;
+  if (fall.edge) corpse.edge = { dir: fall.dir.clone(), left: 1.8, y0: corpse.floor };   // tip over the edge
+  return { fall, corpse };
+}
+
+/** Dead body: slides out its momentum (stopped by walls), tips off a ledge, drops onto the floor. False when settled. */
+export function settleCorpse(c, f, dt) {
+  if (!c) return false;
+  const v = c.v;
+  c.t += dt;
+  if (c.t > 4) return false;
+  if (c.edge) {
+    // carried over the edge as the body topples: keep moving until the feet are past it, then fall with that speed
+    const e = c.edge, sp = 1.2 + 2.2 * Math.min(1, c.t / 0.5);
+    v.x = e.dir.x * sp; v.z = e.dir.z * sp;
+    e.left -= sp * dt;
+    if (c.floor < e.y0 - 0.4 || e.left <= 0) c.edge = null;
+  }
+  const hs = Math.hypot(v.x, v.z);
+  if (hs > 0.05) {
+    _dir.set(v.x / hs, 0, v.z / hs);
+    if (castWorld(_org.set(f.x, f.y + 0.45, f.z), _dir, hs * dt + 0.4)) { v.x = v.z = 0; c.edge = null; }
+    else {
+      f.x += v.x * dt; f.z += v.z * dt;
+      const fl = floorBelow(f);
+      if (Number.isFinite(fl)) c.floor = fl;
+    }
+  }
+  if (f.y > c.floor + 1e-3 || v.y > 0) {
+    v.y -= 22 * dt;
+    f.y = Math.max(c.floor, f.y + v.y * dt);
+  }
+  if (f.y <= c.floor + 1e-3 && !c.edge) { f.y = c.floor; v.y = 0; const k = Math.exp(-6 * dt); v.x *= k; v.z *= k; }
+  else if (f.y <= c.floor + 1e-3) { f.y = c.floor; v.y = 0; }
+  return true;
 }
 
 function lerp(a, b, k) { return a + (b - a) * k; }

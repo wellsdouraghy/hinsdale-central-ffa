@@ -367,6 +367,14 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
     _m.makeBasis(fingers, _v1, _v2.crossVectors(fingers, _v1));
     return out.setFromRotationMatrix(_m).multiply(template.hand[side].frameInv);
   }
+  // terrain slope rotation (up -> ground normal at p, height h there) scaled by w; normal from forward differences
+  const _sn = new THREE.Vector3(), _sq = new THREE.Quaternion(), _sid = new THREE.Quaternion(), _sup = new THREE.Vector3(0, 1, 0);
+  function slopeQ(p, h, w) {
+    const d = 0.2, gx = groundSampler(p.x + d, p.z) - h, gz = groundSampler(p.x, p.z + d) - h;
+    _sn.set(-gx / d, 1, -gz / d).normalize();
+    if (_sn.y < 0.6) _sn.set(0, 1, 0);                              // a step or wall edge, not a slope
+    return _sq.setFromUnitVectors(_sup, _sn).slerp(_sid, 1 - w);
+  }
   // point given in body space (x right, y up, z forward, metres from the feet) -> world
   const body = (out, x, y, z, k) => out.copy(pivotW).addScaledVector(rightW, x * k).addScaledVector(upW, y * k).addScaledVector(fwdW, z * k);
 
@@ -400,7 +408,10 @@ export function createCharacter({ color = 0xcc3333, name = '', look = null } = {
       footR.setFromMatrixPosition(Rt.foot.matrixWorld).sub(hipW).applyQuaternion(qYaw).add(hipW);
       worldQuat(Lf.foot, footLQ).premultiply(qYaw); worldQuat(Rt.foot, footRQ).premultiply(qYaw);
       if (ikW > 1e-3) {
-        const oL = clamp(groundSampler(footL.x, footL.z) - rootY, -0.25, 0.25) * ikW, oR = clamp(groundSampler(footR.x, footR.z) - rootY, -0.25, 0.25) * ikW;
+        const hL = groundSampler(footL.x, footL.z), hR = groundSampler(footR.x, footR.z);
+        const oL = clamp(hL - rootY, -0.25, 0.25) * ikW, oR = clamp(hR - rootY, -0.25, 0.25) * ikW;
+        // the soles tilt with the slope under each foot (normal from the height field)
+        footLQ.premultiply(slopeQ(footL, hL, ikW)); footRQ.premultiply(slopeQ(footR, hR, ikW));
         footL.y += oL; footR.y += oR; drop += Math.max(0, -Math.min(oL, oR));
       }
       if (yawOn) rotateWorld(hips, qYaw, false);

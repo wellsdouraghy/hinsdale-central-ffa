@@ -37,6 +37,8 @@ const _v3 = new THREE.Vector3();
 const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 const r2 = (x) => Math.round(x * 100) / 100;
+// kills by bullets / melee (the body falls away from the killer); anything else may come from a blast
+const GUN_KILLS = new Set([...Object.keys(WEAPON_STATS), 'melee', 'knife', 'finisher', 'heligun']);
 const r3 = (x) => Math.round(x * 1000) / 1000;
 
 export class Game {
@@ -183,6 +185,11 @@ export class Game {
   // ======================= network messages =======================
   handle(m) {
     const t = clock();
+    // explosions seen recently: a body killed by one falls away from the blast (see _deathFrom)
+    if (m.p && (m.t === 'boom' || m.t === 'blast' || m.t === 'rboom')) {
+      (this.recentBlasts ||= []).push({ p: new THREE.Vector3().fromArray(m.p), t });
+      while (this.recentBlasts.length > 8 || (this.recentBlasts.length && this.recentBlasts[0].t < t - 2)) this.recentBlasts.shift();
+    }
     switch (m.t) {
       case 'join':
         if (!this.roster.has(m.p.id)) {
@@ -476,10 +483,24 @@ export class Game {
     this.enemyBars.delete(m.victim);
     if (meV) this._die(m);
     else {
-      // the body falls away from the killer (none for self / environment kills: momentum only)
-      const from = m.killer === m.victim ? null : m.killer === this.localId ? this.player.position : this.remotes.get(m.killer)?.feet;
-      this.remotes.get(m.victim)?.kill(from || null);
+      const r = this.remotes.get(m.victim);
+      r?.kill(r ? this._deathFrom(m, r.feet) : null);
     }
+  }
+
+  /**
+   * World point a body killed by `m` falls away from: the blast for explosive kills (the newest boom / blast seen within
+   * 0.8 s and 12 m of the victim), else the killer; null for self / environment kills without a blast (momentum only).
+   */
+  _deathFrom(m, victimPos) {
+    if (!GUN_KILLS.has(m.w)) {
+      const now = clock();
+      let best = null;
+      for (const b of this.recentBlasts || []) if (now - b.t < 0.8 && b.p.distanceTo(victimPos) < 12 && (!best || b.t >= best.t)) best = b;
+      if (best) return best.p;
+    }
+    if (m.killer === m.victim) return null;
+    return (m.killer === this.localId ? this.player.position : this.remotes.get(m.killer)?.feet) || null;
   }
 
   _die(m) {
@@ -509,7 +530,7 @@ export class Game {
       // Finished off: watch the scene from its camera instead of the kill cam, then the death screen.
       this.deathFlow = { phase: 'finisher' };
     } else if (canCam) {
-      this.deathFlow = { phase: 'pre', until: t + 1, cam: { killerId: m.killer, killTime: t, w: m.w, weapon: weaponName(m.w), killerHp: m.khp ?? null, killerName: this.nameOf(m.killer) } };
+      this.deathFlow = { phase: 'pre', until: t + 1, cam: { killerId: m.killer, killTime: t, from: this._deathFrom(m, this.player.position)?.clone() ?? null, w: m.w, weapon: weaponName(m.w), killerHp: m.khp ?? null, killerName: this.nameOf(m.killer) } };
     } else {
       this.deathFlow = { phase: 'screen', until: t + this.match.respawnDelay };
       this.ui.showDeploy(this.deathInfo);
