@@ -369,7 +369,7 @@ export function storeyWalls(ctx, ringIn, h, o = {}) {
       const door = o.doors !== false && L > 20 ? Math.floor(nb / 2) : -1;
       for (let k = 0; k < nb; k++) {
         const c = m + (k + 0.5) * bay;
-        if (o.piers && k > 0) { wb.setColor(tint[0] * 0.94, tint[1] * 0.94, tint[2] * 0.94); fbox(wb, F, m + k * bay - 0.3, m + k * bay + 0.3, 0.55, top, 0, 0.09, S, u, 'fs'); wb.setColor(tint[0], tint[1], tint[2]); }
+        if (o.piers && k > 0) { wb.setColor(tint[0] * 0.94, tint[1] * 0.94, tint[2] * 0.94); fbox(wb, F, m + k * bay - 0.3, m + k * bay + 0.3, 0.55, top, 0, 0.09, S, u, 'f'); wb.setColor(tint[0] * 0.72, tint[1] * 0.72, tint[2] * 0.72); fbox(wb, F, m + k * bay - 0.3, m + k * bay + 0.3, 0.55, top, 0, 0.09, S, u, 'sw'); wb.setColor(tint[0], tint[1], tint[2]); }   // returns: shaded, bond wrapped, lit like the wall (fbox 'w')
         for (let s = 0; s < n; s++) {
           const y0 = s * fh + sill, y1 = y0 + wh;
           if (s === 0 && k === door) {

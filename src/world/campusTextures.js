@@ -18,31 +18,48 @@ import { withWorld } from './assets.js';
 //         by slow world-space noise: joints stay registered, but no two stretches of wall show the same bricks, so a
 //         2-5 m tile does not read as a grid on a 60 m wall. z = 0 turns it off (low quality: one sample).
 //   uVar  [macro tone drift, rain streaks, micro grain (fades out with distance: no shimmer), roughness variation]
+// All noise is sampled in the SURFACE's own plane: `wp` = (distance along the wall, height) on walls, (x, z) on roofs
+// and paving. Never add height to both axes of a world-xz lookup (`xz * f + y * g`): that shears every blob into a
+// diagonal slash across the wall (v2: pale efflorescence slashes on Brown Hall, worst on low quality).
+// Cost: 5 value-noise lookups + 1 near the camera (v2: 8 + 2), and the second tile sample is only taken where the
+// cross-fade needs it (explicit gradients, so mip selection is unchanged): ~1.1 albedo samples per pixel instead of 2.
 const PARS = 'uniform vec3 uWx; uniform vec3 uAlt; uniform vec4 uVar; uniform vec2 uMic; float txLum = 1.0; float txDamp = 0.0;';
-const WEATHER = `#ifdef USE_MAP
-  vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+const WEATHER = `
+  float wallness = 1.0 - smoothstep(0.5, 0.9, abs(vWN.y));                               // grade damp / streaks / bloom belong on walls, not on roofs and paving
+  bool txAlongX = abs(vWN.x) > abs(vWN.z);                                               // wall faces +-x: it runs along z
+  vec2 wp = wallness > 0.5 ? vec2(txAlongX ? vWPos.z + 31.7 : vWPos.x, vWPos.y) : vWPos.xz;
+  float g1 = wNoise(wp * vec2(0.37, 0.21));                                              // broad grime, taller than wide
+  float g2 = wNoise(wp * vec2(1.7, 0.9) + 5.3);
+  float big = wNoise(wp * vec2(0.085, 0.11) + 11.1);                                     // slow drift: no two bays look the same
+#ifdef USE_MAP
+  vec4 sampledDiffuseColor;
   if (uAlt.z > 0.0) {
-    float am = wNoise(vWPos.xz * 0.19 + vec2(vWPos.y * 0.23, -vWPos.y * 0.17)) * 0.65 + wNoise(vWPos.xz * 0.53 + vWPos.y * 0.61) * 0.35;
-    sampledDiffuseColor = mix(sampledDiffuseColor, texture2D( map, vMapUv + uAlt.xy ), smoothstep(0.44, 0.56, am) * uAlt.z);
-  }
+    float am = smoothstep(0.42, 0.58, wNoise(wp * vec2(0.23, 0.29) + 3.7) * 0.7 + g2 * 0.3) * uAlt.z;
+    vec2 gx = dFdx(vMapUv), gy = dFdy(vMapUv);
+    if (am < 0.999) sampledDiffuseColor = textureGrad( map, vMapUv, gx, gy );
+    if (am > 0.001) { vec4 s2 = textureGrad( map, vMapUv + uAlt.xy, gx, gy ); sampledDiffuseColor = am < 0.999 ? mix(sampledDiffuseColor, s2, am) : s2; }
+  } else sampledDiffuseColor = texture2D( map, vMapUv );
   txLum = dot(sampledDiffuseColor.rgb, vec3(0.3, 0.55, 0.15));
   diffuseColor *= sampledDiffuseColor;
 #endif
-  { float gr = wNoise(vWPos.xz * 0.35 + vWPos.y * 0.9) * 0.6 + wNoise(vec2(vWPos.x + vWPos.z, vWPos.y) * 1.7) * 0.4;
-    float big = wNoise(vec2(vWPos.x * 0.07 + vWPos.z * 0.11, vWPos.y * 0.13));          // slow drift: no two bays look the same
-    float wallness = 1.0 - smoothstep(0.5, 0.9, abs(vWN.y));                             // grade damp / streaks belong on walls, not on roofs and paving
+  { float gr = g1 * 0.6 + g2 * 0.4;
     float base = smoothstep(1.1, 0.0, vWPos.y) * wallness;
     txDamp = uWx.y * base * (0.6 + 0.8 * gr);
     diffuseColor.rgb *= (1.0 - uWx.x * 0.5 + uWx.x * gr) * (1.0 - uVar.x * 0.5 + uVar.x * big) * (1.0 - txDamp);
     diffuseColor.rgb *= mix(vec3(1.0), vec3(1.035, 1.0, 0.955), (big - 0.5) * 2.0 * uVar.x * 2.0);   // warm / cool drift with the tone drift
-    float st = wNoise(vec2(vWPos.x * 2.3 + vWPos.z * 1.7, vWPos.y * 0.11)) * 0.7 + wNoise(vec2(vWPos.x * 5.1 - vWPos.z * 4.3, vWPos.y * 0.23)) * 0.3;
+    float st = wNoise(vec2(wp.x * 3.1, wp.y * 0.12)) * 0.75 + g2 * 0.25;
     diffuseColor.rgb *= 1.0 - uVar.y * wallness * smoothstep(0.52, 0.85, st);              // rain run-off: long vertical streaks
-    float eff = smoothstep(0.72, 0.95, wNoise(vWPos.xz * 0.9 + vWPos.y * 2.3)) * smoothstep(0.2, 1.2, vWPos.y) * uWx.z * wallness;
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8, 0.78, 0.74), eff);
+    // efflorescence: soft pale bloom low on the wall (above the damp base, gone by ~3 m: splash zone and under the
+    // ground-floor sills), blobs taller than wide, thin enough that the brick still shows through
+    float effBand = smoothstep(0.25, 0.9, vWPos.y) * (1.0 - smoothstep(1.6, 3.0, vWPos.y)) * wallness * uWx.z;
+    if (effBand > 0.001) {
+      float eff = smoothstep(0.66, 0.92, wNoise(wp * vec2(0.8, 0.42) + 17.3) * 0.8 + g2 * 0.2) * effBand;
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.74, 0.71, 0.66), eff);
+    }
     #ifdef USE_MAP
     float pxw = length(fwidth(vWPos));
     float mf = smoothstep(0.006, 0.0012, pxw) * uVar.z;                                    // only where a texel is bigger than a pixel
-    if (mf > 0.001) { vec2 q = fract(vMapUv) * uMic; diffuseColor.rgb *= 1.0 + mf * (wNoise(q) + wNoise(q * 2.3 + 7.1) - 1.0); }
+    if (mf > 0.001) { vec2 q = fract(vMapUv) * uMic; diffuseColor.rgb *= 1.0 + mf * 1.5 * (wNoise(q) - 0.5); }
     #endif
   }`;
 const ROUGH = `float roughnessFactor = roughness;

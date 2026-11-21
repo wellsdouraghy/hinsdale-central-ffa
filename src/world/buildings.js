@@ -224,13 +224,16 @@ function bigFlag(ctx, x, z, kind) {
 
 // 55th St front: lawn, drop-off drive with kerbs, the main walk up to the doors flanked by limestone planters,
 // flagpoles and the monument sign by the street (positions read off the aerial imagery).
+// Clay-paver walks: their own generated texture when the campus pack has one (`hcPaver`, keyed). `brickRed` is the red
+// BRICK of low walls, piers and sign bases: paver-sized units on a wall read wrong, so the two no longer share a tile.
+function paverBucket(ctx) { const e = ctx.TX && ctx.TX.tex.hcPaver; return e && e.key ? ctx.B.v('hcPaver', true) : ctx.B.v('brickRed'); }
 function frontApproach55(ctx, addDecal) {
   const { B, M } = ctx;
   const conc = B.v('concrete');
   for (const [x0, x1, z1, paver] of [[52.5, 69.5, -150.7, true], [15.6, 19.6, -149.6, false]]) {
     conc.box((x0 + x1) / 2, 0.02, (-168.6 + z1) / 2, x1 - x0, 0.045, z1 + 168.6, 0, 1 / 3);
     if (paver) {   // brick paver runner down the middle, like the engraved-brick walks at the school
-      const br = B.v('brickRed'); const a = 59.2, b = 62.8;
+      const br = paverBucket(ctx); const a = 59.2, b = 62.8;
       br.quad([a, 0.062, z1], [b, 0.062, z1], [b, 0.062, -168.6], [a, 0.062, -168.6], [0, 0], [1.6, 0], [1.6, 8], [0, 8]);
     }
   }
@@ -275,7 +278,7 @@ function grantPlaza(ctx, addDecal) {
   const lift = (F) => ({ ...F, P: (u, y, o) => { const p = F.P(u, y, o); p[1] += T; return p; } });
   // terrace
   B.solidBox('concrete', 'concrete', (wx + xe) / 2, T / 2, 1.25, wx - xe, T, 37.5, 0, 1 / 3);
-  B.v('brickRed').quad([-18.2, T + 0.03, 17.6], [-6.7, T + 0.03, 17.6], [-6.7, T + 0.03, 6.4], [-18.2, T + 0.03, 6.4], [0, 0], [5.6, 0], [5.6, 5.4], [0, 5.4]);
+  paverBucket(ctx).quad([-18.2, T + 0.03, 17.6], [-6.7, T + 0.03, 17.6], [-6.7, T + 0.03, 6.4], [-18.2, T + 0.03, 6.4], [0, 0], [5.6, 0], [5.6, 5.4], [0, 5.4]);
   // steps (7 risers) on the west side in front of the doors, with a ramp in collision
   const conc = B.v('concrete');
   for (let k = 0; k < 6; k++) { const top = T - (k + 1) * (T / 7); conc.box(xe - 0.19 - k * 0.38, top / 2, 12, 0.38, top, 16, 0, 1 / 3); }

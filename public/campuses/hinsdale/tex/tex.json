@@ -16,9 +16,9 @@
     1024
    ],
    "meanLinear": [
-    0.3323,
-    0.1841,
-    0.1261
+    0.3282,
+    0.1891,
+    0.1113
    ],
    "courseM": 0.0665,
    "unitM": 0.2035,
@@ -43,9 +43,9 @@
     1024
    ],
    "meanLinear": [
-    0.402,
-    0.2445,
-    0.161
+    0.3156,
+    0.167,
+    0.0905
    ],
    "courseM": 0.0665,
    "unitM": 0.2035,
@@ -77,9 +77,9 @@
     1024
    ],
    "meanLinear": [
-    0.2911,
-    0.1796,
-    0.1197
+    0.2717,
+    0.1456,
+    0.0824
    ],
    "courseM": 0.0665,
    "unitM": 0.2035,
@@ -138,9 +138,9 @@
     1024
    ],
    "meanLinear": [
-    0.3269,
-    0.1336,
-    0.0977
+    0.27,
+    0.052,
+    0.03
    ],
    "courseM": 0.096,
    "unitM": 0.198,
@@ -148,8 +148,40 @@
     1.386,
     0.576
    ],
-   "roughness": 0.9,
-   "normalScale": 0.8
+   "key": "hcPaver",
+   "uvM": 2.2,
+   "roughness": 0.95,
+   "normalScale": 0.8,
+   "vertexColors": true,
+   "weather": false,
+   "envMapIntensity": 0.6
+  },
+  {
+   "name": "hcBrickRed",
+   "kind": "brick",
+   "map": "hcBrickRed_c.jpg",
+   "normal": "hcBrickRed_n.jpg",
+   "sizeM": [
+    2.6455,
+    1.064
+   ],
+   "px": [
+    1024,
+    512
+   ],
+   "meanLinear": [
+    0.269,
+    0.0878,
+    0.0596
+   ],
+   "courseM": 0.0665,
+   "unitM": 0.2035,
+   "altM": [
+    1.4245,
+    0.399
+   ],
+   "roughness": 0.92,
+   "normalScale": 1.0
   }
  ],
  "overrides": {
@@ -176,15 +208,15 @@
    "normalScale": 0.7
   },
   "brickRed": {
-   "tex": "hcPaver",
+   "tex": "hcBrickRed",
    "uvM": 2.0,
    "tint": [
     1,
     1,
     1
    ],
-   "roughness": 0.9,
-   "normalScale": 0.8
+   "roughness": 0.92,
+   "normalScale": 1.0
   }
  },
  "replaces": [

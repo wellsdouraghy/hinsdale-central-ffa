@@ -70,7 +70,16 @@ Python: `numpy`, `pillow`, `scipy` (a venv is fine). Run everything from the rep
   src/world/campusTextures.js: a second sample of the tile shifted by `altM` (a whole number of units / courses, from
   the generator) cross-faded by world noise, tone and warm-cool drift (`macro`, 0.3), rain streaks (`streaks`, 0.1),
   micro grain near the camera (`micro`, 0.1) and texel-driven roughness (`roughVar`, 0.5). `alt: 0` switches the
-  second sample off for one texture; low quality never takes it.
+  second sample off for one texture; low quality never takes it. All of its noise is sampled in the surface's own
+  plane (distance along the wall, height): never `xz * f + y * g`, which shears blobs into diagonal slashes. The
+  second sample is fetched only inside the cross-fade band (`textureGrad`), efflorescence only between 0.25 and 3 m.
+- Colour is judged in the game: the tone curve and the sky fill lift G and B on a sunlit wall, so a face target that
+  matches the photo swatch can render peach. Measure a wall patch in a screenshot (sunlit R/G >= 1.3 for red-brown
+  brick, B < G in shade) and move the target (MAP_NOTES "Textures from references", item 9).
+- Before overriding a shared material key, grep where it is used: one key must not skin both paving and walls
+  (Hinsdale `brickRed`: walks now use the keyed `hcPaver`, low walls the `hcBrickRed` tile).
+- Brick piers: `fbox(..., 'f')` for the face and `fbox(..., 'sw')` for the returns (shaded, bond wrapped round the
+  corner, lit like the wall: thin returns otherwise catch sun that leaks through the shadow bias).
 - Masonry colour: `colors` + `weights` are the palette of unit faces, `target` the measured mean of the FACES (mortar is
   its own swatch), `target_tile` a whole-wall mean instead. Detail knobs (all optional): `texture` (wirecut, sand,
   smooth, split), `unit_var`, `hue_var`, `grad`, `flash`, `heart_frac`, `scum_frac`, `chips`, `wobble`, `smear`, `pits`,

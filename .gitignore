@@ -19,3 +19,4 @@ tools/textures/**/refs_raw/
 # side-by-sides that contain reference photos (local review only)
 dev/shots/textures/*/ref-compare/
 dev/shots/textures/*/v2/ref-compare/
+dev/shots/textures/*/v3/ref-compare/

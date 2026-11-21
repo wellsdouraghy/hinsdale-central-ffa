@@ -151,7 +151,7 @@ Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they
    Measure the old tile's linear mean from the file; do not trust a constant in the code (the shared shingle tile is
    0.032, the kits' `TILE_AVG` says 0.2: a neutral 0.2 shingle turned every Marin and Branson roof pink-white).
 6. **Check**: `?tex=0` is the before, default the after; one side-by-side per school building (before | after | photo
-   from the same side) in `dev/shots/textures/<id>/v2/` (the `ref-compare/` folder there is gitignored because
+   from the same side) in `dev/shots/textures/<id>/v<n>/` (the `ref-compare/` folder there is gitignored because
    it contains the photos). Map check 0 fails, practice with no console errors, FPS on medium, pack size (2-4 MB).
 7. **Colour: what made the difference (v2, after "Hinsdale brick is too grey").** The v1 Hinsdale bricks were measured
    honestly and still came out grey-purple in the game. Why, and the rules that fix it:
@@ -178,6 +178,30 @@ Hinsdale, Hamilton, Marin and Branson all had to be gone over again because they
 8. Lessons so far: a clay-tile or batten albedo with no baked shading reads as flat stripes (bake the barrel / batten
    shadow into the colour, the normal map alone is not enough at roof distance); mission tile must be double-sided like
    shingles; a brick tile under ~2.5 m wide repeats visibly on a 60 m gym wall unless the weathering shader is on.
+9. **v3 lessons (independent QA of v2: slashes on Brown Hall, coral paver units on walls, peach gyms, purple north front).**
+   - **Weathering noise lives in the wall's own plane.** Sample it with (distance along the wall, height): pick x or z
+     by the dominant axis of the normal, (x, z) on roofs and paving. `noise(xz * f + y * g)` adds height to BOTH axes
+     and shears every blob into a diagonal slash; it hid on variegated Hinsdale brick and showed on even Hamilton
+     brick, worst on low quality (one sample, nothing to break it up). Efflorescence stays low on the wall (0.25-3 m),
+     blobs taller than wide. Check every shader change on the most EVEN wall of every campus, at low quality too.
+   - **Set albedo for what the wall looks like in the game, not for the swatch.** ACES plus the blue hemisphere fill
+     lift G ~8 % and B ~30 % relative to R on a sunlit wall, and pale mortar adds more of both: a face target of
+     [0.43, 0.225, 0.128] rendered 177/148/132 (peach), [0.335, 0.148, 0.064] with a darker warm mortar renders
+     177/134/107 (brick). Rule of thumb for a sunlit wall in a screenshot: R/G >= 1.3 reads brick, 1.2 reads peach;
+     in shade B must stay under G or the wall goes purple. Measure the screenshot (mean of a wall patch), then move
+     the target; do not eyeball it.
+   - **One generated tile per real material, and check where a material key is USED before overriding it.**
+     `brickRed` was both the paver walks and every low red wall, dugout, pier and sign base: pointing it at the paver
+     tile put paver-sized coral units on vertical walls. Walks now take their own keyed tile (`hcPaver`, see
+     `paverBucket` in src/world/buildings.js); walls take a small red-brick tile. grep the key before the override.
+   - **Dark units: 1 in 60-80, and brown-black, not red-black.** A dark unit with R/G > 2.5 reads plum in shade.
+   - **Returns thinner than ~15 cm sit inside the shadow bias of the wall behind them**: on a shaded front the sun
+     leaked onto every east / west pilaster return and drew a thin pale line up each pier (also with the pack off).
+     The facade kit's `fbox(..., 'sw')` gives masonry returns a shading normal leaning to the wall's, a darker tint
+     and u continued round the corner. Use it for every brick pier (Hinsdale kit, Hamilton `storeyWalls`).
+   - **Frame time**: `__bench` in a hidden pane on a machine shared with other agents is +-1 ms noise. A/B inside
+     one tab (toggle the uniform, e.g. `material.userData.txSurface.uAlt.value.z`), interleave the runs and take the
+     minimum. The second tile sample is now taken only where the cross-fade needs it (`textureGrad`, so mips match).
 
 ## Map check (required before QA)
 

@@ -12,11 +12,12 @@ export function edgeFrame(ax, az, bx, bz) {
   const tx = dx / L, tz = dz / L, nx = tz, nz = -tx;
   return { L, tx, tz, nx, nz, rotY: Math.atan2(-tz, tx), ax, az, P: (u, y, out = 0) => [ax + tx * u + nx * out, y, az + tz * u + nz * out] };
 }
-export function quadFacing(b, p0, p1, p2, p3, n, uv) {
+// `sn` (optional): shading normal written to the vertices instead of the geometric one.
+export function quadFacing(b, p0, p1, p2, p3, n, uv, sn) {
   const ux = p1[0] - p0[0], uy = p1[1] - p0[1], uz = p1[2] - p0[2], vx = p3[0] - p0[0], vy = p3[1] - p0[1], vz = p3[2] - p0[2];
   const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
-  if (cx * n[0] + cy * n[1] + cz * n[2] >= 0) b.quad(p0, p1, p2, p3, uv && uv[0], uv && uv[1], uv && uv[2], uv && uv[3]);
-  else b.quad(p0, p3, p2, p1, uv && uv[0], uv && uv[3], uv && uv[2], uv && uv[1]);
+  if (cx * n[0] + cy * n[1] + cz * n[2] >= 0) b.quad(p0, p1, p2, p3, uv && uv[0], uv && uv[1], uv && uv[2], uv && uv[3], sn);
+  else b.quad(p0, p3, p2, p1, uv && uv[0], uv && uv[3], uv && uv[2], uv && uv[1], sn);
 }
 // rectangle on the wall plane (offset out), facing outward; uvr = [u0, v0, u1, v1]
 export function wallRect(b, F, u0, u1, y0, y1, out, uvr) {
@@ -25,13 +26,20 @@ export function wallRect(b, F, u0, u1, y0, y1, out, uvr) {
 }
 // box standing off the wall: spans u0..u1, y0..y1, out o0..o1 (o1 > o0). Draws front, both sides, top, bottom.
 // s = uv metres->uv scale, uOff shifts u for continuous brick coursing.
+// faces: f front, s both sides, t top, b bottom; 'w' with 's' = masonry returns: the bond WRAPS the corner (the side's u
+// continues from the front face's edge, so a return shows the brick ends the front face implies, not column 0 of the tile)
+// and the return is LIT LIKE THE WALL it stands on (shading normal leaning 80 % to the wall's): a 10 cm return sits
+// inside the shadow bias of the wall behind it, so on a shaded front the sun leaked onto every east / west return and
+// drew a thin pale line up each pier.
 export function fbox(b, F, u0, u1, y0, y1, o0, o1, s = 1, uOff = 0, faces = 'fstb') {
   const n = [F.nx, 0, F.nz], t = [F.tx, 0, F.tz];
   if (faces.includes('f')) wallRect(b, F, u0, u1, y0, y1, o1, [(uOff + u0) * s, y0 * s, (uOff + u1) * s, y1 * s]);
   if (faces.includes('s')) {
-    const d = (o1 - o0) * s;
-    quadFacing(b, F.P(u0, y0, o0), F.P(u0, y1, o0), F.P(u0, y1, o1), F.P(u0, y0, o1), [-t[0], 0, -t[2]], [[0, y0 * s], [0, y1 * s], [d, y1 * s], [d, y0 * s]]);
-    quadFacing(b, F.P(u1, y0, o0), F.P(u1, y1, o0), F.P(u1, y1, o1), F.P(u1, y0, o1), t, [[0, y0 * s], [0, y1 * s], [d, y1 * s], [d, y0 * s]]);
+    const d = (o1 - o0) * s, wrap = faces.includes('w');
+    const a0 = wrap ? (uOff + u0) * s - d : 0, a1 = a0 + d, b1 = wrap ? (uOff + u1) * s : d, b0 = wrap ? b1 + d : 0;
+    const sn = (k) => (wrap ? [0.8 * n[0] + 0.6 * k * t[0], 0, 0.8 * n[2] + 0.6 * k * t[2]] : undefined);
+    quadFacing(b, F.P(u0, y0, o0), F.P(u0, y1, o0), F.P(u0, y1, o1), F.P(u0, y0, o1), [-t[0], 0, -t[2]], [[a0, y0 * s], [a0, y1 * s], [a1, y1 * s], [a1, y0 * s]], sn(-1));
+    quadFacing(b, F.P(u1, y0, o0), F.P(u1, y1, o0), F.P(u1, y1, o1), F.P(u1, y0, o1), t, [[b0, y0 * s], [b0, y1 * s], [b1, y1 * s], [b1, y0 * s]], sn(1));
   }
   if (faces.includes('t')) quadFacing(b, F.P(u0, y1, o0), F.P(u1, y1, o0), F.P(u1, y1, o1), F.P(u0, y1, o1), [0, 1, 0], [[u0 * s, 0], [u1 * s, 0], [u1 * s, (o1 - o0) * s], [u0 * s, (o1 - o0) * s]]);
   if (faces.includes('b')) quadFacing(b, F.P(u0, y0, o0), F.P(u1, y0, o0), F.P(u1, y0, o1), F.P(u0, y0, o1), [0, -1, 0], [[u0 * s, 0], [u1 * s, 0], [u1 * s, (o1 - o0) * s], [u0 * s, (o1 - o0) * s]]);
@@ -334,8 +342,10 @@ export function facade(ctx, F, y0, h, styleName, uOff, rnd, opts = {}) {
     drawnPiers.push([uc, w, out]);
     // deep pilasters on the big blank walls get a slightly darker brick so they read as pilasters, not as one stray edge line
     // (their returns are shaded darker still: a 14 cm sunlit brick return read as a bright seam running up the wall)
-    if (out >= 0.14) { setTint(brick, tint, 0.9); fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 'f'); setTint(brick, tint, 0.62); fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 's'); setTint(brick, tint); }
-    else fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 'fs');
+    // Returns of every pier are a shade darker (the corner's own occlusion), carry the bond round the corner and take
+    // the wall's lighting ('w' in fbox): no thin pale line up the pier edges of a shaded front.
+    if (out >= 0.14) setTint(brick, tint, 0.9);
+    fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 'f'); setTint(brick, tint, out >= 0.14 ? 0.66 : 0.74); fbox(brick, F, a, b, pY - 0.02, wallTop, 0, out, BRICK_S, uOff, 'sw'); setTint(brick, tint);
     fbox(pl, F, a - 0.04, b + 0.04, 0, pY + 0.04, 0, out + 0.07, STONE_S, uOff, 'fst');
     fbox(B.v('limestone'), F, a - 0.03, b + 0.03, wallTop - 0.16, wallTop, 0, out + 0.04, STONE_S, uOff, 'fstb');
   }
